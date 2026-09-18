@@ -1975,3 +1975,31 @@ package against §33 and §49.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 135 | The MCP layer's only knowledge of the worker protocol is the CLI's JSON envelope — no version, no codes, no socket of its own | ✓ | §42 — `spawn` of the CLI is the only transport the package uses |
+| 136 | §58's namespace is configured in one place: every bundle-id, plist-name, log-subsystem and queue-label literal routes through `BundleIdentifiers`, including the helper's signature requirement | ✓ | §43 |
+| 137 | The architecture document's module map names every file that exists — all 24 Core modules, the worker's preview stream, and the real (not phase-placeholder) descriptions of app, helper and MCP | ✓ | §43 |
+
+
+---
+
+## 43. Namespace unification and the architecture map
+
+Two late-arriving consistency repairs, both found the same way — mechanically
+diffing a document or constant against what actually exists:
+
+- **§58 was decoration.** `BundleIdentifiers` existed with a comment citing the
+  section, and zero references: twenty literals across thirteen files, including
+  the helper's code-signing requirement. Everything now routes through it, plus
+  derived constants (`helperPlist`, `logSubsystem` — deliberately not the app
+  bundle id, since documented `log show` commands depend on it). The one
+  dangerous divergence — a requirement that no longer matches what was signed —
+  is now structurally impossible.
+- **The module map was a POC snapshot.** The architecture document listed ten
+  of Core's twenty-four files and described the app and helper as phase
+  placeholders. It now names every module with one line, and states the §49
+  seam where it lives: the MCP package spawns the CLI.
+
+Full build clean, 325 tests, 0 failures.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 138 | `agentspace --help` describes exactly the commands that dispatch, no more and no fewer | ✓ | §41 → mechanical diff, the two omissions fixed |
