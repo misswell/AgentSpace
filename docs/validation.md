@@ -5739,3 +5739,28 @@ figures the §182 parser produces.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 363 | Dashboard shows CPU/Memory/Processes/Disk as real per-UID figures with zero "Allocated" wording, disk gated behind an explicit measurement | ✓ | §201 — SpaceDetailView.swift:96,231–237 |
+
+
+---
+
+## 202. §39's "no stealthy startup after reboot" is a launchd fact, not a
+policy
+
+The worker's LaunchAgent template sets
+`LimitLoadToSessionType = Aqua`, so launchd only loads the job
+inside an Aqua GUI session. After a reboot the AgentSpace user
+has none, the plist is simply not loaded, and no worker runs —
+the Needs Login state is launchd's own behavior, not a promise
+the app makes. The same template pairs `RunAtLoad = true` with
+`KeepAlive SuccessfulExit = false`, which is exactly the plan's
+flow: the moment the human fast-switches in, the worker starts
+and stays started. Belt and braces: the plist pins UserName to
+the space account while the worker's own never-root gate exits
+77, and the helper's ten-operation whitelist contains no
+auto-login path at all. Even the provisioning order respects
+the semantics — the worker is installed last because RunAtLoad
+starts it immediately.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 364 | LimitLoadToSessionType=Aqua makes post-reboot "Needs Login" a launchd fact; RunAtLoad+KeepAlive implement the sign-in-once flow; no auto-login path exists in the helper | ✓ | §202 — HelperProtocol.swift:489–496, HelperService.swift:463, SpaceProvisioner.swift:105 |
