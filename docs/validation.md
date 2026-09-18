@@ -6817,3 +6817,22 @@ recoverable: false.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 410 | §21's recoverable defaults from the code's own classification; remediation rides every error; the encode-failure fallback keeps the shape | ✓ | §248 — ErrorCodes.swift:60–77, 159–177, Connection.swift:45 |
+
+
+---
+
+## 249. §20's requestId echoes back as §21's response id
+
+Every reply the worker sends — success and both error paths —
+constructs RPCResponse(id: request.requestId, ...), so callers
+correlate answers with requests exactly as §21's "id" promises.
+The request side defaults the id to a fresh UUID when a caller
+omits it, a round-trip test pins the field across the codec
+(and the protocol version beside it), and the response-shape
+tests fix ok:true without an error key and newline framing. The
+encode-failure fallback replies with an empty id rather than a
+fabricated one.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 411 | §20's requestId is echoed on all three reply paths, defaulted to a UUID, and pinned by codec and shape tests | ✓ | §249 — main.swift:390–411, Protocol.swift:158–171, ProtocolTests.swift:10–34 |
