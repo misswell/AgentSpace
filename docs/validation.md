@@ -4167,3 +4167,22 @@ pin-parsed line by line.
 |---|---|---|---|
 | 285 | Resource sampling summarises actual CPU/RAM/processes by UID with opt-in disk, no Allocated fields, and status stays sampling-free | ✓ | §127 — sample(uid:) and the safety assertion |
 | 286 | The ps parsing itself lacks a direct unit test (integration-covered) | — | §127, stated limitation |
+
+
+---
+
+## 128. §46's GUI elements all exist in a deliberately small file set
+
+The app is seven Swift files — App, AppModel, SpaceService, four
+Views — with eight view structs. Mapping §46: the SwiftUI App shell;
+the dashboard with running/needs-login cards; the creation wizard
+(`NewSpaceView` — name, workspace kind None/Git Worktree/Shared
+Folder exactly as §28's step 2, showing the worktree path before
+committing); permission status in SpaceDetail and Doctor; the
+Desktop screenshot viewer; input through the viewer; logs via
+Diagnostics. The small surface is §27's "极简、原生" taken
+seriously, not missing features.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 287 | All seven §46 GUI elements exist; the wizard offers §28's three workspace kinds and previews the worktree path before creating | ✓ | §128 — the views census |
