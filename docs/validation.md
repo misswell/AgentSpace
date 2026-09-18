@@ -5378,3 +5378,28 @@ worse than refusing.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 348 | Nine §14 verbs present (doubleClick/rightClick as parameterized click with derived wire names), whole-batch parse with count and sleep caps, tolerant modifiers, finite fail-closed key table | ✓ | §186 — InputAction, InputLimits, KeyCombo |
+
+
+---
+
+## 187. §31/§32's CLI surface: every planned command present, one global
+--json, and §2's envelope on the failure path
+
+All fourteen §31 commands are in the CLI (list, status,
+screenshot, click, type, key, scroll, drag, launch, quit, apps,
+exec, desktop, create, delete) plus a documented superset:
+input/move, preview, integrate, helper, diagnostics, doctor, and
+the ax.* family. `--json` is a global boolean flag — the flag
+table strips the leading dashes, which is why a naive grep for
+the literal misses it, and its doc records the real bug it once
+was (a value flag that made `status --json` demand an argument).
+The Emitter's two shapes close the loop: JSON mode prints the
+envelope as the whole answer so scripts can branch, and the
+failure shape is exactly §2's fail-closed body — status
+"unavailable", reason AGENT_SESSION_NOT_READY, ok false, plus the
+typed error. Human mode shows code, message and fix, because "a
+bare failed is what makes a tool unusable".
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 349 | Every §31 command plus a superset exists; --json is global with a recorded parse-bug fix; the JSON failure envelope is §2's fail-closed shape verbatim | ✓ | §187 — main.swift command switch, booleanFlags, Emitter |
