@@ -5598,3 +5598,25 @@ this one at all.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 357 | README first screen reproduces §59 verbatim — headline, body, three denials, dual-desktop diagram — plus §1's four user-side guarantees and the architecture line | ✓ | §195 — README.md |
+
+
+---
+
+## 196. §61's out-of-scope list: absent in code, documented as design
+
+Two sweeps over all Swift, TypeScript and JSON sources — the MCP
+package included — find no cloud sync, accounts, marketplace,
+model provider, LLM chat, task orchestration, Docker,
+Virtualization, team or remote-Mac code paths. The exclusion is
+stated, not merely absent: architecture.md has a "What this
+deliberately does not do (V1)" section naming all fourteen §61
+items with the plan citation, closing with the plan's own thesis
+— one Mac, several background GUI sessions, an agent that can
+drive them, a human who is not interrupted — "stable before
+broad". The MCP package's five-file surface is correspondingly
+narrow: there is nowhere for orchestration or chat to grow
+without a deliberate addition.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 358 | All §61 exclusions are absent from code (two-tool sweep) and named in a documented V1 scope section; MCP surface stays five files wide | ✓ | §196 — repo sweeps, architecture.md "deliberately does not do" |
