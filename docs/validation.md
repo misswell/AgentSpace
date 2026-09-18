@@ -48,7 +48,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 28 | The §52 live preview is pull-model, fail-closed on console, self-stops when unpulled, and falls back to the 1 FPS MVP when refused | ✓ | §24 — 6 controller tests + 2 process-boundary tests; SCK delivery itself needs a background session and is marked unverified |
 | 29 | The §37 diagnostics export is safe to hand out: whitelist collection + a redaction pass, with the token never surviving either | ✓ | §25 — 7 unit tests + a live-worker integration test |
 | 30 | Stop keeps the session, Logout ends the session through a typed root-only helper RPC, Delete is the only thing that removes a Space | ✓ | §26 — stop pinned by a live test; logout validation pinned; the logout run itself needs the root helper and is recorded as blocked |
-| 31 | Idle resources measured against §53: worker 2.7 MB / 0.0% CPU; app 0.0% CPU, 108.8 MB RAM (~9% over, honest miss with the lever recorded) | ✓ | §27 — release-build measurements, registry-independent |
+| 31 | Idle resources measured against §53: worker 2.7 MB / 0.0% CPU; app 0.0% CPU, 108.8 MB with a Space registered, 92–102 MB fresh-idle, 68.9 MB of which is the bare SwiftUI floor — AgentSpace's own contribution is ~25 MB | ✓ | §27, §34 — release-build measurements |
 | 32 | 1000 sequential RPC round trips leave the worker healthy at ~6.5 ms/call | ✓ | §28 — protocol half of §44; the isolation half stays blocked on a second session |
 | 33 | Doctor names per-Space Accessibility and Screen Recording, asked of the worker, with panel-path fixes | ✓ | §29 — live-worker integration test; caught the wrong-root bug on its first run |
 | 34 | No polling loops; the §44 gate refuses (exit 66) rather than passing without a Space | ✓ | §30 — code audit, 0.0% idle CPU, and the acceptance run's honest refusal |
@@ -1641,3 +1641,40 @@ user can execute it directly once credentials are valid.
 |---|---|---|---|
 | 117 | Hardened runtime + secure timestamp present on all four artifacts after the timestamp fix | ✓ | this run |
 | 118 | Notarization submission is blocked solely on the ASC credential (rejected by Apple, re-verified) | ✓ | `asc notarization list` 401, twice |
+
+
+---
+
+## 34. The §53 memory question, decomposed: floor, band, and AgentSpace's own share
+
+§27 recorded 108.8 MB idle app RAM against the plan's < 100 MB target — an
+honest miss with the lever ("lazy-load the SwiftUI stack") recorded rather than
+claimed. This round decomposes the number instead of re-measuring it:
+
+- **The framework floor is 68.9 MB.** A minimal SwiftUI app — one WindowGroup,
+  one `Text`, no AgentSpace code, release-built with `swiftc -O` — measures
+  68.9 MB idle RSS on this machine. That is what the plan's stack costs before
+  AgentSpace does anything.
+- **Fresh idle sits on the target line.** The release bundle, empty registry,
+  sampled every 4 s for 20 s after launch: 95.9 / 92.7 / 102.3 / 94.0 MB —
+  fluctuating across 100, centered ~95.
+- **The registered-Space case remains the conservative number.** §27's 108.8 MB
+  was measured with a Space registered and longer runtime; reproducing that
+  condition needs the helper, so the 92–102 band and the 108.8 point are
+  recorded side by side rather than one replacing the other.
+- **AgentSpace's own contribution is ~25 MB** over the bare floor (band minus
+  floor) — the real optimization surface, unchanged in size by this round.
+
+The honest verdict against §53: the app **meets the target at fresh idle within
+measurement noise** and **exceeds it by ~9% once a Space is loaded**. The
+framework floor finding reframes the lever: the remaining gap is AgentSpace's
+~25 MB, not "SwiftUI's baseline" — 68.9 MB proves the stack is not the excuse.
+MCP smoke (`scripts/mcp-smoke.sh`, all checks pass — fail-closed refusals name
+`SESSION_IS_CONSOLE` at the MCP boundary with fix text and no fallback
+wording) and the CLI demo (exit 0, 21 fail-closed observations) re-ran green
+this round as well.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 119 | Bare SwiftUI shell idle RSS is 68.9 MB on this machine | ✓ | §34 — minimal `swiftc -O` build, `ps` sampled |
+| 120 | MCP smoke and CLI demo pass end-to-end, including MCP-boundary fail-closed assertions | ✓ | this run — exit 0 both |
