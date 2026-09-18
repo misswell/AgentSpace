@@ -6495,3 +6495,24 @@ never starts with no error anyone can see").
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 396 | §39's no-silent-start after reboot holds by launchd mechanics (per-user Aqua agent, RunAtLoad on session load), with provisioning ordered so the job can actually spawn | ✓ | §234 — HelperProtocol.swift:483–500, SpaceProvisioner.swift:100–110 |
+
+
+---
+
+## 235. §24's worktree mode refuses instead of renaming
+
+WorkspacePreparer validates in three fail-closed layers, each
+with a named error: the repository must exist and be one ("an
+error, not a directory that gets created anyway and fails later
+somewhere confusing"); the branch must carry the agentspace/
+prefix — "an agent told to work on main in the user's own tree
+is the failure this whole mode exists to prevent, so it is
+refused rather than quietly renamed"; and the worktree path
+must stay inside the Space's workspace directory, "which is
+exactly what a worktree is meant to avoid." The git call is an
+argv array — the one impurity, and no shell to inject into.
+Writable roots are a declared subset of readable roots.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 397 | §24's worktree mode enforces repo-existence, branch prefix (refused, not renamed), and path confinement with argv-array git | ✓ | §235 — WorkspacePreparer.swift:1–60,95–135 |
