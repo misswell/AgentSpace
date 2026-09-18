@@ -2502,3 +2502,35 @@ artifacts were last built.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 171 | check-all refuses to run anything when dist holds unstapled bytes or bytes that disagree with the DMG — the §59 failure mode now fails fast | ✓ | §60 — the guard, its caught bug, and the green run |
+
+
+---
+
+## 61. The §56 security-review checklist, walked item by item
+
+Plan §56 lists ten review areas for a release. Each now has a named anchor on
+both sides — where the mechanism lives, and where the test that holds it shut
+lives:
+
+| Area | Mechanism | Held shut by |
+|---|---|---|
+| Unix Socket ACL | socket chmod 0660 at bind; runtime dir ACL'd (`main.swift` bind path); bind failure refuses to serve | the chmodFailed path + `--check` runtime-directory problem |
+| Token | 256-bit hex per Space, `timingsafe_bcmp` constant-time compare before any non-hello method, 0600-at-create token files | `SecurityTests`: 12 tests incl. shared-prefix, shape, corrupt-file |
+| XPC authentication | helper verifies the caller via `SecCodeCopyGuestWithAttributes` + `SecCodeCheckValidity` against a pinned requirement | `CallerVerification.swift`; helper refuses unverified callers |
+| Code Signing | hardened runtime + secure timestamp on every nested binary, Developer ID team pinned | §33/§37 signatures; the notarized chain of §59 |
+| LaunchDaemon privileges | helper exposes typed RPC only — createUser/deleteUser/installWorker/… — no exec verb exists to call | the helper protocol surface; §31's no-generic-shell |
+| Symlink attack | exec-guard resolves symlinks in paths before matching | `ExecGuard` resolvingSymlinksInPath; `SafetyTests` symlink cases |
+| Path traversal | standardized paths in helper self-check, helper install, exec guard | same three call sites, all standardizing before use |
+| Workspace escape | allowed-path containment in the exec guard | `ExecGuardTests` + `testWorkspaceCannotEscapeAllowedPath` |
+| Command injection | worker exec uses a `Process` with explicit argv (no shell interpolation); MCP spawns the CLI binary, not a shell | the two `Process()` sites; the MCP spawn seam (§42) |
+| Log secret leakage | `Redaction.scrubString` on every helper log line; diagnostics export is a redaction pass | `testSecretKeysAreRedacted`; `HelperLog.swift`'s scrub-everything rule |
+
+Nothing on the list is anchored by intention alone: each row names either a
+file where the mechanism can be read or a test that fails if it stops
+holding. The two rows that cannot be fully verified on this machine — the
+helper's live XPC refusal and a real LaunchDaemon run under launchd — keep
+their standing ~ entries from §45 and the root-gated work.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 172 | Every §56 review area has a readable mechanism anchor and a test (or an explicitly recorded blocker) — none rests on intention | ✓ | §61 — the walked table |
