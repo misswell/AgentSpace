@@ -1948,3 +1948,30 @@ tracked in the round's report.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 133 | The notarize script submits the app itself before stapling it, so a fresh build staples cleanly | ✓ | §41 — the CloudKit failure that taught this is recorded above |
+| 134 | §33's fourteen MCP tools are all present, none beyond them, and the MCP layer hardcodes no protocol version or error code: it spawns the `agentspace` CLI, so envelopes, tokens and codes come from the one Core implementation (§49) | ✓ | §42 |
+
+
+---
+
+## 42. MCP-side audit: the tools and the one-implementation rule
+
+The last unexamined consistency surface, after the CLI-vs-§31 audit: the MCP
+package against §33 and §49.
+
+- All fourteen §33 tools are implemented; nothing beyond them. (14/14)
+- The package contains **no protocol-version constant and no error-code
+  string**. It spawns the `agentspace` CLI as a subprocess and treats the
+  CLI's documented JSON envelope as its interface — so when the protocol
+  grows, the MCP layer does not drift, because it has nothing to drift. This
+  is §49's "GUI, CLI and MCP call one Core API, never three copies of the
+  logic" made structural: the CLI is the seam, not a coincidence.
+- §50's failure semantics follow from the same choice: AgentSpace unavailable
+  surfaces as the CLI's `unavailable` envelope, which the package renders as
+  a tool error — it cannot fall through to running GUI commands itself,
+  because it never runs GUI commands at all.
+
+23 MCP tests, 0 failures. No code change: the audit's result is the record.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 135 | The MCP layer's only knowledge of the worker protocol is the CLI's JSON envelope — no version, no codes, no socket of its own | ✓ | §42 — `spawn` of the CLI is the only transport the package uses |
