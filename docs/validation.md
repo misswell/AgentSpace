@@ -5645,3 +5645,30 @@ phases.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 359 | §60's five priorities each map to a verified mechanism; no priority was traded for convenience across the audited phases | ✓ | §197 — SessionGuard, gates, §184, §43, ErrorCodes |
+
+
+---
+
+## 198. §55's eight named safety tests: adopted verbatim, name for name
+
+The plan says the safety test names "can directly" be the eight
+it lists. All eight are used verbatim in SafetyTests.swift and
+SessionGuardTests.swift — testInputRejectedWhenSessionIsConsole
+at line 23, testInputDeliveredOnlyToWorkerSession at 87,
+testWorkerDoesNotFallbackWhenSessionUnavailable at 119,
+testWorkerCannotRunAsRoot at 159, testUnauthorizedSocketClientRejected
+at 182, testDifferentSpacesHaveDifferentTokens at 233,
+testScreenshotNeverReturnsConsoleSession at 306 and
+testWorkspaceCannotEscapeAllowedPath at 388 — plus a superset:
+the Integration twin of the console refusal, a distinct
+no-WindowServer refusal, a runtime is-root assertion, the
+hello-is-token-exempt leak check, disk usage measured only when
+asked, and exec running as the space user with dangerous-command
+refusal. One first-round grep missed the console test because
+the pattern demanded the substring "ConsoleIsConsole" while the
+verbatim name is "...SessionIsConsole" — the pattern was wrong,
+not the test; the full listing is the second tool.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 360 | All eight §55 test names are adopted verbatim, with a six-test superset around them | ✓ | §198 — SafetyTests.swift, SessionGuardTests.swift |
