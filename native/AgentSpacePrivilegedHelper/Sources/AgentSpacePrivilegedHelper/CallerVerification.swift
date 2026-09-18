@@ -16,8 +16,8 @@ public enum CodeSigningRequirement {
     /// signed the app is not a requirement.
     public static let teamIdentifier = "U8U443D7ZL"
 
-    public static let appIdentifier = "com.agentspace.AgentSpace"
-    public static let helperIdentifier = "com.agentspace.AgentSpace.Helper"
+    public static let appIdentifier = BundleIdentifiers.app
+    public static let helperIdentifier = BundleIdentifiers.helper
 
     /// The requirement string the helper enforces in release builds.
     ///

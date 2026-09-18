@@ -98,7 +98,7 @@ final class AppModel: ObservableObject {
             let result: Result<Void, Error> = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
                     do {
-                        let service = SMAppService.daemon(plistName: "com.agentspace.AgentSpace.Helper.plist")
+                        let service = SMAppService.daemon(plistName: BundleIdentifiers.helperPlist)
                         try service.register()
                         continuation.resume(returning: .success(()))
                     } catch {
@@ -131,7 +131,7 @@ final class AppModel: ObservableObject {
     func uninstallHelper() {
         isInstallingHelper = true
         Task {
-            let service = SMAppService.daemon(plistName: "com.agentspace.AgentSpace.Helper.plist")
+            let service = SMAppService.daemon(plistName: BundleIdentifiers.helperPlist)
             let error: Error? = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
                     do { try service.unregister(); continuation.resume(returning: nil) }

@@ -506,7 +506,7 @@ public enum HelperCommand {
     }
 
     public static func workerLabel(spaceID: UUID) -> String {
-        "com.agentspace.AgentSpace.Worker.\(spaceID.uuidString)"
+        "\(BundleIdentifiers.worker).\(spaceID.uuidString)"
     }
 
     /// The exact path a worker LaunchAgent is written to inside a Space's home.

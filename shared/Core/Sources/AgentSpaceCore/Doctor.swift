@@ -368,7 +368,10 @@ public enum Doctor {
 }
 
 /// Bundle identifiers in one place, so the namespace is configured rather than
-/// scattered through the source (plan §58).
+/// scattered through the source (plan §58). Derived names (plist file names,
+/// the §37 log subsystem, mach-service and queue labels) also live here, so a
+/// namespace change is one edit — and the helper's signature requirement, read
+/// from these same constants, cannot silently disagree with what was signed.
 public enum BundleIdentifiers {
     public static let app = "com.agentspace.AgentSpace"
     public static let helper = "com.agentspace.AgentSpace.Helper"
@@ -376,6 +379,15 @@ public enum BundleIdentifiers {
     public static let workerLaunchAgent = "com.agentspace.AgentSpace.Worker"
     public static let cli = "agentspace"
     public static let mcp = "@agentspace/mcp"
+
+    /// The launchd plist file name for the helper daemon (§47).
+    public static let helperPlist = helper + ".plist"
+
+    /// The OSLog subsystem every AgentSpace process logs under (§37). Deliberately
+    /// *not* the app's bundle id: log filters are written and shared as this
+    /// string, and changing one without the other would break every documented
+    /// `log show` command.
+    public static let logSubsystem = "com.agentspace.app"
 }
 
 /// Display geometry for the doctor, isolated so the check is easy to read.

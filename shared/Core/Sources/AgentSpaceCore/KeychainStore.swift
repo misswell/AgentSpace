@@ -28,7 +28,7 @@ public struct KeychainStore: Sendable {
     /// namespace and never touch, or be confused by, real Space passwords.
     public var service: String
 
-    public init(service: String = "com.agentspace.AgentSpace") {
+    public init(service: String = BundleIdentifiers.app) {
         self.service = service
     }
 

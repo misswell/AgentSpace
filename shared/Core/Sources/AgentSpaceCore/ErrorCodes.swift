@@ -137,7 +137,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         case .helperUnavailable:
             return "The privileged helper is not installed. Creating and deleting Spaces needs it, because it makes a macOS user; driving an existing Space does not. Open the AgentSpace app and choose Install Helper."
         case .helperRejected:
-            return "The privileged helper refused the request. Check the Space's name and account, and see the helper's log with `log show --predicate 'subsystem == \"com.agentspace.app\" AND category == \"helper\"' --last 5m`."
+            return "The privileged helper refused the request. Check the Space's name and account, and see the helper's log with `log show --predicate 'subsystem == \"\(BundleIdentifiers.logSubsystem)\" AND category == \"helper\"' --last 5m`."
         case .unauthorized:
             return "The session token does not match this Space. Re-read it from the runtime directory, or recreate the Space."
         case .badRequest:

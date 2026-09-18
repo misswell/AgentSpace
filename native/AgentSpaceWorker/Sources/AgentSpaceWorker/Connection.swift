@@ -77,7 +77,7 @@ final class Connection {
 /// a plain `String`, so the redaction has to happen before the call, and it does
 /// — in one place, so a new log line cannot forget it.
 enum Log {
-    static let subsystem = "com.agentspace.app"
+    static let subsystem = BundleIdentifiers.logSubsystem
 
     static let app = Logger(category: "app")
     static let helper = Logger(category: "helper")

@@ -9,7 +9,7 @@ import AgentSpaceCore
 /// AND category == "helper"'`. Everything goes through `Redaction` — a password
 /// or a session token reaching `log show` would put it in a world-readable store.
 final class HelperLog {
-    private let logger = Logger(subsystem: "com.agentspace.app", category: "helper")
+    private let logger = Logger(subsystem: BundleIdentifiers.logSubsystem, category: "helper")
 
     func info(_ message: String) {
         logger.info("\(Redaction.scrubString(message), privacy: .public)")

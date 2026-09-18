@@ -63,7 +63,7 @@ final class SpaceService {
     /// delete flows use the same resolved root as everything else, rather than a
     /// second lookup that could disagree.
     let root: String?
-    private let queue = DispatchQueue(label: "com.agentspace.app.service", qos: .userInitiated)
+    private let queue = DispatchQueue(label: BundleIdentifiers.app + ".service", qos: .userInitiated)
 
     init(root: String? = AgentSpaceEnvironment.rootOverride) {
         self.root = root

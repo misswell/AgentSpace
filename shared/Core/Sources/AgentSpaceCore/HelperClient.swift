@@ -5,7 +5,7 @@ import ServiceManagement
 /// `com.agentspace.AgentSpace.Helper.plist` exactly; launchd owns the name, and a
 /// mismatch means the listener never receives a connection and the app sees a
 /// timeout rather than an error.
-public let helperMachServiceName = "com.agentspace.AgentSpace.Helper"
+public let helperMachServiceName = BundleIdentifiers.helper
 
 /// The helper's build version, bumped when its *behaviour* changes so the app can
 /// tell "the helper is installed" from "the right helper is installed".
@@ -74,7 +74,7 @@ public enum HelperClient {
     /// a build directory this returns `.notFound`, which is the honest answer and
     /// the one the UI shows.
     public static var status: SMAppService.Status {
-        SMAppService.daemon(plistName: "com.agentspace.AgentSpace.Helper.plist").status
+        SMAppService.daemon(plistName: BundleIdentifiers.helperPlist).status
     }
 
     public static var isInstalled: Bool {

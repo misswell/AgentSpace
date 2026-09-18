@@ -246,7 +246,7 @@ final class SocketServer {
     let serveOnce: Bool
 
     private var listenFD: Int32 = -1
-    private let queue = DispatchQueue(label: "com.agentspace.worker.connections", attributes: .concurrent)
+    private let queue = DispatchQueue(label: BundleIdentifiers.worker + ".connections", attributes: .concurrent)
 
     init(socketPath: String, context: WorkerContext, serveOnce: Bool) {
         self.socketPath = socketPath
@@ -533,7 +533,7 @@ case .success(let arguments):
     // a shell `wait`ing on it hung forever. libdispatch services signal sources on
     // its own worker threads when given a non-main queue, so the handler fires
     // while the main thread is still parked in `accept()`.
-    let signalQueue = DispatchQueue(label: "com.agentspace.worker.signals")
+    let signalQueue = DispatchQueue(label: BundleIdentifiers.worker + ".signals")
     for signalNumber in [SIGTERM, SIGINT] {
         signal(signalNumber, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: signalQueue)

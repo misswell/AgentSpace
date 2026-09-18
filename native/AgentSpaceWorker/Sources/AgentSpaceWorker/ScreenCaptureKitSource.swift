@@ -75,7 +75,7 @@ final class ScreenCaptureFrameSource: NSObject, PreviewFrameSource {
         configuration.scalesToFit = false
 
         let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
-        try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: DispatchQueue(label: "com.agentspace.worker.preview"))
+        try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: DispatchQueue(label: BundleIdentifiers.worker + ".preview"))
 
         let startSemaphore = DispatchSemaphore(value: 0)
         var startError: Error?

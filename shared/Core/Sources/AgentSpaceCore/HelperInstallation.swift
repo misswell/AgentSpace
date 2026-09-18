@@ -51,7 +51,7 @@ public enum HelperInstallation {
     /// `SMAppService`'s own view. Only meaningful when this process *is* the app,
     /// which is why it is reported separately from `reachesHelper`.
     public static var appServiceStatus: SMAppService.Status {
-        SMAppService.daemon(plistName: "com.agentspace.AgentSpace.Helper.plist").status
+        SMAppService.daemon(plistName: BundleIdentifiers.helperPlist).status
     }
 
     /// The question that matters: does the helper answer right now?
@@ -108,7 +108,7 @@ public enum HelperInstallation {
                 return "System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run `agentspace doctor` again."
             }
             if isThisProcessTheApp, appServiceStatus == .enabled {
-                return "It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and logs the refusal. Check with:\nlog show --predicate 'subsystem == \"com.agentspace.app\" AND category == \"helper\"' --last 5m"
+                return "It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and logs the refusal. Check with:\nlog show --predicate 'subsystem == \"\(BundleIdentifiers.logSubsystem)\" AND category == \"helper\"' --last 5m"
             }
             return "Open the AgentSpace app and choose “Install Helper”. macOS will ask for your password, because only an administrator can add a LaunchDaemon."
         }
