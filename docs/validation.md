@@ -5165,3 +5165,23 @@ path-qualified binaries, and that ordinary dev commands still run.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 339 | The exec deny list covers all nine plan patterns plus a superset, is layered (substring + first-word), single-sourced in Core, tested 19 ways, and documented as a guardrail not a sandbox | ✓ | §177 — ExecGuard, ShellExec, ExecGuardTests |
+
+
+---
+
+## 178. §37's logging: one shared subsystem, all eight categories, drift guard
+
+Every AgentSpace process logs under BundleIdentifiers.logSubsystem
+(com.agentspace.app) — deliberately not the app's bundle id, with
+the doc explaining why: log filters are written and shared as this
+string, so changing one without the other would break every
+documented log show command. All eight plan categories are in real
+use: app, helper (twice — the helper's self-check even points
+troubleshooting at its own category), worker, ipc, session, input,
+capture, mcp. Exported diagnostics flow through the whitelisted
+Diagnostics collector with a single redaction exit, so secrets
+never reach the log file in the first place.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 340 | One subsystem constant serves all processes with all eight §37 categories in actual use; diagnostics stay behind the single redaction exit | ✓ | §178 — BundleIdentifiers.logSubsystem, per-target Log files, Diagnostics |
