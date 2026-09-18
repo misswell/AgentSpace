@@ -4404,3 +4404,24 @@ snapshot + perform today.
 |---|---|---|---|
 | 299 | ax.snapshot/frontmost/windows/perform exist and cover all five §18 content items | ✓ | §139 — the dispatch census |
 | 300 | ax.elementAt is absent consistently everywhere; deferred, not drifted, because AX path resolution cannot be verified without a real GUI session | — | §139 — the zero-hit grep and the dispatch table |
+
+
+---
+
+## 140. §20's transport is socket-only, and the 256-bit secret guards the socket
+
+No NWListener, no HTTPServer, no Vapor, no listen call exists in any
+product source — the only transport is the Unix socket. The socket's
+guard is generated with SecRandomCopyBytes and rendered as 64 hex
+characters: exactly 256 bits, unbiased. The login password is 32
+alphanumeric characters (~190 bits) — slightly below a literal
+"32 bytes" but deliberately so, and the code says why: it must be
+typeable by a human at a Fast User Switching login window, it is
+never the real boundary (the token is), and the unbiased-bytes budget
+went to the thing that actually guards the socket. A documented
+trade-off, not a shortcut.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 301 | No HTTP localhost server exists; transport is Unix-socket only | ✓ | §140 — the zero-hit grep |
+| 302 | The session token is 256 unbiased bits from SecRandomCopyBytes; the typeable login password is a documented 32-char trade-off | ✓ | §140 — HelperProtocol's generatePassword and Security.swift |
