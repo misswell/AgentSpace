@@ -5921,3 +5921,24 @@ stream-error teardown with rebuild-on-next-start.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 370 | The live preview realizes §16/§52's tiers (5 idle, 15 interactive via clamped maxFPS, 0 on close) with pull economics, injected testable source, and a six-test lifecycle suite | ✓ | §208 — PreviewController.swift, SpaceService.swift:237, PreviewControllerTests.swift (6 pass) |
+
+
+---
+
+## 209. §14's nine input actions: all present, with honest layering
+
+Every action type parses in Core's InputActions and dispatches
+in the worker's InputSynthesizer: move, click, drag, scroll,
+type, key, sleep — plus doubleClick and rightClick as named
+cases whose comment states the layering honestly ("worker-side
+conveniences; a count >=2 click is the wire-level primitive"),
+so the wire protocol stays minimal while agents get the
+mnemonic names. Supersets beyond the plan's nine: a "wait"
+alias for sleep and a center mouse button mapped to
+otherMouseDown/Up/Dragged alongside right's own event family.
+The batch actions array the plan recommends (§14's JSON shape)
+is the request's actual structure.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 371 | All nine §14 input actions parse and dispatch, doubleClick/rightClick are documented conveniences over the count primitive, wait and center-button are supersets | ✓ | §209 — InputActions.swift:117–220, InputSynthesizer.swift:52–159 |
