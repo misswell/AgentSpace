@@ -47,7 +47,7 @@ let valueFlags: Set<String> = [
     "max-depth", "max-nodes",
     // `create` / `delete` (plan §31). Declared here or the parser refuses them as
     // unknown before the command ever sees them.
-    "repo", "branch", "share", "share-rw",
+    "repo", "branch", "share", "share-rw", "config",
 ]
 
 /// Flags that stand alone. `--json` belongs here, not above: listing it as a
@@ -55,7 +55,7 @@ let valueFlags: Set<String> = [
 let booleanFlags: Set<String> = [
     "help", "version", "json", "double", "right", "force", "inline",
     "interesting", "no-interesting", "all", "resources", "quiet",
-    "remove-home",
+    "remove-home", "install",
 ]
 
 /// Flags that may appear more than once.
@@ -252,6 +252,8 @@ func usage() -> String {
       helper                          Privileged helper: installed? answering?
 
     MANAGEMENT (changes the machine; needs the privileged helper)
+      integrate <target>              Print MCP config for claude|codex|opencode
+                                      [--install writes it, backing up first]
       create <name>                   Create a Space: macOS user, runtime, worker
       delete <space>                  Delete a Space (--remove-home to also remove
                                       its home directory)
@@ -514,6 +516,95 @@ case "delete":
         FileHandle.standardError.write(Data("\(error.message)\n".utf8))
         exit(1)
     }
+    exit(0)
+
+case "integrate":
+    // Plan §34: one-click MCP configuration for Claude Code, Codex and OpenCode.
+    //
+    // The default prints the config for the user to paste; `--install` writes it,
+    // touching only the key AgentSpace owns. Installing is a deliberate flag rather
+    // than a default because it edits a file another tool owns.
+    guard let targetName = rest.first else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace integrate <claude|codex|opencode|generic> [--install]"), exitCode: 64)
+    }
+    guard let target = Integrations.Target(rawValue: targetName) else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "unknown target '\(targetName)'. Targets: \(Integrations.Target.allCases.map(\.rawValue).joined(separator: ", "))"), exitCode: 64)
+    }
+
+    guard let binaryPath = Integrations.defaultBinaryPath() else {
+        emitter.failure(AgentSpaceError(code: .internalError, message: "could not locate the agentspace CLI to point the MCP server at"), exitCode: 70)
+    }
+
+    if parsed.bool("install") {
+        guard !target.configPath.isEmpty else {
+            emitter.failure(AgentSpaceError(code: .badRequest, message: "the generic shape has no single config file; use --json to copy it into your client's configuration"), exitCode: 64)
+        }
+        // `--config` exists so the write can be aimed somewhere other than the
+        // real home — non-standard installs, and tests. Never assume a HOME
+        // redirect works: tilde expansion ignores it (measured, validation.md §18).
+        let chosen = parsed.flag("config") ?? target.configPath
+        let expanded = (chosen as NSString).expandingTildeInPath
+        let existing = FileManager.default.contents(atPath: expanded)
+        do {
+            let merged: Data
+            switch target {
+            case .codex:
+                merged = try Integrations.mergeTOMLConfig(existing: existing, binaryPath: binaryPath)
+            case .claudeCode:
+                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcpServers", binaryPath: binaryPath)
+            case .openCode:
+                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp", binaryPath: binaryPath)
+            case .generic:
+                exit(64) // unreachable: guarded above
+            }
+            let directory = (expanded as NSString).deletingLastPathComponent
+            try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+            // A backup before the first write to an existing file: the undo for
+            // editing a file another tool owns, costing one copy.
+            if let existing, !FileManager.default.fileExists(atPath: expanded + ".agentspace.bak") {
+                try existing.write(to: URL(fileURLWithPath: expanded + ".agentspace.bak"))
+            }
+            try merged.write(to: URL(fileURLWithPath: expanded))
+
+            if emitter.json {
+                emitter.success(.obj([
+                    "target": .string(target.rawValue),
+                    "path": .string(expanded),
+                    "binary": .string(binaryPath),
+                    "created": .bool(existing == nil),
+                    "backup": .string(existing == nil ? "" : expanded + ".agentspace.bak"),
+                ]))
+            }
+            print("Configured \(target.displayName): \(expanded)")
+            print("  AGENTSPACE_BIN = \(binaryPath)")
+            if existing != nil { print("  previous contents saved to \(expanded).agentspace.bak") }
+            print("Restart \(target.displayName) to pick up the new server.")
+            exit(0)
+        } catch let error as Integrations.InstallError {
+            let message: String
+            if case Integrations.InstallError.conflictingEntry = error {
+                message = "\(expanded) \(error)"
+            } else {
+                message = "\(error)"
+            }
+            emitter.failure(AgentSpaceError(code: .workspaceDenied, message: message), exitCode: 65)
+        } catch {
+            emitter.failure(AgentSpaceError(code: .internalError, message: "\(error)"), exitCode: 70)
+        }
+    }
+
+    let snippet = Integrations.config(for: target, binaryPath: binaryPath)
+    if emitter.json {
+        emitter.success(.obj([
+            "target": .string(target.rawValue),
+            "binary": .string(binaryPath),
+            "configPath": .string(target.configPath),
+            "config": .string(snippet),
+        ]))
+    }
+    print(Integrations.instructions(for: target, binaryPath: binaryPath))
+    print("")
+    print(snippet)
     exit(0)
 
 case "helper":

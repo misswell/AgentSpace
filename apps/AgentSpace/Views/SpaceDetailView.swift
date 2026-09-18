@@ -325,10 +325,29 @@ struct SpaceDetailView: View {
         return Card(title: "Maintenance") {
             HStack(spacing: 8) {
                 Button("Reveal Runtime Folder") { model.revealRuntimeDirectory() }
+                Menu("Install MCP Into…") {
+                    ForEach([Integrations.Target.claudeCode, .codex, .openCode], id: \.self) { target in
+                        Button(target.displayName) {
+                            integrationTarget = target
+                            showingIntegrationConfirm = true
+                        }
+                    }
+                }
                 Button("Copy MCP Configuration") { model.copyMCPConfiguration() }
                 Button("Run Doctor") { model.showingDoctor = true }
             }
             .controlSize(.small)
+
+            if let copied = model.copiedMessage {
+                Text(copied)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .task {
+                        try? await Task.sleep(nanoseconds: 6_000_000_000)
+                        model.copiedMessage = nil
+                    }
+            }
+
 
             HStack(spacing: 8) {
                 Button("Show Login Password") { model.revealPassword(for: space) }
@@ -361,9 +380,27 @@ struct SpaceDetailView: View {
         } message: {
             Text("The account \(space.username) will be removed, and it will no longer be able to run anything. Your files are not affected.")
         }
+        // A second dialog on the same view: SwiftUI allows several, each gated by
+        // its own `isPresented`.
+        .confirmationDialog(
+            "Configure \(integrationTarget?.displayName ?? "this client")?",
+            isPresented: $showingIntegrationConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Configure \(integrationTarget?.displayName ?? "")") {
+                if let target = integrationTarget { model.installIntegration(target) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            // §35: writing into a config file another tool owns is done only with
+            // the user's explicit yes, and says exactly what will change.
+            Text("AgentSpace will add itself as an MCP server in \(integrationTarget?.configPath ?? ""). Nothing else in the file changes, and the previous contents are saved next to it.")
+        }
     }
 
     @State private var showingDelete = false
+    @State private var integrationTarget: Integrations.Target?
+    @State private var showingIntegrationConfirm = false
 
     private func loadApps() {
         guard let snapshot = model.selected else { return }

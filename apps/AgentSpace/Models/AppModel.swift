@@ -36,6 +36,8 @@ final class AppModel: ObservableObject {
     /// The Space whose disk is currently being measured, so the button can show
     /// progress instead of being pressed twice.
     @Published var measuringDisk: UUID?
+    /// Set when something was copied, so the UI can confirm without an alert.
+    @Published var copiedMessage: String?
 
     struct Provisioning: Equatable, Identifiable {
         var id = UUID()
@@ -393,21 +395,56 @@ final class AppModel: ObservableObject {
     }
 
     /// Copy the install instructions for the MCP server (plan §34).
-    func copyMCPConfiguration() {
-        let binary = Bundle.main.bundleURL
-            .appendingPathComponent("Contents/MacOS/agentspace").path
-        let snippet = """
-        {
-          "mcpServers": {
-            "agentspace": {
-              "command": "npx",
-              "args": ["-y", "@agentspace/mcp"],
-              "env": { "AGENTSPACE_BIN": "\(binary)" }
+    /// Install the MCP configuration into one client, exactly as
+    /// `agentspace integrate <target> --install` does — same merge, same backup —
+    /// so the two cannot disagree about what ends up in the user's config file.
+    ///
+    /// The confirmation dialog lives in the view; by the time this runs, the user
+    /// has already said yes.
+    func installIntegration(_ target: Integrations.Target) {
+        guard let binary = Integrations.defaultBinaryPath() else { return }
+        let path = (target.configPath as NSString).expandingTildeInPath
+        let existing = FileManager.default.contents(atPath: path)
+        do {
+            let merged: Data
+            switch target {
+            case .codex:
+                merged = try Integrations.mergeTOMLConfig(existing: existing, binaryPath: binary)
+            case .claudeCode:
+                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcpServers", binaryPath: binary)
+            case .openCode:
+                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp", binaryPath: binary)
+            case .generic:
+                // No single file to write; copying is the whole feature.
+                copyMCPConfiguration()
+                return
             }
-          }
+            try FileManager.default.createDirectory(
+                atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+            if let existing, !FileManager.default.fileExists(atPath: path + ".agentspace.bak") {
+                try existing.write(to: URL(fileURLWithPath: path + ".agentspace.bak"))
+            }
+            try merged.write(to: URL(fileURLWithPath: path))
+            var message = "Configured \(target.displayName): \(path). Restart \(target.displayName) to pick it up."
+            if existing != nil { message += " Previous contents are at \(path).agentspace.bak." }
+            copiedMessage = message
+        } catch {
+            lastError = PresentedError(
+                code: "INTEGRATION_FAILED",
+                message: "could not configure \(target.displayName): \(error)",
+                fix: "Edit \(path) by hand, or use `agentspace integrate \(target.rawValue) --install` which reports the same refusal with more detail.")
         }
-        """
+    }
+
+    func copyMCPConfiguration() {
+        // Resolved through Integrations so the path is the CLI that actually
+        // ships in this bundle. The previous version hardcoded
+        // Contents/MacOS/agentspace — a file this bundle has never contained —
+        // so the copied configuration pointed the MCP server at nothing.
+        guard let binary = Integrations.defaultBinaryPath() else { return }
+        let snippet = Integrations.config(for: .generic, binaryPath: binary)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(snippet, forType: .string)
+        copiedMessage = "MCP configuration copied. Paste it into your client's mcpServers object."
     }
 }

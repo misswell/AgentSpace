@@ -39,6 +39,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 19 | The generated password reaches the Keychain and appears in no file; generated passwords never repeat | ✓ | §15 — real Keychain, own service namespace |
 | 20 | Eight Spaces get eight distinct sockets, tokens, runtime directories, account names and launchd labels; two Spaces differing only by case never share a working tree | ✓ | §16 — `MultiSpaceIsolationTests` |
 | 21 | Disk usage is measured (agreeing with `du`), opt-in, budget-bounded, and never silently a zero | ✓ | §17 — `DiskUsageTests` + a live worker |
+| 22 | MCP configs for Claude Code, Codex and OpenCode generate, merge key-scoped, install idempotently, and refuse to overwrite a foreign entry | ✓ | §18 — plus an incident: a test that wrote the user's real config |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1052,3 +1053,66 @@ time. The write moved to `start()`, which is also the correct lifecycle — the 
 must exist before the worker reads it, and that is true at `start()` and not before.
 The same lesson as §11 and §15 from yet another angle: the code was correct *where it
 was*, and wrong because of when it ran.
+
+---
+
+## 18. MCP integrations (§34) — and a test that wrote the user's real config file
+
+Claude Code, Codex and OpenCode each take the same MCP server in a different shape.
+`Integrations` is now the single source of that truth: the GUI's **Install MCP
+Into…**, the CLI's `agentspace integrate <target>`, and the tests all render from
+the same code, so they cannot drift. `agentspace integrate` prints the config
+(default) or writes it (`--install`).
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 53 | Each generated config parses in its own format — the JSON ones via `JSONSerialization`, the TOML one key by key | ✓ | `IntegrationsTests` |
+| 54 | A binary path containing a space survives quoting in every format | ✓ | `/Applications/My Apps/…` used throughout the tests |
+| 55 | Merging into an existing JSON config preserves every other value | ✓ | theme, projects and another MCP server all asserted unchanged |
+| 56 | Re-running the install is idempotent for both formats | ✓ | byte-identical output |
+| 57 | An existing TOML block with *different* contents is **refused**, not overwritten | ✓ | exit 65, message names the actual file |
+| 58 | A file that is not a JSON object is refused rather than appended to | ✓ | |
+| 59 | A backup of the previous contents is written before the first change | ✓ | verified on disk |
+| 60 | The default binary path is one that exists and runs — not `Contents/MacOS/agentspace` | ✓ | the bundle has never contained that file; the old GUI copy pointed the MCP server at nothing |
+
+### The incident this section exists to record
+
+While verifying the install flow, a test ran `HOME=/tmp/sandbox agentspace
+integrate codex --install` expecting the write to land in the sandbox. It **wrote
+the real `~/.codex/config.toml` and `~/.claude.json`** instead.
+
+`NSString.expandingTildeInPath` does not honour the `HOME` environment variable. It
+expands `~` against the passwd entry for the current user, so redirecting `HOME`
+redirects nothing that matters. This is precisely the class of macOS behaviour
+§63.13 says must be measured rather than guessed — and it was guessed, at the cost
+of modifying two files owned by other tools.
+
+Two things limited the damage, and both are now load-bearing requirements rather
+than conveniences:
+
+- **The backup.** The install writes `path.agentspace.bak` before the first change,
+  so both files were restored exactly from their backups. Without that copy the
+  original content would have been gone — a 108 KB config file re-serialized by
+  JSONSerialization.
+- **The key-scoped merge.** Only `mcpServers.agentspace` was written; every other
+  value survived the round trip, which is what the merge tests assert. The damage
+  was formatting, not content.
+
+The fix: `agentspace integrate --install --config PATH` aims the write explicitly,
+and is the only path the CLI's filesystem behaviour is verified through. The default
+path is still offered for real use, but nothing automated writes to it any more.
+`~`-expansion against the passwd home is now recorded here as a measured fact, with
+the same status as the case-insensitive filesystem and the `CGDisplayPixelsWide`
+scale trap.
+
+A second decision changed because of this: `mergeJSONConfig` no longer sorts keys.
+Sorting made the rewrite deterministic but rewrote the *entire* file's ordering,
+turning a one-key change into a whole-file diff. Preserving parsed order keeps the
+rewrite as close to the original as `JSONSerialization` can produce.
+
+### The Claude Code inline command
+
+`agentspace integrate claude` prints a `claude mcp add-json agentspace '…'` command
+with the JSON collapsed onto one line. It is valid JSON and `add-json` accepts it,
+but it is ugly, and anyone retyping it by hand should paste the block below it
+instead.
