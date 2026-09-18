@@ -2882,3 +2882,25 @@ parameters verified against real wall-clock behavior.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 195 | exec's --cwd lands the child in the requested directory, and --timeout kills it at the deadline with exitCode null — §23's observable parameters live | ✓ | §76 — the cwd and timeout probes |
+
+
+---
+
+## 77. The console guard's coverage is now mapped live: input + screenshot + apps refuse; exec and status proceed
+
+The `apps` command was refused on this console machine with the same
+structured envelope and the same precise reasoning — the running-app list
+belongs to the user's own desktop state. That completes a live map of the
+console guard's coverage: **refused** are the five input families, the
+screenshot, and the app list — everything that touches user-desktop state;
+**proceeding** are exec (shell execution, no WindowServer contact) and
+status (introspection). This is stricter than §12's letter (which lists
+input only) and is the correct conservative reading of §54: a console-session
+worker must not surface anything about the user's desktop, pixels or app
+inventory alike. The guard is a single session-verdict check applied at the
+handler boundary, so the map reflects design intent, not per-endpoint
+scattering.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 196 | The console guard's live coverage is input + screenshot + apps refused, exec and status proceeding — stricter than §12's letter and aligned with §54 | ✓ | §77 — the coverage map |
