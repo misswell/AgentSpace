@@ -17,6 +17,38 @@
 set -u
 cd "$(dirname "$0")/.."
 
+# --- dist integrity guard (the §59 poisoning) --------------------------------
+# dist/ is the distribution directory; §59 recorded an unnotarized rebuild
+# silently replacing stapled bytes there. If distribution artifacts exist,
+# they must still be the stapled pair: app stapled, DMG stapled, and the
+# app's CDHash identical to the DMG's inner app. A rebuild that bypasses
+# release.sh/notarize.sh fails here instead of shipping.
+if [ -d dist/AgentSpace.app ]; then
+  if ! xcrun stapler validate dist/AgentSpace.app >/dev/null 2>&1; then
+    echo "check-all: dist/AgentSpace.app is NOT stapled — dist was rebuilt outside" >&2
+    echo "  the notarize flow. Restore from the stapled DMG or re-run notarize.sh." >&2
+    exit 1
+  fi
+  if [ -f dist/AgentSpace-0.1.0.dmg ]; then
+    MNT="$(mktemp -d)"
+    if hdiutil attach dist/AgentSpace-0.1.0.dmg -mountpoint "$MNT" -quiet -nobrowse 2>/dev/null; then
+      INNER="$(codesign -dvvv "$MNT/AgentSpace.app" 2>&1 | grep -m1 'CDHash=' | awk -F'=' '{print $2}')"
+      OUTER="$(codesign -dvvv dist/AgentSpace.app 2>&1 | grep -m1 'CDHash=' | awk -F'=' '{print $2}')"
+      hdiutil detach "$MNT" -quiet
+      if [ -n "$INNER" ] && [ "$INNER" != "$OUTER" ]; then
+        echo "check-all: dist app CDHash ($OUTER) differs from the DMG's ($INNER)" >&2
+        echo "  — the DMG no longer contains the dist app's bytes. Rebuild the DMG" >&2
+        echo "  from the stapled app and re-notarize." >&2
+        exit 1
+      fi
+      echo "==> dist guard: stapled app matches the stapled DMG ($INNER)"
+    else
+      echo "check-all: could not mount dist/AgentSpace-0.1.0.dmg to compare" >&2
+      exit 1
+    fi
+  fi
+fi
+
 LAYERS=(scripts/test.sh scripts/mcp-smoke.sh scripts/gui-verify.sh)
 FAILED=()
 

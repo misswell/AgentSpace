@@ -2477,3 +2477,28 @@ the same code.
 |---|---|---|---|
 | 169 | A notarized DMG is the recovery source for a poisoned dist app: mount, copy out, and the staple travels with it | ✓ | §59 — the restore, then the matching CDHash |
 | 170 | The Gatekeeper check for a .app is `--type execute`; `--type install` belongs to pkgs and `-t open` to documents — wrong types manufacture rejections out of good bytes | ✓ | §59 — the same app accepted under execute and rejected under the wrong types |
+
+
+---
+
+## 60. The dist guard makes the §59 poisoning fail loudly next time
+
+The §59 rebuild that replaced stapled dist bytes did so silently. The guard
+now at the top of `check-all.sh` makes it loud: if `dist/AgentSpace.app`
+exists but is not stapled, check-all stops before running anything else;
+if a stapled DMG exists, its inner app's CDHash must match the dist app's.
+
+Writing the guard caught its own bug: `CDHash=44a4…` is a single token, so
+`awk '{print $2}'` captured nothing — `awk -F'='` is what reads the value.
+The guard now runs green on the real artifacts ("stapled app matches the
+stapled DMG (44a4f757…)"), and a full `check-all.sh` passes all layers with
+it in place.
+
+The README's install section, whose notarization sentence was conditional
+("produced by … and notarized by …"), stays conditional — it describes what
+a reader holding a DMG has, which remains correct regardless of when the
+artifacts were last built.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 171 | check-all refuses to run anything when dist holds unstapled bytes or bytes that disagree with the DMG — the §59 failure mode now fails fast | ✓ | §60 — the guard, its caught bug, and the green run |
