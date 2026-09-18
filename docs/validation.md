@@ -6709,3 +6709,25 @@ own Aqua session, own framebuffer, own input stream) and the
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 405 | §59's second screen renders the side-by-side table, the keeps-working line, and §2's five promises verbatim | ✓ | §243 — README.md:12–31 |
+
+
+---
+
+## 244. §55's eight named safety tests, re-checked after the later rounds
+
+A regression spot-check against the early promises: all eight
+§55 test names still exist and run — testInputRejectedWhenSessionIsConsole,
+testInputDeliveredOnlyToWorkerSession,
+testScreenshotNeverReturnsConsoleSession,
+testWorkerDoesNotFallbackWhenSessionUnavailable,
+testWorkerCannotRunAsRoot, testUnauthorizedSocketClientRejected,
+testDifferentSpacesHaveDifferentTokens,
+testWorkspaceCannotEscapeAllowedPath — several appear twice (a
+unit-level and an integration-level variant), and the security
+suite alone executes 24 tests with 0 failures. Nothing in the
+last twenty rounds of fixes touched the safety net's named
+anchors.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 406 | §55's eight named safety tests all exist and pass as of this round's regression spot-check | ✓ | §244 — tests/Safety/SafetyTests.swift, tests/Unit/SecurityTests.swift:185, SessionGuardTests.swift:127 |
