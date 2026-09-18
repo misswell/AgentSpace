@@ -4338,3 +4338,23 @@ the wiring, including the §35 rules text these configs embed.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 296 | Claude Code, Codex and OpenCode install targets exist with real config paths, plus a Copy Config flow, pinned by tests | ✓ | §136 — the integration enum census |
+
+
+---
+
+## 137. §19's permission detection uses the no-prompt variants, as the plan demands
+
+Screen Recording is gated by `CGPreflightScreenCaptureAccess` in
+three places (before every capture, status reporting, doctor);
+Accessibility by `AXIsProcessTrusted` inside a `requireTrust`
+wrapper that throws an error naming the exact fix. The plan wrote
+`AXIsProcessTrustedWithOptions`; the implementation uses the bare
+`AXIsProcessTrusted`, which is the same check with the prompt
+suppressed — exactly what §19's rule ("不能触发无人可见的无限权限
+弹窗") requires, since a prompt variant would raise a dialog in a
+session nobody is looking at. The WithPrompt form would be a bug
+here, not a gap.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 297 | Both permission checks are pure preflights — no prompt is ever triggered in the unattended session | ✓ | §137 — the preflight call sites and the requireTrust wrapper |
