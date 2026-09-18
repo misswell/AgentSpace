@@ -2534,3 +2534,26 @@ their standing ~ entries from §45 and the root-gated work.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 172 | Every §56 review area has a readable mechanism anchor and a test (or an explicitly recorded blocker) — none rests on intention | ✓ | §61 — the walked table |
+
+
+---
+
+## 62. Doctor on a real machine, and the demo stays green
+
+`agentspace doctor` on this machine right now: **10 checks, 3 warnings, 0
+failures — "AgentSpace can run."** The warnings are all environmental and
+each carries its fix: input-isolated (expected for the CLI — it never posts
+input — with the worker-session explanation and the fast-user-switch remedy),
+privileged helper absent from a bare build (→ `scripts/bundle-app.sh`, then
+Install Helper), and no Spaces registered yet (→ create one in the app, which
+needs the helper because it makes a macOS user). §38's requirement — failure
+must come with a concrete fix — holds on every line.
+
+`scripts/demo.sh` re-run on the current tree: end-to-end, 14 checks, exit 0,
+worker pid cleaned up. The demo's doctor runs 4 more checks than the bare CLI
+because the throwaway root gives it a worker and runtime to inspect.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 173 | doctor's every warning names its concrete fix, and its verdict distinguishes "the app and CLI can run" from "a worker could post input here" | ✓ | §62 — the full output on this machine |
+| 174 | The end-to-end demo stays green on the current tree | ✓ | §62 — the re-run |

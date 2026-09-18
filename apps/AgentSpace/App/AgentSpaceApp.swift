@@ -33,27 +33,17 @@ struct RootView: View {
                 message: Text([error.message, error.fix].compactMap { $0 }.joined(separator: "\n\n")),
                 dismissButton: .default(Text("OK")))
         }
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                Self.appearCount += 1
-                NSLog("[DEBUG-a4f2] RootView onAppear #\(Self.appearCount) visibleWindows=\(NSApp.windows.filter { $0.isVisible }.count)")
-            }
-            model.reload()
-        }
+        .onAppear { model.reload() }
         // `agentspace://space/<uuid>` — from the CLI's `desktop` command or any
         // other poster. Handled by the model so the failure of a dead link is
         // visible in the app's own error presentation.
-        .onOpenURL { NSLog("[DEBUG-a4f2] onOpenURL fired: \($0.absoluteString)"); model.handleDeepLink($0) }
+        .onOpenURL { model.handleDeepLink($0) }
     }
-
-    static var appearCount = 0
 }
 
 @main
 struct AgentSpaceApp: App {
     @StateObject private var model = AppModel()
-
-    init() { NSLog("[DEBUG-a4f2] AgentSpaceApp init") }
 
     var body: some Scene {
         WindowGroup("AgentSpace") {

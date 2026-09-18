@@ -26,6 +26,14 @@ APP_PID=$!
 sleep 5
 trap 'kill $APP_PID 2>/dev/null' EXIT
 
+# --- Launch: exactly one window (§41's deep-link window bug) ----------------
+# A binary that predates onOpenURL never consumes queued agentspace:// open
+# events, so LaunchServices re-delivers them at every launch and each one
+# spawns a WindowGroup window — three identical windows, and every sheet
+# flag then presents in all of them at once. One launch, one window.
+WINDOWS="$(osascript -e 'tell application "System Events" to tell process "AgentSpace" to return count of windows' 2>/dev/null)"
+check "launch opens exactly one window" "1" "${WINDOWS:-?}"
+
 # --- Settings: the polling floor lives in the control (§49) ----------------
 osascript <<'EOF' >/tmp/gui-verify-slider.txt 2>/dev/null
 tell application "System Events"
