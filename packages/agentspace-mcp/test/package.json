@@ -1,0 +1,6 @@
+{
+  "//": "Not a real package. Node's test runner stopped expanding a bare directory argument in Node 21+: `node --test test/` treats `test/` as a single entry, and a directory resolves through `main` below. This keeps the documented `node --test test/` command working on Node 18 through 24 (on 18/20 the runner finds args.test.mjs directly; on 21+ it lands here). See README.md.",
+  "private": true,
+  "type": "module",
+  "main": "args.test.mjs"
+}

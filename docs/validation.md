@@ -33,6 +33,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 13 | Drag gestures work end to end | ✗ | same |
 | 14 | Accessibility tree reads succeed in a background session | ✗ | same |
 | 15 | App launch registration detection (`APP_LAUNCH_TIMEOUT`) | ✗ | same |
+| 16 | The MCP server exposes the CLI over stdio, and the fail-closed refusal survives the MCP boundary | ✓ | `scripts/mcp-smoke.sh` — 38 checks |
 
 ---
 
@@ -357,3 +358,71 @@ the reason. Offstage is MIT; see `THIRD_PARTY_NOTICES.md`.
 | Interactive input | `CGEvent` posting only | same, behind an injectable guard so it is unit-testable | Untestable safety code is safety code nobody has run |
 | `exec` | `run`, streaming events | `exec`, buffered `{exitCode, stdout, stderr, duration}` | The plan fixes the buffered shape in §23 |
 | Screenshot | base64 in the reply | a file in the Space runtime directory, base64 only on request | Keeps the default reply small; the path is readable by both the main user and the agent user |
+
+---
+
+## 9. MCP server — verified end to end
+
+The MCP server is a bridge, not a second implementation: it spawns the
+`agentspace` CLI with `--json` and relays the result. That is only worth anything
+if the refusal survives the extra hop, so `scripts/mcp-smoke.sh` speaks real MCP
+JSON-RPC over the child's stdio — `initialize` → `tools/list` → `tools/call` —
+exactly as a client would. Actual output:
+
+```
+== initialize ==
+  PASS  initialize returns a server name
+     server: agentspace 0.1.0
+  PASS  instructions recommend the status -> screenshot -> input loop
+  PASS  instructions warn about SESSION_IS_CONSOLE
+== tools/list ==
+     14 tools
+  PASS  tool agentspace_list exists
+  ... (all 14)
+  PASS  no tool can create a Space
+  PASS  every tool has a description
+  PASS  every tool has an input schema
+== tools/call agentspace_status ==
+  PASS  status call returns content
+     { "acceptsInput": false, "accessibility": true,
+       "display": { "height": 1080, "scale": 2, ...
+== tools/call agentspace_{click,type,key} — must be refused, not fall back ==
+  PASS  agentspace_click reports an error
+  PASS  agentspace_click names SESSION_IS_CONSOLE
+  PASS  agentspace_click includes the fix text
+  PASS  agentspace_click says nothing about running locally
+  ... identically for agentspace_type and agentspace_key ...
+== unknown tool is refused ==
+  PASS  unknown tool errors
+
+all MCP smoke checks passed
+```
+
+Two assertions in that list are the ones that matter:
+
+- **`names SESSION_IS_CONSOLE`** — the refusal is not swallowed or generalised
+  into "something went wrong". A model that gets this string can tell the
+  difference between "I did the wrong thing" and "the human is looking at this
+  desktop".
+- **`says nothing about running locally`** — the MCP layer does not invent a
+  fallback, mention one, or apologise for not having one. Plan §2's rule has to
+  hold at every boundary, and this is the boundary a model actually talks to.
+
+Also asserted: `no tool can create a Space`. There is no
+`agentspace_create_space`, and no TCC-grant tool, because those change the
+machine and require a human in the GUI — a tool that existed would eventually be
+called. The absence is the control.
+
+`packages/agentspace-mcp`'s own unit tests (`npm test`, 19 tests) cover argument
+construction only, and one of them asserts that **no builder ever returns a shell
+string** — the MCP server spawns the CLI with an argument vector and never
+concatenates a command, so an agent-supplied `space` or `command` cannot inject
+one.
+
+### Status honesty
+
+`agentspace_status` returns `"acceptsInput": false` above, from a live worker
+whose session is the console. That field is the one a well-behaved MCP client
+should read before deciding whether to send input at all, and it is derived from
+the same `SessionGuard` verdict that gates the input path — not from a separate
+guess that could disagree with it.

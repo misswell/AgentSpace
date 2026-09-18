@@ -67,15 +67,16 @@ and what is not, with the measurements.
 - `agentspace-worker` — the per-Space daemon: unix socket RPC, fail-closed console
   guard, session-tap input, screenshot, app lifecycle, `exec`, accessibility tree
 - `agentspace` — the CLI, with `--json` on everything, plus `agentspace doctor`
+- `@agentspace/mcp` — the MCP server: 14 tools over stdio, bridged to the same CLI
 - `AgentSpaceCore` — the shared protocol, models and safety logic
-- 151 tests, 0 failures; the safety suite runs against a live worker over a live
-  socket
+- 151 Swift tests (0 failures; the safety suite runs against a live worker over a
+  live socket) and 19 MCP tests
 
 **Not built yet**
 
 - The SwiftUI app (phase 2) and the privileged helper (phase 3), so Spaces cannot
   be created from the GUI yet
-- The MCP server (phase 6)
+- Workspace editing (phase 7)
 
 **Verified on this machine** — macOS 27.0, Apple Silicon:
 
@@ -155,6 +156,49 @@ agentspace status dev --json
   "screenRecording": true, "accessibility": true
 }
 ```
+
+## Give it to an agent (MCP)
+
+```bash
+cd packages/agentspace-mcp && npm install && npm run build
+```
+
+Point your MCP client at `node packages/agentspace-mcp/dist/index.js`, or set
+`AGENTSPACE_BIN` if the CLI is not in one of the standard locations. 14 tools:
+`agentspace_status`, `agentspace_screenshot`, `agentspace_input`,
+`agentspace_click`, `agentspace_type`, `agentspace_key`, `agentspace_scroll`,
+`agentspace_drag`, `agentspace_launch`, `agentspace_quit`, `agentspace_apps`,
+`agentspace_exec`, `agentspace_ax_snapshot`, `agentspace_list`.
+
+**There is deliberately no tool that creates or deletes a Space, and none that
+grants a permission.** Those change the machine and require a human in the GUI.
+A tool that existed would eventually be called.
+
+The server never runs a GUI command itself. When a Space is unavailable it relays
+the refusal — `SESSION_IS_CONSOLE`, with the fix — rather than retrying anywhere
+else. `scripts/mcp-smoke.sh` proves it by speaking real MCP JSON-RPC over stdio
+and asserting that no reply ever mentions falling back to your own session.
+
+## Screenshots and coordinates
+
+One trap worth knowing before you write any automation:
+
+```
+Input coordinates are POINTS. Screenshots are PIXELS.
+
+  pointX = pixelX / scale
+  pointY = pixelY / scale
+```
+
+On a 1920×1080 display at scale 2, a screenshot is 3840×2160 — so the visual
+centre is `960, 540`, not `1920, 1080`. Every screenshot reply carries `scale`,
+`width`/`height` in points and `pixelWidth`/`pixelHeight` in pixels, and the CLI
+prints the scale on every run.
+
+Do not derive the scale from `CGDisplayPixelsWide()`. On macOS 27 it returns
+*points* for a scaled Retina display, so that derivation gives `1` and every
+coordinate ends up off by a factor of two. This was measured, not assumed —
+`docs/validation.md` §2.
 
 ## Design rules
 
