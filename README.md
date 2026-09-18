@@ -100,13 +100,29 @@ session.
 
 ---
 
+## Install
+
+If you have the DMG (`dist/AgentSpace-0.1.0.dmg`, produced by
+`scripts/release.sh` and notarized by `scripts/notarize.sh`):
+
+1. Open the DMG and drag **AgentSpace** into Applications.
+2. Open the app. It is Developer ID signed, notarized, and stapled, so
+   Gatekeeper opens it directly — no right-click, no "allow anyway".
+3. Press **Install Helper** and confirm with your administrator password.
+   Only the helper (a root LaunchDaemon) can create the macOS accounts the
+   Spaces run in; nothing in AgentSpace runs `sudo`.
+
+From source instead: see **Build** below.
+
+---
+
 ## Build
 
 Requires Apple Silicon and macOS 26+. Xcode command line tools and Swift 6.
 
 ```bash
 scripts/build.sh            # both binaries, sanity-checked, signed
-scripts/test.sh             # 170 tests; builds the worker first, because the
+scripts/test.sh             # 320 tests; builds the worker first, because the
                             # safety suite spawns it and a skipped suite is not
                             # a passing suite
 scripts/bundle-app.sh       # a signed dist/AgentSpace.app
