@@ -2135,3 +2135,26 @@ MacOS/AgentSpace &` — not `open`.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 151 | The demo script's omission of `desktop` is documented as a design decision in the script itself: it would break headlessness and repeatability, which every command in the walkthrough preserves | ✓ | scripts/demo.sh — the closing note |
+| 152 | The §53 polling floor is enforced by the control itself: the Status refresh slider's AX minimum is 2.0 s (max 10, default 3), so the UI cannot request a poll faster than the plan allows | ✓ | §49 — the slider bounds, read back through the accessibility tree |
+
+
+---
+
+## 49. The polling floor is in the control, not just the copy
+
+§53 wants status polling at 2–5 s and never faster. The General tab's slider
+says "Plan §53 sets a 2–5 s floor. Polling faster costs more than the app
+manages, so it is not offered." — and the control means it:
+
+```
+AXMinValue 2.0   AXMaxValue 10.0   value 3.0 (default)
+```
+
+The floor is not advisory text next to an unrestricted slider; it is the
+slider's own minimum. No script, no AX poke, no accident can set a refresh
+faster than 2 s through this UI. The 10 s ceiling leaves room for slower
+machines, and the default of 3 sits inside the plan's window.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 153 | A slider's limits are read as AX attributes, so this check can be re-run mechanically after any Settings refactor — it is a one-line osascript, not a judgement call | ✓ | §49 — the command in the transcript |
