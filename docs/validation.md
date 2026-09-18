@@ -3448,3 +3448,24 @@ defects found, recorded so the surfaces are on the ledger.
 |---|---|---|---|
 | 238 | start/stop/restart on an unavailable session exit 1 with named errors and real fixes | ✓ | §100 — direct exit-code capture |
 | 239 | Doctor's Worker check names dead socket residue as "socket exists but the worker did not answer" with the stale-socket fix | ✓ | §100 — the residue probe |
+
+
+---
+
+## 101. Promise-list audits: the §36 refusal matrix item by item, and the §33 tool roster
+
+- **§36 danger list, live** — all nine refused commands
+  (`sudo`, `installer`, `diskutil eraseDisk`, `launchctl bootstrap
+  system`, `dscl -create`, `sysadminctl`, `rm -rf /`, `shutdown`,
+  `reboot`) come back `EXEC_DENIED` through a real worker over the
+  CLI, each quoting the matching rule; `echo hello` runs with
+  exitCode 0. The unit tests assert the categories; this probe
+  confirms each listed item by name on the live path.
+- **§33 MCP roster** — the server registers exactly the fourteen
+  promised tools (`agentspace_list` … `agentspace_ax_snapshot`), no
+  more, no fewer.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 240 | All nine §36 refused commands are rejected live with EXEC_DENIED naming the rule, while ordinary commands run | ✓ | §101 — the nine-command matrix |
+| 241 | The MCP server exposes exactly the fourteen tools §33 promises | ✓ | §101 — the registration sweep |
