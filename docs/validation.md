@@ -4321,3 +4321,20 @@ one sentence.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 295 | The README first screen reproduces §59's copy and diagram verbatim | ✓ | §135 — the README head |
+
+
+---
+
+## 136. §34's integration targets all exist, including Copy Config
+
+The integration enum carries exactly the plan's targets — Claude
+Code, Codex, OpenCode — each with its real config path
+(`~/.claude.json`, `~/.codex/config.toml`,
+`~/.config/opencode/opencode.json`), plus a `generic` case backed by
+a hand-apply instruction set for the "Copy Config" flow the plan
+asks for alongside one-click installs. Sixteen integration tests pin
+the wiring, including the §35 rules text these configs embed.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 296 | Claude Code, Codex and OpenCode install targets exist with real config paths, plus a Copy Config flow, pinned by tests | ✓ | §136 — the integration enum census |
