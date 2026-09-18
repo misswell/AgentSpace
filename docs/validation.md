@@ -4499,3 +4499,23 @@ the kind of empirical note §63.13 demands instead of assuming.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 306 | Screenshot results carry points, pixels and scale explicitly so coordinate conversion never guesses | ✓ | §144 — the Geometry contract comment |
+
+
+---
+
+## 145. §12's "cannot determine, refuse" is the SessionGuard's stated reason to exist
+
+The rule appears verbatim in the type's doc comment: "If we cannot
+*prove* the session is a background one, we do not post." An
+unreadable session dictionary yields `.indeterminate`, and
+`.indeterminate` refuses exactly like `.isConsole` — both map to
+`.sessionIsConsole` at the error boundary and to `.console` on the
+dashboard, so a caller can never treat the unprovable case as the
+safe one. The comment names the bug this prevents: "there is
+deliberately no code path here that returns `usable` on a missing
+answer — that is the fall-back-to-the-user's-desktop bug the whole
+product is built to avoid."
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 307 | An unreadable session state refuses identically to a confirmed console session, with the rationale stated in code | ✓ | §145 — the SessionGuard rule comment and both collapse sites |
