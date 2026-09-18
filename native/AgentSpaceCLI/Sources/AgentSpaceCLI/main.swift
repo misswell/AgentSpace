@@ -55,7 +55,7 @@ let valueFlags: Set<String> = [
 let booleanFlags: Set<String> = [
     "help", "version", "json", "double", "right", "force", "inline",
     "interesting", "no-interesting", "all", "resources", "quiet",
-    "remove-home", "install",
+    "remove-home", "install", "start", "frame", "stop",
 ]
 
 /// Flags that may appear more than once.
@@ -785,6 +785,26 @@ case "screenshot":
         print("  \(result["width"]?.intValue ?? 0)x\(result["height"]?.intValue ?? 0) px, scale \(result["scale"]?.intValue ?? 1) — divide pixel coordinates by scale to get input points")
     }
     exit(0)
+
+case "preview":
+    // §52's live preview from the command line: --start opens the stream,
+    // --frame pulls the newest frame (base64), --stop closes it. The GUI runs
+    // the same three methods directly over the socket; the CLI exists so the
+    // stream can be exercised and debugged without the app.
+    let (_, connection) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)
+    if parsed.bool("start") {
+        let fps = parsed.int("fps") ?? 5
+        let result = callJSON(emitter, connection, Method.previewStart, .obj(["maxFPS": .int(fps)]))
+        emitter.success(result, human: "preview streaming at \(result["fps"]?.intValue ?? fps) fps")
+    } else if parsed.bool("frame") {
+        let result = callJSON(emitter, connection, Method.previewFrame, .obj([:]))
+        emitter.success(result, human: "got a frame (\(result["inline"]?.stringValue?.count ?? 0) base64 chars)")
+    } else if parsed.bool("stop") {
+        let result = callJSON(emitter, connection, Method.previewStop, .obj([:]))
+        emitter.success(result, human: "preview stopped")
+    } else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace preview <space> --start [--fps N] | --frame | --stop"))
+    }
 
 case "input":
     let (_, connection) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)

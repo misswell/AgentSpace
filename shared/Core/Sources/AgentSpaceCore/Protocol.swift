@@ -24,6 +24,14 @@ public enum Method {
     public static let axPerform = "ax.perform"
     public static let shutdown = "shutdown"
 
+    /// Live Desktop Preview (plan §52). Pull model: `start` opens the capture
+    /// stream, `frame` returns the newest frame, `stop` closes it. The GUI only
+    /// runs this loop while its viewer is open, and the worker auto-stops a
+    /// stream nobody pulls (see `PreviewController`).
+    public static let previewStart = "preview.start"
+    public static let previewFrame = "preview.frame"
+    public static let previewStop = "preview.stop"
+
     /// Methods that must never be answered unless the caller proved it holds
     /// the Space's session secret. Everything is on this list except `hello`,
     /// which answers only non-sensitive liveness facts and is what a client

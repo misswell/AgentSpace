@@ -174,6 +174,20 @@ scaled Retina display, so the scale comes from
 | `key` | `key` (`"cmd+l"`) **or** `keys` (`["cmd","l"]`) |
 | `sleep` | `ms` (0–30000; alias `wait`) |
 
+### Live preview — `preview.start`, `preview.frame`, `preview.stop`
+
+Plan §52's ScreenCaptureKit upgrade, as a pull model that fits the one-request-
+per-connection protocol. `preview.start { maxFPS }` → `{ streaming, fps }`;
+`preview.frame` → `{ inline }` (base64 JPEG of the newest frame — frames captured
+faster than the client pulls are dropped, newest wins); `preview.stop` closes it.
+
+- `preview.start` is refused like every observation method: `SESSION_IS_CONSOLE`
+  on a console-session worker, `SCREEN_RECORDING_DENIED` without the grant.
+- A stream nobody pulls stops itself after ~10 s (`PREVIEW_NOT_RUNNING` on the
+  next pull) — a viewer that crashes must not leave the worker capturing forever.
+- `preview.frame` without a stream is `PREVIEW_NOT_RUNNING`, never a silent
+  success.
+
 Returns `{ "performed": N }`.
 
 **Console refusal covers observation too.** The same `SESSION_IS_CONSOLE`

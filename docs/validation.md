@@ -45,6 +45,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 25 | The CLI at the process boundary honors §32 JSON mode, exit 69/66, live-socket status, the console refusal, and per-root isolation | ✓ | §21 — ten spawned-binary tests; found the not-found exit bug and the §54 screenshot leak |
 | 26 | Registry corruption is quarantined with bytes intact, surfaced by doctor, and recoverable; MCP relays typed failures with no local fallback | ✓ | §22 — the quarantine test caught a name-collision bug in the quarantine itself |
 | 27 | After a reboot a logged-out Space shows Needs Login, not offline; a crashed worker under a live session shows offline | ✓ | §23 — utmpx rejected empirically; process ownership is the discriminator |
+| 28 | The §52 live preview is pull-model, fail-closed on console, self-stops when unpulled, and falls back to the 1 FPS MVP when refused | ✓ | §24 — 6 controller tests + 2 process-boundary tests; SCK delivery itself needs a background session and is marked unverified |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1330,3 +1331,42 @@ switched away, owns Finder/Dock/launchd; a never-logged-in account owns nothing.
 The derivation is one pure function (`SpaceState.effective`) shared by the GUI —
 the plan's "components disagree" bug class has no room here, and the session
 lookup runs only on the offline path so a healthy refresh pays nothing (§53).
+
+---
+
+## 24. The ScreenCaptureKit preview (§52) — pull model, idle auto-stop, fail-closed
+
+The 1 FPS screenshot MVP was always the verified path; §52's upgrade is now in.
+The protocol keeps its one-request-per-connection shape: `preview.start` /
+`preview.frame` / `preview.stop`, newest frame wins, frames captured faster than
+the client pulls are dropped. The lifecycle state machine lives in Core
+(`PreviewController`) with the frame source injected — unit-tested against a
+counting fake — and the ScreenCaptureKit adapter in the worker is thin
+accordingly.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 89 | start/frame/stop round-trips; stop is idempotent; pull-after-stop is nil | ✓ | controller tests with a fake source |
+| 90 | Restarting a running stream does not tear down the first viewer's stream | ✓ | two viewers must coexist |
+| 91 | A stream nobody pulls stops itself after the idle timeout and a fresh start works | ✓ | the failure mode "auto-stopped once, dead forever" would be worse than the bug |
+| 92 | A pull before the timeout keeps the stream alive; fps is clamped to 1…30 | ✓ | a live viewer never trips its own idle stop; an unbounded client cannot set the rate |
+| 93 | A failed start leaves no half-built source behind | ✓ | the next start genuinely begins |
+| 94 | `preview.start` on a console-session worker refuses **SESSION_IS_CONSOLE** through the real CLI | ✓ | integration test, same typed refusal as every observation method |
+| 95 | `preview.frame` without a stream is typed `PREVIEW_NOT_RUNNING` | ✓ | surfaced at the process boundary |
+| 96 | The GUI falls back to the 1 FPS screenshot MVP when the stream is refused | ✓ | build-verified; a refused stream shows the MVP, not nothing |
+
+**Unverified here, by construction:** actual ScreenCaptureKit frame delivery
+needs a background Aqua session holding a Screen Recording grant — the same
+environment this machine cannot produce. The adapter's SCK calls (discovery,
+start, the sample-buffer → JPEG encode) are the honest boundary of what this
+repository can assert, and they are marked as such. Everything the adapter
+defers to — the state machine, the fail-closed gating, the protocol shape — is
+verified above.
+
+### A §21 regression caught by pinning the contract
+
+The new `PREVIEW_NOT_RUNNING` error was first declared without its uppercase
+raw value, so the wire code read `previewNotRunning` — and the integration test
+caught it by asserting the §21 code at the process boundary. The typed-code
+contract is only as strong as its spelling, and the spellings live in the enum,
+not in prose.

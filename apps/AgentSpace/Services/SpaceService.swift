@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import AgentSpaceCore
 
@@ -188,6 +189,57 @@ final class SpaceService {
     /// Returns the worker's typed error untouched on failure. In particular this
     /// never falls back to capturing *this* session's screen, which would hand the
     /// user a picture of their own desktop and call it the agent's.
+    // MARK: - Live preview (§52)
+
+    /// Open the Space's live capture stream. Typed error untouched on failure —
+    /// in particular a console-session Space refuses, and this view falls back
+    /// to the screenshot MVP rather than trying anything local.
+    func previewStart(for space: AgentSpace, maxFPS: Int = 5) -> Result<Int, AgentSpaceError> {
+        let connection = SpaceConnection(space: space)
+        do {
+            let response = try connection.client.call(
+                method: Method.previewStart, params: .obj(["maxFPS": .int(maxFPS)]), token: connection.token)
+            if let error = response.error { return .failure(error) }
+            return .success(response.result?["fps"]?.intValue ?? maxFPS)
+        } catch {
+            return .failure(AgentSpaceError(code: .workerOffline, message: "\(error)"))
+        }
+    }
+
+    /// Pull the newest frame as an image, ready for the viewer.
+    func previewFrame(for space: AgentSpace) -> Result<NSImage, AgentSpaceError> {
+        let connection = SpaceConnection(space: space)
+        do {
+            let response = try connection.client.call(
+                method: Method.previewFrame, params: .obj([:]), token: connection.token)
+            if let error = response.error { return .failure(error) }
+            guard let base64 = response.result?["inline"]?.stringValue,
+                  let data = Data(base64Encoded: base64),
+                  let image = NSImage(data: data) else {
+                return .failure(AgentSpaceError(
+                    code: .internalError,
+                    message: "the worker answered a preview request with no decodable frame"))
+            }
+            return .success(image)
+        } catch {
+            return .failure(AgentSpaceError(code: .workerOffline, message: "\(error)"))
+        }
+    }
+
+    /// Close the stream. Safe to call when it never started: the worker's stop
+    /// is idempotent by contract.
+    func previewStop(for space: AgentSpace) -> Result<Bool, AgentSpaceError> {
+        let connection = SpaceConnection(space: space)
+        do {
+            let response = try connection.client.call(
+                method: Method.previewStop, params: .obj([:]), token: connection.token)
+            if let error = response.error { return .failure(error) }
+            return .success(true)
+        } catch {
+            return .failure(AgentSpaceError(code: .workerOffline, message: "\(error)"))
+        }
+    }
+
     func screenshot(for space: AgentSpace, maxWidth: Int?, inline: Bool) -> Result<ScreenshotResult, AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         var params: [String: JSONValue] = [:]

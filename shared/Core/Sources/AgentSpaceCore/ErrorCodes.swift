@@ -7,6 +7,10 @@ import Foundation
 /// importantly — can tell "the agent desktop is not there" apart from "the
 /// agent desktop is there but refused". Only the second is safe to retry.
 public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
+    /// `preview.frame` arrived for a stream that is not running — the idle
+    /// timeout stopped it, or the client never started one.
+    case previewNotRunning = "PREVIEW_NOT_RUNNING"
+
     // --- Session / liveness -------------------------------------------------
     /// The Space has no usable background Aqua session. Terminal for this call.
     case sessionNotReady = "SESSION_NOT_READY"
@@ -77,7 +81,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         switch self {
         case .sessionNotReady, .workerOffline, .noWindowServer,
              .sessionIsConsole, .appLaunchTimeout, .commandTimeout,
-             .helperUnavailable,
+             .helperUnavailable, .previewNotRunning,
              .appNotFound, .appNotRunning, .noInputTarget:
             return true
         case .accessibilityDenied, .screenRecordingDenied,
@@ -98,6 +102,8 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
             return "Fast user switch into the AgentSpace user once (System Settings → Control Center → Fast User Switching), then switch back. The session stays alive afterwards."
         case .sessionIsConsole:
             return "The AgentSpace desktop is on your physical display right now. Switch back to your own account; input resumes automatically and is refused until then."
+        case .previewNotRunning:
+            return "Start the preview first (`preview.start`); a stream also stops itself after 10 seconds with no frame pulls."
         case .noWindowServer:
             return "The AgentSpace session has no window server. Log the AgentSpace user in through the GUI (not ssh) and retry."
         case .workerOffline:

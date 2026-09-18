@@ -28,6 +28,8 @@ struct DesktopViewerView: View {
     @State private var lastCapture: Date?
     @State private var captureError: AppModel.PresentedError?
     @State private var timer: Timer?
+    /// True while the worker's ScreenCaptureKit stream is serving frames.
+    @State private var previewStreaming = false
     @State private var lastClickPoint: (x: Double, y: Double)?
     @State private var pendingAction: String?
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 1600
@@ -212,16 +214,51 @@ struct DesktopViewerView: View {
 
     private func startPreview() {
         guard timer == nil else { return }
-        // 1 FPS, per §52's MVP. ScreenCaptureKit's 5–15 FPS is a later phase and
-        // deliberately not attempted here.
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            Task { @MainActor in capture() }
+        // §52: the live stream runs at 5 FPS while the viewer is open, and the
+        // worker auto-stops it if this window goes away without a clean close.
+        // When the stream is refused (console session, missing grant), the
+        // viewer falls back to the 1 FPS screenshot MVP — the verified path —
+        // rather than showing nothing.
+        guard let space = snapshot?.space else { return }
+        if case .success = SpaceService().previewStart(for: space) {
+            previewStreaming = true
+        }
+        let interval: TimeInterval = previewStreaming ? 1.0 / 5.0 : 1.0
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+            Task { @MainActor in
+                if previewStreaming {
+                    pullPreviewFrame()
+                } else {
+                    capture()
+                }
+            }
         }
     }
 
     private func stopPreview() {
         timer?.invalidate()
         timer = nil
+        if previewStreaming {
+            previewStreaming = false
+            if let snapshot {
+                _ = SpaceService().previewStop(for: snapshot.space)
+            }
+        }
+    }
+
+    /// One pull of the live stream. A frame updates the image in place; a
+    /// failure (including the stream's own idle-stop) falls back to the 1 FPS
+    /// screenshot loop rather than ending the preview.
+    private func pullPreviewFrame() {
+        guard let snapshot else { return }
+        switch SpaceService().previewFrame(for: snapshot.space) {
+        case .success(let frame):
+            image = frame
+        case .failure:
+            previewStreaming = false
+            stopPreview()
+            startPreview()
+        }
     }
 
     private func capture() {

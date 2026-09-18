@@ -10,8 +10,18 @@ import AgentSpaceCore
 /// any instant — that is precisely what fast user switching does.
 struct Operations {
     let context: WorkerContext
+    /// The §52 live preview lifecycle. The factory closure injects the real
+    /// ScreenCaptureKit source; there is no other place capture can come from.
+    let preview: PreviewController
 
     static let workerVersion = "0.1.0"
+
+    init(context: WorkerContext, preview: PreviewController? = nil) {
+        self.context = context
+        self.preview = preview ?? PreviewController(idleTimeout: 10) { fps in
+            ScreenCaptureFrameSource()
+        }
+    }
 
     // MARK: - Dispatch
 
@@ -33,6 +43,9 @@ struct Operations {
             case Method.axWindows: return .success(try axWindows(params: params))
             case Method.axPerform: return .success(try axPerform(params: params))
             case Method.shutdown: return .success(try shutdown(params: params))
+            case Method.previewStart: return .success(try previewStart(params: params))
+            case Method.previewFrame: return .success(try previewFrame())
+            case Method.previewStop: return .success(try previewStop())
             default:
                 return .failure(AgentSpaceError(
                     code: .methodNotFound,
@@ -554,6 +567,40 @@ struct Operations {
         }
         return try AccessibilityBridge.perform(
             pid: pid, action: action, role: role, titleContains: titleContains, identifier: identifier)
+    }
+
+    // MARK: - preview (§52)
+
+    func previewStart(params: JSONValue) throws -> JSONValue {
+        // Same fail-closed posture as observation elsewhere: a console-session
+        // worker has no background desktop to preview — the only framebuffer is
+        // the user's, and §54 forbids shipping that to anyone.
+        try requireDesktopSession("run the live preview")
+        guard ScreenCapture.permissionGranted() else {
+            throw AgentSpaceError(
+                code: .screenRecordingDenied,
+                message: "Screen Recording is not granted to agentspace-worker in this session.")
+        }
+        let requested = params["maxFPS"]?.intValue ?? 5
+        let fps = try preview.start(maxFPS: requested)
+        return .obj(["streaming": .bool(true), "fps": .int(fps)])
+    }
+
+    func previewFrame() throws -> JSONValue {
+        guard let data = preview.frame() else {
+            // Distinguish "never started" from "started but idle-stopped": both
+            // are PREVIEW_NOT_RUNNING, and the fix text covers the timeout.
+            if !preview.isRunning {
+                throw AgentSpaceError(code: .previewNotRunning, message: "no preview stream is running for this Space.")
+            }
+            throw AgentSpaceError(code: .previewNotRunning, message: "the preview stream went idle and stopped itself; call preview.start again.")
+        }
+        return .obj(["inline": .string(data.base64EncodedString())])
+    }
+
+    func previewStop() throws -> JSONValue {
+        preview.stop()
+        return .obj(["streaming": .bool(false)])
     }
 
     // MARK: - shutdown

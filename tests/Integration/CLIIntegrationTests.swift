@@ -402,6 +402,30 @@ final class CLIIntegrationTests: XCTestCase {
         }
     }
 
+    /// §52 at the process boundary: the live preview is refused on a
+    /// console-session worker with the same typed code as every other
+    /// observation method — the only framebuffer available IS the user's
+    /// desktop, and shipping it as "the agent's preview" is exactly the §54
+    /// leak the observation guard closed.
+    func testPreviewRefusalSurfacesThroughTheCLIOnAConsoleWorker() throws {
+        let (cli, _, _) = try liveSpace("Preview Test")
+        let status = cli.run(["status", "Preview Test", "--json"])
+        let verdict = ((try? JSONSerialization.jsonObject(with: Data(status.stdout.utf8)) as? [String: Any]) ?? [:])["session"] as? [String: Any]
+        guard verdict?["verdict"] as? String == "isConsole" else {
+            throw XCTSkip("this test expects to run in the console session: \(status.output)")
+        }
+
+        let start = cli.run(["preview", "Preview Test", "--start", "--json"])
+        XCTAssertNotEqual(start.exitCode, 0, "must refuse, not stream the user's desktop: \(start.output)")
+        XCTAssertTrue(start.output.contains("SESSION_IS_CONSOLE"), "typed refusal required: \(start.output)")
+
+        // And without a stream, a frame pull is its own typed error — not a
+        // silent success, not a crash.
+        let frame = cli.run(["preview", "Preview Test", "--frame", "--json"])
+        XCTAssertNotEqual(frame.exitCode, 0, frame.output)
+        XCTAssertTrue(frame.output.contains("PREVIEW_NOT_RUNNING"), frame.output)
+    }
+
     private func pid(from result: CLIResult) -> Int? {
         guard let data = result.stdout.data(using: .utf8),
               let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
