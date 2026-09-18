@@ -4975,3 +4975,27 @@ session.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 330 | Stop Agent (worker only, session kept) and Logout Desktop (session teardown) are distinct UI buttons over distinct helper verbs, exactly as §40 separates them | ✓ | §168 — AppModel and HelperService |
+
+
+---
+
+## 169. §41's delete sequence is six ordered steps that always spare the
+user's repository
+
+SpaceProvisioner.delete opens by citing plan §41 and orders:
+stop worker first (removing a running job's plist would leave it
+alive until reboot), then `git worktree remove --force` — branch
+kept, because the branch holds the agent's commits and the
+original repository is never touched; a worktree-remove failure
+does not block the deletion. Then removeWorker + Keychain
+forget, then the registry (before the account, so no entry points
+at a missing account), then deleteUser last with the account
+always named on failure — after registry removal that message is
+the only pointer to a leftover account. The runtime directory is
+best-effort last. removeHome is the caller's separate question:
+the one irreversible step. Detail strings twice state the user's
+repository and branch are untouched.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 331 | The §41 chain runs in dependency-safe order, keeps branches, touches the original repo never, treats home removal as a separate explicit ask, and names the account on late failures | ✓ | §169 — SpaceProvisioner.delete |
