@@ -4519,3 +4519,23 @@ product is built to avoid."
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 307 | An unreadable session state refuses identically to a confirmed console session, with the rationale stated in code | ✓ | §145 — the SessionGuard rule comment and both collapse sites |
+
+
+---
+
+## 146. §45's five Phase-1 test scenarios all have named tests
+
+Console: testInputRejectedWhenSessionIsConsole (plus an
+integration-shaped variant). No WindowServer:
+testNoWindowServerIsRefusedDistinctly. Missing permissions:
+testPermissionProblemsWinOverEverything and
+testPermissionStateReportsMissingGrantsInSetupOrder. Background /
+no-fallback: testWorkerDoesNotFallbackWhenSessionUnavailable and
+the SessionGuard usable-path tests. Socket break / unauthorized
+client: the token-rejection tests (non-matching, empty,
+wrong-length) plus the isolation socket tests. Several carry the
+§55-planned names verbatim.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 308 | All five §45 scenarios (console, no WindowServer, missing permissions, no-fallback background, socket break) have automated tests | ✓ | §146 — the five-scenario test census |
