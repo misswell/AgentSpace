@@ -4128,3 +4128,20 @@ recommended flow (status → screenshot → reason → input → screenshot
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 283 | All fourteen §33 MCP tools are registered under their exact planned names, with the 23-test suite pinning the wiring | ✓ | §125 — the tool census against the plan |
+
+
+---
+
+## 126. §28's five sign-in steps exist verbatim in the Setup UI, localized
+
+The onboarding strings carry §28's sequence — open Fast User
+Switching, sign in as "AgentSpace – <name>", grant Accessibility,
+grant Screen Recording, switch back — plus the §19 declaration the
+plan demands alongside it: "AgentSpace never writes the TCC
+database. These grants are given by you, in that session, on
+purpose." Show Login Password is the §9 surface for the first
+switch. Both English and Simplified Chinese strings carry the steps.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 284 | The five §28 sign-in steps appear verbatim in localized Setup strings, with the TCC declaration and the Show Login Password surface | ✓ | §126 — the strings census |
