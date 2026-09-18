@@ -6128,3 +6128,26 @@ where the flow needs them.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 379 | The wizard's five steps render as a live checklist with snapshot-driven ticks, shown exactly when the Space needs a manual sign-in | ✓ | §217 — SpaceDetailView.swift:300–318 |
+
+
+---
+
+## 218. §28's wizard: three steps, three workspace choices verbatim
+
+The create sheet (titled "Create Agent Space") implements the
+plan's three steps. Name comes with the disclosure that "A
+macOS user named _agentspace_<random> is created ... The
+display name is only a label" — §8's two-name split said out
+loud. Workspace offers exactly None / Git Worktree / Shared
+Folder as a radio group; picking worktree reveals repository
+and branch (prefilled "agentspace/", §51's prefix), a preview
+of Repository/Branch/Worktree including the literal
+"<space-id>/…" path shape, and the caption "so it never edits
+the tree you have open"; picking shared folder states
+"read-only unless you explicitly allow writing." Create's
+button caption restates the §28 background chain — "Create the
+Space's macOS user, runtime and worker."
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 380 | The wizard's three steps and three workspace choices render verbatim, with §51's branch prefix and §25's read-only default visible in captions | ✓ | §218 — DoctorView.swift:192–261 |
