@@ -4675,3 +4675,21 @@ pass after the change.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 315 | Bundle-id and plist-name literals route through BundleIdentifiers in both code paths; only prose strings remain literal | ✓ (fixed this round) | §153 — the two edits and the green suite |
+
+
+---
+
+## 154. §31's CLI command list is complete: 15/15 plus two extras
+
+All thirteen planned base commands (list, status, screenshot,
+click, type, key, scroll, drag, launch, quit, apps, exec, desktop)
+and both management commands (create, delete) exist as dispatch
+cases; launch also accepts activate, and doctor ships per §38.
+§22's forceQuit is exposed as quit --force, mapping onto the
+separate Method.forceQuit. The CLI is a thin shell over the same
+Core the GUI and MCP use (§49), so this list is also the
+protocol's verb surface.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 316 | Every §31 CLI command exists; forceQuit rides quit --force; activate and doctor are extras | ✓ | §154 — the dispatch-case census |
