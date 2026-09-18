@@ -204,7 +204,7 @@ public enum Doctor {
                 status: .pass,
                 detail: "\(registry.spaces.count) registered: \(registry.spaces.map(\.name).joined(separator: ", "))"))
             for space in registry.spaces {
-                checks.append(workerCheck(for: space))
+                checks.append(contentsOf: workerChecks(for: space, root: resolvedRoot))
             }
         }
 
@@ -245,43 +245,73 @@ public enum Doctor {
         return Report(checks: checks)
     }
 
-    private static func workerCheck(for space: AgentSpace) -> Check {
-        let paths = AgentSpaceEnvironment.paths(spaceID: space.id)
+    /// Per-Space checks: the worker itself plus the two TCC grants §38 wants
+    /// named — asked *of the worker*, not of this console process, whose grants
+    /// are a different question entirely (the advisory check above).
+    private static func workerChecks(for space: AgentSpace, root resolvedRoot: String) -> [Check] {
+        // The overridden root must reach *every* path this check derives: a
+        // doctor run against a harness (or a non-default) root that quietly
+        // looked at the default runtime would report the wrong machine.
+        let paths = RuntimePaths(spaceID: space.id, root: resolvedRoot)
         guard FileManager.default.fileExists(atPath: paths.socketPath) else {
-            return Check(
+            return [Check(
                 name: "Worker (\(space.name))",
                 status: .warn,
                 detail: "no socket at \(paths.socketPath) — the worker is not running.",
-                fix: "The AgentSpace user must be logged in through the GUI once. After that, `agentspace start \(space.name)`.")
+                fix: "The AgentSpace user must be logged in through the GUI once. After that, `agentspace start \(space.name)`.")]
         }
         // Ask the worker rather than guessing from the pid file.
+        var results: [Check] = []
         do {
             let client = WorkerClient(socketPath: paths.socketPath)
             let response = try client.call(method: Method.hello, token: nil, timeout: 5)
             guard response.ok, let session = response.result?["session"] else {
                 let message = response.error?.message ?? "worker answered without a session block"
-                return Check(
+                results.append(Check(
                     name: "Worker (\(space.name))",
                     status: .fail,
                     detail: message,
-                    fix: "Restart the worker in the AgentSpace session: `agentspace restart \(space.name)`.")
+                    fix: "Restart the worker in the AgentSpace session: `agentspace restart \(space.name)`."))
+                return results
             }
             let permits = session["permitsInput"]?.boolValue ?? false
             let onConsole = session["onConsole"]?.boolValue ?? true
-            return Check(
+            results.append(Check(
                 name: "Worker (\(space.name))",
                 status: permits ? .pass : .warn,
                 detail: permits
                     ? "running, uid \(response.result?["user"]?["uid"]?.intValue ?? -1), input permitted."
                     : "running but refusing input (onConsole = \(onConsole)).",
-                fix: permits ? nil : "Switch away from the AgentSpace desktop in the fast-user-switching menu; it is currently on the console.")
+                fix: permits ? nil : "Switch away from the AgentSpace desktop in the fast-user-switching menu; it is currently on the console."))
+
+            // The worker's *own* grants, via the authenticated status call. The
+            // advisory TCC check earlier in this report looked at whatever
+            // process ran the doctor; the grants that matter are the worker's,
+            // and they are per-Space.
+            if let tokenHex = TokenStore.read(from: paths.tokenPath)?.hex,
+               let status = try? client.call(method: Method.status, params: .obj([:]), token: tokenHex, timeout: 5),
+               status.ok, let body = status.result {
+                let granted = body["accessibility"]?.boolValue ?? false
+                results.append(Check(
+                    name: "Accessibility (\(space.name))",
+                    status: granted ? .pass : .fail,
+                    detail: granted ? "granted to the worker." : "not granted to the worker.",
+                    fix: granted ? nil : "In the AgentSpace user's session, open System Settings → Privacy & Security → Accessibility and enable agentspace-worker. The AgentSpace Setup window appears once after the first login."))
+                let recording = body["screenRecording"]?.boolValue ?? false
+                results.append(Check(
+                    name: "Screen Recording (\(space.name))",
+                    status: recording ? .pass : .fail,
+                    detail: recording ? "granted to the worker." : "not granted to the worker.",
+                    fix: recording ? nil : "In the AgentSpace user's session, open System Settings → Privacy & Security → Screen Recording and enable agentspace-worker."))
+            }
         } catch {
-            return Check(
+            results.append(Check(
                 name: "Worker (\(space.name))",
                 status: .fail,
                 detail: "socket exists but the worker did not answer: \(error)",
-                fix: "Remove the stale socket and restart: `agentspace restart \(space.name)`. If it keeps happening, check \(paths.workerLogPath).")
+                fix: "Remove the stale socket and restart: `agentspace restart \(space.name)`. If it keeps happening, check \(paths.workerLogPath)."))
         }
+        return results
     }
 
     /// Fast User Switching, read from the login window's own preference file.

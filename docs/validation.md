@@ -50,6 +50,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 30 | Stop keeps the session, Logout ends the session through a typed root-only helper RPC, Delete is the only thing that removes a Space | ✓ | §26 — stop pinned by a live test; logout validation pinned; the logout run itself needs the root helper and is recorded as blocked |
 | 31 | Idle resources measured against §53: worker 2.7 MB / 0.0% CPU; app 0.0% CPU, 108.8 MB RAM (~9% over, honest miss with the lever recorded) | ✓ | §27 — release-build measurements, registry-independent |
 | 32 | 1000 sequential RPC round trips leave the worker healthy at ~6.5 ms/call | ✓ | §28 — protocol half of §44; the isolation half stays blocked on a second session |
+| 33 | Doctor names per-Space Accessibility and Screen Recording, asked of the worker, with panel-path fixes | ✓ | §29 — live-worker integration test; caught the wrong-root bug on its first run |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1481,3 +1482,34 @@ before — same replies, no fd exhaustion, no degraded path.
 | 106 | Worker idle: 2.7 MB / 0.0% CPU (target < 50 MB / ≈ 0%) | ✓ | §27 measurements |
 | 107 | App idle CPU 0.0%; RAM 108.8 MB — ~9% over the aspirational 100 MB, independent of registry contents | ✓ | measured honestly, lever recorded |
 | 108 | 1000 sequential round trips complete in 6.5 s (~6.5 ms/call) and leave the worker healthy | ✓ | integration test, parses the post-stress status |
+
+---
+
+## 29. Doctor, completed against the §38 checklist
+
+§38 lists thirteen named checks; the doctor had eleven-and-a-half. Screen
+Recording and Accessibility existed only as one advisory check about *whatever
+process ran the doctor* — a different question entirely from the worker's own
+grants, which are per-Space and are what the checklist names.
+
+Both now appear as their own per-Space lines, asked of the worker through the
+authenticated `status` call (the doctor reads the Space's token file — it is
+the main user's own tool, and the token is runtime-local):
+
+    ✓ Worker (Frontend)      running, uid 502, input permitted.
+    ✓ Accessibility (Frontend)   granted to the worker.
+    ✗ Screen Recording (Frontend) not granted to the worker.
+      fix: In the AgentSpace user's session, open System Settings → …
+
+Each failure carries the exact panel path — §38's rule that a failure must
+say *what to do*.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 109 | A live worker yields per-Space Worker + Accessibility + Screen Recording checks, rendered in human output | ✓ | integration test against a real worker |
+| 110 | The overridden root reaches every derived path — a harness doctor reports the right machine, not the default runtime | ✓ | the bug this round's test caught on its first run |
+
+That second row is another of the green-suite lessons: the check *looked* right
+and silently examined the default `/Users/Shared` runtime — where nothing
+lives — and would have reported "no socket" forever on any non-default root.
+The test failed on its first run, which is the only reason the bug died.

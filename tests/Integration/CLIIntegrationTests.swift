@@ -467,6 +467,29 @@ final class CLIIntegrationTests: XCTestCase {
         print("stress: 1000 round trips in \(String(format: "%.2f", duration))s")
     }
 
+    /// §38 wants Screen Recording and Accessibility named as their own checks,
+    /// and asked *of the worker* — not of whatever process happened to run the
+    /// doctor. A live worker answers both through the authenticated status
+    /// call; a doctor with no worker still reports everything else.
+    func testDoctorNamesTheWorkerOwnTCCGrants() throws {
+        let (cli, _, space) = try liveSpace("Doctor Grants")
+        let report = Doctor.run(root: cli.root)
+        let names = report.checks.map(\.name)
+        XCTAssertTrue(names.contains("Worker (Doctor Grants)"), "got: \(names)")
+        XCTAssertTrue(names.contains("Accessibility (Doctor Grants)"), names.joined(separator: ", "))
+        XCTAssertTrue(names.contains("Screen Recording (Doctor Grants)"), names.joined(separator: ", "))
+
+        // The grant lines reflect the worker's own answer, whatever it is —
+        // this console-session worker reports honestly either way.
+        let recording = report.checks.first { $0.name == "Screen Recording (Doctor Grants)" }
+        XCTAssertNotNil(recording?.detail)
+        XCTAssertFalse(recording?.detail.isEmpty ?? true)
+
+        // And the human render contains them too — the doctor output is what a
+        // user pastes into a support issue.
+        XCTAssertTrue(report.render().contains("Screen Recording (Doctor Grants)"))
+    }
+
     /// §37 at the process boundary: the exported bundle names the Space and
     /// the worker's state, but the token that authenticates to that worker
     /// must not appear anywhere in it — the export is exactly the kind of
