@@ -2736,3 +2736,21 @@ rebind behavior that §69 verified live) is present as well.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 186 | Every error code documented in troubleshooting is defined in source — the vocabulary is closed, and the one apparent gap resolved to a defined enum case at the Space-resolution layer | ✓ | §67b — the cross-check and its false alarm |
+
+
+---
+
+## 70. The third-party notice is complete, and the CLI's help surface is total
+
+Plan §42's conditions verified: `THIRD_PARTY_NOTICES.md` carries the Offstage
+MIT license verbatim with its repository link and copyright line, and a
+source-wide grep finds **zero** direct Offstage code copies — the session
+logic was reimplemented, not forked, so the notice is defensive completeness
+rather than a legal necessity. And every one of the CLI's 27 subcommand verbs
+answers `--help` cleanly: the help surface is total, with no verb that a user
+or agent can query and find undocumented.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 187 | The Offstage MIT notice is registered verbatim while the codebase contains zero copied Offstage code — reimplemented per §42, not forked | ✓ | §70 — the notice and the source-wide grep |
+| 188 | All 27 CLI subcommand verbs respond to --help | ✓ | §70 — the flag sweep |
