@@ -3979,3 +3979,23 @@ remedy text, and the Documents contrast. 336 tests green.
 |---|---|---|---|
 | 274 | The home itself, ~/Library, ~/Library/Keychains and ~/.ssh are refused as shared folders even when explicitly picked, with the remedy named | ✓ | §118 — the new guard and test, 336 green |
 | 275 | Desktop/Documents/Downloads remain shareable by explicit intent, matching §25's own UI example | ✓ | §118 — the contrast assertion in the same test |
+
+
+---
+
+## 119. §36's refusal list is fully implemented, as a documented superset
+
+Every command §36 says to refuse is in `ExecGuard.rules`: sudo,
+installer, diskutil erase, launchctl bootstrap system, dscl create,
+sysadminctl, rm -rf /, shutdown, reboot. The shipped list is a
+superset — twenty-two rules including the diskutil variants, bootout,
+dscl delete, dseditgroup, halt, nvram, csrutil, spctl
+--master-disable, kextload, tccutil and the authorization database —
+each carrying its reason, so an agent sees *why* as well as *what*.
+The tests pin the load-bearing entries, including the sudo variants
+that a bare "contains sudo" check would miss (env prefixes, `sudo
+-i`, a bare `sudo`).
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 276 | All nine §36 refusals exist in ExecGuard.rules, as a superset of twenty-two documented rules | ✓ | §119 — the rule list against §36 |
