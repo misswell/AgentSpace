@@ -6731,3 +6731,27 @@ anchors.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 406 | §55's eight named safety tests all exist and pass as of this round's regression spot-check | ✓ | §244 — tests/Safety/SafetyTests.swift, tests/Unit/SecurityTests.swift:185, SessionGuardTests.swift:127 |
+
+
+---
+
+## 245. §28's five-step setup card, wired to §19's checks
+
+The Setup card lists the plan's five steps as numbered, live
+ticking rows: open Fast User Switching (always explained),
+sign in as "AgentSpace – <name>" (ticks when the worker comes
+online), grant Accessibility (ticks from the worker's status
+boolean), grant Screen & System Audio Recording (same), switch
+back (never auto-ticks — only the user knows). The ticks are
+§19's detections relayed through status, which is exactly §28's
+"return to AgentSpace and auto-detect → Ready". The card states
+the §19 red line verbatim: "AgentSpace never writes the TCC
+database. These grants are given by you, in that session, on
+purpose." It renders only when input is not yet accepted, and
+deliberately not in the console state — that needs a
+diagnosis, not a login — with Show Login Password, a deep link
+to the Accessibility pane, and Refresh beside it.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 407 | §28's five-step sign-in checklist renders with live §19-detected ticks, the TCC red line stated verbatim, and state-appropriate visibility | ✓ | §245 — SpaceDetailView.swift:295–341 |
