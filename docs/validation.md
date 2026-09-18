@@ -5789,3 +5789,29 @@ layer, not just the menu.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 365 | Stop Worker and Logout Desktop are separate typed operations with separate privilege paths, enforced at service, helper-whitelist and UI layers | ✓ | §203 — SpaceService.swift:199,219–230, SpaceDetailView.swift:134 |
+
+
+---
+
+## 204. §22's app list: menu-bar apps included, window-server truth over
+stale AppKit caches
+
+The list spans the plan's three classes: every
+NSRunningApplication is labelled regular, accessory or
+prohibited (with an @unknown default), the comment names the
+plan's exact case — "Accessory apps are menu-bar apps
+(LSUIElement)" — and the visibility rule in Core keeps an
+accessory app plus any app the window server sees even when
+AppKit calls it prohibited. The frontmost and window facts come
+from CGWindowListCopyWindowInfo, not NSWorkspace, because the
+worker has no run loop for workspace notifications and the cache
+goes stale — "observed reporting an app as frontmost minutes
+after it had been killed," which is the §63.13 measured-behavior
+rule applied to AppKit itself. AppVisibility lives in Core so
+tests pin the rule without a window server, and this is the
+window-list source THIRD_PARTY_NOTICES registers as a borrowed
+idea.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 366 | apps lists regular/accessory/LSUIElement classes with window-server evidence over stale caches; the visibility rule is Core-pinned and test-covered | ✓ | §204 — AppControl.swift:33–70, AppVisibility |
