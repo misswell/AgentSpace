@@ -4028,3 +4028,24 @@ The delete path (§41) was measured on both sides:
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 277 | Space deletion removes only the worktree — the branch survives and the user's repository is untouched, verified against a real git repo | ✓ | §120 — the delete-path tests |
+
+
+---
+
+## 121. §35's four agent rules are verbatim, single-sourced, and tested
+
+The safety rules §35 tells the installer to generate are `Integrations.
+agentRules()` — all four sentences in substance verbatim: any window-
+capable command through AgentSpace, never launch GUI apps in the
+user's session, stop and report when unavailable, never fall back to
+the console session. The doc comment states the deeper point: the
+wording *is* a security property, so the rules are generated from one
+function rather than hardcoded at call sites. The merge is idempotent
+(marker-bracketed section) and appends only — never spliced — because
+instructions files are read top-to-bottom and the user's own ordering
+means something. Tests pin the key sentence, both markers, and the
+merge behaviour.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 278 | §35's four rules are generated verbatim from one function, installed idempotently by append-only merge, with tests pinning the wording | ✓ | §121 — Integrations.swift and its tests |
