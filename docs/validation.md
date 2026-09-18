@@ -5141,3 +5141,27 @@ marker-scoped idempotence.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 338 | Three per-target installs merge real client configs; Copy Config resolves the shipped CLI path (drift caught and fixed); rules copying keeps user consent | ✓ | §176 — installIntegration, copyMCPConfiguration, SpaceDetailView |
+
+
+---
+
+## 177. §36's exec deny list: all nine plan patterns plus a superset, sold
+honestly as not-a-sandbox
+
+ExecGuard states the plan's caveat verbatim in its own doc: this
+is not a sandbox — the real boundary is the standard, non-admin
+worker uid — the list is a guardrail against mistakes and prompt
+injection. All nine plan patterns are present (sudo, installer,
+diskutil erase, launchctl bootstrap system, dscl create,
+sysadminctl, rm -rf /, shutdown, reboot) with a wide superset
+(nvram, csrutil, tccutil, kextload, dd if=, fork bomb, raw device
+writes...). Two layers: case-insensitive substring rules and a
+refusedExecutables first-word set that fails fast with a clear
+message instead of a permission-denied an agent would retry. The
+list lives in Core, ShellExec routes every command through it,
+and 19 tests pin it — including whitespace normalisation,
+path-qualified binaries, and that ordinary dev commands still run.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 339 | The exec deny list covers all nine plan patterns plus a superset, is layered (substring + first-word), single-sourced in Core, tested 19 ways, and documented as a guardrail not a sandbox | ✓ | §177 — ExecGuard, ShellExec, ExecGuardTests |
