@@ -5577,3 +5577,24 @@ rather than split. Consolidation, not omission.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 356 | §5's tree matches path for path, with Safety/probes/App as supersets and shared/* consolidated into one Core module whose rationale is the dependency graph itself | ✓ (consolidation documented) | §194 — repo tree, Package.swift |
+
+
+---
+
+## 195. §59's README first screen: every planned element verbatim
+
+The README opens with the plan's exact headline, its exact
+two-sentence body, and the exact "No VM. No second macOS
+installation. No remote Mac." line. The two-desktop diagram is
+line-for-line what §59 sketched — VS Code/Chrome,
+Terminal/Simulator, Safari/Xcode, "You keep working / The agent
+keeps working" — and the four §1 guarantees follow as four short
+sentences: pointer does not move, keyboard is not taken, focus
+does not change, desktop does not flicker. The How section
+restates §1's architecture text (same Mac, same kernel, same
+/System, macOS's own multi-user GUI support). No deviation on
+this one at all.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 357 | README first screen reproduces §59 verbatim — headline, body, three denials, dual-desktop diagram — plus §1's four user-side guarantees and the architecture line | ✓ | §195 — README.md |
