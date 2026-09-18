@@ -2158,3 +2158,26 @@ machines, and the default of 3 sits inside the plan's window.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 153 | A slider's limits are read as AX attributes, so this check can be re-run mechanically after any Settings refactor — it is a one-line osascript, not a judgement call | ✓ | §49 — the command in the transcript |
+| 154 | Every backticked repository path across README and the five docs resolves to a real file — zero broken references in 40+ references swept | ✓ | §50 — the sweep, repeatable as a script |
+
+
+---
+
+## 50. Reference integrity: no path in the documentation dangles
+
+A sweep pulled every backticked repository path out of the README and the five
+docs and checked each against the working tree: `docs/architecture.md`,
+`docs/protocol.md`, `docs/security.md`, `docs/troubleshooting.md`,
+`docs/validation.md`, `scripts/{demo,mcp-smoke,notarize,release}.sh` — all
+nine README references and every doc cross-reference resolve. Zero broken
+paths.
+
+This matters more than it sounds. The docs quote paths as *instructions* — a
+reader who hits `scripts/notarize.sh: No such file` has lost the thread, and
+notarization is exactly where a stalled reader makes a mistake. The sweep is
+a five-line Python script against the repo, so it belongs in any pre-release
+checklist next to the test run.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 155 | `agentspace --version` reports "agentspace 0.1.0 (protocol 1)" — binary version and wire protocol in one line, useful in bug reports | ✓ | §50 — the output |
