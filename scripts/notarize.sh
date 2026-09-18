@@ -56,13 +56,16 @@ echo "== 1. notarize the app itself, then staple it =="
 # was built from an older bundle — submit the app explicitly, every time.
 ZIP="dist/AgentSpace-app-notarize.zip"
 rm -f "$ZIP"
+# A submission that dies mid-flight (the observed connectTimeout) must not
+# leave the zip behind: dist/ is the user-facing distribution directory, and a
+# stale archive in it invites shipping the wrong bytes.
+trap 'rm -f "$ZIP"' EXIT
 ditto -c -k --keepParent "$APP" "$ZIP"
 if [[ "$MODE" == "notarytool" ]]; then
   xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
 else
   asc notarization submit --file "$ZIP" --wait
 fi
-rm -f "$ZIP"
 xcrun stapler staple "$APP"
 
 echo "== 2. rebuild the DMG from the stapled app =="

@@ -75,8 +75,10 @@ and what is not, with the measurements.
   operations, no shell, and a code-signing check on its caller.
 - Git-worktree workspaces: the agent gets its own checkout on an `agentspace/…`
   branch, so it can never edit the tree you have open.
-- 223 Swift tests and 19 MCP tests, 0 failures; the safety suite runs against a
-  live worker over a live socket, and the workspace tests use real git.
+- The full Swift and MCP suites pass with zero failures; the safety suite runs
+  against a live worker over a live socket, and the workspace tests use real
+  git. The exact test count, per suite, lives in `docs/validation.md` — a number
+  hardcoded here would drift the moment a test is added.
 
 **Not built yet**
 
@@ -122,9 +124,9 @@ Requires Apple Silicon and macOS 26+. Xcode command line tools and Swift 6.
 
 ```bash
 scripts/build.sh            # both binaries, sanity-checked, signed
-scripts/test.sh             # 320 tests; builds the worker first, because the
-                            # safety suite spawns it and a skipped suite is not
-                            # a passing suite
+scripts/test.sh             # the whole suite; builds the worker first, because
+                            # the safety suite spawns it and a skipped suite is
+                            # not a passing suite
 scripts/bundle-app.sh       # a signed dist/AgentSpace.app
 scripts/demo.sh             # end-to-end CLI run against a throwaway root
 scripts/mcp-smoke.sh        # real MCP JSON-RPC against a live worker
