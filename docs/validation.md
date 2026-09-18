@@ -4462,3 +4462,22 @@ and Gate 1 (never root, exit 77) sits in front of it.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 304 | Worker startup fails closed without graphic access via SessionGetInfo, a stronger guard than the planned managername text parse | ✓ | §142 — Gate 1/Gate 2 in worker main |
+
+
+---
+
+## 143. §14's nine input actions are covered by seven parameterised cases
+
+The enum carries move, click (with button and count), drag, scroll,
+type, key and sleep — where click(count: 2) is the plan's
+doubleClick and click(button: .right) is rightClick: a
+parameterisation, not a missing feature. The file comment pins the
+batch semantics the plan asks for: a rejected batch performs
+nothing (atomicity), and no synthetic gesture ever leaves a mouse
+button down or a modifier stuck, so the session stays reasoned-about
+after every call. Sleep is bounded by InputLimits, matching the
+plan's "sleep" as a settle hint rather than an unbounded halt.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 305 | All nine §14 actions are expressible; doubleClick and rightClick are parameterisations of click | ✓ | §143 — the InputAction enum census |
