@@ -5208,3 +5208,28 @@ the workspace directory.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 341 | Worktrees live under the shared root with per-Space UUID keys and an escape check; the ~ path from the plan is recorded as a deliberate deviation forced by cross-user permissions | ✓ (deviation documented) | §179 — worktreesDirectory, SpaceProvisioner.worktreePath, WorkspacePreparer |
+
+
+---
+
+## 180. §25's read-only default is enforced end to end, and the forbidden
+list is structural
+
+SharedFolder's access parameter defaults to .readOnly with the
+doc naming the failure mode it exists to prevent: an agent that
+can silently rewrite the folder you are working in. Enforcement
+is real, not decorative: provisioning writes allowed and writable
+roots into the workspace record, the worker carries them in its
+context, and WorkspaceGuard.check runs on exec cwd and file
+arguments — a write into a read-only root fails with
+WORKSPACE_DENIED and a fix ("Enable Read & Write for that
+folder"). The plan's forbidden list (~, Library, Desktop,
+Documents, Downloads, SSH, Keychain) is satisfied structurally:
+the agent account has no access to the main user's home at all,
+and allowedRoots starts empty — nothing is reachable until the
+user adds it. Symlinks resolve before the prefix test, so
+/tmp/evil -> ~/.ssh does not pass on a technicality.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 342 | Shared folders default read-only with enforced WORKSPACE_DENIED on write; the forbidden-directory list holds structurally via empty-by-default allowedRoots and no home access; symlinks resolve before the prefix test | ✓ | §180 — SharedFolder, WorkspaceGuard, SpaceProvisioner plan |
