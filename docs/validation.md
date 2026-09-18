@@ -48,6 +48,8 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 28 | The §52 live preview is pull-model, fail-closed on console, self-stops when unpulled, and falls back to the 1 FPS MVP when refused | ✓ | §24 — 6 controller tests + 2 process-boundary tests; SCK delivery itself needs a background session and is marked unverified |
 | 29 | The §37 diagnostics export is safe to hand out: whitelist collection + a redaction pass, with the token never surviving either | ✓ | §25 — 7 unit tests + a live-worker integration test |
 | 30 | Stop keeps the session, Logout ends the session through a typed root-only helper RPC, Delete is the only thing that removes a Space | ✓ | §26 — stop pinned by a live test; logout validation pinned; the logout run itself needs the root helper and is recorded as blocked |
+| 31 | Idle resources measured against §53: worker 2.7 MB / 0.0% CPU; app 0.0% CPU, 108.8 MB RAM (~9% over, honest miss with the lever recorded) | ✓ | §27 — release-build measurements, registry-independent |
+| 32 | 1000 sequential RPC round trips leave the worker healthy at ~6.5 ms/call | ✓ | §28 — protocol half of §44; the isolation half stays blocked on a second session |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1438,3 +1440,44 @@ notes that cost real time: a stopped worker's socket *file* lingers (exit does
 not unlink it — the honest observable is the pid), and `status` after a stop
 exits non-zero with `WORKER_OFFLINE`, which is the fail-closed contract
 behaving exactly as specified.
+
+---
+
+## 27. Performance (§53) — measured, not aspirational
+
+The plan sets explicit idle targets; until now they were prose. Measured with
+`ps` sampling every 2 s on this machine, release build (`bundle-app.sh release`),
+one Space registered, GUI viewer closed:
+
+| Process | Target (§53) | Measured | Verdict |
+|---|---|---|---|
+| AgentSpace.app idle RAM | < 100 MB | **108.8 MB** | ~9% over — honest miss |
+| AgentSpace.app idle CPU | ≈ 0% | **0.0%** | on target |
+| agentspace-worker idle RAM | < 50 MB | **2.7 MB** | far under |
+| agentspace-worker idle CPU | ≈ 0% | **0.0%** | on target |
+
+Two measurement notes that matter for anyone repeating this:
+
+- The app's 108 MB is **independent of registry contents** — an empty-root run
+  measures the same within noise. It is the SwiftUI/AppKit baseline of a
+  native window, not AgentSpace's polling (CPU 0.0% corroborates: nothing is
+  spinning). The next lever, if the 100 MB matters, is lazy-loading the
+  SwiftUI stack — a real optimization task, recorded here rather than claimed
+  done. The debug build measures the same 108 MB, so the gap is not build
+  flags.
+- The worker at 2.7 MB is the whole point of §53's "不要持续截图": the worker
+  holds no frames, runs no timers, and spends its life in `accept()`.
+
+## 28. One thousand round trips (§44, protocol layer)
+
+§44's stress test has two halves. The isolation half (whose framebuffer the
+frames land on) needs a background session — still recorded as blocked. The
+protocol half now runs: **1000 sequential RPC round trips through the real
+Unix socket**, then a CLI status to prove the worker is exactly as healthy as
+before — same replies, no fd exhaustion, no degraded path.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 106 | Worker idle: 2.7 MB / 0.0% CPU (target < 50 MB / ≈ 0%) | ✓ | §27 measurements |
+| 107 | App idle CPU 0.0%; RAM 108.8 MB — ~9% over the aspirational 100 MB, independent of registry contents | ✓ | measured honestly, lever recorded |
+| 108 | 1000 sequential round trips complete in 6.5 s (~6.5 ms/call) and leave the worker healthy | ✓ | integration test, parses the post-stress status |

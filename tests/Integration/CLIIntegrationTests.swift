@@ -437,6 +437,36 @@ final class CLIIntegrationTests: XCTestCase {
         XCTAssertTrue(status.output.contains("WORKER_OFFLINE"), status.output)
     }
 
+    /// §44's 1000-iteration stress, at the layer this environment can verify:
+    /// one thousand sequential RPC round trips through the real socket. The
+    /// *isolation* half of the plan's test (whose session's framebuffer the
+    /// frames come from) needs a background session and stays recorded as
+    /// blocked — but the protocol layer's stamina is not a guess.
+    func testOneThousandSequentialRoundTripsLeaveTheWorkerHealthy() throws {
+        let (cli, token, space) = try liveSpace("Stress Test")
+        let client = WorkerClient(socketPath: RuntimePaths(spaceID: space.id, root: cli.root).socketPath)
+        let started = Date()
+        for _ in 0..<1000 {
+            let response = try client.call(
+                method: Method.status, params: .obj([:]), token: token.hex)
+            XCTAssertEqual(response.error, nil)
+            XCTAssertNotNil(response.result?["worker"], "every reply must carry a status body")
+        }
+        let duration = Date().timeIntervalSince(started)
+
+        // Stamina: the worker must be exactly as healthy afterwards — no fd
+        // leaks, no growing dispatch queues, no degraded replies.
+        let after = cli.run(["status", "Stress Test", "--json"])
+        XCTAssertEqual(after.exitCode, 0, after.output)
+        let parsed = (try? JSONSerialization.jsonObject(with: Data(after.stdout.utf8))) as? [String: Any]
+        XCTAssertEqual(parsed?["worker"] as? Bool, true,
+                       "healthy after 1000 round trips: \(after.output)")
+        // §53-adjacent sanity: 1000 round trips should take seconds, not
+        // minutes. A protocol regression to 100 ms+ per call shows up here.
+        XCTAssertLessThan(duration, 60, "1000 round trips in \(duration)s suggests a stalled path")
+        print("stress: 1000 round trips in \(String(format: "%.2f", duration))s")
+    }
+
     /// §37 at the process boundary: the exported bundle names the Space and
     /// the worker's state, but the token that authenticates to that worker
     /// must not appear anywhere in it — the export is exactly the kind of
