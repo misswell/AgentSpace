@@ -5866,3 +5866,28 @@ never constrained by a config file anyway, as the comment says.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 368 | The four §35 safety rules are emitted verbatim from a single tested source, wrapped in idempotent markers for AGENTS.md/CLAUDE.md | ✓ | §206 — Integrations.swift:134–165, IntegrationsTests.swift:158 |
+
+
+---
+
+## 207. §36's nine denied commands: every one present with a teaching
+reason, plus supersets
+
+Core's ExecGuard carries each §36 denial by name — sudo,
+installer, diskutil erase, launchctl bootstrap system, dscl
+create, sysadminctl, rm -rf /, shutdown, reboot — every rule
+paired with a reason addressed to the agent ("privilege
+escalation is out of scope for an agent session", "powers off
+the machine the human is using"), so the rejection teaches
+instead of stonewalling. Supersets beyond the list: diskutil
+erasevolume/reformat/unmount, dscl delete, rm -rf /*, and a
+refused-executables table (su, doas, dseditgroup and more) that
+blocks the effect even when the name is spelled differently. A
+first grep looked in the worker's ShellExec.swift and found
+nothing but a comment — the rules live in Core where tests pin
+them; the miss was the search's, not the guard's, and locating
+the real file is the second tool.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 369 | All nine §36 commands are denied by name in Core's ExecGuard with agent-facing reasons, plus volume/delete/account supersets and a refused-executables table | ✓ | §207 — ExecGuard.swift:23–58 |
