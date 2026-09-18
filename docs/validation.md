@@ -5620,3 +5620,28 @@ without a deliberate addition.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 358 | All §61 exclusions are absent from code (two-tool sweep) and named in a documented V1 scope section; MCP surface stays five files wide | ✓ | §196 — repo sweeps, architecture.md "deliberately does not do" |
+
+
+---
+
+## 197. §60's five priorities, each anchored to a verified mechanism
+
+§60 says every feature must prioritize Isolation, Fail Closed,
+Low Overhead, Native macOS and Agent Friendly over convenience.
+Each has a named anchor: Isolation — the five-verb console
+refusal and the 0700 runtime ACLs. Fail Closed — .indeterminate
+refuses exactly like .isConsole, worker gates exit 77/69, and
+invalid coordinates are rejected rather than clamped. Low
+Overhead — one lifetime-bound timer, event-driven reloads, the
+disk walk kept off the poll. Native macOS — no private
+frameworks by double sweep, Fast User Switching as the session
+mechanism itself. Agent Friendly — typed errors with remediation
+text, the pixel-to-point rule inside the rejection, a global
+--json whose failure envelope is §2's body, and refusal messages
+that teach. The plan's summary line holds as an audit result:
+none of the five was traded away for convenience in the 16
+phases.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 359 | §60's five priorities each map to a verified mechanism; no priority was traded for convenience across the audited phases | ✓ | §197 — SessionGuard, gates, §184, §43, ErrorCodes |
