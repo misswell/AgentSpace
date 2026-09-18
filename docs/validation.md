@@ -6318,3 +6318,24 @@ Space… opens the §28 wizard.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 388 | §27's chrome encodes fail-closed semantics: two-state permission chips, state-named dots, stable error codes readable by humans and screenshot-reading agents | ✓ | §226 — Components.swift:12–105,172 |
+
+
+---
+
+## 227. §41's home-directory question as a two-button choice
+
+The plan's final question — "Delete Agent home directory?" —
+is rendered as the confirmation dialog's two branches: keep the
+home (safe path) or delete it (destructive), and the comment
+explains the split: it is "the one irreversible step, and it
+holds the agent's own files — which the user may want to look
+at after the Space is gone." The caption restates §41's
+worktree rule in one sentence — "A git worktree is removed but
+its branch is kept, and your own repository is never touched" —
+and the dialog's message promises "Your files are not
+affected." A second dialog gates MCP installs with §35's
+explicit consent and a backup of prior contents.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 389 | §41's delete asks the home question as keep/delete branches, states the worktree rule and never-touch guarantee, and backs up config files before integration writes | ✓ | §227 — SpaceDetailView.swift:381–420 |
