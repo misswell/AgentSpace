@@ -2654,3 +2654,25 @@ Plan §34 promises one-command MCP config for Claude Code, Codex and OpenCode;
 |---|---|---|---|
 | 180 | One command produces correctly-formatted MCP config for all three targets and the §35 rules verbatim with the consent gate attached | ✓ | §66 — the three formats and the rules block |
 | 181 | Every script and doc the README references exists, and every CLI example verb is real | ✓ | §66 — the audit |
+
+
+---
+
+## 67. The diagnostics export produces a redacted report — with nothing to leak on this machine
+
+`agentspace diagnostics` runs clean here (exit 0): a 16-line report covering
+machine readiness, session state, socket path (82 of 103 bytes — the §58
+headroom line, live), advisory TCC grants, and the Space list. A scan of the
+output finds **zero** occurrences of token, password, secret or keychain —
+the §37 redaction rule holds on a real export, trivially, because this
+machine has no Spaces and therefore no secrets to carry; the redaction
+itself is covered by `testSecretKeysAreRedacted` (§61). `--json` emits a
+legal envelope under a `bundle` key.
+
+One usage note recorded: `diagnostics` prints to stdout (there is no
+`--output` flag); the CLI's own management-section help explains that
+Space creation always goes through the helper and the GUI, never sudo.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 182 | The diagnostics report is structurally complete (readiness, session, socket, TCC, spaces), emits legal JSON under --json, and carries no secret vocabulary | ✓ | §67 — the export, the scan, and the §61 redaction test |
