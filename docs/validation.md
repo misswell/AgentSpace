@@ -6254,3 +6254,25 @@ from inside the Aqua session launches into that session.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 385 | launch waits for real registration — a namable pid plus optional window ownership with an LSUIElement-aware half-budget — and fails with an actionable error | ✓ | §223 — AppControl.swift:160–245 |
+
+
+---
+
+## 224. §29's SpaceManager role, split into model + registry
+
+The plan's SpaceManager exists as two cooperating types rather
+than one: AppModel (@MainActor ObservableObject) is the GUI's
+single owner of space lifecycle — create, delete, stop, logout,
+preview, doctor — and SpaceRegistry in Core is the persisted
+1:N fact both the app and doctor load. The split is deliberate
+separation of state from storage, not a missing piece. The
+model's header documents §53's economics in its own voice:
+nothing polls on a timer at all — refreshes fire on foreground,
+selection and explicit request, the only repeating timer is the
+desktop preview (5 FPS §52 stream, 1 FPS fallback) — and
+cross-references the measured idle CPU: 0.0% in
+docs/validation.md §27.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 386 | §29's unified space management is AppModel + SpaceRegistry (documented split), 1:N by construction, with §53's no-polling discipline stated and measured | ✓ | §224 — AppModel.swift:6–23,159,215, SpaceService.swift:72–77 |
