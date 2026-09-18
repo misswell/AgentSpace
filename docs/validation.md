@@ -6036,3 +6036,27 @@ no code path uses it to start a worker without a session.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 375 | Rebooted Spaces show needsLogin (not offline, not auto-started) via the Aqua gate plus the derivation test; live-session-dead-worker stays honestly offline | ✓ | §213 — SpaceStateDerivationTests.swift:17–47, SpaceModel.swift:212 |
+
+
+---
+
+## 214. §23's exec result: the plan's fields verbatim, plus honest
+supersets
+
+ShellExec.Result returns exitCode, stdout, stderr and duration
+(ms, matching the plan's example) exactly, with cwd, env and
+timeout as request-side parameters — the plan's six. The
+supersets are diagnostic honesty: signal when a process died by
+signal, timedOut to distinguish timeout from a normal exit, and
+truncated plus a 4 MB output cap, because "a runaway command
+must not be able to make the worker allocate without bound; the
+tail is what matters for diagnosis." Buffering instead of
+streaming is documented as deliberate — it matches the plan's
+shape, keeps one request per connection, and a streaming variant
+can land later without changing the contract. Identity holds:
+the command runs as the worker's own standard uid with "no sudo,
+no helper round-trip and no root path into this function."
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 376 | exec returns the plan's fields verbatim plus signal/timedOut/truncated supersets under a 4 MB cap, buffered by contract, never elevated | ✓ | §214 — ShellExec.swift:10–39 |
