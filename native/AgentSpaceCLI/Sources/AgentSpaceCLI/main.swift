@@ -45,6 +45,9 @@ let valueFlags: Set<String> = [
     "root", "out", "max-width", "display", "cwd", "timeout", "env",
     "file", "pid", "role", "title", "identifier", "action", "reason",
     "max-depth", "max-nodes",
+    // `create` / `delete` (plan §31). Declared here or the parser refuses them as
+    // unknown before the command ever sees them.
+    "repo", "branch", "share", "share-rw",
 ]
 
 /// Flags that stand alone. `--json` belongs here, not above: listing it as a
@@ -52,10 +55,11 @@ let valueFlags: Set<String> = [
 let booleanFlags: Set<String> = [
     "help", "version", "json", "double", "right", "force", "inline",
     "interesting", "no-interesting", "all", "resources", "quiet",
+    "remove-home",
 ]
 
 /// Flags that may appear more than once.
-let repeatableFlags: Set<String> = ["env"]
+let repeatableFlags: Set<String> = ["env", "share", "share-rw"]
 
 func parseArgs(_ argv: [String]) -> Result<ParsedArgs, ArgumentError> {
     var parsed = ParsedArgs()
@@ -247,6 +251,11 @@ func usage() -> String {
       doctor                          Diagnose this machine's readiness
       helper                          Privileged helper: installed? answering?
 
+    MANAGEMENT (changes the machine; needs the privileged helper)
+      create <name>                   Create a Space: macOS user, runtime, worker
+      delete <space>                  Delete a Space (--remove-home to also remove
+                                      its home directory)
+
     OBSERVE
       screenshot <space>              Capture the Space's desktop
       apps <space>                    Apps running in the Space
@@ -314,6 +323,18 @@ if parsed.bool("version") {
     exit(0)
 }
 
+/// Same slug for the same Space name whether it was made here or in the app, so a
+/// CLI-created Space and a GUI-created one agree about the worktree path.
+///
+/// File-level rather than nested in the `create` case, because `delete` needs the
+/// same answer to find that Space's directory.
+func slug(_ text: String) -> String {
+    let value = text.lowercased()
+        .replacingOccurrences(of: " ", with: "-")
+        .filter { $0.isLetter || $0.isNumber || $0 == "-" }
+    return value.isEmpty ? "space" : value
+}
+
 if parsed.bool("help") || parsed.positionals.isEmpty {
     print(usage())
     exit(parsed.positionals.isEmpty && !parsed.bool("help") ? 2 : 0)
@@ -336,6 +357,172 @@ case "version":
         "cli": .string(cliVersion),
         "protocol": .int(agentSpaceProtocolVersion),
     ]), human: "agentspace \(cliVersion) (protocol \(agentSpaceProtocolVersion))")
+
+case "create":
+    // Management command (plan §31). It changes the machine, so it goes through
+    // the privileged helper and never through a shell of our own: there is no
+    // `sudo` here, and no fallback if the helper is missing.
+    //
+    // Deliberately NOT exposed over MCP (plan §33): creating a macOS account is
+    // something a human does, in the GUI, having read what it means.
+    let name = rest.first ?? ""
+    guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace create <name> [--repo PATH] [--branch agentspace/x] [--share PATH] [--share-rw PATH]"), exitCode: 64)
+    }
+
+    var workspace: Workspace = .none
+    var sharedFolders: [SharedFolder] = []
+    if parsed.flag("repo") != nil || parsed.flag("branch") != nil {
+        guard let repository = parsed.flag("repo") else {
+            emitter.failure(AgentSpaceError(code: .badRequest, message: "a git workspace needs --repo PATH"), exitCode: 64)
+        }
+        let branch = parsed.flag("branch") ?? "agentspace/\(name.lowercased().replacingOccurrences(of: " ", with: "-"))"
+        // The worktree lives under the shared runtime root rather than inside the
+        // Space's home: the main user has to be able to read it to show a diff, and
+        // a path under /Users/Shared is also one the plan can validate before
+        // anything is created.
+        workspace = .gitWorktree(
+            repository: (repository as NSString).expandingTildeInPath,
+            branch: branch,
+            path: "\(RuntimePaths.root)/Worktrees/\(slug(name))/\(branch.replacingOccurrences(of: "agentspace/", with: ""))")
+    }
+    for path in parsed.list("share") {
+        sharedFolders.append(SharedFolder(path: (path as NSString).expandingTildeInPath, access: .readOnly))
+    }
+    for path in parsed.list("share-rw") {
+        sharedFolders.append(SharedFolder(path: (path as NSString).expandingTildeInPath, access: .readWrite))
+    }
+
+    let provisionerOptions = SpaceProvisioner.Options(
+        root: RuntimePaths.root,
+        workspaceDirectory: "\(RuntimePaths.root)/Worktrees/\(slug(name))",
+        mainUser: NSUserName())
+
+    let outcome = SpaceProvisioner.create(
+        name: name, workspace: workspace, sharedFolders: sharedFolders,
+        options: provisionerOptions,
+        transport: { try HelperClient.call($0) })
+
+    if emitter.json {
+        print(emitter.pretty(.obj([
+            "ok": .bool(outcome.ok),
+            "space": outcome.space.map { space in
+                .obj([
+                    "id": .string(space.id.uuidString),
+                    "name": .string(space.name),
+                    "username": .string(space.username),
+                    "uid": .int(Int(space.uid)),
+                    "state": .string(space.state.rawValue),
+                ])
+            } ?? .null,
+            "error": outcome.error.map { .obj([
+                "code": .string($0.code.rawValue),
+                "message": .string($0.message),
+            ]) } ?? .null,
+            "steps": .array(outcome.steps.map { step in
+                .obj([
+                    "name": .string(step.name),
+                    "detail": .string(step.detail),
+                    "outcome": .string(String(describing: step.outcome)),
+                ])
+            }),
+        ])))
+    } else {
+        for step in outcome.steps {
+            let mark: String
+            switch step.outcome {
+            case .done: mark = "  ✓"
+            case .skipped: mark = "  ~"
+            case .failed, .rollbackFailed: mark = "  ✗"
+            case .rolledBack: mark = "  ↩"
+            }
+            let detail = step.detail.isEmpty ? "" : "  \(step.detail)"
+            print("\(mark) \(step.name)\(detail)")
+            if case .skipped(let reason) = step.outcome, !reason.isEmpty {
+                print("      \(reason)")
+            }
+            if case .rolledBack(let reason) = step.outcome, !reason.isEmpty {
+                print("      \(reason)")
+            }
+            if case .rollbackFailed(let reason) = step.outcome, !reason.isEmpty {
+                print("      \(reason)")
+            }
+            if case .failed(let reason) = step.outcome, !reason.isEmpty {
+                print("      \(reason)")
+            }
+        }
+        if let space = outcome.space {
+            print("")
+            print("Created \(space.name) as \(space.username) (uid \(space.uid)).")
+            print("")
+            print("Next, once — this is the only step that needs you:")
+            print("  1. Open Fast User Switching and sign in as \"\(space.name)\"")
+            print("     The password is in the AgentSpace app: Space → Show Login Password.")
+            print("  2. In that session, grant Accessibility and Screen Recording to")
+            print("     agentspace-worker when the setup window asks.")
+            print("  3. Switch back to your own account. The agent keeps its desktop.")
+        }
+    }
+    if let error = outcome.error {
+        FileHandle.standardError.write(Data("\(error.message)\n\(error.code.remediation)\n".utf8))
+        exit(error.code == .helperUnavailable ? 69 : 1)
+    }
+    exit(0)
+
+case "delete":
+    let registry = SpaceRegistry.load(root: rootOverride)
+    guard let target = rest.first else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace delete <space> [--remove-home]"), exitCode: 64)
+    }
+    let space: AgentSpace
+    switch registry.resolve(target) {
+    case .success(let found): space = found
+    case .failure(let error):
+        emitter.failure(error, exitCode: 66)
+    }
+    let removeHome = parsed.bool("remove-home")
+    let outcome = SpaceProvisioner.delete(
+        space: space, removeHome: removeHome,
+        options: SpaceProvisioner.Options(
+            root: RuntimePaths.root,
+            workspaceDirectory: "\(RuntimePaths.root)/Worktrees/\(slug(space.name))",
+            mainUser: NSUserName()),
+        transport: { try HelperClient.call($0) },
+        registry: registry)
+    if emitter.json {
+        let stepValues: [JSONValue] = outcome.steps.map { step in
+            let fields: [String: JSONValue] = [
+                "name": .string(step.name),
+                "detail": .string(step.detail),
+                "outcome": .string(String(describing: step.outcome)),
+            ]
+            return .obj(fields)
+        }
+        var payload: [String: JSONValue] = [
+            "ok": .bool(outcome.error == nil),
+            "space": .string(space.name),
+            "removedHome": .bool(removeHome),
+            "steps": .array(stepValues),
+        ]
+        if let error = outcome.error {
+            payload["error"] = .obj([
+                "code": .string(error.code.rawValue),
+                "message": .string(error.message),
+            ])
+        } else {
+            payload["error"] = .null
+        }
+        print(emitter.pretty(.obj(payload)))
+    } else {
+        for step in outcome.steps {
+            print("  \(step.isFailure ? "✗" : "✓") \(step.name)\(step.detail.isEmpty ? "" : "  \(step.detail)")")
+        }
+    }
+    if let error = outcome.error {
+        FileHandle.standardError.write(Data("\(error.message)\n".utf8))
+        exit(1)
+    }
+    exit(0)
 
 case "helper":
     // The privileged helper, from the outside. Read-only: registering the

@@ -315,3 +315,80 @@ agentspace status <space> --json >> doctor.json
 Diagnostics export strips passwords, tokens, Keychain material, typed input text
 and full screenshots. Check the file before attaching it anyway — redaction is
 best-effort, and a secret you pasted into a window title is still a secret.
+
+---
+
+## Creating or deleting a Space fails
+
+### `HELPER_UNAVAILABLE` / `agentspace create` exits 69
+
+```
+the privileged helper did not answer: the connection was invalidated before a reply arrived
+→ The privileged helper is not installed. … Open the AgentSpace app and choose Install Helper.
+```
+
+The helper is a root LaunchDaemon inside the app bundle, and it is the only thing
+that can make a macOS user. There is no unprivileged alternative, so AgentSpace
+stops rather than trying one — in particular it never runs `sudo`, and it never
+falls back to your own account.
+
+Fix: open the AgentSpace app, and press **Install Helper**. macOS will ask for an
+administrator password, because only an administrator can add a LaunchDaemon. Then
+`agentspace helper` should exit 0.
+
+### `HELPER_REJECTED`
+
+The helper is installed and answered, and refused. The message says why. The usual
+causes:
+
+- **The account name is already taken.** Space accounts match
+  `_agentspace_<6 hex>`; a leftover from a failed creation blocks a new one with
+  the same name. `agentspace doctor` lists any accounts matching the pattern, so
+  you can see the orphan and remove it.
+- **The runtime root is not `/Users/Shared` or `/tmp`.** The helper only ever
+  writes into a root it recognises; `--root` pointing somewhere else is refused by
+  design.
+- **The bundle or helper signature does not match.** The helper verifies the calling
+  process's code signature against a fixed requirement (team `U8U443D7ZL`,
+  identifier `com.agentspace.AgentSpace`). A rebuilt or re-signed app whose
+  signature changed is refused — that is the check working, not a bug.
+
+### "creation did not finish" and the Space shows **Error**
+
+A step failed *and* its cleanup also failed, so something is on the machine that
+AgentSpace could not remove — usually an `_agentspace_…` account. The Space is kept
+in the list with state **Error** precisely so this is not invisible. Run
+`agentspace doctor` to see the account, then delete the Space again, or remove the
+account in System Settings → Users & Groups.
+
+Do not simply re-run create: the account already exists, and the helper will refuse
+the duplicate name.
+
+### Deleting says the account still exists
+
+```
+the account _agentspace_a1b2c3 still exists: … It is no longer in the Space list,
+so remove it with `agentspace doctor` or System Settings → Users & Groups.
+```
+
+The worker and runtime were removed and the Space was dropped from the registry,
+but the account itself could not be deleted — most often because it is still logged
+in. Log out of the Space (Fast User Switching → the Space → Log Out), then delete it
+in System Settings, or run `agentspace delete` again after logging out.
+
+### The worktree was not removed
+
+Deleting a Space removes its worktree but **keeps the branch**, and never touches
+your repository. If git refused to remove the worktree, the deletion carries on and
+says so rather than failing — a leftover directory is much better than an account
+that cannot be removed.
+
+Remove it yourself when convenient:
+
+```bash
+git -C ~/Code/MyApp worktree list
+git -C ~/Code/MyApp worktree remove --force <path>
+git -C ~/Code/MyApp worktree prune
+```
+
+Your branch is still there: `git -C ~/Code/MyApp branch --list 'agentspace/*'`.

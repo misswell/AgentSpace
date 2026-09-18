@@ -15,6 +15,15 @@ struct RootView: View {
         .sheet(isPresented: $model.showingNewSpace) {
             NewSpaceView().environmentObject(model)
         }
+        // Provisioning is a sheet rather than a spinner because creating a Space
+        // makes real changes to the machine, and if a step fails the user needs to
+        // see which one — and whether it was undone.
+        .sheet(item: $model.provisioning) { provisioning in
+            ProvisioningView(provisioning: provisioning) { model.dismissProvisioning() }
+        }
+        .sheet(item: $model.revealedPassword) { revealed in
+            LoginPasswordView(revealed: revealed) { model.revealedPassword = nil }
+        }
         .sheet(isPresented: $model.showingDoctor) {
             DoctorView().environmentObject(model)
         }

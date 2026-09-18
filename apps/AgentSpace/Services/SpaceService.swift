@@ -53,7 +53,10 @@ struct SpaceSnapshot: Identifiable, Equatable {
 /// 2. Nothing here retries, substitutes or invents a result. A failure comes back
 ///    as a failure and is displayed with its `fix` text.
 final class SpaceService {
-    private let root: String?
+    /// Where the registry, runtime and worktrees live. Exposed so the create and
+    /// delete flows use the same resolved root as everything else, rather than a
+    /// second lookup that could disagree.
+    let root: String?
     private let queue = DispatchQueue(label: "com.agentspace.app.service", qos: .userInitiated)
 
     init(root: String? = AgentSpaceEnvironment.rootOverride) {

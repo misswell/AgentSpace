@@ -131,6 +131,33 @@ struct NewSpaceView: View {
     @State private var repositoryPath = ""
     @State private var branch = "agentspace/"
 
+    /// The workspace the wizard will ask for. Computed here rather than in the
+    /// model so the wizard can show the worktree path it is about to use — the
+    /// user should see where the agent's checkout will live *before* committing.
+    private var workspace: Workspace {
+        switch workspaceKind {
+        case 1, 2:
+            let expanded = (repositoryPath as NSString).expandingTildeInPath
+            let slug = branch.isEmpty ? "work" : branch.replacingOccurrences(of: "agentspace/", with: "")
+            if workspaceKind == 1, !expanded.isEmpty {
+                return .gitWorktree(
+                    repository: expanded,
+                    branch: branch.hasPrefix("agentspace/") ? branch : "agentspace/\(branch)",
+                    path: AppModel.worktreesDirectory(for: name.isEmpty ? "space" : name) + "/" + slug)
+            }
+            return .sharedFolders
+        default:
+            return .none
+        }
+    }
+
+    private var sharedFolders: [SharedFolder] {
+        guard workspaceKind == 2, !repositoryPath.isEmpty else { return [] }
+        return [SharedFolder(
+            path: (repositoryPath as NSString).expandingTildeInPath,
+            access: .readOnly)]
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -167,6 +194,11 @@ struct NewSpaceView: View {
                                 .textFieldStyle(.roundedBorder)
                             Text("The agent works in its own worktree on its own branch, so it never edits the tree you have open.")
                                 .font(.caption).foregroundStyle(.secondary)
+                            if case .gitWorktree(let repo, let branch, let path) = workspace {
+                                Field(label: "Repository", value: repo, monospaced: true)
+                                Field(label: "Branch", value: branch, monospaced: true)
+                                Field(label: "Worktree", value: path, monospaced: true)
+                            }
                         } else if workspaceKind == 2 {
                             TextField("~/Documents/TestData", text: $repositoryPath)
                                 .textFieldStyle(.roundedBorder)
@@ -187,11 +219,18 @@ struct NewSpaceView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Create") { }
+                Button("Create") {
+                    model.createSpace(
+                        name: name.trimmingCharacters(in: .whitespaces),
+                        workspace: workspace,
+                        sharedFolders: sharedFolders)
+                }
                     .buttonStyle(.borderedProminent)
-                    .disabled(true)
+                    .disabled(!model.helperState.isReachable
+                              || name.trimmingCharacters(in: .whitespaces).isEmpty
+                              || model.provisioning != nil)
                     .help(model.helperState.isReachable
-                          ? "The helper is ready. Wiring this button to it is the next piece of work."
+                          ? "Create the Space's macOS user, runtime and worker."
                           : "The privileged helper must be installed and answering first.")
             }
             .padding(14)
@@ -222,13 +261,9 @@ struct HelperCard: View {
             }
 
             if model.helperState.isReachable {
-                // Still not a working Create button: Space creation is the next
-                // phase. Saying so is better than a button that fails.
-                RefusalBanner(
-                    title: "The helper is ready; Space creation is not wired up yet",
-                    code: "NOT_IMPLEMENTED",
-                    message: "The helper — a root LaunchDaemon with a closed list of typed operations and no shell — is installed and answering. The final step, calling it from this wizard to create the macOS user, is the next piece of work.",
-                    fix: "Everything that drives an *existing* Space works today: the Desktop Viewer, input, screenshots, apps, exec and the accessibility tree.")
+                Text("The helper is installed and answering. Creating a Space will make a standard (never administrator) macOS account named _agentspace_<6 hex>, a runtime directory, and a LaunchAgent for its worker.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } else {
                 RefusalBanner(
                     title: "Creating a Space needs the privileged helper",
@@ -251,5 +286,137 @@ struct HelperCard: View {
                 }
             }
         }
+    }
+}
+
+/// What a create or delete is doing, step by step.
+///
+/// A spinner would be wrong here. Creating a Space makes a macOS account, a
+/// runtime directory and a launchd job, and if one of those fails the user needs to
+/// know *which* — and, when a cleanup also failed, that something was left behind
+/// that they will have to remove themselves. The step list is the record of what
+/// the machine actually did.
+struct ProvisioningView: View {
+    let provisioning: AppModel.Provisioning
+    let dismiss: () -> Void
+
+    private var hasFailure: Bool {
+        provisioning.steps.contains { $0.hasPrefix("✗") }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(provisioning.operation).font(.headline)
+                Spacer()
+                if provisioning.finished {
+                    Button("Done") { dismiss() }
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            .padding(14)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(provisioning.steps.enumerated()), id: \.offset) { _, step in
+                        Text(step)
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(step.hasPrefix("✗") ? .red : (step.hasPrefix("↩") ? .orange : .primary))
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !provisioning.finished {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Working…").foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+            }
+
+            if provisioning.finished && !hasFailure {
+                Divider()
+                LoginInstructions()
+                    .padding(14)
+            }
+        }
+        .frame(width: 560, height: 460)
+    }
+}
+
+/// The one step that needs a human — plan §28.
+///
+/// AgentSpace cannot create an Aqua session for a user who has never logged in;
+/// that is a macOS property, not a limitation to work around with a private API.
+/// So the flow says so plainly, in order, and the app detects the result
+/// afterwards rather than asking the user to report back.
+struct LoginInstructions: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Next, once — this is the only step that needs you")
+                .font(.callout.weight(.semibold))
+            instruction(1, "Open Fast User Switching (Control Centre) and sign in as the new Space.")
+            instruction(2, "Its password is in the Space's page: Show Login Password.")
+            instruction(3, "In that session, grant Accessibility and Screen Recording when the setup window asks.")
+            instruction(4, "Switch back to your own account. The agent keeps its desktop.")
+            Text("The Space shows Needs Login until step 4 is done. AgentSpace will not start an agent in your account instead — if the background session is not there, every call fails with SESSION_NOT_READY.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func instruction(_ number: Int, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(number).").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+            Text(text).font(.callout).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// Show the login password, briefly, for the one manual sign-in.
+///
+/// Deliberately not copy-on-appear and deliberately not stored anywhere by the
+/// app: the password lives in the Keychain, is read on demand, and is discarded
+/// when this sheet closes.
+struct LoginPasswordView: View {
+    let revealed: AppModel.RevealedPassword
+    let dismiss: () -> Void
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Login password for \(revealed.spaceName)").font(.headline)
+
+            Text(revealed.password)
+                .font(.system(.title3, design: .monospaced))
+                .textSelection(.enabled)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+
+            Text("Use this once, at the fast-user-switching login window. It is stored in your login Keychain, not in a file, and nothing logs it.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Button(copied ? "Copied" : "Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(revealed.password, forType: .string)
+                    copied = true
+                }
+                Spacer()
+                Button("Done") { dismiss() }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(18)
+        .frame(width: 460)
     }
 }

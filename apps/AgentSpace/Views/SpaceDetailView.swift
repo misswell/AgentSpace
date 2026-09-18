@@ -302,7 +302,8 @@ struct SpaceDetailView: View {
     }
 
     private func dangerCard(_ snapshot: SpaceSnapshot) -> some View {
-        Card(title: "Maintenance") {
+        let space = snapshot.space
+        return Card(title: "Maintenance") {
             HStack(spacing: 8) {
                 Button("Reveal Runtime Folder") { model.revealRuntimeDirectory() }
                 Button("Copy MCP Configuration") { model.copyMCPConfiguration() }
@@ -310,12 +311,40 @@ struct SpaceDetailView: View {
             }
             .controlSize(.small)
 
-            Text("Deleting a Space removes a macOS user, so it goes through the privileged helper and a confirmation in this window — never from the CLI. That arrives in phase 3.")
+            HStack(spacing: 8) {
+                Button("Show Login Password") { model.revealPassword(for: space) }
+                    .help("Needed once, to sign in to this Space's macOS account for the first time.")
+                Button("Delete Space…", role: .destructive) { showingDelete = true }
+                    .disabled(model.provisioning != nil)
+            }
+            .controlSize(.small)
+
+            Text("Deleting removes this Space's macOS account, its runtime directory and its worker. A git worktree is removed but its branch is kept, and your own repository is never touched.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
         }
+        .confirmationDialog(
+            "Delete \(space.name)?",
+            isPresented: $showingDelete,
+            titleVisibility: .visible
+        ) {
+            // The home directory is a separate question because it is the one
+            // irreversible step, and it holds the agent's own files — which the
+            // user may want to look at after the Space is gone.
+            Button("Delete Space, keep its home directory") {
+                model.deleteSpace(space, removeHome: false)
+            }
+            Button("Delete Space and its home directory", role: .destructive) {
+                model.deleteSpace(space, removeHome: true)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("The account \(space.username) will be removed, and it will no longer be able to run anything. Your files are not affected.")
+        }
     }
+
+    @State private var showingDelete = false
 
     private func loadApps() {
         guard let snapshot = model.selected else { return }

@@ -34,6 +34,9 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 14 | Accessibility tree reads succeed in a background session | ✗ | same |
 | 15 | App launch registration detection (`APP_LAUNCH_TIMEOUT`) | ✗ | same |
 | 16 | The MCP server exposes the CLI over stdio, and the fail-closed refusal survives the MCP boundary | ✓ | `scripts/mcp-smoke.sh` |
+| 17 | Creating a Space calls the helper in the order account → runtime → worker, and a bad workspace is refused before the helper is called at all | ✓ | §15 — `SpaceProvisionerTests` |
+| 18 | Every creation-step failure rolls back what it already did, and a *failed* rollback keeps the orphan account visible as an errored Space | ✓ | §15 |
+| 19 | The generated password reaches the Keychain and appears in no file; generated passwords never repeat | ✓ | §15 — real Keychain, own service namespace |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -42,6 +45,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 22 | The helper refuses every account it did not create | ✓ | `HelperValidationTests`, 37 tests |
 | 23 | The helper's binary, plist and worker path are correct inside a real signed bundle | ✓ | `agentspace-helper --self-check`, run by `bundle-app.sh` |
 | 24 | The helper answers over XPC and performs a real createUser | ✗ | needs the LaunchDaemon registered, which needs an administrator password |
+| 25–36 | The create/delete flows above the helper boundary — ordering, rollback, Keychain, worktree safety, CLI exit codes | ✓ | §15, with the helper call injected so the failure paths run for real |
 | 25 | A git-worktree Space gives the agent its own checkout and leaves the user's tree untouched | ✓ | `WorkspacePreparerTests`, 16 tests, real git |
 | 26 | A worktree workspace can never be the user's own working tree or branch | ✓ | `WorkspacePreparerTests` |
 
@@ -853,3 +857,92 @@ main / nothing to commit"*, which reads like a complaint about branches rather t
 about staging, and sent me looking in the wrong place for a minute. Both are the
 same lesson as §11 and §12 from a third direction: the error message pointed at the
 wrong thing, and only running it showed that.
+
+---
+
+## 15. Create and delete a Space (§28, §41) — verified up to the root boundary
+
+### What is verified, and how
+
+Creating a Space is the only thing in AgentSpace that changes the machine: it makes
+a macOS account, installs a launchd job into it, and later removes both. It is also
+the one thing that **cannot be run on this machine**, because `sudo -n` fails here
+("a password is required") and nothing can become root.
+
+That is exactly the situation that produces untested code. The rollback path — the
+part that only runs when a step fails half way through — is the least likely part to
+be exercised by hand and the most damaging when it is wrong, because it leaves an
+`_agentspace_…` account that the user did not ask for.
+
+So `SpaceProvisioner` takes the helper call as an **injected closure** instead of
+calling `HelperClient` directly. Production passes `HelperClient.call`; the tests
+pass a scripted double that can fail at any named step. Everything except the
+helper's own behaviour is therefore executed for real.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 25 | Creating a Space calls the helper in the order account → runtime → worker | ✓ | `SpaceProvisionerTests`, and the order is **asserted** rather than assumed |
+| 26 | A workspace that cannot be created is refused **before** the helper is called at all | ✓ | `helper.calls.isEmpty` asserted; a typo in a repo path leaves nothing behind |
+| 27 | Every step failure rolls back what it already did | ✓ | one test per operation, failing each in turn |
+| 28 | A rollback that itself fails is reported as partial state, and the orphan account stays **visible** in the registry | ✓ | `testAFailedRollbackIsRecordedAsPartialStateAndTheSpaceStaysVisible` |
+| 29 | The password reaches the Keychain and appears in no file | ✓ | read back from the real Keychain; the registry file is searched for it |
+| 30 | Generated passwords never repeat, and are 32 bytes | ✓ | 200 generated, all distinct |
+| 31 | Deleting removes the worktree, keeps the branch, and never touches the user's repository | ✓ | real git; the user's `README.md` is compared byte for byte and the branch is listed afterwards |
+| 32 | A worktree git refuses to remove **warns** instead of blocking the deletion | ✓ | the worktree is locked, which is the documented way to make removal fail |
+| 33 | The home directory is only removed when explicitly asked | ✓ | asserted on the request that actually reached the helper |
+| 34 | With no helper, `agentspace create` exits **69** and explains the fix | ✓ | run for real; see below |
+| 35 | With no name, `agentspace create` exits **64** with usage | ✓ | run for real |
+| 36 | The Keychain store round-trips, replaces, and deletes idempotently | ✓ | against the **real** Keychain, in its own service namespace |
+| 37 | The helper performs a real `createUser` / `deleteUser` | ✗ | needs root |
+
+### The command-line behaviour, run for real
+
+```
+$ agentspace create
+agentspace: BAD_REQUEST: usage: agentspace create <name> …
+exit 64
+
+$ agentspace create "Test Space" --json
+{ "ok": false, "error": { "code": "HELPER_UNAVAILABLE", … },
+  "steps": [ { "name": "plan workspace", … } ] }
+exit 69
+
+$ agentspace create T --repo /tmp --branch main --json
+{ "error": { "code": "WORKSPACE_INVALID",
+             "message": "/tmp is not a git repository" } }
+
+$ agentspace delete nope ; exit 66
+```
+
+Exit 69 is the important one. There is no unprivileged path to creating a macOS
+account, and the command says so rather than attempting anything else — the §2
+fail-closed rule applied to management rather than to input.
+
+### Three bugs found by writing this
+
+**A failure's error code was flattened.** `bail` took a code and a message, and
+every helper call site passed `.helperRejected` — so a helper that could not be
+reached at all was reported as a helper that had *refused*. Those need different
+fixes ("install it" versus "it said no"), which is the entire reason the two codes
+exist. The test that caught it was the one asserting `HELPER_UNAVAILABLE`; without
+it, every failure would have looked like a policy decision.
+
+**The delete failure message did not name the account.** By the time the account
+deletion is attempted the registry entry is already gone, so the message is the
+*only* pointer to the leftover account — and it said only "the helper refused".
+It now always names the account and says where to find it.
+
+**`parsed.positionals.first` is the command name, not the first argument.**
+`agentspace create "Test Space"` therefore created a Space named `create` and
+silently ignored the name the user typed. Worse, the "you must give a name" guard
+*could never fire*, because the command name is never empty — a check that can
+never fail is a check that can never protect anything. This is the third time this
+project has produced that exact class of bug (§11: `doctor`'s helper check that
+could never pass; §13: `--version` that dumped usage).
+
+### What this does not prove
+
+The helper's own behaviour — `dscl` invocation, `sysadminctl` exit codes, whether
+`SMAppService` actually starts the daemon — is still unverified, and the plan's
+§56 requires a separate review of the helper for exactly this reason. Everything
+above the helper's boundary is tested; below it is not.

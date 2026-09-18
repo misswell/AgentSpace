@@ -27,6 +27,26 @@ final class AppModel: ObservableObject {
     /// so the UI never offers a button that cannot work.
     @Published var helperState: HelperInstallation.State = HelperInstallation.inspect(ping: false)
     @Published var isInstallingHelper = false
+    /// A create or delete in flight, with its steps, so the UI can show exactly
+    /// what is happening to the machine rather than a spinner.
+    @Published var provisioning: Provisioning?
+    /// The password for one Space, revealed on request and then dismissed. Held
+    /// only while the sheet is open — never persisted by the app.
+    @Published var revealedPassword: RevealedPassword?
+
+    struct Provisioning: Equatable, Identifiable {
+        var id = UUID()
+        var operation: String
+        var steps: [String] = []
+        var finished = false
+    }
+
+    struct RevealedPassword: Identifiable, Equatable {
+        var id: UUID { spaceID }
+        var spaceID: UUID
+        var spaceName: String
+        var password: String
+    }
     @Published private(set) var isLoading = false
     @Published var showingNewSpace = false
     @Published var showingDoctor = false
@@ -114,6 +134,139 @@ final class AppModel: ObservableObject {
                     message: "Could not remove the helper: \(error.localizedDescription)")
             }
         }
+    }
+
+    // MARK: - Create / delete (plan §28, §41)
+
+    /// Create a Space. The machine changes happen inside `SpaceProvisioner`, which
+    /// is where the rollback lives; this only reports progress.
+    ///
+    /// Everything runs off the main actor: creating an account and installing a
+    /// launchd job takes seconds, and blocking the main thread would freeze the
+    /// window with no explanation.
+    func createSpace(name: String, workspace: Workspace, sharedFolders: [SharedFolder]) {
+        guard provisioning == nil else { return }
+        // `root` is nil only when the service was built without one, which in this
+        // app never happens; falling back to the computed default keeps create
+        // working rather than silently doing nothing.
+        let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root ?? RuntimePaths.root
+        provisioning = Provisioning(operation: "Creating \(name)")
+        let directory = Self.worktreesDirectory(for: name)
+
+        Task {
+            let keychain = KeychainStore()
+            let registry = SpaceRegistry.load(root: root)
+            let outcome = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    continuation.resume(returning: SpaceProvisioner.create(
+                        name: name, workspace: workspace, sharedFolders: sharedFolders,
+                        options: SpaceProvisioner.Options(
+                            root: root, workspaceDirectory: directory, mainUser: NSUserName()),
+                        transport: { try HelperClient.call($0) },
+                        registry: registry,
+                        keychain: keychain))
+                }
+            }
+
+            // Narrate the steps as they happened, not as they were planned: the
+            // step list is the record of what the machine actually did, and it is
+            // what the user needs if something went wrong.
+            self.provisioning?.steps = outcome.steps.map(Self.describe)
+            self.provisioning?.finished = true
+
+            if let error = outcome.error {
+                self.lastError = PresentedError(
+                    code: error.code.rawValue,
+                    message: error.message,
+                    fix: error.code.remediation)
+            }
+            self.reload()
+        }
+    }
+
+    func deleteSpace(_ space: AgentSpace, removeHome: Bool) {
+        guard provisioning == nil else { return }
+        provisioning = Provisioning(operation: "Deleting \(space.name)")
+
+        Task {
+            let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root ?? RuntimePaths.root
+            let outcome = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    continuation.resume(returning: SpaceProvisioner.delete(
+                        space: space, removeHome: removeHome,
+                        options: SpaceProvisioner.Options(
+                            root: root,
+                            workspaceDirectory: Self.worktreesDirectory(for: space.name),
+                            mainUser: NSUserName()),
+                        transport: { try HelperClient.call($0) },
+                        registry: SpaceRegistry.load(root: root),
+                        keychain: KeychainStore()))
+                }
+            }
+            self.provisioning?.steps = outcome.steps.map(Self.describe)
+            self.provisioning?.finished = true
+            if let error = outcome.error {
+                self.lastError = PresentedError(code: error.code.rawValue, message: error.message, fix: error.code.remediation)
+            }
+            self.reload()
+        }
+    }
+
+    func dismissProvisioning() {
+        provisioning = nil
+    }
+
+    /// Reveal a Space's login password, for the one manual sign-in.
+    ///
+    /// Read from the Keychain on demand and held only in the sheet that shows it.
+    /// The app never caches it, never logs it, and never puts it on the clipboard
+    /// without the user asking.
+    func revealPassword(for space: AgentSpace) {
+        do {
+            if let password = try KeychainStore().password(for: space.id) {
+                revealedPassword = RevealedPassword(
+                    spaceID: space.id, spaceName: space.name, password: password)
+            } else {
+                lastError = PresentedError(
+                    code: "NO_STORED_PASSWORD",
+                    message: "There is no stored password for \(space.name).",
+                    fix: "This Space was created before the password was stored, or its Keychain item was removed. Re-creating the Space generates a new one; the current password cannot be recovered.")
+            }
+        } catch {
+            lastError = PresentedError(
+                code: "KEYCHAIN_DENIED",
+                message: "\(error)",
+                fix: "Unlock your login keychain (Keychain Access) and try again.")
+        }
+    }
+
+    /// Where a Space's git worktree lives. Derived from the name so a Space made
+    /// on the command line and one made here agree about the path.
+    static func worktreesDirectory(for spaceName: String) -> String {
+        let slug = spaceName
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .filter { $0.isLetter || $0.isNumber || $0 == "-" }
+        let root = AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+        return "\(root)/Worktrees/\(slug.isEmpty ? "space" : slug)"
+    }
+
+    private static func describe(_ step: SpaceProvisioner.Step) -> String {
+        let mark: String
+        switch step.outcome {
+        case .done: mark = "✓"
+        case .skipped: mark = "~"
+        case .failed, .rollbackFailed: mark = "✗"
+        case .rolledBack: mark = "↩"
+        }
+        var text = "\(mark) \(step.name)"
+        if !step.detail.isEmpty { text += " — \(step.detail)" }
+        switch step.outcome {
+        case .skipped(let reason), .failed(let reason), .rolledBack(let reason), .rollbackFailed(let reason):
+            if !reason.isEmpty { text += "\n     \(reason)" }
+        default: break
+        }
+        return text
     }
 
     func reload() {

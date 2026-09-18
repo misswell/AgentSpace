@@ -268,6 +268,26 @@ tests/Unit tests/Safety tests/Integration tests/probes
 docs/ scripts/
 ```
 
+### Creating a Space
+
+Creating a Space makes a real macOS account, so it needs the privileged helper
+(open the app → **Install Helper**). Nothing else in the CLI does.
+
+```bash
+agentspace create "Frontend Test"
+agentspace create "API Test" --repo ~/Code/Api --branch agentspace/api
+agentspace delete "Frontend Test"          # keeps its home directory
+agentspace delete "Frontend Test" --remove-home
+```
+
+The CLI never runs `sudo`. If the helper is not installed it exits **69** and says
+so — it does not fall back to your own account.
+
+After creating a Space you sign in to it **once**, through Fast User Switching, and
+grant Accessibility and Screen Recording. That is the only manual step, and the app
+walks you through it. Its login password is in the Keychain, shown on request in
+the Space's page.
+
 ## Requirements
 
 Apple Silicon, macOS 26+. Intel Macs are out of scope for v1; the plan supports
