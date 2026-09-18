@@ -4731,3 +4731,21 @@ Fast User Switching exactly as the plan says.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 318 | Xvfb and DYLD-injection mechanisms have zero source presence, completing the §10/§43 forbidden-mechanism sweep | ✓ | §156 — the two zero-hit greps |
+
+
+---
+
+## 157. §47's complete Setup / Uninstall both exist as typed operations
+
+Setup: the app registers the daemon via SMAppService (install), and
+the helper exposes ten typed RPC verbs (helperStatus, createUser,
+deleteUser, installWorker, removeWorker, prepareRuntimeDirectory,
+startWorker, stopWorker, logoutSession, sessionInfo) — no generic
+exec. Uninstall mirrors it: AppModel.uninstallHelper calls
+SMAppService.daemon(...).unregister(), and per-Space teardown goes
+through removeWorker + deleteUser (§41). Nothing hand-edits
+launchd.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 319 | Setup and Uninstall are complete and typed: register/unregister on the app side, ten typed helper verbs, no raw launchd edits | ✓ | §157 — the verb dispatch and uninstallHelper body |
