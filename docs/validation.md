@@ -1187,6 +1187,14 @@ is its exit code, unchecked against what was actually asked of it. The fix build
 the whole package — barely slower — and leaves the four existence assertions as the
 real gate.
 
+**`scripts/test.sh` had the same latent bug** —
+`swift build --product agentspace-worker --product agentspace` was silently building
+only `agentspace` — and it hid behind the same stale artifacts until the clean
+`.build`, at which point the safety tests would all have skipped *quietly* while the
+suite still reported PASS. The suite's own "worker was not built; the safety tests
+would all skip" warning is what caught it, which is exactly why that warning exists.
+After the fix the worker binary is present again and the safety tests really run.
+
 ### Two smaller finds
 
 - `hdiutil attach -quiet` prints nothing, so the volume path parsed from its output

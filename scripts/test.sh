@@ -14,8 +14,11 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 echo "== building (binaries first, so the integration tests have something to spawn) =="
-swift build --product agentspace-worker --product agentspace 2>&1 \
-  | grep -Ev "^warning: 'agentspace'|^\[[0-9]" || true
+# No --product flags: repeated flags are last-one-wins on this toolchain (see
+# bundle-app.sh and validation.md §20), so this was silently building only
+# agentspace and skipping every safety test whenever .build did not already hold
+# a worker from some other build. The explicit check below is the gate.
+swift build 2>&1 | grep -Ev "^warning: 'agentspace'|^\[[0-9]" || true
 
 WORKER=".build/debug/agentspace-worker"
 if [[ ! -x "$WORKER" ]]; then
