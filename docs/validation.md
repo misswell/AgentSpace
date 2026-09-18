@@ -4829,3 +4829,28 @@ implicit would run a different binary than the result describes.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 323 | exec supports cwd/env/timeout and returns exitCode/stdout/stderr/duration exactly as §23 specifies | ✓ | §161 — the ShellExec signature and result encoder |
+
+
+---
+
+## 162. §37's export redaction is layered: whitelist collection first, the
+redactor at the exit, scrubbing at the log funnel
+
+Diagnostics.collect() gathers only doctor output, space metadata
+and file names — the token file is reported merely as
+present/absent, the username is shown on purpose (navigation
+identifier, not a credential), and typed input text is never
+collected at all. The final line routes the assembled text through
+Diagnostics.redact() — 64-hex tokens, password/secret/token
+key-value pairs, data:image payloads and 4096+-char blobs become
+<redacted-...> markers — before DoctorView writes the bundle. My
+first trace concluded the redactor had no production caller; that
+was a grep miss (the call is the bare `redact(...)` inside
+collect), re-verified by reading the function body — the second-tool
+rule catching my own negative claim. The worker's Log funnel
+independently scrubs every line through Redaction.scrubString
+before OSLog.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 324 | Exports are whitelist-collected and redacted at the exit; worker logs scrub through one funnel; all five §37 categories are covered | ✓ | §162 — collect()'s final redact call and the Log funnel |
