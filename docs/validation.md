@@ -4303,3 +4303,21 @@ resolved binary always matches the environment it runs with.
 |---|---|---|---|
 | 293 | None of §61's excluded feature categories appear in the product sources | ✓ | §134 — the zero-hit grep |
 | 294 | §23's exec supports cwd, env, timeout and returns stdout/stderr/exitCode/duration exactly as planned | ✓ | §134 — ShellExec's parameter census |
+
+
+---
+
+## 135. §59's README first screen is verbatim
+
+The README opens with the plan's exact sentences — "Give AI agents
+their own macOS desktop", the session-isolation paragraph, "No VM.
+No second macOS installation. No remote Mac." — followed by the
+planned two-column diagram (Your desktop / Agent desktop, VS Code /
+Chrome, Terminal / Simulator, Safari / Xcode, You keep working / The
+agent keeps working) and the four promises (pointer, keyboard,
+focus, flicker). The How section then states §1's architecture in
+one sentence.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 295 | The README first screen reproduces §59's copy and diagram verbatim | ✓ | §135 — the README head |
