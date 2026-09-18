@@ -50,6 +50,40 @@ public enum SpaceState: String, Codable, Sendable, CaseIterable {
         case .error: return "Error"
         }
     }
+
+    /// The state to *show*, which is not always the state that was stored
+    /// (plan §39). Pure so the GUI, the CLI and tests all derive it the same
+    /// way — a disagreement here is exactly the "components disagree" bug
+    /// class this project keeps finding.
+    ///
+    /// The `hasGraphicalSession` discriminator resolves the §39 question: a
+    /// worker that went down because **nobody is logged in** must show
+    /// `needsLogin` (the fix is a fast user switch, not a retry), while a
+    /// worker that died under a live session shows `offline`. `nil` means the
+    /// lookup could not be performed; the pre-existing `offline` behaviour is
+    /// kept rather than guessed at.
+    public static func effective(
+        stored: SpaceState,
+        workerOnline: Bool,
+        sessionVerdict: String?,
+        permissionProblem: AgentSpaceErrorCode?,
+        hasGraphicalSession: Bool?
+    ) -> SpaceState {
+        if let permissionProblem {
+            if permissionProblem == .accessibilityDenied || permissionProblem == .screenRecordingDenied {
+                return .needsPermission
+            }
+        }
+        if sessionVerdict == "isConsole" { return .console }
+        if !workerOnline, stored == .ready || stored == .running {
+            switch hasGraphicalSession {
+            case .some(true): return .offline
+            case .some(false): return .needsLogin
+            case nil: return .offline
+            }
+        }
+        return stored
+    }
 }
 
 /// Which TCC grants the agent session has (plan §19).

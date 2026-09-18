@@ -44,6 +44,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 24 | The release pipeline builds all four binaries, verifies every signature, and produces a DMG whose contents verify | ✓ | §20 — after finding a SwiftPM invocation that silently built one of four |
 | 25 | The CLI at the process boundary honors §32 JSON mode, exit 69/66, live-socket status, the console refusal, and per-root isolation | ✓ | §21 — ten spawned-binary tests; found the not-found exit bug and the §54 screenshot leak |
 | 26 | Registry corruption is quarantined with bytes intact, surfaced by doctor, and recoverable; MCP relays typed failures with no local fallback | ✓ | §22 — the quarantine test caught a name-collision bug in the quarantine itself |
+| 27 | After a reboot a logged-out Space shows Needs Login, not offline; a crashed worker under a live session shows offline | ✓ | §23 — utmpx rejected empirically; process ownership is the discriminator |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1300,3 +1301,32 @@ envelope is never misread as a failure; and an absent binary surfaces a spawn
 error, again never a fallback. Also: `node --test test/` ran only the first
 test file on this Node (19 vs 23) — the script now uses a glob, and the count
 difference is itself the proof.
+
+---
+
+## 23. Restart behavior (§39) — Needs Login, not a lie about offline
+
+After a reboot the registry still records what was true before: a Space that was
+`running` at shutdown reads `running` now. Its worker is gone, and — this is the
+§39 point — nobody has logged into the agent account, so waiting will not bring
+it back. The UI's job is to send the user to the right fix.
+
+The discriminator had to be found empirically (§63.13). `utmpx`, the obvious
+public API, was tested first and rejected: modern macOS does not populate it for
+GUI logins, so it reported *this* console session as absent. What actually
+distinguishes the two cases is process ownership — a logged-in user, even one
+switched away, owns Finder/Dock/launchd; a never-logged-in account owns nothing.
+`SystemSessions.hasLiveProcesses(uid:)` reads the BSD process list with
+`sysctl(KERN_PROC_ALL)`: public, permission-free, no root, no spawn.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 84 | Rebooted Space (worker gone, no session) shows **needsLogin** | ✓ | the fix is a fast user switch, not a retry |
+| 85 | Crashed worker under a **live** session shows offline | ✓ | restarting the LaunchAgent is the right fix |
+| 86 | Unknowable session state keeps the old offline label | ✓ | no invented Needs Login the user cannot verify |
+| 87 | Permission and console verdicts still win; healthy Spaces show stored state | ✓ | derivation order pinned |
+| 88 | The uid discriminator distinguishes a live user from none, both halves | ✓ | this suite's uid vs an idle uid |
+
+The derivation is one pure function (`SpaceState.effective`) shared by the GUI —
+the plan's "components disagree" bug class has no room here, and the session
+lookup runs only on the offline path so a healthy refresh pays nothing (§53).

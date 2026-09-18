@@ -392,3 +392,17 @@ git -C ~/Code/MyApp worktree prune
 ```
 
 Your branch is still there: `git -C ~/Code/MyApp branch --list 'agentspace/*'`.
+
+## A Space shows "Needs Login" right after a reboot
+
+That is correct behavior, not a fault (§39): no one has logged into the agent
+account since the restart, so there is no session for a worker to run in. Fast
+user switch into the Space's account once and back; the state becomes offline →
+ready as the LaunchAgent brings the worker up.
+
+If the state says **offline** instead, a session *does* exist and only the worker
+died — check the agent account's LaunchAgent logs under the Space's runtime
+directory. The two labels are derived from whether the account currently owns
+any processes (`SystemSessions`); if a Space is stuck on Needs Login while a
+session is genuinely live, that lookup has failed and `agentspace doctor` is the
+next stop.

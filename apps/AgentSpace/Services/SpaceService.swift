@@ -27,15 +27,20 @@ struct SpaceSnapshot: Identifiable, Equatable {
     /// The state to *show*, which is not always the state that was stored. A
     /// Space recorded as ready whose worker is gone is offline, and saying so is
     /// the difference between "nothing is happening" and "nothing can happen".
+    ///
+    /// The derivation itself lives in `SpaceState.effective` so the GUI, the CLI
+    /// and the tests cannot disagree. The session lookup runs only on the
+    /// offline path — the one case where it changes the answer — so a healthy
+    /// refresh pays for none of it (§53: idle ≈ 0% CPU).
     var effectiveState: SpaceState {
-        if let problem, problem.code == .accessibilityDenied || problem.code == .screenRecordingDenied {
-            return .needsPermission
-        }
-        if !workerOnline && (space.state == .ready || space.state == .running) {
-            return .offline
-        }
-        if sessionVerdict == "isConsole" { return .console }
-        return space.state
+        SpaceState.effective(
+            stored: space.state,
+            workerOnline: workerOnline,
+            sessionVerdict: sessionVerdict,
+            permissionProblem: problem?.code,
+            hasGraphicalSession: workerOnline
+                ? nil
+                : SystemSessions.hasLiveProcesses(uid: space.uid))
     }
 
     var isRefusalExpected: Bool {
