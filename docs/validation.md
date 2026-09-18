@@ -3271,3 +3271,23 @@ controlled reproduction; claim 221's escape hatch is verified live.
 |---|---|---|---|
 | 224 | exec timeout terminates the whole process group (SIGTERM, timedOut, null exitCode) and returns without hanging | ✓ | §93 — the sleep-3 probe |
 | 225 | exec validates cwd against the AgentSpace workspace and names the offending path; a valid cwd is honored with real macOS expansion | ✓ | §93 — the two cwd probes |
+
+
+---
+
+## 94. exec env passing and the output truncation ceiling, both verified live
+
+- **--env reaches the child** — `exec --env AGENT_PROBE=hello42 "printenv
+  AGENT_PROBE"` returns `hello42`; two `--env` flags both arrive (`sh -c
+  'echo A=$A B=$B'` prints `A=1 B=2`). The earlier apparent loss of `B`
+  was BSD printenv's single-argument behavior, not the CLI's.
+- **Truncation ceiling** — 100 KB, 1 MB and 2 MB of stdout come back
+  complete with `truncated: false`; a 5 MB output returns with
+  `truncated: true` (§87's probe). The ceiling therefore sits between
+  2 MB and 5 MB, the flag flips exactly once, and oversized stdout is
+  reported rather than silently clipped.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 226 | exec --env K=V values reach the child process, including multiple flags | ✓ | §94 — the printenv and shell-echo probes |
+| 227 | stdout truncation has a real ceiling between 2 MB and 5 MB, reported via the truncated flag, with sub-ceiling output returned complete | ✓ | §94 — the 100 KB / 1 MB / 2 MB / 5 MB bracket |
