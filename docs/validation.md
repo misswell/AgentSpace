@@ -5533,3 +5533,25 @@ gated on a public release URL, as before.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 354 | Developer ID + hardened runtime + submit/staple/validate chain scripted in correct order, DMG excluded from MAS with documented reasoning; cask still waits on a release URL | ✓ (cask gated) | §192 — release.sh, bundle-app.sh, notarize.sh, security.md:410 |
+
+
+---
+
+## 193. §43's forbidden-dependency list: double-tool negative sweep, public
+API path confirmed
+
+Two independent sweeps over all Swift, JavaScript and shell
+sources — a file-level grep and a line-level regex — find no
+SkyLight, ScreenSharing, TCC.db, Virtualization.framework or
+screenshot-manager reference anywhere in code or scripts; the
+only mentions of these names in the repository are the docs
+explaining why they are excluded. The positive path is the one
+§43 endorses: /usr/sbin/screencapture, self-described as "the
+boring, correct choice," invoked only after CGPreflight... grants
+it, and CGSession/kCGSSession for the console check. A ban list
+is a feature of absence, so the claim is recorded the same way
+the §171 derivations are: what is missing is the design.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 355 | No §43-forbidden framework appears in any code or script (two-tool sweep); capture and session checks use only the public macOS surface | ✓ | §193 — repo-wide sweeps, ScreenCapture.swift:8,66 |
