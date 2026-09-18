@@ -3166,3 +3166,25 @@ generation, storage, comparison and refusal all observed live.
 |---|---|---|---|
 | 216 | Protocol version is enforced exactly (1 passes; 0/2/999 PROTOCOL_MISMATCH; string "1" BAD_REQUEST) and unknown/empty methods return METHOD_NOT_FOUND | ✓ | §89 — the wire probes |
 | 217 | hello is the sole token-free method as documented, and malformed lines up to 70 KB are absorbed as BAD_REQUEST with the worker staying healthy | ✓ | §89 — the hello and garbage-line probes |
+
+
+---
+
+## 90. The integrations surface produces real configs and the §35 rules with consent built in
+
+- **MCP config generation** — `agentspace integrate claude` emits structured
+  JSON (binary, config, configPath, target) whose config is the real
+  `npx -y @agentspace/mcp` invocation with AGENTSPACE_BIN pointing at the
+  actual CLI binary: §34's one-step Claude Code integration, live.
+- **Safety rules with consent** — `agentspace integrate rules` prints the
+  four §35 rules verbatim ("Any command that can open a visible macOS
+  window must run through AgentSpace" ... "Never fall back to the user's
+  console session"), wrapped in begin/end comment markers for idempotent
+  appending, and headed by the instruction that they may only be appended
+  **with the user's consent** — §35's consent requirement is enforced in
+  the output itself, not left to the caller's memory.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 218 | integrate claude emits a real, binary-anchored MCP config for Claude Code | ✓ | §90 — the config probe |
+| 219 | integrate rules prints the §35 rules in idempotent comment markers with the user-consent requirement stated in the output | ✓ | §90 — the rules probe |
