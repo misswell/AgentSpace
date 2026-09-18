@@ -1,0 +1,23 @@
+# Build artifacts
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Node
+node_modules/
+packages/*/dist/
+npm-debug.log*
+
+# macOS
+.DS_Store
+._*
+
+# Local AgentSpace runtime (never commit: contains session tokens)
+.AgentSpace/
+
+# Test and probe output
+*.log
+/tmp-probe

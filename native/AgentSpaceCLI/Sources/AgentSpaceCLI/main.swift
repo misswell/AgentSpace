@@ -1,0 +1,646 @@
+import Foundation
+import AgentSpaceCore
+
+// agentspace — the CLI.
+//
+// Talks to a Space's worker over the same unix socket the GUI and the MCP
+// server use, so there is one core API rather than three implementations
+// (plan §49).
+//
+// The rule this file must never break (plan §2): if the worker is not there,
+// print why and stop. There is no code path here that runs a GUI command
+// locally "because the background session was unavailable".
+
+let cliVersion = "0.1.0"
+
+// MARK: - Argument parsing
+
+/// A usage error. A dedicated type because `Result`'s failure must be an
+/// `Error`, and "the user typed the wrong flag" deserves to be distinguishable
+/// from "the worker said no".
+struct ArgumentError: Error, CustomStringConvertible {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var description: String { message }
+}
+
+struct ParsedArgs {
+    var positionals: [String] = []
+    var flags: [String: String] = [:]
+    var booleans: Set<String> = []
+    /// Repeated flags, e.g. `--env A=1 --env B=2`.
+    var repeated: [String: [String]] = [:]
+
+    func flag(_ name: String) -> String? { flags[name] }
+    func bool(_ name: String) -> Bool { booleans.contains(name) }
+    func list(_ name: String) -> [String] { repeated[name] ?? [] }
+
+    func int(_ name: String) -> Int? { flags[name].flatMap(Int.init) }
+}
+
+/// Flags that take a value, so the parser knows whether to consume the next
+/// argument.
+/// Flags that take a value.
+let valueFlags: Set<String> = [
+    "root", "out", "max-width", "display", "cwd", "timeout", "env",
+    "file", "pid", "role", "title", "identifier", "action", "reason",
+    "max-depth", "max-nodes",
+]
+
+/// Flags that stand alone. `--json` belongs here, not above: listing it as a
+/// value flag made `agentspace status --json` demand an argument.
+let booleanFlags: Set<String> = [
+    "help", "version", "json", "double", "right", "force", "inline",
+    "interesting", "no-interesting", "all", "resources", "quiet",
+]
+
+/// Flags that may appear more than once.
+let repeatableFlags: Set<String> = ["env"]
+
+func parseArgs(_ argv: [String]) -> Result<ParsedArgs, ArgumentError> {
+    var parsed = ParsedArgs()
+    var index = 0
+    var afterSeparator = false
+    while index < argv.count {
+        let argument = argv[index]
+        if afterSeparator {
+            parsed.positionals.append(argument)
+            index += 1
+            continue
+        }
+        if argument == "--" {
+            afterSeparator = true
+            index += 1
+            continue
+        }
+        if argument.hasPrefix("--") {
+            let body = String(argument.dropFirst(2))
+            let name = body.split(separator: "=", maxSplits: 1).first.map(String.init) ?? body
+            if let equalsIndex = body.firstIndex(of: "=") {
+                let value = String(body[body.index(after: equalsIndex)...])
+                parsed.flags[name] = value
+                index += 1
+                continue
+            }
+            if booleanFlags.contains(name) {
+                parsed.booleans.insert(name)
+                index += 1
+                continue
+            }
+            if valueFlags.contains(name) {
+                guard index + 1 < argv.count else {
+                    return .failure(ArgumentError("--\(name) requires a value"))
+                }
+                let value = argv[index + 1]
+                if repeatableFlags.contains(name) {
+                    parsed.repeated[name, default: []].append(value)
+                } else {
+                    parsed.flags[name] = value
+                }
+                index += 2
+                continue
+            }
+            return .failure(ArgumentError("unknown flag --\(name)"))
+        }
+        parsed.positionals.append(argument)
+        index += 1
+    }
+    return .success(parsed)
+}
+
+// MARK: - Output
+
+struct Emitter {
+    let json: Bool
+
+    /// Print a successful result.
+    func success(_ value: JSONValue, human: String? = nil, exitCode: Int32 = 0) -> Never {
+        if json {
+            print(pretty(value))
+        } else if let human {
+            print(human)
+        } else {
+            print(pretty(value))
+        }
+        exit(exitCode)
+    }
+
+    /// Print a failure and stop.
+    ///
+    /// Two shapes on purpose. In `--json` mode the envelope is the *whole*
+    /// answer, so a script can branch on it. In human mode the code, the
+    /// message and the fix are all shown: a bare "failed" is what makes a tool
+    /// unusable.
+    func failure(_ error: AgentSpaceError, exitCode: Int32 = 1) -> Never {
+        if json {
+            var object: [String: JSONValue] = [
+                "status": .string("unavailable"),
+                "reason": .string(UnavailableStatus.Reason(error.code).rawValue),
+                "ok": .bool(false),
+                "error": .obj([
+                    "code": .string(error.code.rawValue),
+                    "message": .string(error.message),
+                    "recoverable": .bool(error.recoverable),
+                ]),
+            ]
+            object["fix"] = .string(error.code.remediation)
+            print(pretty(.object(object)))
+        } else {
+            FileHandle.standardError.write(Data("agentspace: \(error.code.rawValue): \(error.message)\n".utf8))
+            FileHandle.standardError.write(Data("  → \(error.code.remediation)\n".utf8))
+        }
+        exit(exitCode)
+    }
+
+    func pretty(_ value: JSONValue) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(value),
+              let text = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return text
+    }
+}
+
+// MARK: - Space resolution
+
+/// Resolve a Space reference, or stop with a helpful message.
+///
+/// Never guesses: an unknown name lists what does exist.
+func resolveSpace(_ reference: String?, root: String?) -> (AgentSpace, SpaceConnection) {
+    let registry = SpaceRegistry.load(root: root)
+    let space: AgentSpace
+    if let reference {
+        switch registry.resolve(reference) {
+        case .success(let found): space = found
+        case .failure(let error): Emitter(json: false).failure(error)
+        }
+    } else {
+        guard let first = registry.first() else {
+            Emitter(json: false).failure(AgentSpaceError(
+                code: .sessionNotReady,
+                message: "no AgentSpace exists yet, and no name was given. Create one in the AgentSpace app first."))
+        }
+        space = first
+    }
+    return (space, SpaceConnection(space: space))
+}
+
+/// Send a request to a Space's worker, mapping transport failures onto the
+/// typed envelope. This is where "the worker is not there" becomes
+/// `WORKER_OFFLINE` rather than an exception a caller might swallow.
+func call(_ connection: SpaceConnection, _ method: String, _ params: JSONValue) -> JSONValue {
+    do {
+        let response = try connection.client.call(method: method, params: params, token: connection.token)
+        if response.ok {
+            return response.result ?? .object([:])
+        }
+        if let error = response.error {
+            Emitter(json: false).failure(error)
+        }
+        Emitter(json: false).failure(AgentSpaceError(
+            code: .internalError,
+            message: "worker replied without a result or an error"))
+    } catch let error as AgentSpaceError {
+        Emitter(json: false).failure(error)
+    } catch {
+        Emitter(json: false).failure(AgentSpaceError(
+            code: .workerOffline,
+            message: "could not reach the worker for '\(connection.space.name)' at \(connection.paths.socketPath): \(error)"))
+    }
+}
+
+func callJSON(_ emitter: Emitter, _ connection: SpaceConnection, _ method: String, _ params: JSONValue) -> JSONValue {
+    do {
+        let response = try connection.client.call(method: method, params: params, token: connection.token)
+        if response.ok { return response.result ?? .object([:]) }
+        if let error = response.error { emitter.failure(error) }
+        emitter.failure(AgentSpaceError(code: .internalError, message: "worker replied without a result or an error"))
+    } catch let error as AgentSpaceError {
+        emitter.failure(error)
+    } catch {
+        emitter.failure(AgentSpaceError(
+            code: .workerOffline,
+            message: "could not reach the worker for '\(connection.space.name)': \(error)"))
+    }
+}
+
+// MARK: - Single-action input helpers
+
+func inputParams(_ actions: [JSONValue]) -> JSONValue {
+    .obj(["actions": .array(actions)])
+}
+
+func number(_ value: Double) -> JSONValue { .double(value) }
+
+func usage() -> String {
+    """
+    agentspace \(cliVersion) — run AI agents in isolated macOS desktop sessions
+
+    USAGE:
+      agentspace <command> [space] [arguments] [--json]
+
+    SPACES
+      list                            List AgentSpaces
+      status [space]                  Session, permissions and resource state
+      doctor                          Diagnose this machine's readiness
+
+    OBSERVE
+      screenshot <space>              Capture the Space's desktop
+      apps <space>                    Apps running in the Space
+      ax <space> snapshot             Accessibility tree of the frontmost app
+      ax <space> frontmost            Frontmost app and focused element
+      ax <space> windows              Windows of the frontmost app
+
+    ACT
+      move <space> X Y                Move the pointer (points, not pixels)
+      click <space> X Y               Click  [--double] [--right]
+      type <space> TEXT               Type text
+      key <space> COMBO               Press a key combo, e.g. cmd+l
+      scroll <space> DX DY            Scroll
+      drag <space> X1 Y1 X2 Y2        Drag
+      input <space> --file F | -      Submit a batch of actions as JSON
+      launch <space> APP              Launch an app in the Space
+      activate <space> APP            Bring an app to the front
+      quit <space> APP                Quit  [--force]
+      exec <space> COMMAND            Run a shell command as the Space user
+                                      [--cwd DIR] [--timeout MS] [--env K=V]
+
+    MANAGE
+      start|stop|restart <space>      Control the Space's worker
+      create | delete                 These need the GUI; see below
+
+    GLOBAL
+      --json                          Machine-readable output on every command
+      --root PATH                     Use an alternate AgentSpace root
+      --version, --help
+
+    Creating and deleting a Space makes or removes a macOS user, so it always
+    goes through the privileged helper and the GUI. The CLI never runs sudo.
+    """
+}
+
+// MARK: - Entry point
+
+let argv = Array(CommandLine.arguments.dropFirst())
+
+let parsedResult = parseArgs(argv)
+let parsed: ParsedArgs
+switch parsedResult {
+case .success(let value): parsed = value
+case .failure(let error):
+    FileHandle.standardError.write(Data("agentspace: \(error.message)\n\n".utf8))
+    FileHandle.standardError.write(Data((usage() + "\n").utf8))
+    exit(2)
+}
+
+if parsed.bool("help") || parsed.positionals.isEmpty {
+    print(usage())
+    exit(parsed.positionals.isEmpty && !parsed.bool("help") ? 2 : 0)
+}
+
+// `--root` must take effect before anything reads the environment.
+if let root = parsed.flag("root") {
+    setenv("AGENTSPACE_ROOT", root, 1)
+}
+let rootOverride = parsed.flag("root")
+
+let emitter = Emitter(json: parsed.bool("json"))
+let command = parsed.positionals[0]
+let rest = Array(parsed.positionals.dropFirst())
+
+switch command {
+
+case "version", "--version":
+    emitter.success(.obj([
+        "cli": .string(cliVersion),
+        "protocol": .int(agentSpaceProtocolVersion),
+        "worker": .string(cliVersion),
+    ]), human: "agentspace \(cliVersion) (protocol \(agentSpaceProtocolVersion))")
+
+case "doctor":
+    let report = Doctor.run(root: rootOverride)
+    if emitter.json {
+        print(emitter.pretty(report.json))
+    } else {
+        print(report.render())
+    }
+    exit(report.ok ? 0 : 1)
+
+case "list":
+    let registry = SpaceRegistry.load(root: rootOverride)
+    var rows: [JSONValue] = []
+    for space in registry.spaces {
+        let connection = SpaceConnection(space: space)
+        var reachable = false
+        var session: JSONValue = .null
+        if FileManager.default.fileExists(atPath: connection.paths.socketPath),
+           let response = try? connection.client.call(method: Method.hello, token: nil, timeout: 3),
+           let result = response.result {
+            reachable = true
+            session = result["session"] ?? .null
+        }
+        rows.append(.obj([
+            "id": .string(space.id.uuidString),
+            "name": .string(space.name),
+            "username": .string(space.username),
+            "uid": .int(Int(space.uid)),
+            "state": .string(space.state.rawValue),
+            "stateLabel": .string(space.state.displayName),
+            "worker": .bool(reachable),
+            "session": session,
+            "workspace": .string(space.workspace.displayName),
+        ]))
+    }
+    if emitter.json {
+        print(emitter.pretty(.obj(["count": .int(rows.count), "spaces": .array(rows)])))
+    } else if rows.isEmpty {
+        print("No AgentSpaces yet. Open the AgentSpace app to create one.")
+    } else {
+        for space in registry.spaces {
+            let connection = SpaceConnection(space: space)
+            let reachable = FileManager.default.fileExists(atPath: connection.paths.socketPath)
+            let marker = reachable ? "●" : "○"
+            print("\(marker) \(space.name)  [\(space.state.displayName)]  uid \(space.uid)  \(space.username)")
+        }
+    }
+    exit(0)
+
+case "status":
+    let (space, connection) = resolveSpace(rest.first, root: rootOverride)
+    let result = callJSON(emitter, connection, Method.status,
+                          .obj(["resources": parsed.bool("resources") ? .string("full") : .string("summary")]))
+    if emitter.json {
+        var object = result.objectValue ?? [:]
+        object["space"] = .string(space.name)
+        print(emitter.pretty(.object(object)))
+    } else {
+        let state = result["stateLabel"]?.stringValue ?? "?"
+        print("\(space.name) — \(state)")
+        print("  uid            \(result["uid"]?.intValue ?? -1) (\(result["user"]?.stringValue ?? "?"))")
+        print("  worker         \(result["worker"]?.boolValue == true ? "running" : "offline") (pid \(result["workerPid"]?.intValue ?? -1))")
+        print("  session        \(result["session"]?["verdict"]?.stringValue ?? "?")")
+        print("  accessibility  \(result["accessibility"]?.boolValue == true ? "granted" : "MISSING")")
+        print("  screen record  \(result["screenRecording"]?.boolValue == true ? "granted" : "MISSING")")
+        print("  display        \(result["display"]?["width"]?.intValue ?? 0)x\(result["display"]?["height"]?.intValue ?? 0) points, scale \(result["display"]?["scale"]?.intValue ?? 1)")
+        if let resources = result["resources"] {
+            print("  cpu            \(resources["cpuPercent"]?.doubleValue ?? 0)%")
+            print("  memory         \(ByteCountFormatter.string(fromByteCount: Int64(resources["memoryBytes"]?.intValue ?? 0), countStyle: .memory))")
+            print("  processes      \(resources["processCount"]?.intValue ?? 0)")
+        }
+    }
+    exit(0)
+
+case "screenshot":
+    let (_, connection) = resolveSpace(rest.first, root: rootOverride)
+    var params: [String: JSONValue] = [:]
+    if let maxWidth = parsed.int("max-width") { params["maxWidth"] = .int(maxWidth) }
+    if let display = parsed.int("display") { params["display"] = .int(display) }
+    if let out = parsed.flag("out") { params["path"] = .string(out) }
+    if parsed.bool("inline") { params["inline"] = .bool(true) }
+    let result = callJSON(emitter, connection, Method.screenshot, .object(params))
+    if emitter.json {
+        print(emitter.pretty(result))
+    } else {
+        print(result["path"]?.stringValue ?? "(no path)")
+        print("  \(result["width"]?.intValue ?? 0)x\(result["height"]?.intValue ?? 0) px, scale \(result["scale"]?.intValue ?? 1) — divide pixel coordinates by scale to get input points")
+    }
+    exit(0)
+
+case "input":
+    let (_, connection) = resolveSpace(rest.first, root: rootOverride)
+    let payload: Data
+    if let file = parsed.flag("file") {
+        if file == "-" {
+            payload = FileHandle.standardInput.readDataToEndOfFile()
+        } else {
+            guard let data = FileManager.default.contents(atPath: file) else {
+                emitter.failure(AgentSpaceError(code: .badRequest, message: "could not read actions from \(file)"))
+            }
+            payload = data
+        }
+    } else {
+        payload = FileHandle.standardInput.readDataToEndOfFile()
+    }
+    guard let actions = try? JSONDecoder().decode(JSONValue.self, from: payload) else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "actions payload is not valid JSON"))
+    }
+    // Accept either a bare array or {"actions": [...]}.
+    let array = actions.arrayValue ?? actions["actions"]?.arrayValue
+    guard let array else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: #"expected a JSON array of actions, or {"actions": [...]}"#))
+    }
+    let result = callJSON(emitter, connection, Method.input, inputParams(array))
+    emitter.success(result, human: "performed \(result["performed"]?.intValue ?? 0) action(s)")
+
+case "move":
+    guard rest.count >= 3, let x = Double(rest[1]), let y = Double(rest[2]) else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace move <space> X Y"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let result = callJSON(emitter, connection, Method.input,
+                          inputParams([.obj(["type": .string("move"), "x": number(x), "y": number(y)])]))
+    emitter.success(result, human: "moved to \(x), \(y)")
+
+case "click":
+    guard rest.count >= 3, let x = Double(rest[1]), let y = Double(rest[2]) else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace click <space> X Y [--double] [--right]"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    var action: [String: JSONValue] = [
+        "type": .string(parsed.bool("double") ? "doubleClick" : (parsed.bool("right") ? "rightClick" : "click")),
+        "x": number(x), "y": number(y),
+    ]
+    if parsed.bool("right") { action["button"] = .string("right") }
+    let result = callJSON(emitter, connection, Method.input, inputParams([.object(action)]))
+    emitter.success(result, human: "clicked \(Int(x)), \(Int(y))")
+
+case "type":
+    guard rest.count >= 2 else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace type <space> TEXT"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let text = rest.dropFirst().joined(separator: " ")
+    let result = callJSON(emitter, connection, Method.input,
+                          inputParams([.obj(["type": .string("type"), "text": .string(text)])]))
+    emitter.success(result, human: "typed \(text.count) character(s)")
+
+case "key":
+    guard rest.count >= 2 else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace key <space> COMBO"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let combo = rest.dropFirst().joined(separator: " ")
+    let result = callJSON(emitter, connection, Method.input,
+                          inputParams([.obj(["type": .string("key"), "key": .string(combo)])]))
+    emitter.success(result, human: "pressed \(combo)")
+
+case "scroll":
+    guard rest.count >= 3, let dx = Int(rest[1]), let dy = Int(rest[2]) else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace scroll <space> DX DY"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let result = callJSON(emitter, connection, Method.input,
+                          inputParams([.obj(["type": .string("scroll"), "dx": .int(dx), "dy": .int(dy)])]))
+    emitter.success(result, human: "scrolled \(dx), \(dy)")
+
+case "drag":
+    guard rest.count >= 5,
+          let x1 = Double(rest[1]), let y1 = Double(rest[2]),
+          let x2 = Double(rest[3]), let y2 = Double(rest[4]) else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace drag <space> X1 Y1 X2 Y2"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let action: JSONValue = .obj([
+        "type": .string("drag"),
+        "fromX": number(x1), "fromY": number(y1),
+        "toX": number(x2), "toY": number(y2),
+    ])
+    let result = callJSON(emitter, connection, Method.input, inputParams([action]))
+    emitter.success(result, human: "dragged \(x1),\(y1) → \(x2),\(y2)")
+
+case "launch", "activate":
+    guard rest.count >= 2 else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace \(command) <space> APP"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let app = rest.dropFirst().joined(separator: " ")
+    let method = command == "launch" ? Method.launch : Method.activate
+    let result = callJSON(emitter, connection, method, .obj(["app": .string(app)]))
+    emitter.success(result, human: "\(command == "launch" ? "launched" : "activated") \(result["name"]?.stringValue ?? app) (pid \(result["pid"]?.intValue ?? -1))")
+
+case "quit":
+    guard rest.count >= 2 else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace quit <space> APP [--force]"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let app = rest.dropFirst().joined(separator: " ")
+    let method = parsed.bool("force") ? Method.forceQuit : Method.quit
+    let result = callJSON(emitter, connection, method, .obj(["app": .string(app)]))
+    emitter.success(result, human: "quit \(result["name"]?.stringValue ?? app) (pid \(result["pid"]?.intValue ?? -1))")
+
+case "apps":
+    let (_, connection) = resolveSpace(rest.first, root: rootOverride)
+    let result = callJSON(emitter, connection, Method.apps, .object([:]))
+    if emitter.json {
+        print(emitter.pretty(result))
+    } else {
+        let list = result["apps"]?.arrayValue ?? []
+        if list.isEmpty { print("No apps running in this AgentSpace.") }
+        for app in list {
+            let name = app["name"]?.stringValue ?? "(unnamed)"
+            let pid = app["pid"]?.intValue ?? -1
+            let policy = app["policy"]?.stringValue ?? "?"
+            let active = app["active"]?.boolValue == true ? "  ←front" : ""
+            print("\(pid)\t\(name)\t[\(policy)]\(active)")
+        }
+    }
+    exit(0)
+
+case "exec":
+    guard rest.count >= 2 else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace exec <space> COMMAND [--cwd DIR] [--timeout MS]"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let shellCommand = rest.dropFirst().joined(separator: " ")
+    var params: [String: JSONValue] = ["command": .string(shellCommand)]
+    if let cwd = parsed.flag("cwd") { params["cwd"] = .string(cwd) }
+    if let timeout = parsed.int("timeout") { params["timeoutMs"] = .int(timeout) }
+    let envPairs = parsed.list("env")
+    if !envPairs.isEmpty {
+        var env: [String: JSONValue] = [:]
+        for pair in envPairs {
+            let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else {
+                emitter.failure(AgentSpaceError(code: .badRequest, message: "--env expects KEY=VALUE, got '\(pair)'"))
+            }
+            env[parts[0]] = .string(parts[1])
+        }
+        params["env"] = .object(env)
+    }
+    let result = callJSON(emitter, connection, Method.exec, .object(params))
+    if emitter.json {
+        print(emitter.pretty(result))
+        exit(result["exitCode"]?.intValue == 0 ? 0 : 1)
+    } else {
+        if let stdout = result["stdout"]?.stringValue, !stdout.isEmpty {
+            FileHandle.standardOutput.write(Data(stdout.utf8))
+        }
+        if let stderr = result["stderr"]?.stringValue, !stderr.isEmpty {
+            FileHandle.standardError.write(Data(stderr.utf8))
+        }
+        let code = result["exitCode"]?.intValue
+        let duration = result["duration"]?.intValue ?? 0
+        FileHandle.standardError.write(Data("exit \(code.map(String.init) ?? "signal \(result["signal"]?.stringValue ?? "?")") (\(duration)ms)\n".utf8))
+        exit(code == 0 ? 0 : 1)
+    }
+
+case "ax":
+    guard rest.count >= 2 else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace ax <space> snapshot|frontmost|windows|perform"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let subcommand = rest[1]
+    var params: [String: JSONValue] = [:]
+    if let pid = parsed.int("pid") { params["pid"] = .int(pid) }
+
+    let method: String
+    switch subcommand {
+    case "snapshot":
+        method = Method.axSnapshot
+        if let depth = parsed.int("max-depth") { params["maxDepth"] = .int(depth) }
+        if let nodes = parsed.int("max-nodes") { params["maxNodes"] = .int(nodes) }
+        params["interestingOnly"] = .bool(!parsed.bool("all"))
+    case "frontmost":
+        method = Method.axFrontmost
+    case "windows":
+        method = Method.axWindows
+    case "perform", "click":
+        method = Method.axPerform
+        if subcommand == "click" { params["click"] = .bool(true) }
+        if let action = parsed.flag("action") { params["action"] = .string(action) }
+        if let role = parsed.flag("role") { params["role"] = .string(role) }
+        if let title = parsed.flag("title") { params["titleContains"] = .string(title) }
+        if let identifier = parsed.flag("identifier") { params["identifier"] = .string(identifier) }
+    default:
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "unknown ax subcommand '\(subcommand)'"))
+    }
+    let result = callJSON(emitter, connection, method, .object(params))
+    print(emitter.pretty(result))
+    exit(0)
+
+case "start", "stop", "restart":
+    guard let reference = rest.first else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace \(command) <space>"))
+    }
+    let (space, connection) = resolveSpace(reference, root: rootOverride)
+    switch command {
+    case "stop":
+        let result = callJSON(emitter, connection, Method.shutdown, .obj(["reason": .string("agentspace stop")]))
+        emitter.success(result, human: "stopped \(space.name)")
+    case "restart":
+        // Best effort: a worker that is not running has nothing to stop.
+        if FileManager.default.fileExists(atPath: connection.paths.socketPath) {
+            _ = try? connection.client.call(method: Method.shutdown, params: .object([:]), token: connection.token, timeout: 5)
+        }
+        fallthrough
+    default:
+        // Starting a worker needs launchd and the agent user's own session, so
+        // the CLI hands it to the helper rather than trying to `sudo` anything.
+        emitter.failure(AgentSpaceError(
+            code: .workerOffline,
+            message: "starting a worker is the privileged helper's job; the CLI does not run launchd or sudo. The AgentSpace user must be logged in through the GUI at least once.",
+            recoverable: true))
+    }
+
+case "create", "delete":
+    emitter.failure(AgentSpaceError(
+        code: .workspaceDenied,
+        message: "'agentspace \(command)' would create or remove a macOS user, which the CLI deliberately cannot do. Use the AgentSpace app, which goes through the privileged helper's typed XPC interface."))
+
+default:
+    FileHandle.standardError.write(Data("agentspace: unknown command '\(command)'\n\n".utf8))
+    FileHandle.standardError.write(Data((usage() + "\n").utf8))
+    exit(2)
+}

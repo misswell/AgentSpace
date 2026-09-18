@@ -1,0 +1,317 @@
+# Troubleshooting
+
+Start here:
+
+```bash
+agentspace doctor          # human-readable
+agentspace doctor --json   # for a script or a bug report
+```
+
+Every check that is not `✓` prints what is wrong **and** what to do. This file
+explains the ones people hit most. If `doctor` does not cover your case,
+`docs/validation.md` §7 lists what is not yet built.
+
+---
+
+## `SESSION_IS_CONSOLE` — "input is refused"
+
+**What it means.** The AgentSpace session is on your physical display right now.
+Posting an event into it would type on your own screen, so AgentSpace refuses
+instead. This is the product working, not a bug.
+
+**Fix.** Switch back to your own account with fast user switching. The AgentSpace
+session keeps running in the background; input works again the moment it is no
+longer on the console. Nothing needs restarting.
+
+**If it happens when you are *not* looking at the AgentSpace desktop:** the
+session dictionary could not be read, and AgentSpace fails closed. Re-run
+`agentspace doctor --json` and look at `sessionVerdict`:
+
+| `sessionVerdict` | Meaning |
+|---|---|
+| `usable` | Background session; input permitted |
+| `isConsole` | The session really is on the console |
+| `indeterminate` | `CGSessionCopyCurrentDictionary()` did not answer — treated as console, deliberately |
+| `noWindowServer` | No window server in this session |
+
+---
+
+## `WORKER_OFFLINE` — nothing is listening
+
+The socket file may not exist, or may be stale from a crashed worker.
+
+```bash
+agentspace status <space>
+ls -la /Users/Shared/.AgentSpace/Runtime/<space-uuid>/
+```
+
+**Most common cause: the AgentSpace user has never been logged in through the
+GUI.** A macOS user only gets an Aqua session after a GUI login, and the worker's
+LaunchAgent is scoped to that session (`LimitLoadToSessionType: Aqua`). This is
+expected after a reboot — macOS does not restore the second session by itself.
+
+**Fix.** Fast user switch into the AgentSpace user, let the worker start, then
+switch back. `agentspace doctor` reports this as `Needs Login`.
+
+If the socket exists but nothing answers, it is stale. The worker unlinks it on
+the next start, so starting the worker is the fix. (A stale socket is not deleted
+by hand here because the directory is ACL'd and deleting it as the wrong user
+fails confusingly.)
+
+---
+
+## `ACCESSIBILITY_DENIED` / `SCREEN_RECORDING_DENIED`
+
+The worker needs both grants **inside the AgentSpace session**, not in yours.
+
+**Fix.** Fast user switch into the AgentSpace user, then:
+
+- System Settings → Privacy & Security → **Accessibility** → enable
+  `agentspace-worker`
+- System Settings → Privacy & Security → **Screen & System Audio Recording** →
+  enable `agentspace-worker`
+
+Then `agentspace restart <space>`, because TCC grants are read at process start.
+
+**Two things that confuse people here.**
+
+1. **`agentspace doctor`'s TCC line is advisory.** It reports *your terminal's*
+   grants, because TCC attributes a permission to the **responsible process**.
+   The worker's own answer is what matters, and `doctor` gets that by asking the
+   worker rather than by checking its own.
+2. **Grants are keyed to the binary's path and signature.** Rebuilding at the same
+   path with the same signing identity keeps them; changing either silently
+   invalidates them. If input worked yesterday and not today after a rebuild,
+   re-grant.
+
+AgentSpace never writes `TCC.db`. If a guide tells you to, it is describing a
+different tool with a different risk profile.
+
+---
+
+## Screenshots fail while Accessibility works
+
+That is the split-permission case: `SCREEN_RECORDING_DENIED` and
+`ACCESSIBILITY_DENIED` are separate toggles. AgentSpace checks
+`CGPreflightScreenCaptureAccess()` **before** invoking `screencapture`, so a
+missing grant is a clean typed error rather than a TCC dialog appearing in a
+session nobody is watching.
+
+---
+
+## `INVALID_COORDINATE` — "off the main display"
+
+The overwhelmingly likely cause: **a coordinate was taken from a screenshot in
+pixels and used as a point.**
+
+```
+pointX = pixelX / scale
+pointY = pixelY / scale
+```
+
+`agentspace screenshot` prints the scale on every human-readable run, and every
+screenshot reply carries `scale`, `width`/`height` (points) and
+`pixelWidth`/`pixelHeight` (pixels). On a 1920×1080 display at scale 2, a
+screenshot is 3840×2160 and a click at the visual centre is `960, 540` — not
+`1920, 1080`.
+
+Do not derive the scale from `CGDisplayPixelsWide()`: on macOS 27 it returns
+*points* for a scaled Retina display. `docs/validation.md` §2 has the measurement.
+
+AgentSpace rejects an off-display coordinate rather than clamping it, because a
+clamped click is a click in the wrong place and the agent would not know.
+
+---
+
+## `NO_INPUT_TARGET` — "no app is frontmost"
+
+Keyboard and mouse events need somewhere to land. Posting into a session with
+nothing frontmost is a silent no-op, and AgentSpace reports an error instead
+because "nothing happened" is worse than "it failed" when a model is deciding
+what to do next.
+
+**Fix.** Launch or activate something in the Space first:
+
+```bash
+agentspace launch <space> Finder
+agentspace apps <space>
+```
+
+A session that has just been logged into may briefly have only the desktop
+showing; retrying after a second works.
+
+---
+
+## `APP_LAUNCH_TIMEOUT`
+
+The app was launched but never registered a window. `launch` deliberately does not
+trust `open`'s exit code — that only means LaunchServices accepted the request.
+
+Common causes: the app is showing a first-run dialog or a modal in the AgentSpace
+session, or it needs a permission it has not been given. Take a screenshot and
+look.
+
+Note that a **menu-bar app never owns an on-screen window**, so the window wait is
+bounded to half the timeout rather than stalling every `LSUIElement` launch. If a
+menu-bar app is the one timing out, the timeout is not the problem.
+
+---
+
+## `EXEC_DENIED`
+
+The command matched AgentSpace's refusal list — `sudo`, `installer`,
+`diskutil erase`, `launchctl bootstrap system`, `dscl create`, `sysadminctl`,
+`rm -rf /`, `shutdown`, `reboot`, and similar. The error names the rule it hit.
+
+This list is a guardrail, not a sandbox: the containment is that the executor is a
+standard, non-admin user. Run the command yourself in your own terminal if you
+really mean it.
+
+---
+
+## `WORKSPACE_DENIED`
+
+The path is outside the Space's workspace and shared folders, or it is inside a
+folder configured read-only.
+
+Paths are canonicalised — `~` expanded, symlinks resolved — **before** the check,
+so a symlink pointing out of the workspace is refused rather than followed. That
+is intentional.
+
+Before phase 7 the Space has no declared roots at all, and
+`status.workspace.confined` is `false`: the worker reports the honest state rather
+than implying a confinement that is not in effect.
+
+---
+
+## `UNAUTHORIZED`
+
+The session token is missing or wrong.
+
+```bash
+ls -la /Users/Shared/.AgentSpace/Runtime/<space-uuid>/token
+```
+
+The CLI reads it automatically. If it is missing, the worker was started by hand
+instead of by its LaunchAgent; restarting it writes a fresh one — but note that a
+**fresh token invalidates anything holding the old one**, so restart the app too.
+
+`testUnauthorizedSocketClientRejected` covers this path, including a forged token
+that shares a long prefix with the real one.
+
+---
+
+## `PROTOCOL_MISMATCH`
+
+The app, CLI and worker are different builds. Reinstall so all three come from the
+same release. Each side refuses to guess at the other's field layout, which is the
+point of the version gate.
+
+---
+
+## `COMMAND_TIMEOUT`
+
+The process group was terminated after `timeoutMs` (default 120 s; max 1 h). You
+get `timedOut: true` and `exitCode: null`, so a timeout is never mistakable for a
+clean exit.
+
+The child runs in its own process group and is signalled as a group — SIGTERM,
+2 s grace, SIGKILL — so a shell that spawned children does not leave them behind.
+
+---
+
+## The worker will not start
+
+Check its exit code:
+
+| Code | Meaning |
+|---|---|
+| 64 | Bad arguments |
+| 69 | `NO_WINDOW_SERVER` — no Aqua session (you ran it over ssh, or in a launchd context without `LimitLoadToSessionType: Aqua`) |
+| 70 | Socket could not be created or bound |
+| 77 | `WORKER_IS_ROOT` — it refuses to run as root, by design |
+| 78 | Runtime directory unusable |
+
+```bash
+.build/debug/agentspace-worker --check      # machine-readable readiness, no socket
+```
+
+A path over 103 bytes is refused rather than truncated, because a truncated
+`sockaddr_un.sun_path` produces a socket nobody can find. `--check` reports the
+budget. The default layout uses 83 of 103 bytes.
+
+---
+
+## `agentspace doctor` says the helper is not installed
+
+Expected before phase 3. Creating and deleting Spaces needs the helper, because
+it creates a macOS user. **Driving an existing Space does not** — the worker is
+unprivileged, so everything except create/delete and the GUI's Space list works
+without it.
+
+The CLI deliberately cannot create a Space and does not try: `agentspace create`
+explains that it would make a macOS user and points at the app. There is no
+`sudo` path in the CLI, and adding one would undo the boundary the whole design
+rests on.
+
+---
+
+## Input works but the wrong window receives it
+
+`input` delivers to the **Space's frontmost application**, resolved from the
+window server at the moment each action runs. If the wrong app has focus,
+activate the right one first:
+
+```bash
+agentspace activate <space> "Google Chrome"
+agentspace apps <space>            # shows which app is ←front
+```
+
+Alternatively, skip coordinates entirely:
+
+```bash
+agentspace ax <space> perform --title "Sign In" --click
+```
+
+which finds the control in the accessibility tree and clicks its frame centre.
+
+---
+
+## Drag does not work
+
+Known and documented as **unverified**. `drag` follows how AppKit documents drag
+tracking — press, pause, 24 interpolated points with deltas at ~one per frame,
+pause, release — but end-to-end behaviour in a background session has not been
+confirmed, because confirming it needs a second logged-in user.
+`docs/validation.md` §7 lists it. Prefer `ax … --click` or keyboard navigation
+where you can.
+
+---
+
+## Everything is slow / the app uses too much memory
+
+It should not: idle targets are under 100 MB for the app and under 50 MB per
+worker, with ~0% CPU. Check what the Space is actually costing:
+
+```bash
+agentspace status <space> --resources
+```
+
+The memory in a Space is Chrome and your IDE, not AgentSpace. If the *app* is
+large, that is a bug worth reporting with `--json` output attached.
+
+Do not poll `status` faster than every 2–5 seconds (plan §53); prefer event
+notification where the GUI can.
+
+---
+
+## Reporting a bug
+
+```bash
+agentspace doctor --json > doctor.json
+agentspace status <space> --json >> doctor.json
+```
+
+Diagnostics export strips passwords, tokens, Keychain material, typed input text
+and full screenshots. Check the file before attaching it anyway — redaction is
+best-effort, and a secret you pasted into a window title is still a secret.
