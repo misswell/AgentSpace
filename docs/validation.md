@@ -2056,3 +2056,26 @@ typed offline reason, never a pretence of a desktop.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 144 | §2's honest-unavailable rule is visible in the viewer raised by a deep link, not only in CLI and MCP output | ✓ | §45 — the sheet texts above |
+| 145 | The deep link's failure branches are verified in the GUI too: a link to a deleted Space raises a SPACE_NOT_FOUND alert with the UUID in the text, and a malformed link raises BAD_REQUEST — the handler has exactly three outcomes and all three are now seen | ✓ | §46 — the two alerts, read back through the accessibility tree |
+
+
+---
+
+## 46. The deep link's failure branches, also through the accessibility tree
+
+§45 saw the happy path. The two failure branches of `handleDeepLink` were then
+driven the same way, with System Events reading the alerts:
+
+- `agentspace://space/<uuid-of-nothing>` → alert: **SPACE_NOT_FOUND**, with the
+  UUID and "It was probably deleted after the link was made." in the text.
+- `agentspace://garbage/thing` → alert: **BAD_REQUEST**, "not an AgentSpace
+  deep link", with the offending URL quoted.
+
+Together with §45 that is all three outcomes of the handler — select+viewer,
+dead Space, malformed link — verified in the actual app, not in tests alone.
+The dead-Space alert is the case the design cared about: the poster may be
+long gone, so the app is where the failure must be visible, and it is.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 146 | The deep link has no silent path: every input either raises the viewer or raises a typed alert naming the failure | ✓ | §45 + §46 |
