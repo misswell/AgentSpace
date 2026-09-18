@@ -6060,3 +6060,25 @@ no helper round-trip and no root path into this function."
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 376 | exec returns the plan's fields verbatim plus signal/timedOut/truncated supersets under a 4 MB cap, buffered by contract, never elevated | ✓ | §214 — ShellExec.swift:10–39 |
+
+
+---
+
+## 215. §37's eight log categories verbatim, with redaction before OSLog
+
+The worker's Log enum carries all eight planned categories word
+for word — app, helper, worker, ipc, session, input, capture,
+mcp — under BundleIdentifiers.logSubsystem, the single
+namespace source §58 demanded. The redaction insight is stated
+where it matters: OSLog privacy annotations cannot rescue a
+secret already interpolated into a plain String, so scrubbing
+runs before the call, in one funnel, "so a new log line cannot
+forget it" — the automatic removal of passwords, tokens and
+user text implemented as an architecture, not a review step.
+The helper logs under its own category so a security review can
+read exactly what the root component did, and a test sink
+captures lines in place of emission.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 377 | All eight §37 categories exist verbatim under the shared subsystem, with pre-OSLog redaction as a single funnel and a test sink | ✓ | §215 — Connection.swift:75–100, HelperLog.swift |
