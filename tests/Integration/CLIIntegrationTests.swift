@@ -402,6 +402,27 @@ final class CLIIntegrationTests: XCTestCase {
         }
     }
 
+    /// §37 at the process boundary: the exported bundle names the Space and
+    /// the worker's state, but the token that authenticates to that worker
+    /// must not appear anywhere in it — the export is exactly the kind of
+    /// text a user pastes into a support issue.
+    func testDiagnosticsExportNeverContainsTheWorkerToken() throws {
+        let (cli, token, _) = try liveSpace("Diag Export")
+        let result = cli.run(["diagnostics"])
+        XCTAssertEqual(result.exitCode, 0, result.output)
+        XCTAssertTrue(result.output.contains("Diag Export"), "the bundle should be navigable: \(result.output)")
+        XCTAssertTrue(result.output.contains("doctor:"), result.output)
+        XCTAssertFalse(result.output.contains(token.hex), "the session token must not survive into the export")
+        XCTAssertFalse(result.output.contains("<redacted-"), "the collector is a whitelist; the redactor firing here would mean something secret-shaped got collected")
+
+        // --out writes the same bundle to a file.
+        let out = "\(cli.root)/diag.txt"
+        let written = cli.run(["diagnostics", "--out", out])
+        XCTAssertEqual(written.exitCode, 0, written.output)
+        let contents = try String(contentsOfFile: out, encoding: .utf8)
+        XCTAssertFalse(contents.contains(token.hex))
+    }
+
     /// §52 at the process boundary: the live preview is refused on a
     /// console-session worker with the same typed code as every other
     /// observation method — the only framebuffer available IS the user's

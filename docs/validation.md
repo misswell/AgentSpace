@@ -46,6 +46,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 26 | Registry corruption is quarantined with bytes intact, surfaced by doctor, and recoverable; MCP relays typed failures with no local fallback | ✓ | §22 — the quarantine test caught a name-collision bug in the quarantine itself |
 | 27 | After a reboot a logged-out Space shows Needs Login, not offline; a crashed worker under a live session shows offline | ✓ | §23 — utmpx rejected empirically; process ownership is the discriminator |
 | 28 | The §52 live preview is pull-model, fail-closed on console, self-stops when unpulled, and falls back to the 1 FPS MVP when refused | ✓ | §24 — 6 controller tests + 2 process-boundary tests; SCK delivery itself needs a background session and is marked unverified |
+| 29 | The §37 diagnostics export is safe to hand out: whitelist collection + a redaction pass, with the token never surviving either | ✓ | §25 — 7 unit tests + a live-worker integration test |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1370,3 +1371,34 @@ raw value, so the wire code read `previewNotRunning` — and the integration tes
 caught it by asserting the §21 code at the process boundary. The typed-code
 contract is only as strong as its spelling, and the spellings live in the enum,
 not in prose.
+
+---
+
+## 25. Diagnostics export (§37) — a bundle safe to paste into a support issue
+
+The Doctor told the user what was wrong; §37 also demands an *export* that can
+leave the machine without leaving with it the keys. Two independent controls,
+both enforced in Core and both tested:
+
+1. **Whitelist collection.** The collector gathers doctor output, registry
+   metadata (names, usernames, uid, state) and file *existence* — never token
+   contents, Keychain items, input payloads, or frame data.
+2. **Redaction pass.** Everything still runs through the redactor at the
+   boundary: 64-hex tokens, keyed `password/secret/token` values, inline
+   `data:image` payloads, and >4 KB base64 blobs. It is deliberately
+   conservative about *not* redacting 40-hex commit SHAs — an export that
+   mangles every hex string is an export nobody can debug from.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 97 | A session token in text is redacted; prose mentioning "token" is not mangled | ✓ | property-style tests |
+| 98 | Commit-SHA shapes survive (40/7 hex are not tokens) | ✓ | the boundary case, pinned |
+| 99 | Keyed secret values redacted whatever the key spelling; keys survive | ✓ | the reader can still see *what* was redacted |
+| 100 | Inline images / giant blobs redacted; redaction is idempotent | ✓ | |
+| 101 | The collector lists every Space but never a token's contents — only presence | ✓ | unit + integration against a live worker |
+| 102 | The CLI export and the GUI Export… button produce the same redacted bundle | ✓ | one collector, two surfaces (§49) |
+
+A deliberate assertion in the integration test: the redactor firing on an
+export is itself suspicious — collection is a whitelist, so `<redacted-…>`
+appearing in a bundle means something secret-shaped got collected anyway, and
+the test would rather fail loudly than quietly look safe.

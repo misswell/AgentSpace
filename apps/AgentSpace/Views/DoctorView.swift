@@ -10,6 +10,22 @@ struct DoctorView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
+    /// The exported bundle is the same redacted text the CLI's
+    /// `agentspace diagnostics` produces — one collector, two surfaces (§49).
+    @State private var exportedPath: String?
+
+    private func exportDiagnostics() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "agentspace-diagnostics.txt"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try Diagnostics.collect().write(to: url, atomically: true, encoding: .utf8)
+            exportedPath = url.path
+        } catch {
+            exportedPath = nil
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -20,6 +36,12 @@ struct DoctorView: View {
                 } label: {
                     Label("Re-run", systemImage: "arrow.clockwise")
                 }
+                Button {
+                    exportDiagnostics()
+                } label: {
+                    Label("Export…", systemImage: "square.and.arrow.up")
+                }
+                .disabled(exportedPath != nil)
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }

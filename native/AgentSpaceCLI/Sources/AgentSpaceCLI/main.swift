@@ -254,6 +254,7 @@ func usage() -> String {
       list                            List AgentSpaces
       status [space]                  Session, permissions and resource state
       doctor                          Diagnose this machine's readiness
+      diagnostics                     Export a redacted support bundle
       helper                          Privileged helper: installed? answering?
 
     MANAGEMENT (changes the machine; needs the privileged helper)
@@ -696,6 +697,28 @@ case "helper":
     // Exit 0 when the helper answers, 3 when it does not — so a script can branch
     // without parsing text, and an unavailable helper is never mistaken for a pass.
     exit(state.isReachable ? 0 : 3)
+
+case "diagnostics":
+    // §37: a support bundle safe to hand out. Two controls, both enforced in
+    // Core: whitelist collection (no token contents, no frames, no input) and
+    // a redaction pass over everything that does get collected.
+    let bundle = Diagnostics.collect(root: rootOverride)
+    if parsed.bool("json") {
+        let escaped = bundle
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+        emitter.success(.obj(["bundle": .string(bundle)]), human: nil)
+    } else if let out = parsed.flags["out"] {
+        do {
+            try bundle.write(toFile: out, atomically: true, encoding: .utf8)
+            emitter.success(.obj(["path": .string(out)]), human: "wrote \(out)")
+        } catch {
+            emitter.failure(AgentSpaceError(code: .internalError, message: "could not write \(out): \(error)"))
+        }
+    } else {
+        emitter.success(.obj(["bundle": .string(bundle)]), human: bundle)
+    }
 
 case "doctor":
     let report = Doctor.run(root: rootOverride)
