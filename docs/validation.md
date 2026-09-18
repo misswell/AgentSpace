@@ -2254,3 +2254,37 @@ budget that §53 sets.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 161 | `agentspace-worker --version` prints `0.1.0` and exits 0 — the daemon is diagnosable from a shell without spawning a session | ✓ | §53 — the output |
+
+
+---
+
+## 54. The GUI checks become a script, and the script finds the flakiness
+
+The GUI verifications of §45–§53 were one-off osascript calls against a live
+app. They are now `scripts/gui-verify.sh`: launch, read the slider's AX
+bounds, read the preview tiers, post a dead link and read the alert — four
+checks, pass/fail counting, non-zero exit on failure.
+
+Writing it down immediately paid for itself in flakiness the ad-hoc calls
+had been quietly absorbing:
+
+- **Named vs positional AX paths.** The slider is not addressable as
+  `slider 1`; only its value-carrying name works, at its full group path.
+- **Settings remembers its tab.** A verification that assumes General fails
+  whenever the last session left Advanced open — the script now switches
+  explicitly.
+- **`open` does not pass environment** — the dead-link check launches the
+  binary directly with `AGENTSPACE_ROOT` (the §48 finding, now load-bearing).
+- **Menu enumeration races the click.** One retry covers the cold-start
+  case where the popup's items are not yet enumerable.
+- **AppleScript `&` on a list is list concatenation**, not string join —
+  the first run "failed" on parsing, not on the app.
+
+All four checks pass. The script belongs beside `test.sh` in the
+pre-release checklist: it needs an Accessibility-authorized terminal and a
+built app, and it verifies the properties that unit tests cannot see —
+what the UI actually exposes.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 162 | `scripts/gui-verify.sh` re-derives the §49 slider bounds, the §53 preview tiers, and the §46 dead-link alert mechanically, and passes 4/4 | ✓ | §54 — the run output |
