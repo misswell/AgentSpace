@@ -3891,3 +3891,33 @@ directory, and forbids the phantom's return. 330 tests green.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 269 | The LaunchAgent plist takes the worker log paths from RuntimePaths, with a test pinning the agreement and banning the phantom worker.log | ✓ | §115 — the new test, 330 green |
+
+
+---
+
+## 116. §58 measured: the namespace is configured in one place
+
+Plan §58 says names go in a single configuration, not scattered
+hardcode. Measured, not assumed:
+
+- **The install root has one source of truth.** Every
+  `/Users/Shared/.AgentSpace` literal outside `RuntimePaths` lives in
+  a *test* — six in HelperValidationTests, one in
+  MultiSpaceIsolationTests. Test fixtures keeping the literal (rather
+  than importing the constant) is deliberate: a literal pins the
+  convention and catches a wrongly-edited constant. Production Swift
+  contains **zero** scattered roots.
+- **Every identifier lives in `BundleIdentifiers`.** The app, helper,
+  worker, worker-LaunchAgent, CLI and MCP names, the helper plist
+  file name, and the §37 log subsystem are all members of that one
+  enum, whose doc comment states the §58 intent outright ("a
+  namespace change is one edit"). Outside the enum, production code
+  names `com.agentspace.*` nowhere; the only other occurrence is a
+  doc comment in HelperLog.swift quoting a `log show` command for the
+  user. The subsystem being its own constant rather than the app's
+  bundle id is documented in place, with the reason.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 270 | Production Swift hardcodes the install root nowhere; all seven literals are test fixtures pinning the convention | ✓ | §116 — the grep and the fixture list |
+| 271 | All bundle ids, derived plist names and the log subsystem are members of BundleIdentifiers, with no production literals outside it | ✓ | §116 — the enum and the zero-hit search |
