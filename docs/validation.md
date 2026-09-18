@@ -5989,3 +5989,26 @@ unwritten sixth row.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 373 | All five §45 scenarios have named, runnable tests, with the derivation suite covering reboot and unknown-state beyond the plan's list | ✓ | §211 — SafetyTests.swift:23,87,140,182; SessionGuardTests:45,55,95; SpaceStateDerivationTests:17–57; CLIIntegrationTests:437 |
+
+
+---
+
+## 212. §48's multi-space correspondence: one-to-one per Space, eleven
+tests green
+
+The negative half — no singleUser, computeruse or defaultSession
+anywhere — is recorded at its earlier entry and re-verified this
+round (still zero hits). The positive half is a one-to-one test
+suite: every Space gets its own socket, token and runtime
+directory; its own account name and launchd label; its own uid
+slot; every socket path fits in sun_path; two spaces with the
+same name never share a worktree and both succeed in creation;
+name resolution is unambiguous or refuses with the UUIDs on
+offer; generated account names never collide with protected
+accounts. The plan's §48 invariant — Space UUID, User UID,
+Worker Socket, Token all in correspondence — is eleven runnable
+assertions, executed green this round.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 374 | §48's UUID/UID/socket/token correspondence is pinned by eleven green multi-space tests; the three forbidden assumption tokens remain absent | ✓ | §212 — MultiSpaceIsolationTests.swift (11 pass) |
