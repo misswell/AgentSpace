@@ -2031,3 +2031,28 @@ No code change — the audits' results are the record.
 |---|---|---|---|
 | 141 | The third-party notice is regenerated nowhere else — the file is the single statement of the Offstage debt | ✓ | §44 — referenced from README and validation only |
 | 142 | The deep link is documented as a security surface: what it can do (select + raise the viewer), what it cannot do by construction (no token bypass, no input, no parameters beyond the UUID), and the reviewer's check on the handler | ✓ | security.md — The deep link is an entrance, so it stays a narrow one |
+| 143 | The deep link's GUI half is verified through the accessibility tree: after the link, the window is titled with the Space's name, the Desktop Viewer sheet is present, and it reports WORKER_OFFLINE honestly for a Space with no worker | ✓ | §45 — the AX walk: window title, sheet presence, sheet texts |
+
+
+---
+
+## 45. The deep link's GUI half, seen through the accessibility tree
+
+§41 verified the CLI half of `agentspace desktop` (opened/true, app launched).
+The sheet itself needed eyes. System Events provided them:
+
+1. Post the link for a seeded Space with no worker.
+2. The app's window is titled **GuiProbe** — the link selected the right Space
+   (the default title is "AgentSpace").
+3. A sheet exists on that window, and its texts are exactly the viewer's
+   honest states: **"Cannot show the agent's desktop"**, **`WORKER_OFFLINE`**,
+   and the "Live preview (1 FPS)" checkbox.
+
+So the whole chain — CLI → `open` → URL scheme → `onOpenURL` → selection +
+`showingDesktopViewer` → `DesktopViewerView` — is verified end to end, and §2's
+fail-closed rule shows through at the GUI layer: a Space with no worker gets a
+typed offline reason, never a pretence of a desktop.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 144 | §2's honest-unavailable rule is visible in the viewer raised by a deep link, not only in CLI and MCP output | ✓ | §45 — the sheet texts above |
