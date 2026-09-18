@@ -2557,3 +2557,31 @@ because the throwaway root gives it a worker and runtime to inspect.
 |---|---|---|---|
 | 173 | doctor's every warning names its concrete fix, and its verdict distinguishes "the app and CLI can run" from "a worker could post input here" | ✓ | §62 — the full output on this machine |
 | 174 | The end-to-end demo stays green on the current tree | ✓ | §62 — the re-run |
+
+
+---
+
+## 63. Acceptance on the current tree: the distribution section reads the repaired dist correctly
+
+With the §59 chain closed, `scripts/acceptance.sh` re-run on this machine:
+
+- its readiness block runs (10 checks, 3 environmental warnings);
+- the **distribution block** — added in §57 for exactly this moment — now
+  reports all three lines green: app notarized and stapled, DMG notarized and
+  stapled, Gatekeeper accepts the app. The §59 restored bytes are recognized
+  by the gate a release runs through;
+- the 1000-iteration `--mode fail-closed` half refuses to run with exit 66
+  (Space not found): it needs a Space's worker, and creating a Space needs
+  the privileged helper — the standing root-gated block, not a new one. The
+  correct mode names are `isolation|fail-closed|both`; the negative control
+  recorded in §13 remains the last time this gate ran to completion, and it
+  stays the only half that can run without a second GUI session.
+
+One tooling slip caught on the way: piping the gate through `tail` masked its
+exit code (the same trap recorded three times before) — rerun with the exit
+captured directly.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 175 | The acceptance gate's distribution section validates the notarized, stapled pair produced in §59 — the gate a release runs through confirms the repair | ✓ | §63 — three green lines |
+| 176 | The fail-closed half's prerequisite is a registered Space (exit 66 without one) — unchanged and root-gated | ✓ | §63 — the refusal message names it |
