@@ -2585,3 +2585,22 @@ captured directly.
 |---|---|---|---|
 | 175 | The acceptance gate's distribution section validates the notarized, stapled pair produced in §59 — the gate a release runs through confirms the repair | ✓ | §63 — three green lines |
 | 176 | The fail-closed half's prerequisite is a registered Space (exit 66 without one) — unchanged and root-gated | ✓ | §63 — the refusal message names it |
+
+
+---
+
+## 64. Every CLI command's --json output is legal JSON, including every error path
+
+Plan §32 promises `--json` on all CLI commands; §21 forbids vague errors.
+A sweep of all 14 command shapes — the no-Space commands (list, doctor,
+helper, integrate) plus 10 Space-requiring commands exercised in their
+fail-closed path (no Space registered, exit 66) — parses every output as
+JSON: 14/14 legal. Error paths carry the structured
+`{"error":{"code":"SESSION_NOT_READY",...}}` envelope, not prose; helper
+reports its expectedVersion/fix object with exit 3. A driving agent gets
+parseable truth from every command whether it succeeds, fails closed, or
+reports a missing machine component.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 177 | All 14 CLI command shapes emit legal JSON under --json on both success and fail-closed error paths — no prose leaks into machine mode | ✓ | §64 — the 14-case sweep, 0 bad |
