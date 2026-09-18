@@ -6859,3 +6859,21 @@ password reveal, keeping secrets off disk.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 412 | §34's Copy Config copies resolved paths (with the hardcode fix recorded), and rules copy rather than write per §35's consent rule | ✓ | §250 — AppModel.swift:486–507 |
+
+
+---
+
+## 251. §32's --json is architectural, not per-command
+
+The CLI parses --json once into an Emitter that every command
+flows through for success and failure alike — one rendering
+path, two output shapes (pretty JSON for machines, human text
+otherwise), which is the same "one fact, one definition"
+pattern as the protocol. Errors emit through it too, so a
+failing command still yields parseable JSON at the right exit
+code. The help text states the promise plainly: "Machine-
+readable output on every command".
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 413 | §32's --json applies to every command via a single Emitter, including failures | ✓ | §251 — AgentSpaceCLI/main.swift:56, 117–125, 297, 349 |
