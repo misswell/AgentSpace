@@ -3141,3 +3141,28 @@ generation, storage, comparison and refusal all observed live.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 215 | Every wrong token shape (wrong value, short, null, empty) is refused with UNAUTHORIZED while the correct token keeps working, with no state pollution across attempts | ✓ | §88 — the five-state wire probe |
+
+
+---
+
+## 89. Protocol-version discipline and malformed-input resilience, live on the wire
+
+- **Version discipline** — the protocol field is enforced exactly: version 1
+  works; 0, 2 and 999 are refused with PROTOCOL_MISMATCH; a version sent as
+  a string ("1") is BAD_REQUEST. §21's versioned RPC is not nominal.
+- **Method edge cases** — an unknown method and an empty method both return
+  METHOD_NOT_FOUND.
+- **hello is genuinely the token-free method** — accepted with no token and
+  with a deliberately wrong token, exactly as Protocol.swift's comment
+  promises ("compared in constant time before any method other than
+  hello").
+- **Malformed-input resilience** — broken JSON, empty lines, JSON arrays,
+  binary garbage, a 1 MB params blob and a 70 KB garbage line all come back
+  BAD_REQUEST (the 1 MB one rejected on size), and after hammering the
+  worker with all of them it still serves a correct authenticated status.
+  Nothing crashes, nothing degrades.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 216 | Protocol version is enforced exactly (1 passes; 0/2/999 PROTOCOL_MISMATCH; string "1" BAD_REQUEST) and unknown/empty methods return METHOD_NOT_FOUND | ✓ | §89 — the wire probes |
+| 217 | hello is the sole token-free method as documented, and malformed lines up to 70 KB are absorbed as BAD_REQUEST with the worker staying healthy | ✓ | §89 — the hello and garbage-line probes |
