@@ -6998,3 +6998,30 @@ while the dot itself still shows.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 418 | All eight §26 states have a StatusDot color and accessibility label; console is orange (a refusal), not red (an error) | ✓ | §256 — Components.swift:10–24, SpaceModel.swift:24–33 |
+
+
+---
+
+## 257. §8's account naming contract: one closed rule, tested against
+twenty-one evasion shapes
+
+No earlier entry had pinned the naming scheme itself. The
+contract: a fixed `_agentspace_` prefix plus six lowercase hex
+characters — a closed alphabet, stated in the code as one rule
+that is "obviously complete rather than five that each cover a
+case somebody thought of": no asking for existing accounts, no
+shell metacharacters, no `..`, no argv injection, no leading
+`-`. `isAgentSpaceAccount` is the gate for both create and
+delete; `protectedAccounts` refuses `root` and fourteen system
+accounts even if they somehow matched the pattern. The tests
+are the proof: 2000 generated names must round-trip through
+the checker (create can never disagree with delete — a Space
+that cannot be removed is the failure mode), and twenty-one
+hand-built evasion shapes (traversal, substitution,
+separators, newlines, emoji, uppercase, wrong length) are each
+asserted rejected. §8's `_agentspace_a37f91` example matches
+the scheme exactly.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 419 | §8's `_agentspace_` + 6-hex naming is one closed rule with a protected-account backstop, pinned by a 2000-name round-trip and 21 evasion rejections | ✓ | §257 — HelperProtocol.swift:103–140, HelperValidationTests.swift:22–80,227 |
