@@ -5764,3 +5764,28 @@ starts it immediately.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 364 | LimitLoadToSessionType=Aqua makes post-reboot "Needs Login" a launchd fact; RunAtLoad+KeepAlive implement the sign-in-once flow; no auto-login path exists in the helper | ✓ | §202 — HelperProtocol.swift:489–496, HelperService.swift:463, SpaceProvisioner.swift:105 |
+
+
+---
+
+## 203. §40's stop/logout distinction: two typed operations, two privilege
+paths
+
+The plan's Stop Worker / Logout Space split exists as two
+independent service methods. `stopWorker(for:)` talks to the
+worker's own RPC and treats an already-dead worker as success;
+`logoutDesktop(for:)` sends a typed `.logoutSession` helper
+request whose implementation is the root-only
+`launchctl bootout gui/<uid>` — documented as ending the whole
+GUI session while keeping the account and home, exactly the
+plan's Logout semantics. The comment's privilege discipline is
+the §31 rule restated: typed helper RPC, never sudo, typed
+failure when the helper is missing. The UI button for stop is
+wired, delete's ordered teardown was recorded earlier, and the
+helper whitelist carries `.stopWorker` and `.logoutSession` as
+separate capabilities — the distinction is enforced at every
+layer, not just the menu.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 365 | Stop Worker and Logout Desktop are separate typed operations with separate privilege paths, enforced at service, helper-whitelist and UI layers | ✓ | §203 — SpaceService.swift:199,219–230, SpaceDetailView.swift:134 |
