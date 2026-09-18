@@ -4955,3 +4955,23 @@ unlock fix — no invented fallback.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 329 | Show Login Password reveals once in memory from the Keychain, never persists, and fails honestly when the item is gone or the keychain is locked | ✓ | §167 — revealPassword and the sheet |
+
+
+---
+
+## 168. §40's Stop-vs-Logout split: three named buttons over two typed verbs
+
+SpaceDetailView carries the plan's exact trio — Stop Agent,
+Logout Desktop…, Delete Space… (destructive). Stop Agent routes
+to stopWorker, whose doc states the distinction outright: stop
+the worker, keep the session, with the effective state honestly
+going offline/needsLogin at the next refresh. Logout Desktop
+routes to the helper's separate logoutSession verb; a missing
+helper surfaces as the typed error with its fix — the fail-closed
+shape. The two operations never share a code path: one is
+launchd-level worker control, the other tears down the GUI
+session.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 330 | Stop Agent (worker only, session kept) and Logout Desktop (session teardown) are distinct UI buttons over distinct helper verbs, exactly as §40 separates them | ✓ | §168 — AppModel and HelperService |
