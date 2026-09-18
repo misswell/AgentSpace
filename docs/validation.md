@@ -4877,3 +4877,23 @@ actual command to run, per §38's requirement.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 325 | All thirteen §38 checks exist (Aqua merged into the Worker branches), three extra checks beyond the plan, failures carry concrete fixes | ✓ | §163 — the check-name census in Doctor.swift |
+
+
+---
+
+## 164. §6's app-side prohibitions hold in their strongest form: the app has
+no shell surface at all
+
+Grepping the app target with prose excluded: zero dscl,
+sysadminctl, sudo or launchctl anywhere, and zero Process(
+constructor — AgentSpace.app does not spawn a single child
+process, let alone a privileged one. The plan's three bans
+(create users, modify system accounts, run a root shell) cannot
+be violated from code that has no execution surface; every
+machine change the app needs goes through the helper's typed RPC
+(§157). The helper itself remains the only process that touches
+the privileged commands.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 326 | The app target contains no privileged command strings and no Process( — §6's bans are enforced by absence, not discipline | ✓ | §164 — the zero-hit greps over apps/ |
