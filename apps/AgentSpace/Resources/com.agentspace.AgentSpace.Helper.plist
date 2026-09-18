@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The AgentSpace privileged helper — plan §7.
+
+  Registered with `SMAppService.daemon(plistName:)`, not `SMJobBless`. The
+  difference that matters: SMAppService is Apple's supported path for a
+  LaunchDaemon that ships inside an app, and it is what the app can install,
+  inspect and remove through a public API. SMJobBless is the older mechanism and
+  is not used anywhere in this project.
+
+  This file must live at:
+      AgentSpace.app/Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist
+
+  `BundleProgram` is interpreted relative to the bundle's Contents directory,
+  which is why it has no leading slash and no app name in it. launchd needs the
+  helper to already be inside the bundle at that path before the daemon is
+  registered; scripts/bundle-app.sh puts it there and verifies it.
+
+  `MachServices` names the Mach service the helper listens on. It must match
+  `helperMachServiceName` in shared/Core/.../HelperClient.swift exactly — launchd
+  owns the name, and a mismatch produces a silent timeout rather than an error.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agentspace.AgentSpace.Helper</string>
+
+    <key>BundleProgram</key>
+    <string>Contents/Library/LaunchDaemons/agentspace-helper</string>
+
+    <key>MachServices</key>
+    <dict>
+        <key>com.agentspace.AgentSpace.Helper</key>
+        <true/>
+    </dict>
+
+    <!-- Started on demand and kept available. The helper does nothing until a
+         connection arrives, and it holds no state between operations. -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Deliberately NO KeepAlive. If the helper crashes, restarting it in a
+         loop would mask a bug that a security review needs to see. It is
+         relaunched on the next connection instead, because launchd owns the
+         Mach service. -->
+
+    <!-- The helper exits immediately (77) if it is not root, so it must never be
+         loaded into a user's session. -->
+    <key>LimitLoadToSessionType</key>
+    <string>System</string>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>

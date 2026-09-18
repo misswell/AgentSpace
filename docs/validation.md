@@ -38,6 +38,10 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
 | 20 | The same 1000 actions land on the agent's desktop | ✗ | same gate, positive half; needs a second session |
+| 21 | The helper only ever mentions commands that exist, with no shell and no `-admin` | ✓ | `HelperValidationTests`, 37 tests |
+| 22 | The helper refuses every account it did not create | ✓ | `HelperValidationTests`, 37 tests |
+| 23 | The helper's binary, plist and worker path are correct inside a real signed bundle | ✓ | `agentspace-helper --self-check`, run by `bundle-app.sh` |
+| 24 | The helper answers over XPC and performs a real createUser | ✗ | needs the LaunchDaemon registered, which needs an administrator password |
 
 ---
 
@@ -149,13 +153,14 @@ concern rather than a worker one.
 
 ```
 $ scripts/test.sh
-Executed 170 tests, with 1 test skipped and 0 failures (0 unexpected) in 7.43s
+Executed 207 tests, with 1 test skipped and 0 failures (0 unexpected) in 7.60s
 ```
 
 | Suite | Tests | Failures | Skipped |
 |---|---|---|---|
 | `ExecGuardTests` | 19 | 0 | 0 |
 | `GeometryTests` | 11 | 0 | 0 |
+| `HelperValidationTests` | 37 | 0 | 0 |
 | `InputActionTests` | 35 | 0 | 0 |
 | `PreviewMappingTests` | 12 | 0 | 0 |
 | `ProtocolTests` | 16 | 0 | 0 |
@@ -645,3 +650,132 @@ reported a pass with the ambient motion noted.
 This is the same lesson as §11's bugs, from the other direction. §11 was about two
 components disagreeing; this is about a test measuring something real but
 attributing it to the wrong cause. Both are invisible to a green suite.
+
+---
+
+## 13. The privileged helper — what is verified, and what is not
+
+The helper is the only root component and the only part of AgentSpace that cannot
+be exercised without a second machine state, which is the exact combination that
+lets a claim go quietly untested. The response was to move everything that can be
+tested into `HelperValidation` and `HelperCommand` — pure functions, in Core, with
+no root required — and then attack them.
+
+### Verified today
+
+**37 tests in `HelperValidationTests`, 0 failures.** They are written from the
+attacker's side: each is a specific thing somebody might try, not a description of
+the code.
+
+```
+$ swift test --filter HelperValidationTests
+Executed 37 tests, with 0 failures (0 unexpected) in 0.011s
+```
+
+The load-bearing ones:
+
+- `testDeleteUserRefusesTheHumanAccount` — if this ever fails, AgentSpace can
+  delete the user's own account.
+- `testDeleteUserRefusesEveryAccountItDidNotCreate` — `root`, `daemon`,
+  `nobody`, `_mbsetupuser`, `guofeng`, `_windowserver`, `admin`, `""`.
+- `testNamesThatLookCloseButAreNot` — twenty near-misses: `_agentspace_A1B2C3`,
+  `_agentspace_/bin/sh`, `_agentspace_..`, `_agentspace_$(id)`,
+  `_agentspace_a1b2c3\n`, non-ASCII, five-character and seven-character suffixes.
+- `testNoCommandEverInvokesAShell` — the structural claim behind the whole design.
+- `testCreateUserIsNeverAnAdministrator` — no `-admin`, no `-secureToken`.
+- `testDeleteUserOnlyEverTargetsTheValidatedAccountsHome`.
+- `testTheLaunchDaemonPlistIsValidAndMatchesTheMachServiceName` — the plist and the
+  client are two files that must agree, and a mismatch produces a *silent timeout*,
+  which is the hardest possible thing to debug.
+- `testGeneratedNamesAreAlwaysAccepted` — 2000 generated names, each fed back
+  through the check that gates deletion. If those two disagreed, the helper would
+  create accounts it then refused to delete: a Space that can never be removed.
+
+**The helper's self-check, run from inside the real signed bundle:**
+
+```
+$ dist/AgentSpace.app/Contents/Library/LaunchDaemons/agentspace-helper --self-check
+  ok   privilege
+       running as uid 501, not root — correct for --self-check, and this is what
+       the daemon refuses to serve from (exit 77)
+  ok   caller requirement parses
+  ok   requirement strictness
+  ok   worker binary is reachable
+       dist/AgentSpace.app/Contents/MacOS/agentspace-worker
+  ok   LaunchDaemon plist is in the bundle
+  FAIL registered with launchd
+       SMAppService reports: not installed (no helper inside this bundle)
+  ok   Space accounts on this machine
+       none — the helper would currently refuse to delete anything
+  ok   refuses everything else
+       root, daemon, nobody, _mbsetupuser, guofeng
+
+9 checks, 1 failing.
+```
+
+`bundle-app.sh` runs this as a gate, and it needs no root — which is the entire
+reason the mode exists.
+
+### Two bugs the helper work exposed
+
+**The `doctor` helper check could never pass.** It tested for
+`/Library/LaunchDaemons/<id>.plist`, which is where a **SMJobBless** helper goes.
+AgentSpace uses `SMAppService` (plan §7), whose LaunchDaemon lives *inside the app
+bundle* and is registered by launchd from there; nothing is ever written to
+`/Library/LaunchDaemons`. The check warned forever, including on a machine where
+the helper was working. A check that cannot pass is worse than no check, because
+it teaches people to ignore warnings.
+
+Fixing it exposed a second one: `SMAppService.status` answers only for the **main
+bundle's own** helper. The CLI lives at `AgentSpace.app/Contents/Helpers/agentspace`,
+so for the CLI process `Bundle.main` is `Contents/Helpers` and the status is
+`.notFound` — on a machine where the helper was installed and fine. `HelperInstallation`
+now walks up from the executable to find the containing `.app`, so the app and the
+CLI agree, and then asks the question that cannot be wrong: *does it answer?*
+
+The command now distinguishes the states a user actually needs told apart:
+
+```
+$ dist/AgentSpace.app/Contents/Helpers/agentspace helper
+agentspace-helper — not answering
+  bundle plist:  …/AgentSpace.app/Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist
+  status:        not answerable. Creating and deleting Spaces will
+                 fail with HELPER_UNAVAILABLE; driving an existing
+                 Space is unaffected.
+  fix:           Open the AgentSpace app and choose “Install Helper”. …
+```
+
+Exit 0 when it answers, **3 when it does not** — so a script can branch without
+parsing text, and an unavailable helper is never mistaken for a pass.
+
+### A finding worth recording
+
+`xpc_peer_requirement_create_team_identity` was added in **macOS 26.0**, and the
+SDK documents it as requiring that "the peer has the specified identity and is
+signed with the same team identifier as the current process" — which is *exactly*
+the check plan §7 asks the helper to perform. The platform has a purpose-built,
+kernel-backed API for this, and it landed in our stated baseline.
+
+It was not adopted, for a specific reason: it takes an `xpc_object_t`, so using it
+means abandoning `NSXPCConnection` for raw XPC, and `NSXPCConnection` exposes only
+`processIdentifier` — verified directly against the SDK header, which declares
+`processIdentifier` and nothing else. So the shipped check is pid-based, with a
+documented pid-reuse window. That limitation, and the recommended fix, are written
+up in `docs/security.md` rather than left implicit. A probe to see whether the
+raw-XPC path could at least be *tested* without root (via an anonymous listener
+endpoint) crashed, so it was not adopted on an unverified path — which is the
+plan's §63.13 rule applied to the build rather than to macOS behaviour.
+
+### Not verified
+
+Everything that needs the daemon actually registered, which needs an administrator
+password, which this session cannot supply:
+
+- the LaunchDaemon registering, launching and answering over XPC;
+- a real `createUser` / `deleteUser` on a real machine;
+- the code-signature check accepting the app and rejecting anything else;
+- `installWorker`, `prepareRuntimeDirectory`, `sessionInfo`.
+
+`agentspace-helper --self-check` and `agentspace helper` are the two commands that
+will confirm all of it on a machine where that is possible, and the create wizard
+will not offer a working button until they are clean.

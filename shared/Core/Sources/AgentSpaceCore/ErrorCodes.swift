@@ -41,6 +41,20 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     case commandTimeout = "COMMAND_TIMEOUT"
     case execDenied = "EXEC_DENIED"
 
+    // --- Privileged helper --------------------------------------------------
+    /// The helper LaunchDaemon is not installed or not reachable, so an
+    /// operation that genuinely needs root cannot be attempted at all.
+    ///
+    /// Recoverable, because installing it is a thing the human can do. What
+    /// matters is that nothing catches this and tries the operation another way:
+    /// there is no unprivileged path to creating a macOS user, and there must
+    /// never appear to be one.
+    case helperUnavailable = "HELPER_UNAVAILABLE"
+    /// The helper was reached and refused the request: bad argument, an account
+    /// that is not an AgentSpace account, or a caller that failed the code
+    /// signature check. Not recoverable by retrying the same request.
+    case helperRejected = "HELPER_REJECTED"
+
     // --- Transport ----------------------------------------------------------
     case unauthorized = "UNAUTHORIZED"
     case badRequest = "BAD_REQUEST"
@@ -58,13 +72,14 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         switch self {
         case .sessionNotReady, .workerOffline, .noWindowServer,
              .sessionIsConsole, .appLaunchTimeout, .commandTimeout,
+             .helperUnavailable,
              .appNotFound, .appNotRunning, .noInputTarget:
             return true
         case .accessibilityDenied, .screenRecordingDenied,
              .workerIsRoot, .workspaceDenied, .execDenied,
              .invalidCoordinate, .invalidAction,
              .unauthorized, .badRequest, .methodNotFound, .protocolMismatch,
-             .internalError:
+             .helperRejected, .internalError:
             return false
         }
     }
@@ -106,6 +121,10 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
             return "Raise the timeout or make the command shorter. The process group was terminated."
         case .execDenied:
             return "That command is on AgentSpace's refusal list. Run it yourself in your own terminal if you really mean it."
+        case .helperUnavailable:
+            return "The privileged helper is not installed. Creating and deleting Spaces needs it, because it makes a macOS user; driving an existing Space does not. Open the AgentSpace app and choose Install Helper."
+        case .helperRejected:
+            return "The privileged helper refused the request. Check the Space's name and account, and see the helper's log with `log show --predicate 'subsystem == \"com.agentspace.app\" AND category == \"helper\"' --last 5m`."
         case .unauthorized:
             return "The session token does not match this Space. Re-read it from the runtime directory, or recreate the Space."
         case .badRequest:

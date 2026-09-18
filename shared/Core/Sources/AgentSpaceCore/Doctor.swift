@@ -170,15 +170,7 @@ public enum Doctor {
             fix: consistent ? nil : "CGDisplayPixelsWide disagrees with the display mode; AgentSpace uses the display mode (verified correct). Report this as a bug."))
 
         // 6. Privileged helper. Plan §7: SMAppService registers a LaunchDaemon.
-        let helperPath = "/Library/LaunchDaemons/\(BundleIdentifiers.helper).plist"
-        let helperInstalled = FileManager.default.fileExists(atPath: helperPath)
-        checks.append(Check(
-            name: "Privileged helper",
-            status: helperInstalled ? .pass : .warn,
-            detail: helperInstalled
-                ? "\(helperPath) is present."
-                : "\(helperPath) is not installed. Creating and deleting Spaces needs it; driving an existing Space does not.",
-            fix: helperInstalled ? nil : "Open the AgentSpace app and choose “Install Helper”."))
+        checks.append(helperCheck())
 
         // 7. Fast User Switching. Plan §10: the whole approach depends on it.
         checks.append(fastUserSwitchingCheck())
@@ -279,6 +271,36 @@ public enum Doctor {
     }
 
     /// Fast User Switching, read from the login window's own preference file.
+    /// The privileged helper, asked the way the app asks.
+    ///
+    /// This used to test for `/Library/LaunchDaemons/<id>.plist`, which is where a
+    /// *SMJobBless* helper goes. AgentSpace uses `SMAppService` (plan §7), whose
+    /// LaunchDaemon lives **inside the app bundle** and is registered by launchd
+    /// from there; nothing is ever written to `/Library/LaunchDaemons`. The old
+    /// check therefore warned forever, including on a machine where the helper was
+    /// working perfectly — and a check that cannot pass teaches people to ignore
+    /// warnings.
+    ///
+    /// `HelperInstallation` resolves the bundle that actually contains this
+    /// executable, so the app and the CLI (which lives in `Contents/Helpers`) give
+    /// the same answer, and then asks the question that cannot be wrong: does it
+    /// answer?
+    static func helperCheck() -> Check {
+        let state = HelperInstallation.inspect()
+        if state.isReachable {
+            return Check(
+                name: "Privileged helper",
+                status: .pass,
+                detail: "installed, registered and answering (\(state.summary)).",
+                fix: nil)
+        }
+        return Check(
+            name: "Privileged helper",
+            status: .warn,
+            detail: "not available: \(state.summary). Creating and deleting Spaces needs it; driving an existing Space does not.",
+            fix: state.fix)
+    }
+
     private static func fastUserSwitchingCheck() -> Check {
         let path = "/Library/Preferences/.GlobalPreferences.plist"
         guard let dictionary = NSDictionary(contentsOfFile: path) as? [String: Any] else {

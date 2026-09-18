@@ -175,15 +175,7 @@ struct NewSpaceView: View {
                         }
                     }
 
-                    RefusalBanner(
-                        title: "Creating a Space needs the privileged helper",
-                        code: "NOT_IMPLEMENTED",
-                        message: "A Space is a real macOS user, so creating one is an administrator operation. AgentSpace does it through a privileged helper that exposes a closed list of typed operations — it never runs a shell — and that helper is phase 3 of the build.",
-                        fix: "Until then, Spaces can be driven but not created. See docs/architecture.md for the three-process design.")
-
-                    Text("There is deliberately no way to create a Space from the CLI or from MCP. Those change the machine and require an administrator, so they stay in the GUI behind a confirmation.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HelperCard()
                 }
                 .padding(14)
             }
@@ -191,14 +183,73 @@ struct NewSpaceView: View {
             Divider()
 
             HStack {
+                Text("There is deliberately no way to create a Space from the CLI or from MCP. Those change the machine and require an administrator, so they stay here, behind a confirmation.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Button("Create") { }
                     .buttonStyle(.borderedProminent)
                     .disabled(true)
-                    .help("Requires the privileged helper (phase 3)")
+                    .help(model.helperState.isReachable
+                          ? "The helper is ready. Wiring this button to it is the next piece of work."
+                          : "The privileged helper must be installed and answering first.")
             }
             .padding(14)
         }
-        .frame(width: 560, height: 560)
+        .frame(width: 620, height: 620)
+    }
+}
+
+/// The privileged helper's state, with the one button that can change it.
+///
+/// Shown inside the create flow rather than buried in Settings, because this is
+/// where it blocks the user: a Create button that cannot work needs to say why,
+/// on the same screen, with the fix next to it.
+struct HelperCard: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        Card(title: "Privileged helper") {
+            HStack(spacing: 8) {
+                StatusDot(state: model.helperState.isReachable ? .ready : .needsPermission)
+                Text(model.helperState.summary)
+                    .font(.callout.weight(.medium))
+                Spacer()
+            }
+
+            if let version = model.helperState.helperVersionIfKnown {
+                Field(label: "Version", value: version)
+            }
+
+            if model.helperState.isReachable {
+                // Still not a working Create button: Space creation is the next
+                // phase. Saying so is better than a button that fails.
+                RefusalBanner(
+                    title: "The helper is ready; Space creation is not wired up yet",
+                    code: "NOT_IMPLEMENTED",
+                    message: "The helper — a root LaunchDaemon with a closed list of typed operations and no shell — is installed and answering. The final step, calling it from this wizard to create the macOS user, is the next piece of work.",
+                    fix: "Everything that drives an *existing* Space works today: the Desktop Viewer, input, screenshots, apps, exec and the accessibility tree.")
+            } else {
+                RefusalBanner(
+                    title: "Creating a Space needs the privileged helper",
+                    code: "HELPER_UNAVAILABLE",
+                    message: "A Space is a real macOS user, so creating one is an administrator operation. AgentSpace does it through a root helper that exposes a closed list of typed operations — it never runs a shell, and it will only ever create or delete accounts named _agentspace_<6 hex>.",
+                    fix: model.helperState.fix ?? "Open the AgentSpace app and choose Install Helper.")
+
+                HStack {
+                    Button {
+                        model.installHelper()
+                    } label: {
+                        if model.isInstallingHelper {
+                            HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Installing…") }
+                        } else {
+                            Text("Install Helper…")
+                        }
+                    }
+                    .disabled(model.isInstallingHelper)
+                    .help("macOS will ask for your password: only an administrator can add a LaunchDaemon.")
+                }
+            }
+        }
     }
 }

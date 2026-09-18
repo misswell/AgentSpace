@@ -71,13 +71,16 @@ and what is not, with the measurements.
 - `agentspace` — the CLI, with `--json` on everything, plus `agentspace doctor`
 - `@agentspace/mcp` — the MCP server: 14 tools over stdio, bridged to the same CLI
 - `AgentSpaceCore` — the shared protocol, models and safety logic
-- 170 Swift tests and 19 MCP tests, 0 failures; the safety suite runs against a
+- `agentspace-helper` — the root LaunchDaemon: a closed list of nine typed
+  operations, no shell, and a code-signing check on its caller.
+- 207 Swift tests and 19 MCP tests, 0 failures; the safety suite runs against a
   live worker over a live socket
 
 **Not built yet**
 
-- The privileged helper (phase 3), so Spaces cannot be created or deleted from the
-  GUI yet — everything that *drives* an existing Space works
+- Wiring the create wizard to the helper. The helper itself is built, bundled and
+  self-checked; the last step — calling it from the app to make the macOS user — is
+  next. Everything that *drives* an existing Space works today.
 - Workspace editing (phase 7)
 - ScreenCaptureKit live preview (phase 8; today the viewer is 1 FPS screenshots)
 
@@ -109,6 +112,13 @@ scripts/bundle-app.sh       # a signed dist/AgentSpace.app
 scripts/demo.sh             # end-to-end CLI run against a throwaway root
 scripts/mcp-smoke.sh        # real MCP JSON-RPC against a live worker
 scripts/acceptance.sh       # the phase-0 isolation gate (plan §44)
+```
+
+The privileged helper reports its own state, and needs no root to do it:
+
+```bash
+dist/AgentSpace.app/Contents/Library/LaunchDaemons/agentspace-helper --self-check
+dist/AgentSpace.app/Contents/Helpers/agentspace helper
 ```
 
 The acceptance gate is the one that decides whether the product works:

@@ -245,6 +245,7 @@ func usage() -> String {
       list                            List AgentSpaces
       status [space]                  Session, permissions and resource state
       doctor                          Diagnose this machine's readiness
+      helper                          Privileged helper: installed? answering?
 
     OBSERVE
       screenshot <space>              Capture the Space's desktop
@@ -335,6 +336,50 @@ case "version":
         "cli": .string(cliVersion),
         "protocol": .int(agentSpaceProtocolVersion),
     ]), human: "agentspace \(cliVersion) (protocol \(agentSpaceProtocolVersion))")
+
+case "helper":
+    // The privileged helper, from the outside. Read-only: registering the
+    // LaunchDaemon is a thing only the app can do (SMAppService needs the app's
+    // own bundle), and it deliberately needs the user's password, so this command
+    // reports state and never offers to change it.
+    let state = HelperInstallation.inspect()
+    let payload: JSONValue = .obj([
+        "installed": .bool(state.plistInBundle != nil),
+        "reachable": .bool(state.isReachable),
+        "summary": .string(state.summary),
+        "helperVersion": state.helperVersionIfKnown.map { .string($0) } ?? .null,
+        "expectedVersion": .string(helperVersion),
+        "plistInBundle": state.plistInBundle.map { .string($0.path) } ?? .null,
+        "fix": state.fix.map { .string($0) } ?? .null,
+        // Stated explicitly, because it is the question people actually have.
+        "neededFor": .array([
+            .string("creating a Space"),
+            .string("deleting a Space"),
+            .string("installing or removing a Space's worker"),
+        ]),
+        "notNeededFor": .array([
+            .string("driving an existing Space"),
+            .string("screenshots, input, apps, exec, accessibility"),
+        ]),
+    ])
+    if emitter.json {
+        print(emitter.pretty(payload))
+    } else {
+        print("agentspace-helper — \(state.summary)")
+        if let plist = state.plistInBundle { print("  bundle plist:  \(plist.path)") }
+        if let version = state.helperVersionIfKnown { print("  version:       \(version)") }
+        if state.isReachable {
+            print("  status:        answerable; creating and deleting Spaces will work")
+        } else {
+            print("  status:        not answerable. Creating and deleting Spaces will")
+            print("                 fail with HELPER_UNAVAILABLE; driving an existing")
+            print("                 Space is unaffected.")
+            if let fix = state.fix { print("  fix:           \(fix)") }
+        }
+    }
+    // Exit 0 when the helper answers, 3 when it does not — so a script can branch
+    // without parsing text, and an unavailable helper is never mistaken for a pass.
+    exit(state.isReachable ? 0 : 3)
 
 case "doctor":
     let report = Doctor.run(root: rootOverride)

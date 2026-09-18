@@ -31,6 +31,7 @@ let package = Package(
         // to `AgentSpace` on the way in, where the destinations differ.
         .executable(name: "AgentSpaceApp", targets: ["AgentSpaceApp"]),
         .executable(name: "agentspace-session-test", targets: ["SessionAcceptanceTest"]),
+        .executable(name: "agentspace-helper", targets: ["AgentSpacePrivilegedHelper"]),
     ],
     targets: [
         .target(
@@ -53,12 +54,26 @@ let package = Package(
         .executableTarget(
             name: "AgentSpaceApp",
             dependencies: ["AgentSpaceCore"],
-            path: "apps/AgentSpace"
+            path: "apps/AgentSpace",
+            // Both plists are consumed by scripts/bundle-app.sh, which copies them
+            // to the places macOS requires (Contents/Info.plist and
+            // Contents/Library/LaunchDaemons/). Declaring them as resources would
+            // put a second, ignored copy in Contents/Resources, and an Info.plist
+            // sitting in Resources is both wrong and confusing.
+            exclude: ["Resources/Info.plist",
+                      "Resources/com.agentspace.AgentSpace.Helper.plist"]
         ),
         // The phase-0 acceptance test (plan §44), as a runnable program rather
         // than an XCTest case: it must run from the *console* session and open a
         // real TextEdit, which a test host cannot do. `swift run
         // agentspace-session-test` or scripts/acceptance.sh.
+        // The privileged helper — plan §6, §7. Root, launched by launchd from a
+        // SMAppService LaunchDaemon inside the app bundle.
+        .executableTarget(
+            name: "AgentSpacePrivilegedHelper",
+            dependencies: ["AgentSpaceCore"],
+            path: "native/AgentSpacePrivilegedHelper/Sources/AgentSpacePrivilegedHelper"
+        ),
         .executableTarget(
             name: "SessionAcceptanceTest",
             dependencies: ["AgentSpaceCore"],

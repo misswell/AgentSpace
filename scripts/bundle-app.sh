@@ -21,15 +21,19 @@ BIN_DIR=".build/$CONFIGURATION"
 
 echo "== building ($CONFIGURATION) =="
 swift build -c "$CONFIGURATION" \
-  --product AgentSpaceApp --product agentspace --product agentspace-worker
+  --product AgentSpaceApp --product agentspace --product agentspace-worker \
+  --product agentspace-helper
 
-for binary in AgentSpaceApp agentspace agentspace-worker; do
+for binary in AgentSpaceApp agentspace agentspace-worker agentspace-helper; do
   [[ -x "$BIN_DIR/$binary" ]] || { echo "missing $BIN_DIR/$binary" >&2; exit 1; }
 done
 
 echo "== assembling $APP =="
 rm -rf "$APP"
+# Contents/Library/LaunchDaemons is where SMAppService.daemon(plistName:) requires
+# a LaunchDaemon to live — it is not a location of our choosing.
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" \
+         "$APP/Contents/Library/LaunchDaemons" \
          "$APP/Contents/Resources" "$APP/Contents/Library/LaunchAgents"
 
 # Layout, and why it is not the obvious one.
@@ -47,6 +51,26 @@ cp "$BIN_DIR/AgentSpaceApp"     "$APP/Contents/MacOS/AgentSpace"
 cp "$BIN_DIR/agentspace-worker" "$APP/Contents/MacOS/agentspace-worker"
 cp "$BIN_DIR/agentspace"        "$APP/Contents/Helpers/agentspace"
 cp apps/AgentSpace/Resources/Info.plist "$APP/Contents/Info.plist"
+
+# The helper and its LaunchDaemon. The helper goes in Contents/Library/LaunchDaemons
+# next to its plist, because BundleProgram is resolved relative to Contents and the
+# path in the plist is "Contents/Library/LaunchDaemons/agentspace-helper".
+cp "$BIN_DIR/agentspace-helper" \
+   "$APP/Contents/Library/LaunchDaemons/agentspace-helper"
+cp apps/AgentSpace/Resources/com.agentspace.AgentSpace.Helper.plist \
+   "$APP/Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist"
+
+# The plist and the client must agree about the Mach service name, or the app
+# times out with no error to explain why. Asserted rather than assumed.
+PLIST="$APP/Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist"
+ADVERTISED="$(/usr/libexec/PlistBuddy \
+  -c 'Print :MachServices:com.agentspace.AgentSpace.Helper' "$PLIST" 2>/dev/null | tr -d '[:space:]')"
+if [[ "$ADVERTISED" != "true" ]]; then
+  echo "the LaunchDaemon plist does not advertise the Mach service the client connects to." >&2
+  echo "  expected key: com.agentspace.AgentSpace.Helper" >&2
+  echo "  PlistBuddy said: '${ADVERTISED:-<key missing>}'" >&2
+  exit 1
+fi
 
 # Assert the layout rather than trusting it. A case collision is invisible in a
 # directory listing, so the only reliable check is comparing content.
@@ -83,6 +107,9 @@ sign() {
 
 sign "$APP/Contents/MacOS/agentspace-worker" "com.agentspace.AgentSpace.Worker"
 sign "$APP/Contents/Helpers/agentspace"      "com.agentspace.AgentSpace.CLI"
+# The helper carries its own identifier: it is a separate Mach-O with a separate
+# privilege level, and the requirement it enforces names it explicitly.
+sign "$APP/Contents/Library/LaunchDaemons/agentspace-helper" "com.agentspace.AgentSpace.Helper"
 sign "$APP"                                  "com.agentspace.AgentSpace"
 
 echo "== verifying =="
@@ -98,5 +125,17 @@ echo "   open $APP"
 echo
 echo "Note: the bundled CLI is at"
 echo "   $APP/Contents/Helpers/agentspace"
+echo "   $APP/Contents/Library/LaunchDaemons/agentspace-helper"
+
+# The helper's own self-check, run from inside the bundle it will actually be
+# installed from. It refuses to claim health when something is wrong, so this is a
+# real gate rather than a smoke test — and it needs no root, which is the point of
+# having the mode at all.
+echo "== helper self-check (from the bundle) =="
+if "$APP/Contents/Library/LaunchDaemons/agentspace-helper" --self-check 2>&1 | sed 's/^/   /'; then
+  echo "   helper self-check passed"
+else
+  echo "   helper self-check reported problems (expected before the daemon is installed)" >&2
+fi
 echo "and that path is what an MCP client should be given as AGENTSPACE_BIN — a"
 echo "different copy of the binary would be a different TCC identity."

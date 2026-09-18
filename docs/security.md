@@ -201,6 +201,169 @@ Stated so nobody over-trusts them:
 - `AXUIElement` access can read window titles and control elements. That is the
   point, and it is scoped to the agent session.
 
+## The privileged helper — a separate review
+
+Plan §56 asks for the helper to get its own security review, on the grounds that
+it is the only root component and therefore the only place where a bug is not
+contained by the per-Space user. This is that review. It is written to be read
+adversarially: each section is "what can be made to happen", not "what the code
+does".
+
+### The threat model, stated once
+
+The adversary is **the agent**. That is unusual, and it is the point of the
+product: AgentSpace deliberately gives a model-driven process the ability to
+click, type and run commands on a computer. So the helper must assume the caller
+is running someone else's instructions, that those instructions may include
+"become an administrator" or "read the other Space's data", and that the caller
+may have already compromised the app process itself. Anything the helper exposes
+is reachable by that adversary.
+
+The adversary is *not* assumed to be root. If an attacker already has root, the
+helper is irrelevant — they can `dscl` directly. The helper exists to make sure
+that **not** having root is enough to stay safe, and that the path from "can drive
+a desktop" to "can create and delete accounts" does not exist.
+
+### 1. The interface is a closed list, and that is the primary control
+
+Nine operations, enumerated in `HelperOperation`, each a value type with named,
+typed fields. There is no `runShell`, no `writeFile`, no `chmod`, no
+`executeAtPath`.
+
+This is the control the others support rather than duplicate. A generic escape
+hatch would make every other measure irrelevant: if the helper can be made to run
+an arbitrary command as root, then validating the username perfectly is beside the
+point. `testThereIsNoGenericEscapeHatchInTheProtocol` fails the day somebody adds
+an operation whose name has a `run`, `exec`, `write` or `path` component, and
+`testNoRequestFieldCanCarryAnArbitraryCommand` fails the day the wire format gains
+a field, so both changes require deliberately editing a test that says "confirm
+this cannot carry a command".
+
+### 2. No shell, anywhere
+
+Every privileged command is an `argv` array spawned with `posix_spawn`
+(`CommandRunner.run`). There is no `/bin/sh -c` in the helper, and
+`testNoCommandEverInvokesAShell` asserts it.
+
+The consequence is worth stating plainly, because it is the reason the display
+name does not need to be sanitised for shell purposes: **there is no quoting
+layer**. A display name containing `; rm -rf /` is one `argv` element that
+`sysadminctl` receives as a literal display name. The attack that this
+traditionally enables does not have a representation in this design.
+
+### 3. Accounts are `_agentspace_` plus six hex characters, and only those are reachable
+
+`HelperValidation.isAgentSpaceAccount` is a single rule with three parts: a fixed
+prefix, a fixed length, and a closed character set. One rule, obviously complete,
+rather than five that each handle a case somebody thought of. It simultaneously
+excludes:
+
+| Attack | Why it fails |
+|---|---|
+| Delete the user's own account | `guofeng` has no `_agentspace_` prefix |
+| Delete `root`, `_mbsetupuser` | same, plus an explicit protected list |
+| Traverse with `..` | `.` is not in the alphabet |
+| Inject a second argument | space is not in the alphabet |
+| Be read as a flag by `dscl` | `-` is not in the alphabet |
+| Shell metacharacters | none are in the alphabet |
+| Non-ASCII lookalikes | all are outside the alphabet |
+
+`isAgentSpaceAccount` is checked *again* inside `HelperService.deleteUser`,
+against the account as it exists on the machine, and the home path is built from
+the validated name rather than taken from the request — so there is no path field
+to aim at `/Users/guofeng`, and `removeHome` can only ever remove the Space's own
+home.
+
+`testASpaceCanNeverBeGrantedAccessToAnotherSpace` covers the subtler version of
+the same problem: granting an AgentSpace account access to a sibling's runtime
+directory would hand over a socket carrying a live session token, so the main user
+must be a human account.
+
+### 4. Caller verification, and one honest limitation
+
+The helper checks the connecting process's code signature against
+`anchor apple generic and certificate leaf[subject.OU] = "U8U443D7ZL" and
+(identifier "com.agentspace.AgentSpace" or "com.agentspace.AgentSpace.Helper")`,
+and rejects the connection otherwise. It also re-verifies the pid immediately
+before every privileged operation, so occupying the check once is not enough.
+
+**The limitation.** The correct identity for an XPC peer is its audit token, which
+the kernel supplies and the peer cannot forge. The supported API for using one is
+`xpc_peer_requirement_create_team_identity` — added in **macOS 26.0**, and
+documented in the SDK as "the peer has the specified identity and is signed with
+the same team identifier as the current process", which is exactly this check. It
+takes an `xpc_object_t`, so using it means abandoning `NSXPCConnection` for raw
+XPC.
+
+`NSXPCConnection` exposes only `processIdentifier` — verified directly against
+`Foundation/NSXPCConnection.h`, which declares `processIdentifier` and nothing
+else. So on the supported API surface the check is pid-based, and that leaves a
+**pid-reuse window**: if the real app exits at exactly the right moment, an
+attacker's process could be assigned the same pid and satisfy the check.
+
+Three things reduce it, and none eliminates it:
+
+1. The signature is validated, so the attacker must present code signed with our
+   Team ID — an ad-hoc binary with a copied identifier does not pass.
+2. The process is re-identified and its cdhash compared, so an attacker must be
+   the same *code* twice, not merely occupy the pid once.
+3. The check runs again immediately before each privileged operation.
+
+This is recorded rather than papered over because it is a real residual risk and
+the fix is known: move the helper to raw XPC and use `xpc_peer_requirement`. That
+is the recommended change for the next iteration — it is the one place where the
+supported API is weaker than the platform allows. The plan's §3 also asks to avoid
+macOS 26-only APIs while targeting 26+, so the right shape is
+`if #available(macOS 26.0, *)` with the pid check as the documented fallback.
+
+### 5. The helper refuses to be useful by accident
+
+- It exits **77** if `geteuid() != 0`, matching the worker's wrong-privilege code.
+  A helper that cannot be privileged does not half-perform an operation.
+- `handle` re-checks root before dispatching.
+- `createUser` cleans up a half-created account if `sysadminctl` fails, so the
+  next attempt does not hit a confusing "already exists".
+- `deleteUser` **verifies** the account is gone rather than assuming, because the
+  app removes the Space from its registry immediately afterwards and an orphan
+  account would be unreachable.
+- `UserID` below 500 is refused on delete: a `_agentspace_`-named account can
+  never legitimately be a system account.
+- There is no `KeepAlive` in the LaunchDaemon plist, deliberately: restarting a
+  crashing root daemon in a loop would hide from review the bug that made it
+  crash. `testTheLaunchDaemonPlistIsValidAndMatchesTheMachServiceName` asserts it
+  is absent.
+
+### 6. Things that are *not* in the helper, and cannot be
+
+- **No `-admin`.** `HelperCommand.createUser` never passes it, there is no
+  parameter that could, and `testCreateUserIsNeverAnAdministrator` asserts the
+  generated command lacks `-admin`, `-adminUser` and `-secureToken`. Plan §8: a
+  Space is a standard user.
+- **No worker path from the caller.** The helper installs its own bundled
+  `agentspace-worker`, never a path the app supplies. A caller-controlled path
+  here would be arbitrary code execution as a launchd job.
+- **No `TCC.db` writes anywhere in the project.**
+- **No arbitrary-file operations.** Even `prepareRuntimeDirectory` accepts only a
+  space ID, an account, a main user and a runtime root, and the runtime root must
+  be under `/Users/Shared` or `/tmp` — so the chmod/chown it performs cannot be
+  aimed at a system directory.
+
+### 7. What a reviewer should check first
+
+In order of how much damage a mistake would do:
+
+1. `HelperValidation.isAgentSpaceAccount` — the whole of §3 rests on it, and it is
+   one small function.
+2. `HelperCommand` — every command the helper can run, in one file, as arrays.
+3. `HelperValidation.validate` — the per-operation rules, especially that
+   `deleteUser` requires `isAgentSpaceAccount`.
+4. `CodeSigningRequirement` — and the limitation in §4 above.
+5. The absence of `-c` in any `posix_spawn` call.
+
+`agentspace-helper --self-check` reports what a *particular installed* helper will
+enforce, which is what a reviewer should run on the machine rather than reading
+the source and assuming.
+
 ## Release checklist (plan §56)
 
 Before a release, review each of these against the built artifacts:

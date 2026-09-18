@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import ServiceManagement
 import AgentSpaceCore
 
 /// The GUI's state.
@@ -22,6 +23,10 @@ final class AppModel: ObservableObject {
     @Published var selection: UUID?
     /// Settable because SwiftUI's `alert(item:)` needs a two-way binding.
     @Published var lastError: PresentedError?
+    /// What is known about the privileged helper. Refreshed with everything else
+    /// so the UI never offers a button that cannot work.
+    @Published var helperState: HelperInstallation.State = HelperInstallation.inspect(ping: false)
+    @Published var isInstallingHelper = false
     @Published private(set) var isLoading = false
     @Published var showingNewSpace = false
     @Published var showingDoctor = false
@@ -45,8 +50,77 @@ final class AppModel: ObservableObject {
 
     // MARK: - Loading
 
+    /// Register the LaunchDaemon with launchd.
+    ///
+    /// `SMAppService` is the supported replacement for `SMJobBless` (plan §7).
+    /// Registering a LaunchDaemon requires administrator approval, so macOS shows
+    /// its own prompt — this call blocks on that, which is why it runs off the main
+    /// actor and the UI shows progress rather than appearing to hang.
+    ///
+    /// On success the helper is *registered*, not necessarily *answering*: launchd
+    /// starts it on demand, so the state is re-read rather than assumed.
+    func installHelper() {
+        guard !isInstallingHelper else { return }
+        isInstallingHelper = true
+        Task {
+            let result: Result<Void, Error> = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let service = SMAppService.daemon(plistName: "com.agentspace.AgentSpace.Helper.plist")
+                        try service.register()
+                        continuation.resume(returning: .success(()))
+                    } catch {
+                        continuation.resume(returning: .failure(error))
+                    }
+                }
+            }
+            // Give launchd a moment, then ask the helper directly rather than
+            // trusting that registration implies a working daemon.
+            if case .success = result { try? await Task.sleep(nanoseconds: 500_000_000) }
+            self.helperState = HelperInstallation.inspect()
+            self.isInstallingHelper = false
+            if case .failure(let error) = result {
+                self.lastError = PresentedError(
+                    code: "HELPER_UNAVAILABLE",
+                    message: error.localizedDescription,
+                    fix: HelperInstallation.inspect(ping: false).fix)
+            } else if !self.helperState.isReachable {
+                // Registered but silent is a real state (approval pending, or a
+                // signature mismatch) and silently reporting success would send the
+                // user to a Create button that then fails.
+                self.lastError = PresentedError(
+                    code: "HELPER_UNAVAILABLE",
+                    message: "The helper was registered with launchd but is not answering yet.",
+                    fix: self.helperState.fix ?? "Try again in a moment, or look for com.agentspace.app in Console.")
+            }
+        }
+    }
+
+    func uninstallHelper() {
+        isInstallingHelper = true
+        Task {
+            let service = SMAppService.daemon(plistName: "com.agentspace.AgentSpace.Helper.plist")
+            let error: Error? = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do { try service.unregister(); continuation.resume(returning: nil) }
+                    catch { continuation.resume(returning: error) }
+                }
+            }
+            self.helperState = HelperInstallation.inspect()
+            self.isInstallingHelper = false
+            if let error {
+                self.lastError = PresentedError(
+                    code: "HELPER_REJECTED",
+                    message: "Could not remove the helper: \(error.localizedDescription)")
+            }
+        }
+    }
+
     func reload() {
         isLoading = true
+        // No ping: this runs on every refresh, and a helper that is not installed
+        // would cost a connection timeout each time.
+        helperState = HelperInstallation.inspect(ping: false)
         let registry = service.loadRegistry()
         let spaces = registry.spaces
 
