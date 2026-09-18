@@ -220,6 +220,20 @@ Your original project is never touched.
 
 ---
 
+## The deep-link launch path (§31/§107)
+
+`agentspace desktop <space>` posts `agentspace://space/<uuid>`. While
+the app runs, SwiftUI delivers the URL to the scene's `.onOpenURL`,
+which selects the Space and raises the Desktop Viewer — never a new
+window. At launch, though, a backlog of queued events arrives before
+any scene exists, and AppKit's fallback for an unclaimed open event
+is to mint another WindowGroup instance. `OpenLinkDelegate` (an
+`NSApplicationDelegateAdaptor`) closes those surplus main windows on
+`applicationDidBecomeActive`; one activated launch also drains the
+LaunchServices backlog, after which even background launches come up
+with exactly one window. The invariant "one launch, one window" is
+pinned by `scripts/gui-verify.sh`.
+
 ## Deviation worth naming: the workspace
 
 `exec`'s `cwd` and screenshot output paths are confined to the Space's declared

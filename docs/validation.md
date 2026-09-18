@@ -3713,3 +3713,30 @@ audit's "repo tree" evidence is now a measured fact.
 |---|---|---|---|
 | 257 | docs/security.md documents the §97/§98 flock mutex and the §105 token lifecycle with their design reasoning | ✓ | §109 — the two new sections |
 | 258 | The plan §5 layout exists as written, all 11 entries including the four named docs | ✓ | §109 — the tree walk |
+
+
+---
+
+## 110. Protocol and architecture docs hold the line; one launch-path paragraph added
+
+- **The §21 error codes are complete in the product docs.** All
+  eleven codes from plan §21 appear in `docs/protocol.md`; the
+  canonical source is `AgentSpaceErrorCode` in
+  `ErrorCodes.swift` (a `CaseIterable` enum whose cases carry the
+  design reasoning inline — `NO_INPUT_TARGET` explains why a missing
+  frontmost app is refused rather than silently no-op'd). The enum
+  also holds codes the plan never named (`PREVIEW_NOT_RUNNING`,
+  `WORKER_IS_ROOT`, `INVALID_ACTION`, `NO_INPUT_TARGET`), each with
+  a doc comment — the docs and the enum agree with each other, and
+  the enum is a superset of the plan's list.
+- **`docs/architecture.md` gains the deep-link launch path.** §107's
+  chase left the architecture doc behind: how the app consumes
+  `agentspace://` while running (scene `.onOpenURL`) and at launch
+  (backlog falls to AppKit's fallback; `OpenLinkDelegate` dedups on
+  activation) is now a Lifecycle-section paragraph naming the
+  invariant and its pinning script.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 259 | All eleven §21 error codes exist in docs/protocol.md, and the canonical enum is a documented superset with inline reasoning | ✓ | §110 — the eleven-code walk and the enum source |
+| 260 | docs/architecture.md documents the deep-link launch path, the launch-storm mechanism, and the dedup, with the one-window invariant pinned by gui-verify | ✓ | §110 — the new Lifecycle paragraph |
