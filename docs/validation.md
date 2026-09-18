@@ -3316,3 +3316,26 @@ generated differently, they are enforced per socket at runtime.
 |---|---|---|---|
 | 228 | Two Space workers coexist with independent sockets and independent 256-bit tokens | ✓ | §95 — the dual-worker probe |
 | 229 | A Space's token is valid only on its own socket: both cross combinations are UNAUTHORIZED, with no degradation afterward | ✓ | §95 — the cross-authentication matrix |
+
+
+---
+
+## 96. worker --check is a truthful machine-readable preflight; --once parks until a request arrives
+
+- **--check report** — with no Space arguments at all, the worker prints a
+  12-key JSON readiness report (accessibility, graphicAccess, ok,
+  problems, protocol, sessionVerdict, socketPath, socketPathFits,
+  screenRecording, uid, user, workerVersion) and exits 0. On the console
+  session it reports `sessionVerdict: "isConsole"` and the problem list
+  says plainly: "the worker will start but will refuse all input" —
+  fail-closed semantics are visible at preflight, not only at request
+  time. A missing runtime directory is listed as a problem while `ok`
+  stays true: the report states facts and lets the caller decide.
+- **--once mode** — starts, binds, and parks waiting for exactly one
+  request rather than exiting early; the one-shot lifecycle hook exists
+  for tests.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 230 | worker --check emits a 12-key JSON readiness report that truthfully surfaces the console verdict and its input-refusal consequence | ✓ | §96 — the --check probe |
+| 231 | worker --once starts and parks awaiting a single request instead of exiting | ✓ | §96 — the --once probe |
