@@ -6082,3 +6082,27 @@ captures lines in place of emission.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 377 | All eight §37 categories exist verbatim under the shared subsystem, with pre-OSLog redaction as a single funnel and a test sink | ✓ | §215 — Connection.swift:75–100, HelperLog.swift |
+
+
+---
+
+## 216. §37's export redaction: two independent controls, both tested
+
+The diagnostics bundle is safe by construction twice. The
+collector whitelists — doctor output, registry metadata, file
+existence — so tokens, Keychain items, input payloads and frame
+data never leak because they are never collected. Everything
+still passes the redactor as defense in depth, in case a future
+collector change pulls in something secret-shaped. The five
+planned removals map to regexes: 64-hex runs become
+<redacted-token> (with a false-positive test proving commit SHAs
+are untouched), password/passphrase/secret/token keys become
+<redacted-value> while the key survives so readers see *what*
+was redacted, data-URI images and any 4096+-char base64 run
+become <redacted-image>/<redacted-blob>. Keychain and input
+text are covered by the whitelist itself. Seven tests, redactor
+as a pure function so it can be fed anything secret-shaped.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 378 | Exported diagnostics enforce the plan's five removals via whitelist collection plus a tested pure redactor, with false-positive guards | ✓ | §216 — Diagnostics.swift:5–60, DiagnosticsTests.swift (7) |
