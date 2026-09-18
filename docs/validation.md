@@ -2676,3 +2676,21 @@ Space creation always goes through the helper and the GUI, never sudo.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 182 | The diagnostics report is structurally complete (readiness, session, socket, TCC, spaces), emits legal JSON under --json, and carries no secret vocabulary | ✓ | §67 — the export, the scan, and the §61 redaction test |
+
+
+---
+
+## 68. Malformed input at the socket produces structured refusals, never a crash
+
+A live fuzz of the worker's socket — plain garbage, wrong protocol version,
+protocol-only frames, a wrong token, an empty token, binary junk, a 70 KB
+line, and a field-less hello — returned a structured `BAD_REQUEST` envelope
+for **all 8 cases**, each naming what was missing or unreadable, and the
+worker stayed alive through all of them. No timeout, no partial state, no
+prose. Plan §21's contract (no vague errors) holds not only for well-formed
+requests but for adversarial ones; the fail-closed principle extends to the
+parser itself.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 183 | Eight malformed-socket-input classes each get a structured BAD_REQUEST envelope and leave the worker alive — the protocol layer is fail-closed against bad input, not just bad tokens | ✓ | §68 — the live 8-case fuzz |
