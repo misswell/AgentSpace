@@ -4095,3 +4095,20 @@ before the helper would ever compare it to passwd.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 281 | Stop Worker and Logout Session are distinct typed RPCs, and logoutSession is guarded to AgentSpace accounts with a matching uid, tested on all three sides | ✓ | §123 — HelperProtocol and HelperValidationTests |
+
+
+---
+
+## 124. §31's thirteen commands all exist, as a superset
+
+The CLI dispatch table contains every command §31 names — list,
+status, screenshot, click, type, key, scroll, drag, launch, quit,
+apps, exec, desktop — thirteen of thirteen, plus the product's own
+additions (the ax family, frontmost, windows, perform, preview,
+integrate, helper, diagnostics, start, stop, create, delete,
+version). JSON mode (§32) threads through the parser at 32 sites;
+the integration tests exercise the machine-readable path.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 282 | All thirteen §31 commands exist in the CLI dispatch table, as a superset with JSON mode threaded throughout | ✓ | §124 — the command census |
