@@ -5259,3 +5259,27 @@ is the correct outcome there.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 343 | The five-step sign-in card matches §28 with live progress; the stale placeholder Show Login Password button was found and re-wired to the real reveal flow | ✓ (gap fixed) | §181 — setupCard, AppModel.revealPassword |
+
+
+---
+
+## 182. §30's sampler audited; the §127 limitation closed with direct parse
+tests
+
+Resources.sample keeps the plan's honest shape: one /bin/ps
+invocation filtered to the uid, memory in RSS kilobytes summed
+per process, CPU summed so multicore can exceed 100 percent, disk
+nil-when-unmeasured with a truncation flag — never allocated
+numbers. The audit found the text parsing itself untestable where
+it lived (inside the worker, forked into sample()), so it moved
+to Core as ResourcesParsing.accumulate — the same
+single-source-in-Core pattern as AppVisibility — and five direct
+tests now pin the contract: multi-process accumulation, other
+uids ignored, malformed lines skipped without dying, header/empty
+output yielding zeroes, and CPU summed past 100 percent rather
+than clamped. The §127 verdict line (ps parsing lacks direct unit
+tests) is thereby closed. Suite now 341 tests, 0 failures.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 344 | Per-uid sampling parses one ps line per process with malformed lines skipped, CPU summed not capped, disk honest about unmeasured; parsing is in Core and directly tested (5 tests) | ✓ | §182 — ResourcesParsing, Resources.sample, ResourcesParsingTests |

@@ -650,14 +650,13 @@ enum Resources {
     /// private-API surface of `proc_pidinfo` across a `libproc` boundary.
     static func sample(uid: uid_t, includeDisk: Bool = false, home: String? = nil) -> Sample {
         var sample = Sample(cpuPercent: 0, memoryBytes: 0, processCount: 0)
-        guard let output = runPS() else { return sample }
-        for line in output.split(separator: "\n") {
-            let fields = line.split(separator: " ", omittingEmptySubsequences: true)
-            guard fields.count >= 3, let lineUID = uid_t(fields[0]), lineUID == uid else { continue }
-            guard let rssKilobytes = UInt64(fields[1]), let cpu = Double(fields[2]) else { continue }
-            sample.processCount += 1
-            sample.memoryBytes += rssKilobytes * 1024
-            sample.cpuPercent += cpu
+        if let output = runPS() {
+            // Parsing lives in Core (ResourcesParsing) so tests can pin the
+            // contract without forking /bin/ps.
+            let totals = ResourcesParsing.accumulate(output, uid: uid)
+            sample.processCount = totals.processCount
+            sample.memoryBytes = totals.memoryBytes
+            sample.cpuPercent = totals.cpuPercent
         }
         if includeDisk, let home {
             let measured = DiskUsage.allocatedBytes(under: home)
