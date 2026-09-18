@@ -4854,3 +4854,26 @@ before OSLog.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 324 | Exports are whitelist-collected and redacted at the exit; worker logs scrub through one funnel; all five §37 categories are covered | ✓ | §162 — collect()'s final redact call and the Log funnel |
+
+
+---
+
+## 163. §38's Doctor checklist: all thirteen planned items present, plus
+extras the plan did not name
+
+Mapping the plan's thirteen checks onto Doctor.run(): Apple
+Silicon (arm64-only, §3 noted), macOS version (report header),
+SMAppService + Privileged helper (via HelperInstallation.inspect),
+Fast User Switching, Spaces (+ Registry integrity), Worker per
+space — whose failure branches are exactly the Aqua-session
+distinctions (no GUI login, no token, needs restart), Screen
+Recording and Accessibility per space, Unix socket path, Input
+isolated (four branches), and Workspace confinement per space.
+Extras beyond the plan: WindowServer, Display geometry, and an
+advisory own-process TCC row explaining that TCC attributes CLI
+grants to the terminal. Failure rows carry named fixes with the
+actual command to run, per §38's requirement.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 325 | All thirteen §38 checks exist (Aqua merged into the Worker branches), three extra checks beyond the plan, failures carry concrete fixes | ✓ | §163 — the check-name census in Doctor.swift |
