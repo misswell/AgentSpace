@@ -3582,3 +3582,49 @@ defects found, recorded so the surfaces are on the ledger.
 |---|---|---|---|
 | 249 | The ledger contains 223 uniquely-numbered claims with no gaps in 25–248, all with clean verdicts and evidence | ✓ | §106 — the structural re-audit |
 | 250 | The early snapshot survives as S1–S49 with a restored header, outside the numeric namespace | ✓ | §106 — the renumbering pass |
+
+
+---
+
+## 107. check-all finds a real regression: the three-window launch, chased to LaunchServices
+
+`scripts/check-all.sh` had never been run end to end; its first full
+run failed at the GUI layer — `launch opens exactly one window:
+expected [1] got [3]`. The chase, in the order the evidence pointed:
+
+- **Not window restoration.** The Saved Application State folder was
+  absent, and clearing `com.agentspace.AgentSpace` defaults (whose
+  NSWindow-Frame keys held `AppWindow-1..4` from the §41-bug era)
+  changed nothing — three windows reappeared on every launch.
+- **Not process stacking.** ps showed exactly one AgentSpace GUI
+  process while AX and CG both reported three.
+- **Physical, at the CG layer.** `CGWindowListCopyWindowInfo` showed
+  three real, same-size windows, two coincident and one cascade-
+  offset — a WindowGroup instantiated three times per launch.
+- **The mechanism.** A backlog of `agentspace://` open events sat in
+  LaunchServices (posted by deep-link tests against a not-running
+  app). At every launch LS re-delivered them; events that arrive
+  before any scene exists fall through to AppKit's fallback — one new
+  WindowGroup instance per URL — before the scene-level
+  `.onOpenURL` could ever run. That is why the count never decayed.
+- **The fix, two halves.** `OpenLinkDelegate` (an
+  `NSApplicationDelegateAdaptor`) now closes surplus main windows in
+  `applicationDidBecomeActive` — the first point by which every
+  AppKit-created window exists; note a background launch sends no
+  activation, so the dedup only fires on an activated launch. One
+  activated `open dist/AgentSpace.app` then drained the backlog, and
+  after that even background launches come up with one window.
+- **The dist guard did its job.** The rebuilt-but-unnotarized app was
+  refused by check-all's integrity guard; dist was restored from the
+  stapled DMG, `stapler validate` passes, and **check-all now passes
+  all three layers — 329 tests, MCP smoke, gui-verify 5/5.** The
+  stale binary was never the cause: the restored, pre-fix binary is
+  also one-window now that the backlog is drained, which is the
+  closing proof of the mechanism.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 251 | check-all.sh runs all three verification layers end to end and passes after the LS-backlog drain (329 tests, MCP smoke, gui-verify 5/5) | ✓ | §107 — the full aggregate run |
+| 252 | The three-window launch was a LaunchServices open-event backlog re-delivered at each launch, proven by CG-layer evidence and the one-window-after-drain outcome on the restored binary | ✓ | §107 — the CG window list and the post-drain launches |
+| 253 | check-all's dist integrity guard refuses a rebuilt-but-unnotarized app and its remediation path (restore from the stapled DMG) works | ✓ | §107 — the guard trip and the restore |
+| 254 | OpenLinkDelegate closes surplus main windows on activation, covering the launch-storm shape for future backlogs | ✓ | §107 — the activated-launch observation (3→1) |

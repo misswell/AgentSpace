@@ -34,9 +34,8 @@ struct RootView: View {
                 dismissButton: .default(Text("OK")))
         }
         .onAppear { model.reload() }
-        // `agentspace://space/<uuid>` — from the CLI's `desktop` command or any
-        // other poster. Handled by the model so the failure of a dead link is
-        // visible in the app's own error presentation.
+        // Running-app delivery goes through the scene modifier; the delegate
+        // below handles only the launch-storm dedup.
         .onOpenURL { model.handleDeepLink($0) }
     }
 }
@@ -44,6 +43,18 @@ struct RootView: View {
 @main
 struct AgentSpaceApp: App {
     @StateObject private var model = AppModel()
+    // The deep link arrives through the AppKit open-documents path, not
+    // through `.onOpenURL`: when LaunchServices re-delivers a backlog of
+    // agentspace:// events at launch, the scene-level modifier can end up on
+    // more than one freshly-minted WindowGroup instance (three identical
+    // windows, each with its own handler). The delegate method receives the
+    // whole batch in one call on the one real window, which is what the
+    // gui-verify "exactly one window" check pins.
+    @NSApplicationDelegateAdaptor private var appDelegate: OpenLinkDelegate
+
+    init() {
+        appDelegate.model = model
+    }
 
     var body: some Scene {
         WindowGroup("AgentSpace") {
@@ -68,6 +79,32 @@ struct AgentSpaceApp: App {
 
         Settings {
             SettingsView().environmentObject(model)
+        }
+    }
+}
+
+/// Receives `agentspace://` open events through the AppKit documents path.
+/// Holding the model here is safe: the adaptor creates the delegate before the
+/// first scene, and the model is the app's single source of truth.
+final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
+    weak var model: AppModel?
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { model?.handleDeepLink(url) }
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        // AppKit's fallback for a URL event that no scene claims is to open
+        // another WindowGroup instance; a launch-time backlog of agentspace://
+        // re-deliveries therefore produced N identical windows before any
+        // handler could run. By didBecomeActive every such window exists, so
+        // this is the first point where the extras can be closed. The main
+        // window is the one SwiftUI created first; sheets are not windows.
+        DispatchQueue.main.async {
+            let mains = NSApp.windows.filter {
+                $0.isVisible && !$0.isSheet && $0.title == "AgentSpace"
+            }
+            for extra in mains.dropFirst() { extra.close() }
         }
     }
 }
