@@ -47,12 +47,29 @@ struct DesktopViewerView: View {
         .onAppear {
             capture()
             startPreview()
-            syncKeyboardMonitor()
+            syncKeyboardState()
         }
         .onDisappear {
             stopPreview()
             removeKeyboardMonitor()
         }
+        // The worker's readiness changes while the viewer sits open — the
+        // first sign-in happens in the *other* session — so installation is
+        // state-driven, not just appearance-driven. Revocation (worker gone,
+        // console switch) tears the monitor down instead of leaving it
+        // consuming keys.
+        .onChange(of: snapshot?.workerOnline) { _ in syncKeyboardState() }
+        .onChange(of: snapshot?.acceptsInput) { _ in syncKeyboardState() }
+        .onChange(of: hostWindow) { _ in syncKeyboardState() }
+    }
+
+    /// Install or tear down the keyboard monitor to match the current
+    /// permission state. Installed only when the worker is online, input is
+    /// permitted, and this view has a host window; removed in every other
+    /// combination, so a monitor never outlives its authorization.
+    private func syncKeyboardState() {
+        let permitted = snapshot?.workerOnline == true && snapshot?.acceptsInput == true
+        if permitted { syncKeyboardMonitor() } else { removeKeyboardMonitor() }
     }
 
     private var snapshot: SpaceSnapshot? { model.selected }

@@ -6911,3 +6911,23 @@ gap, fixed end to end:
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 414 | §52's type-into-viewer existed only as a claim; now implemented as pure Core translation + a window-local monitor with delivery-time permission re-check | ✓ | §252 — KeyboardForwarding.swift, KeyboardForwardingTests.swift (14/14), DesktopViewerView.swift:56–115 |
+
+
+---
+
+## 253. §52 follow-up: monitor installation is state-driven, not
+appearance-driven
+
+The previous round's monitor was installed only on appear — but
+the worker's readiness changes while the viewer sits open (the
+first sign-in happens in the *other* session, so a viewer
+opened before it would never gain a keyboard). Installation and
+teardown now track workerOnline, acceptsInput, and the host
+window: a monitor is installed only under all three, and torn
+down when any is lost, so it never outlives its authorization.
+The package floor is macOS 13, so the onChange closures use the
+single-parameter signature. 360 tests green.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 415 | §52's keyboard monitor is re-synced on readiness changes and torn down on revocation, under the macOS 13 floor | ✓ | §253 — DesktopViewerView.swift:47–80 |
