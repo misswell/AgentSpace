@@ -4266,3 +4266,21 @@ plan never asked for. Failures carry concrete remedies by design
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 291 | All thirteen §38 doctor checks exist under matching names, with two extras and concrete remedies | ✓ | §132 — the check-name census |
+
+
+---
+
+## 133. §43's forbidden mechanisms have zero presence in the source
+
+A fresh grep across all Swift sources finds no `SkyLight`, no
+`ScreenSharing`, no `screensharingd`, no `Virtualization`, no
+`TCC.db` write, no VNC, no RDP — zero hits even in comments. What
+the product is built on instead: the public frameworks the plan
+names — ScreenCaptureKit, CGEvent, CGSessionCopyCurrentDictionary —
+all present in the worker. The plan's value proposition ("使用
+macOS 已经存在的多用户 GUI Session") is the implementation, not the
+marketing.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 292 | No forbidden private mechanism appears anywhere in the Swift sources; the foundations are the public frameworks the plan names | ✓ | §133 — the zero-hit grep and the public-framework census |
