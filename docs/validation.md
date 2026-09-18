@@ -4425,3 +4425,20 @@ trade-off, not a shortcut.
 |---|---|---|---|
 | 301 | No HTTP localhost server exists; transport is Unix-socket only | ✓ | §140 — the zero-hit grep |
 | 302 | The session token is 256 unbiased bits from SecRandomCopyBytes; the typeable login password is a documented 32-char trade-off | ✓ | §140 — HelperProtocol's generatePassword and Security.swift |
+
+
+---
+
+## 141. §9's forbidden password channels carry nothing
+
+Fresh greps: no UserDefaults write touches a password, secret or
+token; no print/log/debugPrint statement in the Keychain store
+emits a password; no config.json channel exists at all. The only
+holder of the password is the Keychain (with the §140 documented
+32-char typeable trade-off), and the redactor of §131 stands behind
+the diagnostics boundary in case a future change ever spills a
+secret-shaped string into an export.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 303 | No password, secret or token reaches UserDefaults, a log statement, or a config.json file | ✓ | §141 — the three zero-hit greps |
