@@ -3188,3 +3188,37 @@ generation, storage, comparison and refusal all observed live.
 |---|---|---|---|
 | 218 | integrate claude emits a real, binary-anchored MCP config for Claude Code | ✓ | §90 — the config probe |
 | 219 | integrate rules prints the §35 rules in idempotent comment markers with the user-consent requirement stated in the output | ✓ | §90 — the rules probe |
+
+
+---
+
+## 91. Install semantics verified the hard way: merge, backup-first, idempotence — and a live proof that tilde expansion ignores HOME
+
+While probing the integrations surface, `agentspace integrate claude
+--install` was run under `HOME=<temp dir>` — and wrote the **real** user's
+`~/.claude.json`. The source comment warned exactly this:
+`NSString.expandingTildeInPath` expands against the passwd entry and
+ignores HOME; the CLI offers `--config PATH` for anything that must not
+hit the real home. The accident is therefore the live proof that the
+documented pitfall is real.
+
+The contamination was fully forensicated before touching anything:
+
+- **Merge, not overwrite** — all 56 top-level keys and the user's
+  `context7` server survived; only `mcpServers.agentspace` was added.
+- **Backup-first as promised** — `~/.claude.json.agentspace.bak`
+  (108,540 bytes, created at the same second) held the exact pre-install
+  file; the help text's "backing up first" is real.
+- **Idempotent re-install** — the second `--install` added no duplicate
+  section (a single `agentspace` key), matching the marker-based design.
+
+Everything was then restored byte-for-byte from the backup (JSON parses,
+`agentspace` key absent, `context7` present, backup artifact removed).
+Lesson recorded: installing to a sandbox requires `--config PATH`; the
+HOME environment variable is not honored by tilde expansion.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 220 | install merges into the existing config (foreign keys survive), writes a same-second backup first, and re-install is idempotent | ✓ | §91 — the forensic record |
+| 221 | Tilde expansion ignores the HOME environment variable, as the source comment documents; `--config PATH` is the sandbox-safe path | ✓ | §91 — the accidental live proof |
+| 222 | codex and opencode targets emit their own formats (TOML for codex, JSON with `enabled` for opencode), each anchored to the real binary | ✓ | §91 — the raw-output probe |
