@@ -4811,3 +4811,21 @@ path the CLI uses.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 322 | Viewer clicks convert view→point and point→view through one mapping type; scale is excluded; the result posts through the normal input RPC | ✓ | §160 — PreviewMapping and the viewer's click handler |
+
+
+---
+
+## 161. §23's exec contract is complete: all three inputs and all four
+result fields
+
+ShellExec takes cwd, an explicit environment, and timeoutMs, and
+returns exactly the planned shape: exitCode (Int32? — null when
+the process died without reporting one), stdout, stderr buffered
+in full, and duration in ms. The doc comment states the buffering
+design up front, and the env note warns that the binary is
+resolved against PATH from the environment, so leaving env
+implicit would run a different binary than the result describes.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 323 | exec supports cwd/env/timeout and returns exitCode/stdout/stderr/duration exactly as §23 specifies | ✓ | §161 — the ShellExec signature and result encoder |
