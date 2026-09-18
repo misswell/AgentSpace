@@ -6411,3 +6411,21 @@ socket, uses SecRandomCopyBytes and is unbiased."
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 392 | §9's password is 32 chars/Space/Keychain-only with once-reveal in the UI, and the generator's bias trade-off is documented with the token graded above it | ✓ (deviation documented) | §230 — HelperProtocol.swift:179–206, KeychainStore.swift:1–24, SpaceDetailView.swift:317 |
+
+
+---
+
+## 231. §25's Shared Folders panel, rendered as Overview rows
+
+The plan's Shared Folders list is not a separate panel: it
+renders as rows in the Space's Overview card — "none" when
+empty, otherwise one monospaced field per folder showing
+"path — access", with the access names exactly the plan's
+"Read Only" and "Read & Write" (the model's displayName).
+Creating a folder happens in the §28 wizard; the detail view
+shows the outcome. The flat-list rendering matches the §27
+native-minimal direction rather than adding a sub-panel.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 393 | §25's shared-folder list with Read Only / Read & Write labels is visible per Space in the Overview card | ✓ | §231 — SpaceDetailView.swift:206–211, SpaceModel.swift:124–129 |
