@@ -48,7 +48,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 28 | The §52 live preview is pull-model, fail-closed on console, self-stops when unpulled, and falls back to the 1 FPS MVP when refused | ✓ | §24 — 6 controller tests + 2 process-boundary tests; SCK delivery itself needs a background session and is marked unverified |
 | 29 | The §37 diagnostics export is safe to hand out: whitelist collection + a redaction pass, with the token never surviving either | ✓ | §25 — 7 unit tests + a live-worker integration test |
 | 30 | Stop keeps the session, Logout ends the session through a typed root-only helper RPC, Delete is the only thing that removes a Space | ✓ | §26 — stop pinned by a live test; logout validation pinned; the logout run itself needs the root helper and is recorded as blocked |
-| 31 | Idle resources measured against §53: worker 2.7 MB / 0.0% CPU; app 0.0% CPU. Memory decomposed two ways: by `ps` RSS 92–108 MB (~50 MB of that is shared read-only framework pages), by physical footprint 36.0 MB total / 19.1 MB floor / **~17 MB AgentSpace's own dirty share** | ✓ | §27, §34, §35 — release-build measurements |
+| 31 | Idle resources measured against §53: worker 2.7 MB / 0.0% CPU; app 0.0% CPU. Memory, by physical footprint: 36.0 MB empty, **54.2 MB with a Space registered** (the missing §27 condition, now reproduced), 19.1 MB bare floor. RSS metrics recorded beside them for comparability | ✓ | §27, §34–§36 — release-build measurements |
 | 32 | 1000 sequential RPC round trips leave the worker healthy at ~6.5 ms/call | ✓ | §28 — protocol half of §44; the isolation half stays blocked on a second session |
 | 33 | Doctor names per-Space Accessibility and Screen Recording, asked of the worker, with panel-path fixes | ✓ | §29 — live-worker integration test; caught the wrong-root bug on its first run |
 | 34 | No polling loops; the §44 gate refuses (exit 66) rather than passing without a Space | ✓ | §30 — code audit, 0.0% idle CPU, and the acceptance run's honest refusal |
@@ -1718,3 +1718,45 @@ repository reproduces from an empty build directory.
 |---|---|---|---|
 | 121 | AgentSpace's physical footprint is 36.0 MB vs the bare-SwiftUI floor's 19.1 MB; the RSS delta was ~50 MB of shared read-only pages | ✓ | §35 — vmmap on both, same session |
 | 122 | Cold build from an empty build directory: 0 warnings, all 320 tests pass | ✓ | this run |
+
+
+---
+
+## 36. The registered-Space condition, reproduced at last
+
+§27's 108.8 MB was measured with a Space registered, and §34–§35 could not
+reproduce that condition — creating a Space needs the root helper. It turns
+out the app honors `AGENTSPACE_ROOT`, the same override tests and the CLI use,
+so a harness Space (a hand-written registry record, no helper, no system
+account) is enough to run the real release app against a real registration.
+
+With one offline Space registered, the release app measured:
+
+| Metric | Empty registry | One Space registered |
+|---|---|---|
+| `ps` RSS | 92–102 MB | **111–125 MB** (settling ~111) |
+| Physical footprint | 36.0 MB | **54.0–54.2 MB** |
+| Bare SwiftUI floor (footprint) | 19.1 MB | 19.1 MB |
+
+This confirms §27's original number and localizes the cost: one registered
+Space costs **+18 MB of physical footprint** over the empty state — the
+per-Space detail view, the runtime-directory walk, session and permission
+queries, and icon loading. §53's < 100 MB target is therefore:
+
+- **met** by physical footprint in every state (54 MB worst case measured),
+- **met** by RSS with no Space registered,
+- **exceeded by ~11–25%** by RSS with a Space loaded — the honest residual,
+  now tied to a specific mechanism (eager per-Space view + walk) rather than
+  the framework baseline, and with the recorded lever still available.
+
+Also recorded for anyone repeating this: the `AGENTSPACE_ROOT` seeding recipe
+(registry at `<root>/Spaces/index.json`, ISO8601 dates, workspace encoded as
+`{"kind": "none"}` — a shape worth knowing, and a first-run decode error is
+quarantined beside the file rather than swallowed). And a small tooling note:
+`agentspace list --root` gave no hint that the file was being read from the
+wrong path; the empty registry and the quarantined-file diagnostic are what
+eventually localized it.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 123 | With one Space registered the release app measures 54.0–54.2 MB footprint / ~111–125 MB RSS; the per-Space delta is +18 MB footprint | ✓ | §36 — AGENTSPACE_ROOT harness run |
