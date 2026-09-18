@@ -4209,3 +4209,21 @@ without a remote protocol.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 288 | The viewer polls 1 FPS only while open (onAppear/onDisappear), streams 5 FPS when available, falls back to the MVP, drops letterbox clicks, and refuses input when the worker refuses | ✓ | §129 — DesktopViewerView's lifecycle and mapping |
+
+
+---
+
+## 130. §29's 1:N architecture: an N-space list with per-space isolation tests
+
+The AppModel refreshes an array of Spaces — `registry.spaces.map` —
+with a selection, not a single slot; grep finds no `singleUser`,
+`computeruse`, or `defaultSession` anywhere in Swift sources, as §48
+demands. The per-space facts (UUID → runtime dir, uid → resource
+sampling, per-space token) are pinned by MultiSpaceIsolationTests
+and the token-uniqueness safety tests. A §53-minded detail: resources
+are fetched only for the Space on screen, because one `ps` fork per
+Space per refresh would be exactly the overhead the plan forbids.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 289 | The app manages an array of Spaces with no single-user assumptions anywhere, and per-space isolation is pinned by dedicated tests | ✓ | §130 — the AppModel refresh and the test census |
