@@ -5694,3 +5694,26 @@ above it.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 361 | Build floor is macOS 13 with zero 26+-gated APIs — stricter than §3's "avoid 26-only APIs" — while the supported range stays a doctor-enforced product decision | ✓ (superset) | §199 — Package.swift:22, availability sweep |
+
+
+---
+
+## 200. §4's forbidden UI stacks: absent from sources, manifests and the
+MCP dependency tree
+
+Two sweeps — sources (Swift/TS/mjs) and dependency manifests —
+find no Electron, Tauri, React Native, WKWebView or UIWebView
+anywhere in project code. The one literal hit is TypeScript's
+own compiler type definitions inside node_modules, describing
+JSX interop, not project code; the node_modules-excluded
+resweep is the second tool and is empty. The MCP package's
+dependency list is exactly §4's first-version stack —
+TypeScript, Node, @modelcontextprotocol/sdk — and the GUI side
+is SwiftUI throughout with no web view bridging layer (the §6
+entry's process scan corroborates). A management tool with a
+web UI would undercut the very low-overhead thesis §53 states;
+it is not present.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 362 | No §4-forbidden UI stack appears in project sources or manifests; MCP deps are exactly the planned TypeScript/Node/SDK triple | ✓ | §200 — two-tool sweep, package.json |
