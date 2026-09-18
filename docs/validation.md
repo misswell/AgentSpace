@@ -2926,3 +2926,24 @@ Two closing checks on the console guard's map:
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 197 | ax commands are console-refused like input and screenshots, and the desktop command correctly bypasses the guard as a deep-link emitter that never contacts the worker | ✓ | §78 — the ax refusals and the deep-link capture |
+
+
+---
+
+## 79. The CLI verb surface's console map is closed, and the full regression stays green
+
+Final three verbs — launch, quit, activate — are console-refused like
+everything else in §22's app-management surface. The map is now complete
+and exhaustive over the CLI's verb set: **refused** on the console are
+click, type, key, scroll, drag, screenshot, apps, ax.*, launch, quit and
+activate (everything touching session or desktop state); **proceeding** are
+exec, status, desktop (deep-link emitter), and the local management verbs
+(list, doctor, diagnostics, helper). Immediately after, `check-all.sh` ran
+end to end — dist guard, Swift build with the full test suite, MCP smoke,
+and the 5-check gui-verify — all green: the weeks of §59–§78 hardening
+regressions to nothing.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 198 | The console-refused/proceeding map is exhaustive over the CLI verb set, closing with launch/quit/activate refused | ✓ | §79 — the final three-verb sweep |
+| 199 | The complete check-all regression (guard, Swift suite, MCP smoke, gui-verify) passes on the current tree | ✓ | §79 — the three-layer run |
