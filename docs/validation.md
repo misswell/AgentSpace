@@ -3010,3 +3010,27 @@ the same false positive.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 203 | The live worker's socket and token file modes match security.md exactly (0660 / 0600), and token.space's 0644 is harmless because it contains only the space UUID | ✓ | §82 — the stat sweep and the writer-source read |
+
+
+---
+
+## 83. Three more §56 items audited live: symlink preplant, path injection, and report redaction
+
+- **Symlink preplant** — with `token` planted as a symlink to a canary file
+  before startup, the worker ends up with a regular 0600 token and the
+  canary is untouched: the write replaces the link instead of following it,
+  and the worker stays alive and serving.
+- **Space-name path injection** — a worker started with
+  `--name ../../../tmp/agentspace-name-escape` leaves no escaped file
+  anywhere in /tmp and an unchanged runtime directory: the name never
+  becomes a path.
+- **Report redaction** — a full diagnostics run (21 lines) contains zero
+  occurrences of the live token, its 12-char prefix, or any 20+ hex run;
+  the token appears only as a presence word (`tokenFile=absent`), exactly
+  §37's promise that exports strip secrets.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 204 | A planted token symlink is replaced, not followed; the victim file is never written through | ✓ | §83 — the canary experiment |
+| 205 | Space names never become paths: a traversal-shaped name produces no escaped file and no runtime-directory change | ✓ | §83 — the injection probe |
+| 206 | Diagnostics output carries no token material — full, prefixed, or as any long hex run | ✓ | §83 — the redaction grep |
