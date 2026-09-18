@@ -2106,3 +2106,4 @@ hand an end user a path into `.build/debug`.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 148 | The GUI copy path and the CLI integrate path agree on the envelope but intentionally diverge on the binary path — installed app vs developer build — and both are verified | ✓ | §47 — the pasteboard; §40 — the CLI JSON |
+| 149 | The deep link has a troubleshooting entry that matches the verified behavior: no silent path, the typed alerts, UUID rotation on recreate, and the boundary to WORKER_OFFLINE | ✓ | troubleshooting.md — A deep link does nothing, or reports SPACE_NOT_FOUND |

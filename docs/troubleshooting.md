@@ -407,6 +407,28 @@ any processes (`SystemSessions`); if a Space is stuck on Needs Login while a
 session is genuinely live, that lookup has failed and `agentspace doctor` is the
 next stop.
 
+## A deep link does nothing, or reports SPACE_NOT_FOUND
+
+`agentspace://space/<uuid>` links come from the CLI (`agentspace desktop`), from
+scripts, or from notes you saved earlier. When nothing seems to happen:
+
+1. **Is the app running?** The link launches the app if needed, but a fresh
+   launch plus a slow first render can look like nothing happened — wait a
+   beat before deciding it failed.
+2. **Read the alert.** The app never swallows a link silently. A link to a
+   Space that no longer exists raises `SPACE_NOT_FOUND`, naming the UUID —
+   "probably deleted after the link was made". A malformed link raises
+   `BAD_REQUEST` quoting the URL. The failure is in the app, on purpose: the
+   process that posted the link may be long gone, so an error printed to its
+   stdout would be invisible.
+3. **Re-derive the link.** Old links die when the Space is deleted and
+   recreated — the new Space gets a new UUID. Run `agentspace list --json` and
+   use the current id; do not recycle old links.
+
+If the viewer opens but shows `WORKER_OFFLINE`, the link worked and the *Space*
+is what is not ready — that is the `WORKER_OFFLINE` section above, not a
+deep-link problem.
+
 ## Building and distributing: the notarization failures
 
 These are publisher-side failures — they affect the person running
