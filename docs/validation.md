@@ -4358,3 +4358,23 @@ here, not a gap.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 297 | Both permission checks are pure preflights — no prompt is ever triggered in the unattended session | ✓ | §137 — the preflight call sites and the requireTrust wrapper |
+
+
+---
+
+## 138. §22's launch flow waits for real registration, not for `open`'s exit
+
+The comment states it plainly: "`open`'s success only means
+LaunchServices accepted the request; returning a pid at that moment
+hands the agent a number it cannot use." So launch polls with three
+pid-resolution signals (expected pid, bundle identifier, or a
+newly-appeared pid), then gives the app half the remaining budget to
+own an on-screen window — a window a menu-bar (LSUIElement) app will
+never take, so the full budget is not spent on it. Either signal
+suffices, matching the plan's demand to wait for actual registration
+before reporting a pid, while §22's own menu-bar-app requirement
+keeps window ownership optional.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 298 | Launch waits for actual app registration before returning a pid, with LSUIElement apps exempt from the window criterion | ✓ | §138 — the two-signal registration wait in AppControl |
