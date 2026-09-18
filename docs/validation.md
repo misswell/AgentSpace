@@ -4594,3 +4594,24 @@ nothing.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 311 | Resource sampling reports actual per-UID usage with honest nil/truncation semantics; no Allocated fields anywhere | ✓ | §149 — the Resources.Sample comment and UI grep |
+
+
+---
+
+## 150. §24's worktree layout keeps the <space-id> scheme with a documented
+location change
+
+The planned shape was ~/.agentspace/worktrees/<space-id>/<repo>;
+the shipped shape is <RuntimePaths.root>/Worktrees/<space-id>/<repo>
+via SpaceProvisioner.worktreePath. The load-bearing part of §24 —
+one checkout per Space keyed by UUID, agent-only working tree — is
+intact, and the comment records why the parent directory ignores the
+Space's name: on a case-insensitive filesystem "Test" and "test" are
+one directory, and two agents in one working tree is exactly the
+bug the worktree exists to prevent. The Doctor UI displays the same
+shape. The home-relative root became the runtime root, which the
+helper already manages ACLs for.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 312 | Worktree paths are <root>/Worktrees/<space-id>/<repo>, keyed by UUID with the case-collision rationale documented | ✓ (location deviation with rationale) | §150 — worktreePath and the worktreesDirectory comment |
