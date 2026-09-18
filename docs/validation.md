@@ -4916,3 +4916,22 @@ owner.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 327 | The CLI shells nothing privileged; its sole subprocess is the §31 desktop deep link via /usr/bin/open; refusals name the helper as owner | ✓ | §165 — the grep census and the desktop case |
+
+
+---
+
+## 166. §8's Standard-User guarantee is one deliberate omission: no -admin
+flag, and not a parameter
+
+HelperCommand.createUser runs sysadminctl -addUser without
+-admin, and the comment states exactly why: the omission is what
+stops a compromised agent from becoming an administrator, and it
+is deliberately not a request parameter, so no caller — GUI, CLI
+or future API — can flip it. No group command is appended, so the
+account cannot be an admin by construction. The paired
+deleteUser builds the home path from the validated account name
+rather than the request, leaving no path field to aim at.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 328 | Created users are standard by construction — sysadminctl without -admin, non-parameterised, no group additions | ✓ | §166 — HelperCommand.createUser |
