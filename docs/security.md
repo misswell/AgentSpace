@@ -391,6 +391,20 @@ ACL application), observed on a real machine. Notarization is no longer among
 them — it cleared end-to-end on this machine. The rest of this matrix is green
 and re-runnable.
 
+## One worker per Space is enforced by the kernel (§97)
+
+The socket is unlinked before bind, so a naive second worker would
+silently steal the endpoint. It cannot: `bind()` first takes an
+exclusive, non-blocking `flock` on `worker.lock` in the runtime
+directory, and the kernel releases that lock when the process dies.
+A second worker therefore fails fast with exit code 78
+(`EX_CONFIG`) and the message "another worker is already serving
+this Space", while the first worker — and its lock — are untouched.
+The lock file has no security role; its only job is to make the
+racy unlink-then-bind sequence safe to run twice.
+
+---
+
 ## Distribution
 
 Not the Mac App Store in phase one: a privileged helper, creating system users, a
@@ -461,6 +475,30 @@ recovery path.
 service namespace so a test can never read or delete a real Space's password.
 A mock would prove nothing here: the point of the type is that it uses the system
 Keychain correctly.
+
+## The session token (§20) — what it is, and what it is not
+
+Each Space's worker speaks only to clients that present the 256-bit
+token minted at first start and stored in the Space's runtime
+directory as `token` (mode 600). Two properties are deliberate:
+
+**It survives a worker restart.** The token is the shared contract
+between the app, the CLI and the MCP server on one side and the
+worker on the other; minting a fresh one at every launch would break
+crash recovery and the reconnect path. So a leaked token does not
+age out on its own — it stays valid for as long as the Space's
+runtime directory exists.
+
+**The rotation point is the Space itself.** Deleting a Space removes
+the runtime directory, which is the only supported way a token dies.
+There is no `--rotate-token` flag today; if one is added, it must
+re-mint the file and be reflected in every client that cached the
+old value. Treat a token like a credential with no expiry: never
+paste it into an export (§37's redaction turns any 64-hex-char match
+into `<redacted-token>`), and prefer `agentspace` commands over
+hand-rolled socket clients that would need the raw value.
+
+---
 
 ## Creating and deleting a Space — fail-closed on the management path
 

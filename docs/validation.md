@@ -3681,3 +3681,35 @@ nothing else. Verdicts use the ledger's own semantics.
 |---|---|---|---|
 | 255 | Every one of the plan's 63 sections is accounted for in the closing audit: verified, partially verified with the missing half named, or blocked with its gate named — none unaddressed | ✓ | §108 — the section-by-section table |
 | 256 | The remaining work is exactly three external gates — helper root run, second GUI session, public release URL — each requiring a resource outside this session | ✓ | §108 — the restatement |
+
+
+---
+
+## 109. The product docs catch up with the hardening record
+
+§108 audited the plan against the ledger; this round audits the
+product-facing docs against the hardening that the later ledger
+sections recorded. Two findings, both fixed:
+
+- **The kernel-enforced single worker (§97/§98) was process-record
+  only.** `docs/security.md` now carries a short section: the socket
+  is unlinked before bind, the exclusive non-blocking `flock` on
+  `worker.lock` makes the racy sequence safe, the second worker
+  fails fast with exit 78, and the lock file has no security role.
+- **The token's lifecycle (§105) was a ledger finding, not a
+  documented property.** `docs/security.md` now states the two
+  deliberate halves — the token survives a worker restart because it
+  is the shared client contract, and the rotation point is the Space
+  itself (runtime-directory deletion); no `--rotate-token` exists
+  today, and the redaction boundary (§37/§103) is named as the
+  defense that keeps the no-expiry property survivable.
+
+The plan §5 layout was also walked against the tree: all 11 entries
+exist, including the four named docs (architecture, protocol,
+security, troubleshooting) and THIRD_PARTY_NOTICES.md — the closing
+audit's "repo tree" evidence is now a measured fact.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 257 | docs/security.md documents the §97/§98 flock mutex and the §105 token lifecycle with their design reasoning | ✓ | §109 — the two new sections |
+| 258 | The plan §5 layout exists as written, all 11 entries including the four named docs | ✓ | §109 — the tree walk |
