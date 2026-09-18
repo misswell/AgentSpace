@@ -3034,3 +3034,25 @@ the same false positive.
 | 204 | A planted token symlink is replaced, not followed; the victim file is never written through | ✓ | §83 — the canary experiment |
 | 205 | Space names never become paths: a traversal-shaped name produces no escaped file and no runtime-directory change | ✓ | §83 — the injection probe |
 | 206 | Diagnostics output carries no token material — full, prefixed, or as any long hex run | ✓ | §83 — the redaction grep |
+
+
+---
+
+## 84. The MCP chain driven over stdio JSON-RPC: status, the guarded refusal, and exec all arrive intact
+
+The packaged `@agentspace/mcp` server was driven as a real client would —
+stdio JSON-RPC `initialize` → `tools/call` — against a seeded worker, with
+`AGENTSPACE_BIN` pointing at the CLI. Three results, all end to end through
+MCP → CLI → worker socket: `agentspace_status` surfaces the machine-truthful
+state (`state=console` with the worker verdict, §58's two axes visible to a
+model client); `agentspace_click` comes back **SESSION_IS_CONSOLE** — the
+console guard holds at the outermost layer, so an MCP-based agent cannot
+reach the worker's input surface any more than the CLI can; and
+`agentspace_exec` runs and returns its output, the permitted path arriving
+intact. A missing CLI, meanwhile, produces the diagnostic lookup-chain error
+(AGENTSPACE_BIN → app bundle → PATH) rather than a silent fallback.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 207 | The MCP server's tool calls traverse to the worker and back: status shows the true state, click is console-refused, exec returns output | ✓ | §84 — the stdio JSON-RPC drive |
+| 208 | A missing CLI binary yields the named lookup-chain error, never a silent fallback | ✓ | §84 — the AGENTSPACE_BIN-less probe |
