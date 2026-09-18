@@ -5454,3 +5454,32 @@ is documented as AgentSpace-generated only.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 351 | App target spawns no processes; privileged actions are the ten §6 typed operations with no exec; argv-array construction removes the quoting layer structurally | ✓ | §189 — apps/AgentSpace sweep, HelperOperation, HelperProtocol doc |
+
+
+---
+
+## 190. §56's release security review, item by item
+
+Each line of §56's pre-release checklist maps to verified code:
+Unix socket ACL — the socket lives at 0700, file 0660 group
+staff inside a directory ACL'd to the main user. Token —
+SecRandomCopyBytes 256-bit, compared in constant time before any
+method other than hello runs. XPC authentication and code
+signing — CallerVerification checks the guest against the
+requirement with SecCodeCheckValidity, and HelperSelfCheck
+checks the helper's own signature. LaunchDaemon privileges —
+root helper with the ten-case whitelist, no exec. Symlink
+attack — WorkspaceGuard resolves symlinks before prefix tests;
+ExecGuard canonicalises on the longest symlinked directory.
+Path traversal — the delete-home path derives from the validated
+account name, never from request data. Workspace escape —
+WorkspaceGuard plus testWorkspaceCannotEscapeAllowedPath.
+Command injection — the ExecGuard refusal list and argv-array
+construction. Log secret leakage — redaction at both the log
+and export boundaries (§188). The helper's separate review
+requirement (§56's last paragraph) is served by the helper-only
+log category with its ready-made log show predicate.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 352 | All ten §56 checklist items have named, verified implementations; the privileged-helper separate review is served by the helper log category and predicate | ✓ | §190 — main.swift socket attrs, Security.swift, CallerVerification, HelperSelfCheck, ExecGuard, HelperProtocol:521, Diagnostics |
