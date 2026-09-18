@@ -315,10 +315,7 @@ struct SpaceDetailView: View {
                 .padding(.top, 2)
                 HStack {
                     Button(NSLocalizedString("Show Login Password", comment: "")) {
-                        model.present(AgentSpaceError(
-                            code: .internalError,
-                            message: "the login password is stored in the Keychain when the Space is created; the Spaces list is managed by the privileged helper, which is phase 3"),
-                            space: snapshot.space)
+                        model.revealPassword(for: snapshot.space)
                     }
                     Button(NSLocalizedString("Open System Settings", comment: "")) {
                         NSWorkspace.shared.open(URL(

@@ -5233,3 +5233,29 @@ user adds it. Symlinks resolve before the prefix test, so
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 342 | Shared folders default read-only with enforced WORKSPACE_DENIED on write; the forbidden-directory list holds structurally via empty-by-default allowedRoots and no home access; symlinks resolve before the prefix test | ✓ | §180 — SharedFolder, WorkspaceGuard, SpaceProvisioner plan |
+
+
+---
+
+## 181. §28's five-step sign-in card matches the plan; a stale placeholder
+button caught and fixed
+
+The Setup card shows exactly the plan's five steps — open Fast
+User Switching, sign in as "AgentSpace – <name>", grant
+Accessibility, grant Screen & System Audio Recording, switch
+back — each with a live done marker driven by workerOnline /
+accessibility / screenRecording, plus an explicit "never writes
+the TCC database" note. The audit caught one gap: the card's
+Show Login Password button still carried a phase-3-era placeholder
+that presented an internalError instead of calling the real
+revealPassword flow that the Space page had used since the
+transient-reveal work (§167). Fixed to route through
+revealPassword(for:); build clean, all tests pass. Honest
+limitations: the real helper-backed password path is exercised
+only through the detail card; setupCard cannot show the password
+before provisioning stores one, so a NO_STORED_PASSWORD failure
+is the correct outcome there.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 343 | The five-step sign-in card matches §28 with live progress; the stale placeholder Show Login Password button was found and re-wired to the real reveal flow | ✓ (gap fixed) | §181 — setupCard, AppModel.revealPassword |
