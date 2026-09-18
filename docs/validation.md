@@ -6795,3 +6795,25 @@ frontmost too, not only to input.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 409 | §22's five app-management verbs are all dispatched, with quit/forceQuit parameterized and activate behind the desktop-session guard | ✓ | §247 — Operations.swift:37–39, 410–415 |
+
+
+---
+
+## 248. §21's recoverable field, defaulted by classification
+
+The §21 error object carries code, message, and recoverable —
+and recoverable is not left to each call site: it defaults to
+the error code's own classification, "so callers cannot
+accidentally mark a hard failure as retryable." The codes carry
+the semantics in their docs — a console collision is recoverable
+(switch back and it works); a missing background session is
+recoverable only after a login — keeping fail-closed separate
+from retryable. Each code also has a remediation string exposed
+as recoverySuggestion, so the §38 "failures must give concrete
+fixes" rule applies to every error, not just doctor. Even the
+response-encode failure path emits a §21-shaped object with
+recoverable: false.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 410 | §21's recoverable defaults from the code's own classification; remediation rides every error; the encode-failure fallback keeps the shape | ✓ | §248 — ErrorCodes.swift:60–77, 159–177, Connection.swift:45 |
