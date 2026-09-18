@@ -4935,3 +4935,23 @@ rather than the request, leaving no path field to aim at.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 328 | Created users are standard by construction — sysadminctl without -admin, non-parameterised, no group additions | ✓ | §166 — HelperCommand.createUser |
+
+
+---
+
+## 167. §9's Show Login Password is a transient, in-memory reveal with honest
+failure modes
+
+SpaceDetailView's button drives AppModel.revealPassword, which
+reads the Keychain into a @Published struct — a sheet, not a
+file — and the copy states the whole doctrine in one caption:
+"Use this once, at the fast-user-switching login window. It is
+stored in your login Keychain, not in a file, and nothing logs
+it." Copying is an explicit button. Failure is honest both ways:
+a missing item yields NO_STORED_PASSWORD with "cannot be
+recovered", and a locked keychain yields KEYCHAIN_DENIED with the
+unlock fix — no invented fallback.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 329 | Show Login Password reveals once in memory from the Keychain, never persists, and fails honestly when the item is gone or the keychain is locked | ✓ | §167 — revealPassword and the sheet |
