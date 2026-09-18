@@ -6877,3 +6877,37 @@ readable output on every command".
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 413 | §32's --json applies to every command via a single Emitter, including failures | ✓ | §251 — AgentSpaceCLI/main.swift:56, 117–125, 297, 349 |
+
+
+---
+
+## 252. §52's 输入 gap: the viewer could see and click, but not type
+
+The viewer's own header claimed "click and type", and §52 asks
+for 看 · 点 · 输入 — but only the click path existed. A real
+gap, fixed end to end:
+
+- **Core** gains `KeyboardForwarding`, a pure function from the
+  fields NSEvent exposes to an InputAction: printable characters
+  (capitals and option-composed å included) become `type`;
+  command and control become `key` combos in the canonical
+  modifier order, only when the keycode table can synthesise
+  them faithfully; function/navigation keys map through the
+  private-use area; anything untranslatable is ignored rather
+  than guessed. 14 contract tests pin all of it.
+- **App**: an NSEvent *local* monitor — the app's own window
+  only, never a global HID tap, which §13 forbids — forwards
+  key-downs while the viewer window has them, with the
+  permission check repeated at delivery time so a mid-keystroke
+  console switch cannot let a consumed key become an injected
+  one. Failures surface through the same presented-error path
+  as clicks; consumed keys are echoed in the footer
+  ("key → cmd+left", "type → å").
+- The localization table caught the two new footer keys in both
+  languages (the net works, again).
+
+360 + 23 tests pass.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 414 | §52's type-into-viewer existed only as a claim; now implemented as pure Core translation + a window-local monitor with delivery-time permission re-check | ✓ | §252 — KeyboardForwarding.swift, KeyboardForwardingTests.swift (14/14), DesktopViewerView.swift:56–115 |

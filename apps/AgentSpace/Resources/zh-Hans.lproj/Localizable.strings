@@ -155,6 +155,8 @@
 "Reveal File" = "显示文件";
 "click outside the desktop: ignored" = "点击落在桌面之外：已忽略";
 "click → %1$ld, %2$ld" = "点击 → %1$ld, %2$ld";
+"key → %@" = "按键 → %@";
+"type → %@" = "输入 → %@";
 "the worker wrote a capture to %@ but it could not be read" = "worker 已把截图写入 %@，但无法读取";
 "Check the Space's runtime directory permissions." = "检查该 Space 运行时目录的权限。";
 "The helper was registered with launchd but is not answering yet." = "助手已在 launchd 注册，但还没有响应。";

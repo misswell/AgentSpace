@@ -155,6 +155,8 @@
 "Reveal File" = "Reveal File";
 "click outside the desktop: ignored" = "click outside the desktop: ignored";
 "click → %1$ld, %2$ld" = "click → %1$ld, %2$ld";
+"key → %@" = "key → %@";
+"type → %@" = "type → %@";
 "the worker wrote a capture to %@ but it could not be read" = "the worker wrote a capture to %@ but it could not be read";
 "Check the Space's runtime directory permissions." = "Check the Space's runtime directory permissions.";
 "The helper was registered with launchd but is not answering yet." = "The helper was registered with launchd but is not answering yet.";

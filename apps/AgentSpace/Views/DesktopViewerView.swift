@@ -43,14 +43,80 @@ struct DesktopViewerView: View {
             footer
         }
         .frame(minWidth: 720, minHeight: 520)
+        .background(WindowCapture { hostWindow = $0 })
         .onAppear {
             capture()
             startPreview()
+            syncKeyboardMonitor()
         }
-        .onDisappear(perform: stopPreview)
+        .onDisappear {
+            stopPreview()
+            removeKeyboardMonitor()
+        }
     }
 
     private var snapshot: SpaceSnapshot? { model.selected }
+
+    // MARK: - Keyboard forwarding (§17 "键盘输入也一样", §52 输入)
+
+    /// The window this view lives in, captured so the local key monitor can
+    /// tell whether a key-down belongs to *this* viewer.
+    @State private var hostWindow: NSWindow?
+    /// The local monitor's token; nil while keyboard forwarding is off.
+    @State private var keyMonitor: Any?
+
+    /// Install the key monitor only while the worker permits input — and
+    /// re-check at delivery time, so a mid-keystroke console switch cannot
+    /// let a consumed key become an injected one (§2.1, fail closed).
+    private func syncKeyboardMonitor() {
+        guard keyMonitor == nil,
+              let snapshot, snapshot.workerOnline, snapshot.acceptsInput,
+              hostWindow != nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak hostWindow] event in
+            guard event.window === hostWindow, let snapshot = self.snapshot,
+                  snapshot.workerOnline, snapshot.acceptsInput else { return event }
+            let action = KeyboardForwarding.action(
+                characters: event.characters,
+                charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+                command: event.modifierFlags.contains(.command),
+                shift: event.modifierFlags.contains(.shift),
+                option: event.modifierFlags.contains(.option),
+                control: event.modifierFlags.contains(.control))
+            guard let action else { return event }
+            let space = snapshot.space
+            self.pendingAction = Self.describe(action)
+            Task { @MainActor in
+                let error = await Task.detached(priority: .userInitiated) {
+                    SpaceService().input(for: space, actions: [action])
+                }.value
+                if let error {
+                    self.captureError = AppModel.PresentedError(
+                        code: error.code.rawValue,
+                        message: error.message,
+                        fix: error.code.remediation,
+                        spaceName: space.name)
+                }
+            }
+            return nil // consumed: the key went to the agent session
+        }
+    }
+
+    private func removeKeyboardMonitor() {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
+    }
+
+    private static func describe(_ action: InputAction) -> String {
+        switch action {
+        case .key(let combo):
+            return String(format: NSLocalizedString("key → %@", comment: ""), combo)
+        case .type(let text):
+            return String(format: NSLocalizedString("type → %@", comment: ""),
+                          text.replacingOccurrences(of: "\n", with: "⏎"))
+        default:
+            return ""
+        }
+    }
 
     // MARK: - Header
 
@@ -321,5 +387,27 @@ struct DesktopViewerView: View {
                 stopPreview()
             }
         }
+    }
+}
+
+/// Captures the SwiftUI host window so the keyboard monitor can tell which
+/// window a key-down arrived in. Reported from `viewDidMoveToWindow`, which
+/// fires both on attach and on teardown.
+private struct WindowCapture: NSViewRepresentable {
+    let onChange: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView { CaptureView(onChange: onChange) }
+    func updateNSView(_ view: NSView, context: Context) {
+        (view as? CaptureView)?.onChange = onChange
+    }
+
+    private final class CaptureView: NSView {
+        var onChange: (NSWindow?) -> Void
+        init(onChange: @escaping (NSWindow?) -> Void) {
+            self.onChange = onChange
+            super.init(frame: .zero)
+        }
+        required init?(coder: NSCoder) { fatalError("not used") }
+        override func viewDidMoveToWindow() { onChange(window) }
     }
 }
