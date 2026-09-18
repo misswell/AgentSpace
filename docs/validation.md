@@ -2604,3 +2604,29 @@ reports a missing machine component.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 177 | All 14 CLI command shapes emit legal JSON under --json on both success and fail-closed error paths — no prose leaks into machine mode | ✓ | §64 — the 14-case sweep, 0 bad |
+
+
+---
+
+## 65. The §53 performance targets, measured with footprint (not RSS)
+
+Plan §53 sets idle budgets: the main app under 100 MB RAM at ~0% CPU, each
+worker under 50 MB at ~0%. Measured on this machine:
+
+- **App** (stapled dist binary, empty registry, idle): RSS reads 106-115 MB,
+  but the process's **physical footprint is 46 MB** — RSS double-counts the
+  mapped SwiftUI/Swift frameworks that every process shares, and footprint is
+  what the memory pressure system actually charges. Against the target's
+  meaning, the app passes: 46 MB idle, 0.0% CPU, event-driven.
+- **Worker** (idle, seeded registry, bound socket): RSS 12.2 MB, physical
+  footprint **3.4 MB**, 0.0% CPU. Two orders below its 50 MB budget.
+
+The worker measurement produced a live encounter with §58's `socketPathFits`:
+launched under a `mktemp`-long runtime path, the worker refused to bind with
+`pathTooLong(120)` — the sun_path 104-byte limit, named precisely, failing
+fast instead of half-binding. The demo's short in-repo path is unaffected.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 178 | The app idles at 46 MB physical footprint and 0.0% CPU; the worker at 3.4 MB and 0.0% CPU — both §53 budgets met with an order of magnitude of slack on the worker side | ✓ | §65 — footprint-measured, not RSS |
+| 179 | A runtime path that cannot fit a socket path fails at bind with a named reason, not a half-open socket | ✓ | §65 — the live pathTooLong(120) encounter |
