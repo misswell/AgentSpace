@@ -2817,3 +2817,22 @@ with its concrete fix — inside the wire envelope itself.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 191 | A screenshot request from a console-session worker is refused with a structured SESSION_IS_CONSOLE envelope that names the user's desktop as the reason and carries a fix — the fail-closed half of §54's screenshot rule | ✓ | §73 — the live refusal |
+
+
+---
+
+## 74. Every input family is refused on the console — §12's list, live through the full CLI-worker chain
+
+Unit tests have covered `testInputRejectedWhenSessionIsConsole` since the
+Safety suite was built; this round exercised the same rule through the real
+binary chain (CLI → socket → worker). All five input families — click (the
+mouse path), type and key (the keyboard path), scroll, and drag — were
+refused with the structured `SESSION_IS_CONSOLE` envelope, each
+`recoverable`. Plan §12's enumeration ("cannot inject mouse / keyboard /
+scroll / drag events") is now closed on its live half as well: every family
+the plan lists was refused by name, on this machine, through the exact
+route an agent would use.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 192 | All five input families are refused live with SESSION_IS_CONSOLE through the real CLI-worker chain, completing §12's event-type list on both the unit and live halves | ✓ | §74 — the five-command refusal sweep |
