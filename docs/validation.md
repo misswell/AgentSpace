@@ -6429,3 +6429,25 @@ native-minimal direction rather than adding a sub-panel.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 393 | §25's shared-folder list with Read Only / Read & Write labels is visible per Space in the Overview card | ✓ | §231 — SpaceDetailView.swift:206–211, SpaceModel.swift:124–129 |
+
+
+---
+
+## 232. §38's "failures must give the specific fix", sampled
+
+Doctor carries 26 fix strings, one per failing branch, and
+they are all action sentences: Intel → "out of scope"; old
+macOS → "Upgrade to macOS 26 or later."; console →
+"fast-user-switch back ... Input resumes automatically."; ssh →
+"Run from a GUI login, not ssh."; corrupted registry → inspect
+the quarantined pre-corruption files, recover by hand or
+recreate, then delete quarantine; no spaces → "Create one with
+the AgentSpace app. Creating a Space needs the privileged
+helper, because it makes a macOS user."; long socket path →
+"Shorten AGENTSPACE_ROOT."; pixel-width anomaly → "Report this
+as a bug" with a pointer to the verified-correct record. None
+say "something went wrong".
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 394 | §38's remedy requirement holds: every failing doctor check names a concrete, executable fix | ✓ | §232 — Doctor.swift (26 fix strings), sample at :105–219 |
