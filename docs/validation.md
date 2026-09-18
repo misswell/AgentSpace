@@ -42,6 +42,8 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 22 | The helper refuses every account it did not create | ✓ | `HelperValidationTests`, 37 tests |
 | 23 | The helper's binary, plist and worker path are correct inside a real signed bundle | ✓ | `agentspace-helper --self-check`, run by `bundle-app.sh` |
 | 24 | The helper answers over XPC and performs a real createUser | ✗ | needs the LaunchDaemon registered, which needs an administrator password |
+| 25 | A git-worktree Space gives the agent its own checkout and leaves the user's tree untouched | ✓ | `WorkspacePreparerTests`, 16 tests, real git |
+| 26 | A worktree workspace can never be the user's own working tree or branch | ✓ | `WorkspacePreparerTests` |
 
 ---
 
@@ -153,7 +155,7 @@ concern rather than a worker one.
 
 ```
 $ scripts/test.sh
-Executed 207 tests, with 1 test skipped and 0 failures (0 unexpected) in 7.60s
+Executed 223 tests, with 1 test skipped and 0 failures (0 unexpected) in 13.30s
 ```
 
 | Suite | Tests | Failures | Skipped |
@@ -168,6 +170,7 @@ Executed 207 tests, with 1 test skipped and 0 failures (0 unexpected) in 7.60s
 | `SecurityTests` | 24 | 0 | 0 |
 | `SessionGuardTests` | 15 | 0 | 0 |
 | `SpaceModelTests` | 19 | 0 | 0 |
+| `WorkspacePreparerTests` | 16 | 0 | 0 |
 
 Plus 19 `node --test` tests in `packages/agentspace-mcp`.
 
@@ -779,3 +782,74 @@ password, which this session cannot supply:
 `agentspace-helper --self-check` and `agentspace helper` are the two commands that
 will confirm all of it on a machine where that is possible, and the create wizard
 will not offer a working button until they are clean.
+
+---
+
+## 14. Workspace preparation (§14) — verified against real git
+
+`WorkspacePreparer` turns a Space's workspace settings into directories on disk
+and into the access rules the worker enforces. **16 tests, 0 failures**, and they
+use a real `git` repository in a temporary directory rather than a stub, because
+the interesting failures here are git's rather than ours: whether `worktree add`
+accepts the argv we build, whether the branch really appears, and whether the
+user's own checkout is genuinely untouched. A stubbed test would pass while the
+product failed.
+
+### The claim that matters, tested end to end
+
+`testApplyReallyCreatesAWorktreeWithoutTouchingTheUsersCheckout` is the whole
+point of the mode: the agent gets its own checkout, edits it, and the user's
+working tree is compared afterwards.
+
+```swift
+try WorkspacePreparer.apply(plan).get()
+XCTAssertTrue(fileManager.fileExists(atPath: worktree + "/README.md"))
+
+// The agent edits its own copy…
+try "changed by the agent\n".write(to: URL(fileURLWithPath: worktree + "/README.md"), …)
+
+// …and the user's tree is untouched. This is the assertion that matters.
+XCTAssertEqual(try String(contentsOf: repository.appendingPathComponent("README.md")), "hello\n")
+```
+
+### Three paths that are refused rather than quietly handled
+
+- **A branch without the `agentspace/` prefix.** An agent pointed at `main` in the
+  user's own tree is the failure the whole mode exists to prevent, so it is refused
+  rather than renamed. Sixteen malformed branch names are also rejected —
+  `agentspace/`, `agentspace//x`, `agentspace/../x`, `agentspace/x y`,
+  `agentspace/x@{y`, a trailing dot, a newline, DEL.
+- **A worktree outside the Space's own workspace directory.** Otherwise the agent
+  would be creating directories in the user's tree, which is exactly what a
+  worktree is meant to avoid. `testTheWorktreeCannotBeTheRepositoryItself` covers
+  the worst version: checking out over the user's working tree.
+- **Sharing a system directory.** `/`, `/System`, `/Library`, `/usr`, `/etc`,
+  `/Users`, `/Applications`, `/private`, `/var`. Nobody means to give an agent
+  `/Users`, and "I did not mean that" is not recoverable once it has written there.
+
+A repository that is not a repository is an error, not a directory that gets
+created anyway and fails later somewhere confusing.
+
+### Read versus write
+
+`testWritableRootsAreAlwaysASubsetOfAllowedRoots` asserts an invariant the worker
+depends on, since it treats the two lists independently: a writable root that is
+not also allowed would be a hole rather than a mistake. In a worktree Space the
+repository is **allowed but not writable** — the agent can `git log` and diff
+against the base branch, and cannot touch the tree you have open.
+
+### Two bugs found while writing this
+
+**`Process` does not search `PATH`.** `WorkspacePreparer.run(["git", …])` set
+`executableURL` to a bare name, which `Foundation` resolves relative to the working
+directory — so `git` became `./git` and every call failed with *"the file git does
+not exist"*. The message names git rather than the resolution, which is why it
+reads like a missing install. `resolveExecutable` now does the lookup explicitly,
+with `/usr/bin`, `/usr/local/bin` and `/opt/homebrew/bin` as fallbacks, and the
+plan refuses with a specific message when git genuinely is absent.
+
+**The test fixture did not stage its file.** `git commit` exited 1 with *"On branch
+main / nothing to commit"*, which reads like a complaint about branches rather than
+about staging, and sent me looking in the wrong place for a minute. Both are the
+same lesson as §11 and §12 from a third direction: the error message pointed at the
+wrong thing, and only running it showed that.

@@ -38,6 +38,11 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
 
     // --- Workspace / exec ---------------------------------------------------
     case workspaceDenied = "WORKSPACE_DENIED"
+    /// A workspace could not be set up: the repository is not a repository, the
+    /// branch would be the user's own, the shared folder is a system directory.
+    /// Distinct from `workspaceDenied`, which is about reaching outside — these
+    /// have different fixes, so they are different codes.
+    case workspaceInvalid = "WORKSPACE_INVALID"
     case commandTimeout = "COMMAND_TIMEOUT"
     case execDenied = "EXEC_DENIED"
 
@@ -76,7 +81,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
              .appNotFound, .appNotRunning, .noInputTarget:
             return true
         case .accessibilityDenied, .screenRecordingDenied,
-             .workerIsRoot, .workspaceDenied, .execDenied,
+             .workerIsRoot, .workspaceDenied, .workspaceInvalid, .execDenied,
              .invalidCoordinate, .invalidAction,
              .unauthorized, .badRequest, .methodNotFound, .protocolMismatch,
              .helperRejected, .internalError:
@@ -115,6 +120,8 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
             return "The app was launched but never registered with the window server. It may be showing a modal in the AgentSpace session; take a screenshot to look."
         case .appNotRunning:
             return "The app is not running in that Space. `agentspace apps <space>` lists what is."
+        case .workspaceInvalid:
+            return "Check the repository path, the branch name (it must start with agentspace/) and the shared folder paths. The message names the specific problem."
         case .workspaceDenied:
             return "The path is outside this Space's workspace and shared folders. Add it in the Space's Shared Folders settings first."
         case .commandTimeout:

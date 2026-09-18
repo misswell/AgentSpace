@@ -73,15 +73,16 @@ and what is not, with the measurements.
 - `AgentSpaceCore` — the shared protocol, models and safety logic
 - `agentspace-helper` — the root LaunchDaemon: a closed list of nine typed
   operations, no shell, and a code-signing check on its caller.
-- 207 Swift tests and 19 MCP tests, 0 failures; the safety suite runs against a
-  live worker over a live socket
+- Git-worktree workspaces: the agent gets its own checkout on an `agentspace/…`
+  branch, so it can never edit the tree you have open.
+- 223 Swift tests and 19 MCP tests, 0 failures; the safety suite runs against a
+  live worker over a live socket, and the workspace tests use real git.
 
 **Not built yet**
 
 - Wiring the create wizard to the helper. The helper itself is built, bundled and
   self-checked; the last step — calling it from the app to make the macOS user — is
   next. Everything that *drives* an existing Space works today.
-- Workspace editing (phase 7)
 - ScreenCaptureKit live preview (phase 8; today the viewer is 1 FPS screenshots)
 
 **Verified on this machine** — macOS 27.0, Apple Silicon:
