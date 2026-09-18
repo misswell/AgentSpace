@@ -2794,3 +2794,26 @@ repo copy.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 190 | A quarantined copy of the stapled DMG app passes both stapler validate and Gatekeeper's execute assessment — the real download user's double-click path | ✓ | §72 — the quarantine simulation |
+
+
+---
+
+## 73. The console guard covers screenshots too — §54's screenshot rule, fail-closed half, on the live worker
+
+Attempting a happy-path screenshot through the real worker surfaced the most
+consequential guard in the product instead: the worker refused, with a
+structured envelope — `SESSION_IS_CONSOLE`, recoverable, message stating that
+"the framebuffer and window list belong to the user's own desktop", plus a
+`fix` field telling the user what to do. Plan §12 mandates the console check
+for input; the implementation applies it to **screenshots as well** — correct,
+because on the console a screencapture would return the user's own desktop,
+which §54's MVP acceptance explicitly forbids ("must not return the current
+user's desktop"). So the §54 screenshot rule is verified on its fail-closed
+half: in a background session the capture would proceed (covered by the
+TCC/granting path), and on the console it refuses rather than mis-capturing.
+The error payload also demonstrates the §38 principle — every failure ships
+with its concrete fix — inside the wire envelope itself.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 191 | A screenshot request from a console-session worker is refused with a structured SESSION_IS_CONSOLE envelope that names the user's desktop as the reason and carries a fix — the fail-closed half of §54's screenshot rule | ✓ | §73 — the live refusal |
