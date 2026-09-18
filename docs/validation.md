@@ -4539,3 +4539,21 @@ wrong-length) plus the isolation socket tests. Several carry the
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 308 | All five §45 scenarios (console, no WindowServer, missing permissions, no-fallback background, socket break) have automated tests | ✓ | §146 — the five-scenario test census |
+
+
+---
+
+## 147. §53's polling guidance is exceeded: there is no status poll timer at all
+
+The plan asks for status polling in the 2–5 s range with event
+notification preferred. The AppModel header pins what shipped:
+"refreshes happen on foreground, selection and explicit request,
+and the only repeating timer in the app is the desktop viewer" —
+no background status loop exists to tune. The planned 100 ms
+anti-pattern has nothing to attach to; idle cost is structurally
+zero between user-visible moments. The lone 500 ms sleep in the
+model is a one-shot post-install settle, not a polling loop.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 309 | The app has no repeating status poll timer; refreshes are event-driven, exceeding §53's 2–5 s guidance | ✓ | §147 — the AppModel refresh-policy comment |
