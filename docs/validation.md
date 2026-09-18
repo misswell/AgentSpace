@@ -3628,3 +3628,56 @@ expected [1] got [3]`. The chase, in the order the evidence pointed:
 | 252 | The three-window launch was a LaunchServices open-event backlog re-delivered at each launch, proven by CG-layer evidence and the one-window-after-drain outcome on the restored binary | ✓ | §107 — the CG window list and the post-drain launches |
 | 253 | check-all's dist integrity guard refuses a rebuilt-but-unnotarized app and its remediation path (restore from the stapled DMG) works | ✓ | §107 — the guard trip and the restore |
 | 254 | OpenLinkDelegate closes surplus main windows on activation, covering the launch-storm shape for future backlogs | ✓ | §107 — the activated-launch observation (3→1) |
+
+
+---
+
+## 108. Round 100 closing audit: the 63-section plan, section by section
+
+The plan in the objective has 63 sections. This table walks them in
+theme groups, with the section of this ledger that pins each group —
+so the remaining work is visible as exactly three external gates and
+nothing else. Verdicts use the ledger's own semantics.
+
+| Plan sections | Group | Verdict | Pinned by |
+|---|---|---|---|
+| 1–3 | Positioning, fail-closed principle, Apple-Silicon baseline | ✓ | §5–§7 — the console is the live fail-closed testbed; doctor checks the baseline |
+| 4–5 | Native stack, monorepo layout | ✓ | repo tree — apps/ native/ shared/ packages/ scripts/ tests/ docs/ all exist as laid out |
+| 6–7 | Three-process architecture, SMAppService helper | ~ | §13, §45 — typed RPC and the signed bundle are real; the helper's root XPC live-run is gated on registration (admin password) |
+| 8–10 | Standard-user Spaces, Keychain password, first Aqua login | ~ | §15 — provisioner and Keychain are machine-verified; the first-login walk needs a second GUI session |
+| 11–16 | Worker core: Aqua gate, console guard, session-tap input, screenshot, SCK deferral | ✓ | §5–§7, §12 — 9 input shapes refused live on the console; SCK correctly not built (plan §16 defers it) |
+| 17–19 | Desktop Viewer, Accessibility bridge, permission preflight | ✓ | §24, §29 — pull-model preview fail-closed; per-Space TCC preflight re-runs per call |
+| 20–21 | Socket IPC, token, versioned protocol | ✓ | §26, §105 — 256-bit token, wire-protocol probes, token survives restarts (documented property) |
+| 22–23 | App management, exec | ✓ | §8, §21 — registration-wait launch, menu-bar apps, exec live |
+| 24–25 | Git-worktree workspace, folder sharing | ✓ | §14 — worktree isolation machine-verified; folder sharing's ACL half is §14's read-only model |
+| 26–28 | Data model, dashboard, create wizard | ✓ | §15, §54 — GUI checks mechanical via gui-verify |
+| 29 | Multi-Space architecture | ~ | §16 — eight-space isolation test; the live two-Space-plus-console gate needs a second session |
+| 30 | Resource monitoring | ✓ | §17 — per-UID aggregation, budget-bounded disk usage |
+| 31–32 | CLI surface, --json mode | ✓ | §104 — 15/15 commands, 27/27 verbs parse under --json |
+| 33–35 | MCP server, integrations, agent rules | ✓ | §18–§19, §101 — 14 tools, three configs, §36 rules generated |
+| 36 | Dangerous-command refusal | ✓ | §101 — all nine refusals returned live by a real worker |
+| 37–38 | Diagnostics export, doctor | ✓ | §103, §62 — token never survives the export; doctor names fixes per failure |
+| 39–41 | Restart behavior, stop/logout/delete | ~ | §23, §26 — needs-login vs offline discriminator verified; logout's root-only RPC is blocked on the helper gate |
+| 42–43 | Offstage reuse rules, forbidden mechanisms | ✓ | repo audit — no SkyLight, no TCC.db writes, no generic helper shell |
+| 44–52 | The nine build phases in order | ✓/~ | §5–§25 — every phase built in plan order; §44's isolation half and §48's live two-Space run are the second-session gate |
+| 53 | Performance budgets | ✓ | §27, §34–§36 — idle budgets met with numbers beside them |
+| 54 | MVP acceptance | ~ | acceptance.sh — fail-closed half live; isolation half gated; exit 66 documented |
+| 55–57 | Test pyramid, security review, release chain | ✓ | 329 tests; §56 checklist walked (§61); DMG signed, notarized, stapled |
+| 58–59 | Bundle identifiers, README first screen | ✓ | §58 namespacing is configured, not hard-coded; §59's README verified against the chain (§102) |
+| 60–63 | Development principles, §63.12 ledger duty | ✓ | this ledger — 109 sections, 250+ claims, verdicts never padded |
+
+**The three external gates, restated once:**
+
+1. The privileged helper's root run — registration needs an
+   administrator password (and this session must never raise approval
+   prompts), so createUser/deleteUser/logout run nowhere live.
+2. The second GUI session — every positive-isolation half (input
+   really lands, screenshots really differ, two Spaces plus a console
+   user) needs a second logged-in macOS user.
+3. The Homebrew cask — needs a public release URL; the repo has no
+   remote, and pushing is the user's decision.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 255 | Every one of the plan's 63 sections is accounted for in the closing audit: verified, partially verified with the missing half named, or blocked with its gate named — none unaddressed | ✓ | §108 — the section-by-section table |
+| 256 | The remaining work is exactly three external gates — helper root run, second GUI session, public release URL — each requiring a resource outside this session | ✓ | §108 — the restatement |
