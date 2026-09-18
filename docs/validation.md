@@ -6339,3 +6339,31 @@ explicit consent and a backup of prior contents.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 389 | §41's delete asks the home question as keep/delete branches, states the worktree rule and never-touch guarantee, and backs up config files before integration writes | ✓ | §227 — SpaceDetailView.swift:381–420 |
+
+
+---
+
+## 228. §20's status.json — a real gap found by the audit, then fixed
+
+RuntimePaths documented the §20 trio and promised "status.json —
+last known status, written by the worker" — but grep over the
+whole tree showed the worker never wrote it (only a `status.json.pid`
+sidecar, kept, which has §98 history). The audit's job is exactly
+this: a comment that claims a behaviour the code does not have.
+Fixed in Core + worker. StatusSnapshot.json is a pure function
+pinning the on-disk contract — seven fields, sorted keys, ISO-8601
+UTC — and the worker writes phase "running" right after bind and
+"stopped" in its cleanup path. The comment states the honest
+limit: a SIGKILLed worker never gets to write "stopped", so the
+file is last-known, never current — live-ness is still established
+by connecting to the socket.
+
+**Verified live** — dev-shell probe: worker up, status.json reads
+`phase: running` with the true verdict (`isConsole` — this shell
+is the console session, and the worker says so); SIGTERM; the file
+then reads `phase: stopped` with a 19 s later timestamp. Full
+suite: 346 tests, 0 failures (341 + 5 new StatusSnapshotTests).
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 390 | §20's status.json exists as a tested, live-verified last-known snapshot written by the worker (gap found and closed this round) | ✓ (gap closed) | §228 — StatusSnapshot.swift, main.swift:537–552,564–568, tests/Unit/StatusSnapshotTests.swift |

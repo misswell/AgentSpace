@@ -535,6 +535,23 @@ case .success(let arguments):
     try? Data("\(spaceID.uuidString)\n".utf8).write(to: URL(fileURLWithPath: paths.tokenPath + ".space"))
     try? Data("\(getpid())\n".utf8).write(to: URL(fileURLWithPath: paths.statusPath + ".pid"))
 
+    // status.json — the plan §20 trio's third file. Written now ("running")
+    // and again in cleanup ("stopped"), so the file is always the worker's
+    // last-known word about itself. A SIGKILLed worker never gets to write
+    // "stopped", which is exactly why readers must treat the file as
+    // last-known and still establish live-ness through the socket.
+    func writeStatusSnapshot(_ phase: StatusSnapshot.Phase) {
+        let data = StatusSnapshot.json(
+            phase: phase,
+            pid: getpid(),
+            uid: getuid(),
+            spaceId: spaceID,
+            spaceName: arguments.spaceName,
+            verdict: readiness.verdict)
+        try? data.write(to: URL(fileURLWithPath: paths.statusPath))
+    }
+    writeStatusSnapshot(.running)
+
     if !arguments.quiet {
         let banner = "agentspace-worker \(workerVersion) uid=\(getuid()) space=\(arguments.spaceName) socket=\(socketPath) verdict=\(readiness.verdict)"
         Log.worker.info(banner)
@@ -544,6 +561,7 @@ case .success(let arguments):
     // Clean shutdown: remove the socket so the next start does not trip over it
     // and so the GUI can tell the worker is gone.
     let cleanup = {
+        writeStatusSnapshot(.stopped)
         unlink(socketPath)
         try? FileManager.default.removeItem(atPath: paths.pidPath)
     }
