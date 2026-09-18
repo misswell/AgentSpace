@@ -5099,3 +5099,23 @@ without a window server.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 336 | The apps list includes regular, accessory and window-evidenced prohibited apps — menu-bar detection per §22 — with frontmost from the window server, not the stale NSWorkspace cache | ✓ | §174 — runningApps and AppVisibility |
+
+
+---
+
+## 175. §39's Needs Login is a derived discriminator, not a guess
+
+SpaceState.effective cites plan §39 in its own doc: the state to
+show is not always the stored state. The hasGraphicalSession
+discriminator resolves the restart question — a worker down
+because nobody is logged in shows needsLogin (fix: fast user
+switch, not a retry), a worker dead under a live session shows
+offline, and an unresolvable lookup keeps offline rather than
+guessing. The function is pure so GUI, CLI and tests derive it
+identically, provisioning starts spaces at needsLogin, and no
+code path auto-starts a worker into a session nobody has signed
+into.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 337 | needsLogin vs offline is derived from hasGraphicalSession with nil kept honest, shared by all callers; no auto-start into an unlogged session | ✓ | §175 — SpaceState.effective |
