@@ -2630,3 +2630,27 @@ fast instead of half-binding. The demo's short in-repo path is unaffected.
 |---|---|---|---|
 | 178 | The app idles at 46 MB physical footprint and 0.0% CPU; the worker at 3.4 MB and 0.0% CPU — both §53 budgets met with an order of magnitude of slack on the worker side | ✓ | §65 — footprint-measured, not RSS |
 | 179 | A runtime path that cannot fit a socket path fails at bind with a named reason, not a half-open socket | ✓ | §65 — the live pathTooLong(120) encounter |
+
+
+---
+
+## 66. The integration surface prints every format, and the README points only at things that exist
+
+Plan §34 promises one-command MCP config for Claude Code, Codex and OpenCode;
+§35 prescribes the safety rules. Verified by running them:
+
+- `integrate claude` prints the `claude mcp add-json` invocation plus the
+  raw JSON for `~/.claude.json`; `integrate codex` prints the
+  `[mcp_servers.agentspace]` TOML for `config.toml`; `integrate opencode`
+  prints the merge block for `opencode.json` with `"type": "local"` and
+  `"enabled": true`. Each pins the same `AGENTSPACE_BIN`.
+- `integrate rules` emits the four §35 rules **verbatim**, wrapped in
+  begin/end markers, headed by "append only with the user's consent —
+  plan §35": the consent requirement is in the artifact, not just the plan.
+- A README audit: all 10 referenced scripts and all 5 referenced docs exist,
+  and the README's 19 CLI examples use only verbs the CLI actually has.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 180 | One command produces correctly-formatted MCP config for all three targets and the §35 rules verbatim with the consent gate attached | ✓ | §66 — the three formats and the rules block |
+| 181 | Every script and doc the README references exists, and every CLI example verb is real | ✓ | §66 — the audit |
