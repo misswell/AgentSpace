@@ -6755,3 +6755,25 @@ to the Accessibility pane, and Refresh beside it.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 407 | §28's five-step sign-in checklist renders with live §19-detected ticks, the TCC red line stated verbatim, and state-appropriate visibility | ✓ | §245 — SpaceDetailView.swift:295–341 |
+
+
+---
+
+## 246. §30's fourth metric: disk, measured honestly or not at all
+
+The plan asks for CPU, Memory, Process Count, and Disk. The
+first three ride the uid-filtered `ps` sample; Disk is a
+separate opt-in (`resources: "disk"`) so a status refresh never
+pays for a filesystem walk (§53). Its honesty is typed: an
+unmeasured walk is `null`, not `0` — "we did not look" and "it
+is empty" are different claims — and a budget-capped walk
+reports `diskTruncated: true`, making the number a stated lower
+bound. Five tests pin it: empty measures zero; a missing
+directory measures zero rather than failing; the measurement
+agrees with `du` (the §63.13 cross-check); the budget stop is
+reported; and symlinks are not followed out of the home
+directory — §56's escape concern, closed in the walk itself.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 408 | §30's Disk metric is a typed, opt-in measurement: null-vs-zero honesty, truncation as lower bound, du cross-checked, symlink-contained | ✓ | §246 — Operations.swift:655–696, DiskUsageTests.swift:30–92 (5/5) |
