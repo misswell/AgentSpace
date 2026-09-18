@@ -3493,3 +3493,22 @@ defects found, recorded so the surfaces are on the ledger.
 | 242 | demo.sh runs end to end with exit 0 and only expected warnings | ✓ | §102 — the demo run |
 | 243 | Helper self-check and helper status from dist/ report their not-installed state truthfully (exits 1 and 3) | ✓ | §102 — the self-check run |
 | 244 | acceptance.sh on a machine without Spaces exits 66, and the README now documents that code | ✓ | §102 — the gate run + README fix |
+
+
+---
+
+## 103. §37 redaction holds live: a real session token never reaches the diagnostics export
+
+- Setup: a fixture Space whose runtime directory holds a freshly
+  minted 64-hex session token. `agentspace diagnostics` runs against
+  that root; the export is then searched for the token's exact bytes.
+- Result: **zero occurrences** — the export never reads token files,
+  Keychain, input payloads or frames (source control), and the
+  redactor remains the second boundary (its pattern behavior is unit-
+  tested: 64-hex runs, `password/secret/token: value` pairs, base64
+  image blobs). The `doctor --json` output for the same root likewise
+  contains no token bytes.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 245 | A real 64-hex session token in the runtime directory does not appear anywhere in the diagnostics export | ✓ | §103 — the token-search probe |
