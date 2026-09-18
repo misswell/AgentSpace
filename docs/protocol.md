@@ -296,6 +296,8 @@ Every code, and what a caller should do. `recoverable` is derived from the code.
 | `SESSION_IS_CONSOLE` | yes | The session is the physical console, **or its state could not be determined** |
 | `NO_WINDOW_SERVER` | yes | No window server in this session |
 | `WORKER_OFFLINE` | yes | Nothing listening on the socket |
+| `HELPER_UNAVAILABLE` | yes | The privileged helper is not installed or did not answer; install it from the app |
+| `HELPER_REJECTED` | yes | The helper answered and refused — bad argument, a non-AgentSpace account, or a caller whose code signature failed the check |
 | `WORKER_IS_ROOT` | **no** | The worker refused to run as root |
 | `ACCESSIBILITY_DENIED` | **no** | TCC Accessibility missing; an agent cannot fix this by retrying |
 | `SCREEN_RECORDING_DENIED` | **no** | TCC Screen Recording missing |
@@ -304,6 +306,8 @@ Every code, and what a caller should do. `recoverable` is derived from the code.
 | `NO_INPUT_TARGET` | yes | No frontmost app to deliver to |
 | `APP_NOT_FOUND` | yes | No such app in this session |
 | `APP_LAUNCH_TIMEOUT` | yes | Launched, never registered |
+| `WORKSPACE_INVALID` | **no** | The workspace reference does not resolve to a prepared workspace |
+| `PREVIEW_NOT_RUNNING` | yes | `preview.stop` (or a frame request) with no live preview stream |
 | `APP_NOT_RUNNING` | yes | Not running, so cannot be quit or activated |
 | `WORKSPACE_DENIED` | **no** | Path outside the Space's roots, or a read-only root |
 | `COMMAND_TIMEOUT` | yes | The process group was terminated |
