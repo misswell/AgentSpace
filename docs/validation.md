@@ -6665,3 +6665,27 @@ and neither points at nothing.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 403 | §8's divergence table exists, covers a superset of the notice's six claimed divergences, and cross-references the notice back | ✓ | §241 — docs/validation.md §8, THIRD_PARTY_NOTICES.md:44–46 |
+
+
+---
+
+## 242. §58's namespace lives in one constant table, with the packaging
+repeats pinned by a contract test
+
+The bundle IDs and log subsystem are constants in Doctor.swift
+(app, helper, worker, workerLaunchAgent, logSubsystem) — the
+"namespace configured in one place" §58 asks for. Outside it,
+the remaining "com.agentspace" strings are: doc comments, test
+keychain services deliberately suffixed .tests. (isolation by
+name), a test that asserts the generated LaunchDaemon plist's
+Label equals the constant verbatim — which is exactly the right
+pin, since launchd owns that string — and bundle-app.sh's four
+codesign --identifier arguments. Those repeats are the physical
+requirement of codesign; their consistency with the constants
+is guaranteed by the plist-label test chain, not by luck. The
+CLI has no bundle ID because §58 names it as a bare executable,
+and it is signed as one.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 404 | §58's namespace is a single constant table; remaining literal repeats are doc comments, name-isolated tests, a plist-label contract test, and codesign arguments pinned by it | ✓ | §242 — Doctor.swift:393–407, HelperValidationTests.swift:382, bundle-app.sh:126–131 |
