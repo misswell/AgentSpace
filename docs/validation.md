@@ -3921,3 +3921,31 @@ hardcode. Measured, not assumed:
 |---|---|---|---|
 | 270 | Production Swift hardcodes the install root nowhere; all seven literals are test fixtures pinning the convention | ✓ | §116 — the grep and the fixture list |
 | 271 | All bundle ids, derived plist names and the log subsystem are members of BundleIdentifiers, with no production literals outside it | ✓ | §116 — the enum and the zero-hit search |
+
+
+---
+
+## 117. §37 categories align exactly; §22's visibility rule becomes testable
+
+Two §22/§37 checks, one positive and one improvement:
+
+- **§37 categories align exactly.** Production instantiates nine
+  `Logger`s across exactly the eight categories the plan names — app,
+  helper (×2), worker, ipc, session, input, capture, mcp. None
+  missing, none invented.
+- **§22's visibility rule is now pinned by tests.** The apps list's
+  core promise — include regular *and* accessory (LSUIElement
+  menu-bar) apps, and anything the window server sees even when
+  AppKit says `prohibited` — was an inline expression inside
+  `AppControl.runningApps`, untestable behind its NSWorkspace/CG
+  dependencies. Following the SessionGuard/InputActions precedent, it
+  moved to Core as `AppVisibility.isVisible`, the worker calls it,
+  and five tests pin every branch: regular always visible, accessory
+  visible with no windows, prohibited visible only through a window,
+  unknown policies following the same rule, and another pid's window
+  granting nothing. 335 tests green.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 272 | Production log categories are exactly the eight §37 names, in nine Logger instantiations | ✓ | §117 — the category census |
+| 273 | The §22 visibility rule lives in Core as AppVisibility.isVisible with all five branches pinned by tests | ✓ | §117 — the new tests, 335 green |

@@ -62,10 +62,11 @@ enum AppControl {
             @unknown default: policy = "unknown"
             }
             // Include accessory apps, and any app the window server sees even
-            // if AppKit calls it prohibited.
-            let visible = policy == "regular" || policy == "accessory"
-                || windowPids.contains(app.processIdentifier)
-            guard visible else { continue }
+            // if AppKit calls it prohibited — the rule lives in Core (§22) so
+            // it can be pinned by tests without a window server.
+            guard AppVisibility.isVisible(
+                policy: policy, pid: app.processIdentifier, windowPids: windowPids)
+            else { continue }
             byPID[app.processIdentifier] = AppInfo(
                 pid: app.processIdentifier,
                 name: app.localizedName,
