@@ -4075,3 +4075,23 @@ past V1, so the field records intent the plist already embodies.
 |---|---|---|---|
 | 279 | After reboot the worker cannot start secretly: the Aqua-only LaunchAgent is structurally inert without a GUI session, and RunAtLoad is the V1 autoStart semantics | ✓ | §122 — the plist template against the state derivation |
 | 280 | A ready/running Space with no worker derives to needsLogin (no graphical session) or offline (nothing answerable), never to running | ✓ | §122 — deriveState's branches |
+
+
+---
+
+## 123. §40's two-level stop exists, and logout carries a self-destruct guard
+
+Stop Worker and Logout are separate typed RPCs (`stopWorker`,
+`logoutSession`) as §40 requires. Logout ends the Space's whole GUI
+session — `launchctl bootout gui/<uid>`, root-only, so it lives in
+the helper and nowhere else — while keeping the account and its home.
+The critical guard: the username must name an *AgentSpace* account
+and the uid must match it, because a logout that could target the
+main user's session "would be a self-destruct button wearing a
+feature's clothes". Tests pin all three sides: a valid Space request
+accepted, the main user's name rejected, a mismatched uid rejected
+before the helper would ever compare it to passwd.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 281 | Stop Worker and Logout Session are distinct typed RPCs, and logoutSession is guarded to AgentSpace accounts with a matching uid, tested on all three sides | ✓ | §123 — HelperProtocol and HelperValidationTests |
