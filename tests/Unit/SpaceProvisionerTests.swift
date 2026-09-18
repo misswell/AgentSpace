@@ -307,6 +307,12 @@ final class SpaceProvisionerTests: XCTestCase {
             sharedFolders: [], options: options(),
             transport: helper.transport, registry: SpaceRegistry(), keychain: keychain)
         let space = try XCTUnwrap(created.space)
+        // Read the path back rather than using the one passed in: the provisioner
+        // scopes it under the Space's id, and asserting on a guessed path would
+        // test nothing.
+        guard case .gitWorktree(_, _, let worktree) = space.workspace else {
+            return XCTFail("the workspace stopped being a worktree")
+        }
         XCTAssertTrue(FileManager.default.fileExists(atPath: worktree + "/README.md"))
 
         let deleted = SpaceProvisioner.delete(
@@ -390,13 +396,17 @@ final class SpaceProvisionerTests: XCTestCase {
             sharedFolders: [], options: options(),
             transport: helper.transport, registry: SpaceRegistry(), keychain: keychain)
         let space = try XCTUnwrap(created.space)
+        guard case .gitWorktree(_, _, let worktree) = space.workspace else {
+            return XCTFail("the workspace stopped being a worktree")
+        }
 
         // Lock the worktree, which is the documented reason `git worktree remove`
         // refuses even with --force. Deleting the directory by hand does NOT work:
         // --force overrides dirtiness, and git then succeeds by pruning.
-        XCTAssertEqual(WorkspacePreparer.run([
+        let locked = WorkspacePreparer.run([
             "git", "-C", repository.path, "worktree", "lock", worktree,
-        ]).exitCode, 0, "could not lock the worktree")
+        ])
+        XCTAssertEqual(locked.exitCode, 0, "could not lock the worktree: \(locked.output)")
 
         let deleted = SpaceProvisioner.delete(
             space: space, removeHome: false, options: options(),

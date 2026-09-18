@@ -140,10 +140,13 @@ struct NewSpaceView: View {
             let expanded = (repositoryPath as NSString).expandingTildeInPath
             let slug = branch.isEmpty ? "work" : branch.replacingOccurrences(of: "agentspace/", with: "")
             if workspaceKind == 1, !expanded.isEmpty {
+                // The path is filled in by SpaceProvisioner once the Space has an
+                // id, so the preview below shows the parent it will live under
+                // rather than pretending to know the final path.
                 return .gitWorktree(
                     repository: expanded,
                     branch: branch.hasPrefix("agentspace/") ? branch : "agentspace/\(branch)",
-                    path: AppModel.worktreesDirectory(for: name.isEmpty ? "space" : name) + "/" + slug)
+                    path: "")
             }
             return .sharedFolders
         default:
@@ -194,10 +197,10 @@ struct NewSpaceView: View {
                                 .textFieldStyle(.roundedBorder)
                             Text("The agent works in its own worktree on its own branch, so it never edits the tree you have open.")
                                 .font(.caption).foregroundStyle(.secondary)
-                            if case .gitWorktree(let repo, let branch, let path) = workspace {
+                            if case .gitWorktree(let repo, let branch, _) = workspace {
                                 Field(label: "Repository", value: repo, monospaced: true)
                                 Field(label: "Branch", value: branch, monospaced: true)
-                                Field(label: "Worktree", value: path, monospaced: true)
+                                Field(label: "Worktree", value: AppModel.worktreesDirectory + "/<space-id>/…", monospaced: true)
                             }
                         } else if workspaceKind == 2 {
                             TextField("~/Documents/TestData", text: $repositoryPath)

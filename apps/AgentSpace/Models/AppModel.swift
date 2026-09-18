@@ -151,7 +151,7 @@ final class AppModel: ObservableObject {
         // working rather than silently doing nothing.
         let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root ?? RuntimePaths.root
         provisioning = Provisioning(operation: "Creating \(name)")
-        let directory = Self.worktreesDirectory(for: name)
+        let directory = Self.worktreesDirectory
 
         Task {
             let keychain = KeychainStore()
@@ -196,7 +196,7 @@ final class AppModel: ObservableObject {
                         space: space, removeHome: removeHome,
                         options: SpaceProvisioner.Options(
                             root: root,
-                            workspaceDirectory: Self.worktreesDirectory(for: space.name),
+                            workspaceDirectory: Self.worktreesDirectory,
                             mainUser: NSUserName()),
                         transport: { try HelperClient.call($0) },
                         registry: SpaceRegistry.load(root: root),
@@ -240,15 +240,14 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Where a Space's git worktree lives. Derived from the name so a Space made
-    /// on the command line and one made here agree about the path.
-    static func worktreesDirectory(for spaceName: String) -> String {
-        let slug = spaceName
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-            .filter { $0.isLetter || $0.isNumber || $0 == "-" }
+    /// The parent directory for git worktrees. Deliberately independent of the
+    /// Space's name: `SpaceProvisioner` adds the Space's id underneath, which is
+    /// what makes the path unique. Two Spaces named `Test` and `test` are one
+    /// directory on a case-insensitive filesystem, and two agents in one working
+    /// tree is the bug the worktree exists to prevent (plan §24).
+    static var worktreesDirectory: String {
         let root = AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
-        return "\(root)/Worktrees/\(slug.isEmpty ? "space" : slug)"
+        return "\(root)/Worktrees"
     }
 
     private static func describe(_ step: SpaceProvisioner.Step) -> String {

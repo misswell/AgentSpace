@@ -24,6 +24,15 @@ public struct SpaceProvisioner {
 
     public struct Options {
         public var root: String
+        /// The *parent* directory for a git worktree. The Space's own id is added
+        /// below it, so two Spaces can never be given the same checkout.
+        ///
+        /// Plan §24 puts the space-id in the path and this is why. A path derived
+        /// from the Space's *name* collides the moment two Spaces are named `Test`
+        /// and `test` — on a case-insensitive filesystem those are one directory,
+        /// and two agents would be editing the same working tree, which is the
+        /// exact thing the worktree exists to prevent. A name is also not stable:
+        /// renaming a Space would move the agent's checkout out from under it.
         public var workspaceDirectory: String
         public var mainUser: String
 
@@ -31,6 +40,13 @@ public struct SpaceProvisioner {
             self.root = root
             self.workspaceDirectory = workspaceDirectory
             self.mainUser = mainUser
+        }
+
+        /// The worktree path for one Space: `<parent>/<space-id>/<repo name>`.
+        public func worktreePath(spaceID: UUID, repository: String) -> String {
+            let repoName = (repository as NSString).lastPathComponent
+            let safe = repoName.isEmpty ? "work" : repoName
+            return workspaceDirectory + "/" + spaceID.uuidString + "/" + safe
         }
     }
 
@@ -142,6 +158,11 @@ public struct SpaceProvisioner {
 
         // 0. Validate what can be validated before touching the machine. Doing this
         //    first means a typo in a repository path cannot leave half a Space.
+        //
+        //    A git worktree's path is rewritten here, where the Space's id exists,
+        //    so it is unique by construction rather than by luck. Everything else
+        //    the caller asked for is passed through unchanged.
+        let workspace = Self.confined(workspace, spaceID: spaceID, options: options)
         switch WorkspacePreparer.plan(
             workspace: workspace, sharedFolders: sharedFolders, spaceID: spaceID,
             workspaceDirectory: options.workspaceDirectory,
@@ -408,6 +429,21 @@ public struct SpaceProvisioner {
     }
 
     // MARK: - Helpers
+
+    /// Put a git worktree inside this Space's own directory.
+    ///
+    /// Only the worktree layout is changed; a shared folder is a path the user
+    /// chose and is used exactly as given.
+    static func confined(_ workspace: Workspace, spaceID: UUID, options: Options) -> Workspace {
+        switch workspace {
+        case .gitWorktree(let repository, let branch, _):
+            return .gitWorktree(
+                repository: repository, branch: branch,
+                path: options.worktreePath(spaceID: spaceID, repository: repository))
+        case .none, .sharedFolders:
+            return workspace
+        }
+    }
 
     /// The account name a previous step actually created, if any.
     ///

@@ -323,18 +323,6 @@ if parsed.bool("version") {
     exit(0)
 }
 
-/// Same slug for the same Space name whether it was made here or in the app, so a
-/// CLI-created Space and a GUI-created one agree about the worktree path.
-///
-/// File-level rather than nested in the `create` case, because `delete` needs the
-/// same answer to find that Space's directory.
-func slug(_ text: String) -> String {
-    let value = text.lowercased()
-        .replacingOccurrences(of: " ", with: "-")
-        .filter { $0.isLetter || $0.isNumber || $0 == "-" }
-    return value.isEmpty ? "space" : value
-}
-
 if parsed.bool("help") || parsed.positionals.isEmpty {
     print(usage())
     exit(parsed.positionals.isEmpty && !parsed.bool("help") ? 2 : 0)
@@ -379,12 +367,16 @@ case "create":
         let branch = parsed.flag("branch") ?? "agentspace/\(name.lowercased().replacingOccurrences(of: " ", with: "-"))"
         // The worktree lives under the shared runtime root rather than inside the
         // Space's home: the main user has to be able to read it to show a diff, and
-        // a path under /Users/Shared is also one the plan can validate before
-        // anything is created.
+        // a path under /Users/Shared is one the plan can validate before anything is
+        // created.
+        //
+        // The path is left empty on purpose. `SpaceProvisioner` fills it in once it
+        // has a Space id, which is the only thing that makes it unique — a path
+        // derived from the name collides for two Spaces called `Test` and `test`.
         workspace = .gitWorktree(
             repository: (repository as NSString).expandingTildeInPath,
             branch: branch,
-            path: "\(RuntimePaths.root)/Worktrees/\(slug(name))/\(branch.replacingOccurrences(of: "agentspace/", with: ""))")
+            path: "")
     }
     for path in parsed.list("share") {
         sharedFolders.append(SharedFolder(path: (path as NSString).expandingTildeInPath, access: .readOnly))
@@ -395,7 +387,7 @@ case "create":
 
     let provisionerOptions = SpaceProvisioner.Options(
         root: RuntimePaths.root,
-        workspaceDirectory: "\(RuntimePaths.root)/Worktrees/\(slug(name))",
+        workspaceDirectory: "\(RuntimePaths.root)/Worktrees",
         mainUser: NSUserName())
 
     let outcome = SpaceProvisioner.create(
@@ -485,7 +477,7 @@ case "delete":
         space: space, removeHome: removeHome,
         options: SpaceProvisioner.Options(
             root: RuntimePaths.root,
-            workspaceDirectory: "\(RuntimePaths.root)/Worktrees/\(slug(space.name))",
+            workspaceDirectory: "\(RuntimePaths.root)/Worktrees",
             mainUser: NSUserName()),
         transport: { try HelperClient.call($0) },
         registry: registry)
@@ -882,11 +874,6 @@ case "start", "stop", "restart":
             message: "starting a worker is the privileged helper's job; the CLI does not run launchd or sudo. The AgentSpace user must be logged in through the GUI at least once.",
             recoverable: true))
     }
-
-case "create", "delete":
-    emitter.failure(AgentSpaceError(
-        code: .workspaceDenied,
-        message: "'agentspace \(command)' would create or remove a macOS user, which the CLI deliberately cannot do. Use the AgentSpace app, which goes through the privileged helper's typed XPC interface."))
 
 default:
     FileHandle.standardError.write(Data("agentspace: unknown command '\(command)'\n\n".utf8))

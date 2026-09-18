@@ -37,6 +37,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 17 | Creating a Space calls the helper in the order account → runtime → worker, and a bad workspace is refused before the helper is called at all | ✓ | §15 — `SpaceProvisionerTests` |
 | 18 | Every creation-step failure rolls back what it already did, and a *failed* rollback keeps the orphan account visible as an errored Space | ✓ | §15 |
 | 19 | The generated password reaches the Keychain and appears in no file; generated passwords never repeat | ✓ | §15 — real Keychain, own service namespace |
+| 20 | Eight Spaces get eight distinct sockets, tokens, runtime directories, account names and launchd labels; two Spaces differing only by case never share a working tree | ✓ | §16 — `MultiSpaceIsolationTests` |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -946,3 +947,58 @@ The helper's own behaviour — `dscl` invocation, `sysadminctl` exit codes, whet
 `SMAppService` actually starts the daemon — is still unverified, and the plan's
 §56 requires a separate review of the helper for exactly this reason. Everything
 above the helper's boundary is tested; below it is not.
+
+---
+
+## 16. Multi-Space isolation (§29, §48) — the bug is never a crash
+
+Phase 4 (§48) says to remove every `singleUser` / `computeruse` /
+`defaultSession` assumption. You cannot test that an assumption is absent. You can
+test its consequences, and the consequence that matters is not a crash: it is two
+Spaces quietly sharing something they must not, so that one agent's clicks land on
+the other's desktop while the caller believes it addressed a different Space.
+Nothing goes red; it just becomes true.
+
+`MultiSpaceIsolationTests` therefore asserts that every derived name and path is
+**pairwise disjoint** across eight Spaces — sockets, token files, runtime
+directories, account names, launchd labels, plist paths, uids — and that the two
+paths that must fit in `sun_path` do.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 38 | Eight Spaces get eight distinct sockets, token files, runtime directories, account names, launchd labels and plist paths | ✓ | `MultiSpaceIsolationTests` |
+| 39 | Every socket path fits in `sun_path` (104 bytes including the terminator) | ✓ | asserted for eight Spaces |
+| 40 | Two Spaces can be created under names that differ only by case, and do not share a working tree | ✓ | end to end through the provisioner with real git |
+| 41 | Resolving a Space by name is unambiguous or refuses, offering the UUIDs | ✓ | `testAnAmbiguousNameRefusesAndOffersTheUUIDs` |
+| 42 | An empty registry says what to do rather than "something went wrong" | ✓ | asserted against the message |
+| 43 | 200 generated account names never fall inside the protected list | ✓ | those accounts could be created and never removed |
+| 44 | Two live workers reject each other's tokens | ✓ | `SafetyTests.testDifferentSpacesHaveDifferentTokens` — two real processes |
+| 45 | Two Spaces running simultaneously, with the console unaffected | ✗ | needs a second logged-in session |
+
+### The bug this found
+
+**The worktree path was derived from the Space's name.** Plan §24 specifies
+`…/worktrees/<space-id>/MyApp`; the implementation had used a slug of the name —
+`…/Worktrees/test/MyApp`. Two Spaces called `Test` and `test` therefore resolved to
+the same directory, and on a case-insensitive filesystem (which macOS is — measured
+earlier in this project, and the cause of two other bugs) those are *one* directory
+with two agents editing one working tree.
+
+That is precisely the failure the worktree exists to prevent, and it would not have
+been noticed until two similarly-named Spaces were in use. `SpaceProvisioner.confined`
+now rewrites the path under the Space's id, and the name no longer appears in the
+path at all — so renaming a Space cannot move an agent's checkout out from under it
+either.
+
+The first version of the test passed *for the wrong reason*: it asserted two
+*different* input paths stayed different, which they would have even with the bug.
+It now passes the same repository and the same placeholder path for both Spaces, so
+the only thing that can distinguish them is the Space id.
+
+### What this does not prove
+
+Two Spaces actually running at once, each with an Aqua session, driven with `AAA`
+and `BBB` while the console is untouched — the plan's §48 acceptance — still needs
+two logged-in users, which needs an administrator password this machine does not
+have. What is verified is that the *plumbing* cannot confuse two Spaces, and that
+two real workers enforce their own tokens against each other.
