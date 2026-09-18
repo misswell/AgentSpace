@@ -32,11 +32,19 @@ PROFILE="${NOTARY_PROFILE:-octoshrink-notary}"
 echo "== 0. verify the credential live (a name proves nothing) =="
 if xcrun notarytool history --keychain-profile "$PROFILE" > /dev/null 2>&1; then
   echo "  ok  notarytool profile '$PROFILE' is live"
+  MODE="notarytool"
+elif asc notarization list --limit 1 > /dev/null 2>&1; then
+  # The keychain entry is known to vanish without warning (it did once on
+  # 2026-09-10 and again on 2026-09-18); the asc CLI with a fully registered
+  # App Store Connect API key (key id + issuer + .p8) is the verified fallback.
+  echo "  ok  asc credentials are live (keychain profile absent)"
+  MODE="asc"
 else
   echo "no working notarization credential." >&2
   echo "  restore the shared profile with:" >&2
   echo "    xcrun notarytool store-credentials $PROFILE --apple-id <apple-id> --team-id U8U443D7ZL" >&2
-  echo "  then re-run this script." >&2
+  echo "  or register the asc API key (key id + issuer id + .p8 path):" >&2
+  echo "    asc auth login --name agentspace-notary --key-id <id> --issuer-id <uuid> --private-key <p8>" >&2
   exit 1
 fi
 
@@ -46,7 +54,11 @@ rm -f "$DMG"
 hdiutil create -quiet -volname "AgentSpace $VERSION" -srcfolder "$APP" -ov -format UDZO "$DMG"
 
 echo "== 2. submit the DMG and wait =="
-xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
+if [[ "$MODE" == "notarytool" ]]; then
+  xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
+else
+  asc notarization submit --file "$DMG" --wait
+fi
 
 echo "== 3. staple the DMG =="
 xcrun stapler staple "$DMG"
