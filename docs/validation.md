@@ -7025,3 +7025,47 @@ the scheme exactly.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 419 | §8's `_agentspace_` + 6-hex naming is one closed rule with a protected-account backstop, pinned by a 2000-name round-trip and 21 evasion rejections | ✓ | §257 — HelperProtocol.swift:103–140, HelperValidationTests.swift:22–80,227 |
+
+
+---
+
+## 258. Closing snapshot: every concrete clause audited; the same three
+external gates remain
+
+The audit is no longer finding clauses without records — the
+last several rounds each closed a residual face (viewer
+scrolling: not a plan clause for the app; §27's [Terminal]:
+recorded as deferred; §26's eight states: rendered with
+console≠error; §8's naming: one closed rule, 21 evasions;
+§9's password: recorded trade-off; §16's ScreenCaptureKit:
+state machine verified, adapter honestly bounded). This entry
+is the state of the work, not a new claim.
+
+**Repo:** 480 commits, working tree clean, 360 Swift tests +
+23 MCP tests green, the three-layer check-all gate passing,
+validation index at 418 claims before this entry.
+
+**The three gates, unchanged because each needs something this
+session cannot grant:**
+
+1. **The live privileged helper chain.** createUser /
+   deleteUser / logoutSession against real accounts needs
+   root; approval prompts are disabled here, so it is blocked
+   on a human decision, not on code. Everything up to that
+   boundary (typed RPCs, command whitelists, argv arrays, the
+   uid≥500 guard, protected accounts) is tested.
+2. **Isolation's positive half (§44/§48).** Two background GUI
+   sessions plus a console user for the 30-minute acceptance
+   run needs a second GUI session on this machine — the
+   negative half (console refusal, fail-closed) is verified.
+3. **The Homebrew cask.** It waits on a public release URL;
+   the repository has no remote, and pushing it is the
+   owner's call. release.sh, notarize.sh and the dist
+   integrity guard are ready for it.
+
+The goal stays open until those three clear. No filler will
+be invented to close the distance.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 420 | All §1–§63 clauses and their residuals audited; three external gates (root helper, second GUI session, release URL) are the only completion blockers | snapshot | §258 — this round's residuals, all prior entries |
