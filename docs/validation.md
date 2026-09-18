@@ -5305,3 +5305,27 @@ maps legacy records to .none rather than failing.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 345 | The model matches §26 field-for-field with all eight states; workspace optionality is a documented, typed refinement (.none case instead of nil) with legacy-safe decoding | ✓ (refinement documented) | §183 — AgentSpace, SpaceState, Workspace |
+
+
+---
+
+## 184. §53's low-overhead budget holds structurally: one gated timer,
+event-driven refresh, on-demand disk walk
+
+The app contains exactly one Timer — the Desktop Viewer's — at
+1 FPS (5 when streaming), tied to the view's lifetime:
+onDisappear invalidates it and stops the preview, so nothing
+polls when nobody watches. Status reloads are event-driven —
+they run after provisioning, stop, logout, delete or a selection
+change, never on an interval. The disk walk is deliberately kept
+out of reload(): its doc cites §53 by name — walking a browser
+profile plus IDE caches (tens of thousands of files) on a 2-5 s
+poll would pin the CPU — so measurement happens on request and
+merges into the existing snapshot. The worker's idle-RAM figure
+itself still needs a live background session to measure (external
+gate); what the code shows is the shape that makes idle cheap:
+no polling timers, no growing caches, no continuous capture.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 346 | One lifetime-bound preview timer, event-driven reloads, and a request-scoped disk walk give the §53 idle shape; the worker's live idle-RAM number remains gated on a real session | ✓ (live figure gated) | §184 — DesktopViewerView, AppModel reload sites, measureDisk comment |
