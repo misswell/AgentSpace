@@ -514,3 +514,31 @@ API key or app-specific password, stored once with
 after which `NOTARY_PROFILE=AGENTSPACE_NOTARY scripts/release.sh --notarize`
 submits, staples both the app and the DMG, and re-runs Gatekeeper to prove the
 result. Per §57, notarized releases should also carry a signed-off helper review.
+
+---
+
+## The console refusal covers observation too
+
+§12's fail-closed rule was originally applied to *injection* only, and the
+screenshot handler carried a reasoned comment defending the difference: capturing
+the console is "what the human sees anyway". The integration suite (§21 of
+validation.md) demonstrated empirically why that reading is wrong: a
+console-session worker returned a full 3840px PNG of the user's actual desktop.
+The same worker's `ax.windows` / `ax.snapshot` would have handed over window
+titles and the accessibility tree of whatever the user was doing — structured
+text, no TCC prompt, no Screen Recording grant required.
+
+The isolation promise (§60) is about content, not just control. The invariant is
+now:
+
+> **When the session is the console, the worker serves nothing about anyone's
+> desktop.** `hello`, `status`, `exec` and `shutdown` answer; `screenshot`,
+> `apps`, `launch`, `quit`, `forceQuit`, `activate` and every `ax.*` method
+> refuse with `SESSION_IS_CONSOLE`.
+
+`exec` stays available deliberately: it runs commands as the *agent user* and
+reads no window server state — on a console session there is no agent desktop to
+protect, but the account's own files are still its own.
+
+The reversal is recorded here rather than quietly rewritten: the old comment's own
+logic — "the human sees it anyway" — was precisely the leak.

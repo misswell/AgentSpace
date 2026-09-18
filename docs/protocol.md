@@ -176,6 +176,13 @@ scaled Retina display, so the scale comes from
 
 Returns `{ "performed": N }`.
 
+**Console refusal covers observation too.** The same `SESSION_IS_CONSOLE`
+verdict gates every method that observes or manipulates the GUI session —
+`screenshot`, `apps`, `launch`, `quit`, `forceQuit`, `activate` and all `ax.*`.
+A console-session worker serves only `hello`, `status`, `exec` and `shutdown`:
+on the console, the framebuffer and window list belong to the user, and §54
+forbids a screenshot of the user's desktop.
+
 **The order of checks is the safety contract:**
 
 1. **Session verdict.** `isConsole` → `SESSION_IS_CONSOLE`.

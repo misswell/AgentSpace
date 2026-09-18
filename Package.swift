@@ -89,6 +89,11 @@ let package = Package(
             dependencies: ["AgentSpaceCore"],
             path: "tests/Safety"
         ),
+        .testTarget(
+            name: "AgentSpaceIntegrationTests",
+            dependencies: ["AgentSpaceCore"],
+            path: "tests/Integration"
+        ),
     ],
     swiftLanguageVersions: [.v5]
 )

@@ -47,6 +47,27 @@ struct Operations {
         }
     }
 
+    /// Fail-closed for every method that observes or manipulates the GUI
+    /// session (plan §2, §12, §54).
+    ///
+    /// The console refusal is not only about *injecting* events. When this
+    /// session IS the console, the framebuffer, the window list and the
+    /// accessibility tree belong to the human's desktop: capturing or reading
+    /// them would hand the agent the user's private screen — a leak through the
+    /// observation channel, found empirically by the integration suite (a
+    /// console-session worker happily returned a 3840px PNG of the user's
+    /// desktop). So a console-session worker answers only what cannot reveal
+    /// anyone's desktop: hello, status, exec and shutdown. Everything else
+    /// refuses with SESSION_IS_CONSOLE.
+    private func requireDesktopSession(_ what: String) throws {
+        guard context.sessionVerdict() != .isConsole else {
+            Log.input.error("refused \(what): session is on the console")
+            throw AgentSpaceError(
+                code: .sessionIsConsole,
+                message: "refusing to \(what): the '\(context.spaceName)' session is currently on the console, so the framebuffer and window list belong to the user's own desktop.")
+        }
+    }
+
     // MARK: - hello
 
     /// Non-sensitive liveness facts. Answers without a token, because it is how
@@ -177,11 +198,12 @@ struct Operations {
     // MARK: - screenshot
 
     func screenshot(params: JSONValue) throws -> JSONValue {
-        // A screenshot is not input, so being on the console is not a refusal —
-        // capturing the console is exactly what the human sees anyway. What it
-        // must never do is capture the *wrong* session: because `screencapture`
-        // runs inside this process's own session, it captures this session by
-        // construction.
+        // Reverses an earlier, reasoned-but-wrong call documented right here:
+        // "capturing the console is exactly what the human sees anyway" is
+        // precisely the problem — it is a picture of the user's private desktop,
+        // delivered to the agent. §54: a screenshot must never be the user's
+        // desktop, and on the console there is nothing else to capture.
+        try requireDesktopSession("take a screenshot")
         let verdict = context.sessionVerdict()
         guard verdict != .noWindowServer, verdict != .indeterminate else {
             throw AgentSpaceError(
@@ -244,6 +266,7 @@ struct Operations {
     /// human's screen. Plan §12/§13.
     func input(params: JSONValue) throws -> JSONValue {
         // (1) Session safety, first and unconditionally.
+        try requireDesktopSession("inject input")
         let verdict = context.sessionVerdict()
         switch verdict {
         case .isConsole:
@@ -342,6 +365,8 @@ struct Operations {
     // MARK: - apps
 
     func apps() throws -> JSONValue {
+        // On the console this would enumerate the USER's running apps.
+        try requireDesktopSession("list apps")
         let list = AppControl.runningApps()
         return .obj([
             "count": .int(list.count),
@@ -350,6 +375,8 @@ struct Operations {
     }
 
     func launch(params: JSONValue) throws -> JSONValue {
+        // Launching from the console would open windows on the user's desktop.
+        try requireDesktopSession("launch an application")
         guard let reference = params["app"]?.stringValue, !reference.isEmpty else {
             throw AgentSpaceError(code: .badRequest, message: #"launch requires a non-empty "app" string"#)
         }
@@ -359,6 +386,7 @@ struct Operations {
     }
 
     func quit(params: JSONValue, force: Bool) throws -> JSONValue {
+        try requireDesktopSession(force ? "force-quit an application" : "quit an application")
         guard let reference = params["app"]?.stringValue, !reference.isEmpty else {
             throw AgentSpaceError(code: .badRequest, message: #"quit requires a non-empty "app" string"#)
         }
@@ -366,6 +394,7 @@ struct Operations {
     }
 
     func activate(params: JSONValue) throws -> JSONValue {
+        try requireDesktopSession("activate an application")
         guard let reference = params["app"]?.stringValue, !reference.isEmpty else {
             throw AgentSpaceError(code: .badRequest, message: #"activate requires a non-empty "app" string"#)
         }
@@ -450,6 +479,9 @@ struct Operations {
     }
 
     func axSnapshot(params: JSONValue) throws -> JSONValue {
+        // The AX tree is desktop content — window titles, focused elements,
+        // button labels — and on the console all of it belongs to the user.
+        try requireDesktopSession("read the accessibility tree")
         try AccessibilityBridge.requireTrust()
         guard let pid = targetPid(params) else {
             throw AgentSpaceError(
@@ -464,6 +496,7 @@ struct Operations {
     }
 
     func axFrontmost() throws -> JSONValue {
+        try requireDesktopSession("read the frontmost application")
         try AccessibilityBridge.requireTrust()
         guard let pid = AppControl.frontmostPID() else {
             throw AgentSpaceError(
@@ -486,6 +519,7 @@ struct Operations {
     }
 
     func axWindows(params: JSONValue) throws -> JSONValue {
+        try requireDesktopSession("read the window list")
         try AccessibilityBridge.requireTrust()
         guard let pid = targetPid(params) else {
             throw AgentSpaceError(
@@ -496,6 +530,7 @@ struct Operations {
     }
 
     func axPerform(params: JSONValue) throws -> JSONValue {
+        try requireDesktopSession("perform an accessibility action")
         try AccessibilityBridge.requireTrust()
         guard let pid = targetPid(params) else {
             throw AgentSpaceError(

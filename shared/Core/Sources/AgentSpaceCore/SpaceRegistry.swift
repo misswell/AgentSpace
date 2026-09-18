@@ -48,8 +48,11 @@ public struct SpaceRegistry: Codable, Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let registry = try? decoder.decode(SpaceRegistry.self, from: data) else {
-            // A corrupt registry must not be silently treated as "no Spaces" —
-            // that would make every Space look deleted. Better to surface it.
+            // KNOWN LIMITATION (validation.md §21): an undecodable registry is
+            // returned as empty, so every Space looks deleted. The comment that
+            // used to live here claimed this was surfaced; it never was. A
+            // repair path (quarantine the corrupt file, keep last-good) belongs
+            // to the registry's own hardening, not to this decode call.
             return SpaceRegistry(spaces: [])
         }
         return registry

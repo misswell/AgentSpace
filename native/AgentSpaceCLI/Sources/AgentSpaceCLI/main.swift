@@ -172,17 +172,22 @@ struct Emitter {
 /// Resolve a Space reference, or stop with a helpful message.
 ///
 /// Never guesses: an unknown name lists what does exist.
-func resolveSpace(_ reference: String?, root: String?) -> (AgentSpace, SpaceConnection) {
+func resolveSpace(_ reference: String?, root: String?, emitter: Emitter) -> (AgentSpace, SpaceConnection) {
+    // The caller's emitter, not a fresh human-mode one: in --json mode the error
+    // envelope is the whole answer, and a script branching on it must not
+    // receive prose. Exit 66 is the documented not-found code; the catch-all
+    // default would have made "no such Space" indistinguishable from a generic
+    // failure — found by the first run of the integration suite.
     let registry = SpaceRegistry.load(root: root)
     let space: AgentSpace
     if let reference {
         switch registry.resolve(reference) {
         case .success(let found): space = found
-        case .failure(let error): Emitter(json: false).failure(error)
+        case .failure(let error): emitter.failure(error, exitCode: 66)
         }
     } else {
         guard let first = registry.first() else {
-            Emitter(json: false).failure(AgentSpaceError(
+            emitter.failure(AgentSpaceError(
                 code: .sessionNotReady,
                 message: "no AgentSpace exists yet, and no name was given. Create one in the AgentSpace app first."))
         }
@@ -741,7 +746,7 @@ case "list":
     exit(0)
 
 case "status":
-    let (space, connection) = resolveSpace(rest.first, root: rootOverride)
+    let (space, connection) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)
     let result = callJSON(emitter, connection, Method.status,
                           .obj(["resources": parsed.bool("resources") ? .string("full") : .string("summary")]))
     if emitter.json {
@@ -766,7 +771,7 @@ case "status":
     exit(0)
 
 case "screenshot":
-    let (_, connection) = resolveSpace(rest.first, root: rootOverride)
+    let (_, connection) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)
     var params: [String: JSONValue] = [:]
     if let maxWidth = parsed.int("max-width") { params["maxWidth"] = .int(maxWidth) }
     if let display = parsed.int("display") { params["display"] = .int(display) }
@@ -782,7 +787,7 @@ case "screenshot":
     exit(0)
 
 case "input":
-    let (_, connection) = resolveSpace(rest.first, root: rootOverride)
+    let (_, connection) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)
     let payload: Data
     if let file = parsed.flag("file") {
         if file == "-" {
@@ -811,7 +816,7 @@ case "move":
     guard rest.count >= 3, let x = Double(rest[1]), let y = Double(rest[2]) else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace move <space> X Y"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let result = callJSON(emitter, connection, Method.input,
                           inputParams([.obj(["type": .string("move"), "x": number(x), "y": number(y)])]))
     emitter.success(result, human: "moved to \(x), \(y)")
@@ -820,7 +825,7 @@ case "click":
     guard rest.count >= 3, let x = Double(rest[1]), let y = Double(rest[2]) else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace click <space> X Y [--double] [--right]"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     var action: [String: JSONValue] = [
         "type": .string(parsed.bool("double") ? "doubleClick" : (parsed.bool("right") ? "rightClick" : "click")),
         "x": number(x), "y": number(y),
@@ -833,7 +838,7 @@ case "type":
     guard rest.count >= 2 else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace type <space> TEXT"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let text = rest.dropFirst().joined(separator: " ")
     let result = callJSON(emitter, connection, Method.input,
                           inputParams([.obj(["type": .string("type"), "text": .string(text)])]))
@@ -843,7 +848,7 @@ case "key":
     guard rest.count >= 2 else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace key <space> COMBO"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let combo = rest.dropFirst().joined(separator: " ")
     let result = callJSON(emitter, connection, Method.input,
                           inputParams([.obj(["type": .string("key"), "key": .string(combo)])]))
@@ -853,7 +858,7 @@ case "scroll":
     guard rest.count >= 3, let dx = Int(rest[1]), let dy = Int(rest[2]) else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace scroll <space> DX DY"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let result = callJSON(emitter, connection, Method.input,
                           inputParams([.obj(["type": .string("scroll"), "dx": .int(dx), "dy": .int(dy)])]))
     emitter.success(result, human: "scrolled \(dx), \(dy)")
@@ -864,7 +869,7 @@ case "drag":
           let x2 = Double(rest[3]), let y2 = Double(rest[4]) else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace drag <space> X1 Y1 X2 Y2"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let action: JSONValue = .obj([
         "type": .string("drag"),
         "fromX": number(x1), "fromY": number(y1),
@@ -877,7 +882,7 @@ case "launch", "activate":
     guard rest.count >= 2 else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace \(command) <space> APP"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let app = rest.dropFirst().joined(separator: " ")
     let method = command == "launch" ? Method.launch : Method.activate
     let result = callJSON(emitter, connection, method, .obj(["app": .string(app)]))
@@ -887,14 +892,14 @@ case "quit":
     guard rest.count >= 2 else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace quit <space> APP [--force]"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let app = rest.dropFirst().joined(separator: " ")
     let method = parsed.bool("force") ? Method.forceQuit : Method.quit
     let result = callJSON(emitter, connection, method, .obj(["app": .string(app)]))
     emitter.success(result, human: "quit \(result["name"]?.stringValue ?? app) (pid \(result["pid"]?.intValue ?? -1))")
 
 case "apps":
-    let (_, connection) = resolveSpace(rest.first, root: rootOverride)
+    let (_, connection) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)
     let result = callJSON(emitter, connection, Method.apps, .object([:]))
     if emitter.json {
         print(emitter.pretty(result))
@@ -915,7 +920,7 @@ case "exec":
     guard rest.count >= 2 else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace exec <space> COMMAND [--cwd DIR] [--timeout MS]"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let shellCommand = rest.dropFirst().joined(separator: " ")
     var params: [String: JSONValue] = ["command": .string(shellCommand)]
     if let cwd = parsed.flag("cwd") { params["cwd"] = .string(cwd) }
@@ -953,7 +958,7 @@ case "ax":
     guard rest.count >= 2 else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace ax <space> snapshot|frontmost|windows|perform"))
     }
-    let (_, connection) = resolveSpace(rest[0], root: rootOverride)
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let subcommand = rest[1]
     var params: [String: JSONValue] = [:]
     if let pid = parsed.int("pid") { params["pid"] = .int(pid) }
@@ -987,7 +992,7 @@ case "start", "stop", "restart":
     guard let reference = rest.first else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace \(command) <space>"))
     }
-    let (space, connection) = resolveSpace(reference, root: rootOverride)
+    let (space, connection) = resolveSpace(reference, root: rootOverride, emitter: emitter)
     switch command {
     case "stop":
         let result = callJSON(emitter, connection, Method.shutdown, .obj(["reason": .string("agentspace stop")]))

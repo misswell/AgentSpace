@@ -42,6 +42,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 22 | MCP configs for Claude Code, Codex and OpenCode generate, merge key-scoped, install idempotently, and refuse to overwrite a foreign entry | ✓ | §18 — plus an incident: a test that wrote the user's real config |
 | 23 | The §35 agent rules generate from one source, append marker-scoped and idempotently, and are copied — not written — from the GUI | ✓ | §19 |
 | 24 | The release pipeline builds all four binaries, verifies every signature, and produces a DMG whose contents verify | ✓ | §20 — after finding a SwiftPM invocation that silently built one of four |
+| 25 | The CLI at the process boundary honors §32 JSON mode, exit 69/66, live-socket status, the console refusal, and per-root isolation | ✓ | §21 — ten spawned-binary tests; found the not-found exit bug and the §54 screenshot leak |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1205,3 +1206,61 @@ After the fix the worker binary is present again and the safety tests really run
   distribution credential is the notarytool keychain profile, confirmed read-only.
   The `--notarize` path fails with the exact one-time setup rather than a cryptic
   notarytool error.
+
+---
+
+## 21. The integration suite (§5, §55) — and the §54 leak it found
+
+`tests/Integration/` now exists. Its target is not the worker (the safety suite
+owns that) but the **product boundary**: the real `agentspace` CLI run as a real
+process, with only its arguments and `AGENTSPACE_ROOT`, exactly as an agent or a
+script would drive it. Ten tests spawn the binary; each gets its own root, so
+the tests share nothing but the build.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 70 | `--version` reports the protocol version; `list --json` on an empty root is machine-readable | ✓ | §32's contract, at the process boundary |
+| 71 | An unknown Space is not-found, named, and **exit 66** | ✓ | after the fix below |
+| 72 | `create` without the helper fails closed with **exit 69** and leaves no partial registry entry | ✓ | the management path refuses without half-running |
+| 73 | `doctor --json` reports every check with a name and a verdict | ✓ | §38's shape, parseable |
+| 74 | `status --json` through the real binary reaches a live worker over the real socket — registry, token file, geometry | ✓ | §49: one core API behind CLI, GUI and MCP |
+| 75 | `click` through the real binary surfaces `SESSION_IS_CONSOLE`, typed, non-zero | ✓ | §2 at the product boundary, not just inside the worker |
+| 76 | `screenshot` on a console-session worker refuses typed; in a background session it must produce a real PNG | ✓ | §54 — after the fix below |
+| 77 | Two roots are isolated worlds: same name, different tokens, different workers; a name from the other world is not-found | ✓ | §29/§48 via the real binary |
+| 78 | `--json` carries the documented field types for scripts | ✓ | §32 |
+
+### Two product defects the first run found
+
+**Not-found was neither JSON nor 66.** `resolveSpace` failed through a hardcoded
+`Emitter(json: false)` and the catch-all exit code: `status <unknown> --json`
+printed human prose and exited 1 — indistinguishable, to a script, from a
+generic failure, and unparseable besides. Fixed: the caller's emitter fails
+through, and not-found is the documented 66. Found because a test asserted the
+documented contract instead of the implementation's actual behavior.
+
+**The console refusal covered injection but not observation.** The screenshot
+handler carried a deliberate comment defending the old behavior — "capturing the
+console is exactly what the human sees anyway" — and the empirical check agreed
+with the plan, not the comment: a console-session worker returned a full
+3840px PNG of the *user's* desktop, and `ax.*` on the console would read the
+user's windows without any TCC grant. §54 says a screenshot must never be the
+user's desktop; on the console there is nothing else to capture. The worker now
+refuses every observation and manipulation method (`screenshot`, `apps`,
+`launch`, `quit`, `forceQuit`, `activate`, `ax.*`) with `SESSION_IS_CONSOLE`,
+keeping only `hello`, `status`, `exec`, `shutdown`. `docs/security.md` records
+the reversal and the reasoning on both sides.
+
+The plan's §55 name `testScreenshotNeverReturnsConsoleSession` stops being a
+skip on this machine: with the guard in place, the console refusal *is* the
+assertion, and it is typed.
+
+### One framework trap worth recording
+
+The first bash repro seeded a hand-written `index.json` (`workspace: {"type":
+"none"}`, epoch timestamps) that the CLI silently failed to decode and reported
+as "no AgentSpace exists yet" — the wrong diagnosis for my own test data. The
+registry schema is `kind`, not `type`, with ISO-8601 dates. Relatedly,
+`SpaceRegistry.load` returns an empty registry for *undecodable* content, which
+its own comment calls out as something that must not happen silently; the
+behavior and the comment still disagree, and the comment is now marked as
+describing an unresolved limitation.

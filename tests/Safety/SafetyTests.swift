@@ -315,6 +315,15 @@ final class SafetyTests: XCTestCase {
         let permitsInput = hello.result?["session"]?["permitsInput"]?.boolValue ?? false
 
         let response = try harness.call(Method.screenshot, .obj(["maxWidth": .int(400)]))
+        // On a console-session worker there is no legitimate capture: the only
+        // framebuffer is the user's desktop (§54). This machine's test process
+        // IS the console, so the refusal — not a captured image — is the
+        // plan-named assertion, and it must be typed.
+        if hello.result?["session"]?["verdict"]?.stringValue == "isConsole" {
+            XCTAssertEqual(response.error?.code, .sessionIsConsole,
+                           "a console-session worker must refuse to capture the user's desktop")
+            return
+        }
         if !response.ok {
             guard response.error?.code == .screenRecordingDenied else {
                 return XCTFail("screenshot failed unexpectedly: \(response.error?.message ?? "?")")
