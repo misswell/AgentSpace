@@ -4770,3 +4770,24 @@ only the app target — the generator lives in Core.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 320 | All four §35 rule sentences are verbatim in one generator consumed by the marker section and Copy Config | ✓ | §158 — Integrations.agentRules() |
+
+
+---
+
+## 159. §16's ScreenCaptureKit tiers: 5 FPS idle and 0 FPS closed are wired;
+15 FPS exists as a capability with no interactive call site
+
+The worker's ScreenCaptureKitSource parameterises the frame rate
+(configuration.minimumFrameInterval = 1/maxFPS); the app opens the
+stream at previewStart(maxFPS: 5) and the DesktopViewerView ticks
+at 1/5 s, and stops the stream entirely when the viewer closes
+(previewStop) — the 0 FPS tier. When SCK cannot start the viewer
+falls back to the verified 1 FPS screenshot MVP. The honest
+limitation: nothing in the app requests 15 FPS yet — the
+interactive tier is a parameter away but has no UI call site,
+which §16 itself defers past MVP ("MVP must not be slowed down by
+the ScreenCaptureKit stream").
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 321 | 5 FPS idle preview, 0 FPS on close, and 1 FPS fallback are wired end-to-end; 15 FPS is parameterised but has no interactive call site | ✓ (honest limitation) | §159 — previewStart/previewStop and the viewer's tick |
