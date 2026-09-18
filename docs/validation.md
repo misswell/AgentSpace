@@ -5942,3 +5942,25 @@ is the request's actual structure.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 371 | All nine §14 input actions parse and dispatch, doubleClick/rightClick are documented conveniences over the count primitive, wait and center-button are supersets | ✓ | §209 — InputActions.swift:117–220, InputSynthesizer.swift:52–159 |
+
+
+---
+
+## 210. §32's --json mode: every command, envelope-shaped, errors included
+
+--json is a standalone global flag — and the comment records the
+measured reason: as a value flag it made `agentspace status
+--json` demand an argument. The status shape carries all six
+plan fields (space, uid, worker, state, screenRecording,
+accessibility) plus display and resources, and the envelope is
+the whole output in json mode on purpose — including failures:
+the caller's own emitter formats errors, so CI and MCP parse one
+stable shape instead of prose. list emits count + spaces,
+screenshot passes the worker's result through. The desktop
+command is documented as a deep link rather than a CLI screenshot
+loop — "duplicating it here would be a second reason for the
+machine to keep capturing" — and shows the offline state honestly.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 372 | --json works across commands with the plan's six status fields verbatim, JSON-mode errors through one emitter, desktop as an honest deep link | ✓ | §210 — main.swift:53–54,134,176,748–800 |
