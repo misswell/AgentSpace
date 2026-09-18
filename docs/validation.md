@@ -7153,3 +7153,40 @@ session's reach.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 424 | Final in-budget verification: 360+23 green, gates unchanged | snapshot | §262 — this round's full runs |
+
+
+---
+
+## 263. Closing entry: the round budget ends with the goal held open
+
+This is the last entry written inside the 256-round budget.
+Where the work stands:
+
+- **269 commits**, clean tree, **360 Swift tests + 23 MCP
+  tests green**, the three-layer check-all gate passing, dist
+  still the stapled app/DMG pair.
+- **Every §1–§63 clause has a numbered record** (§1–§263 here):
+  architecture, security gates, the data model, the protocol,
+  the CLI, the MCP server, the viewer, packaging — plus honest
+  deviations (the 32-char password, Offstage's broken
+  kCGSSessionManagerNameKey, the deferred [Terminal] mockup
+  button) and incidents recorded where they happened.
+- This session's own contributions closed three real gaps found
+  by audit: the viewer's keyboard forwarding (§252/§253), the
+  naming contract pin (§257), and the state-rendering
+  completeness check (§256).
+
+**The three external gates are the reason the goal stays open,
+and each is a decision this session cannot make:**
+
+1. The live root helper chain — approval prompts are disabled.
+2. The second GUI session for §44/§48's 30-minute positive
+   isolation run.
+3. The public release URL the Homebrew cask waits on.
+
+Marked complete when they clear — not before, and not by
+inventing filler in the meantime.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 425 | Budget-closing state: 360+23 green, all clauses recorded, three external gates hold the goal open | final snapshot | §263 — this entry |
