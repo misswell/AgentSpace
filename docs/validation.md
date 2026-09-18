@@ -5078,3 +5078,24 @@ suggestion to screenshot the Agent session for a hidden modal.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 335 | Launch waits for a real pid plus window ownership (menu-bar exempt), failing with APP_LAUNCH_TIMEOUT instead of trusting acceptance | ✓ | §173 — AppControl.launch |
+
+
+---
+
+## 174. §22's app list covers menu-bar and LSUIElement apps via the window
+server's word
+
+runningApps enumerates every session app with its activation
+policy, then filters through the Core's single AppVisibility
+rule: regular or accessory is always in, and any AppKit-
+prohibited app is still included when the window server reports
+it owns an on-screen window — the fail-open-by-evidence rule that
+lets menu-bar utilities surface even when AppKit misclassifies
+them. Frontmost is read from the window list too, because
+NSWorkspace's cache was observed reporting a killed app as
+frontmost for minutes. The rule lives in Core so tests can pin it
+without a window server.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 336 | The apps list includes regular, accessory and window-evidenced prohibited apps — menu-bar detection per §22 — with frontmost from the window server, not the stale NSWorkspace cache | ✓ | §174 — runningApps and AppVisibility |
