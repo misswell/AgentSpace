@@ -2416,3 +2416,27 @@ mounted volume — which is exactly what a user's first launch will do).
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 166 | The DMG's inner app is stapled independently of the DMG staple, so Gatekeeper accepts a direct app drag-out as well as the mounted install | ✓ | §57 — the mounted-volume validation |
+
+
+---
+
+## 58. The worker's readiness report is honest about what "ready" means
+
+`agentspace-worker --check` on this machine (a console session, not an
+Aqua one) returns `ok: true` with `sessionVerdict: "isConsole"` and a
+problems entry saying the worker "will start but will refuse all input".
+That is the correct layering: §12 makes the worker refuse *input* in a
+console session, not refuse to *exist* — the LaunchAgent can be healthy
+while every input request fail-closes. Root, no-WindowServer, and an
+oversized socket path are the blocking problems; console and
+indeterminate are not.
+
+One naming trap documented rather than renamed: `socketPathFits` means
+the path fits `sun_path`'s 104-byte limit, not that it is writable —
+`--socket /nonexistent/deep/path.sock` reports `true` because 30 bytes
+fit. Renaming the JSON field would touch a wire surface for zero
+functional gain, so the meaning is recorded here instead.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 167 | `--check` in a console session reports ok with an explicit "will refuse all input" problem — readiness and input-permission are separate axes | ✓ | §58 — the JSON, and the blocking-problem list in source |
