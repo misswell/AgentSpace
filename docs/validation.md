@@ -1887,3 +1887,21 @@ for whichever credential is missing.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 130 | The distribution chain is fully self-contained on this machine: release.sh, then notarize.sh, both non-interactive | ✓ | §38, §39 — executed end to end twice |
+
+
+---
+
+## 40. Troubleshooting closed the loop: the notary failures we hit are now documented
+
+docs/troubleshooting.md gained a publisher-side section covering the three
+notarization failures this project actually hit — the vanishing keychain
+profile (with the interactive-only restoration command), the asc 401 whose
+root cause was an empty issuer ID (with the three-part re-registration), and
+the multi-hour In Progress submission (with the check-don't-resubmit recipe
+and the any-Accepted-submission staple rule). This closes the §63 loop: the
+failures were not just survived and logged in the validation history, they
+are now in the document a future operator reads first.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 131 | Every notary failure observed in §38–§39 has a concrete fix section in docs/troubleshooting.md | ✓ | §40 |

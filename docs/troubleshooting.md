@@ -406,3 +406,84 @@ directory. The two labels are derived from whether the account currently owns
 any processes (`SystemSessions`); if a Space is stuck on Needs Login while a
 session is genuinely live, that lookup has failed and `agentspace doctor` is the
 next stop.
+
+## Building and distributing: the notarization failures
+
+These are publisher-side failures — they affect the person running
+`scripts/release.sh` / `scripts/notarize.sh`, not a user of a downloaded DMG.
+All three were hit for real on the machine this project was built on; each fix
+is the one that actually worked, not the one that sounded plausible.
+
+### `No Keychain password item found for profile: …`
+
+The notarytool keychain entry is **gone, not misnamed**. Keychain password items
+for notarytool profiles are known to vanish without warning (observed twice on
+this machine, months apart) while every other credential keeps working.
+
+Fix — the profile owner runs, once, in their own terminal:
+
+```bash
+xcrun notarytool store-credentials octoshrink-notary \
+  --apple-id <apple-id> --team-id <team-id>
+```
+
+macOS prompts for the app-specific password interactively. Never paste the
+password into a chat or a script. Until this is restored, `scripts/notarize.sh`
+falls back to the asc CLI if that is registered (next section).
+
+### `UnauthenticatedRequest` from asc, with a key that used to work
+
+The asc CLI answers every request with a 401 even though the key is fine. The
+root cause that actually reproduced: the stored credential's **issuer ID is
+empty or wrong**. The issuer is not the team ID (`U8U443D7ZL`-shaped) — it is
+the UUID shown in App Store Connect → Users and Access → Integrations. The
+issuer is also team-scoped, so any key of the same team uses the same UUID.
+
+Fix — re-register with all three parts:
+
+```bash
+asc auth login --name agentspace-notary \
+  --key-id <KEYID> --issuer-id <uuid-issuer> \
+  --private-key ~/Downloads/AuthKey_<KEYID>.p8
+asc notarization list --limit 1        # probe before trusting it
+```
+
+Private key files must not be group/world-readable or asc refuses them:
+`chmod 600` first.
+
+### A submission stays `In Progress` for hours
+
+One submission of a given DMG was Accepted in 90 seconds; a second submission of
+the same bytes sat In Progress for 3+ hours. Apple's queue is occasionally just
+slow, and the submit `--wait` poll can time out locally (`HTTPClientError.
+connectTimeout`) while the server-side submission continues fine.
+
+What to do:
+
+- Check the real state instead of resubmitting blindly:
+  `asc notarization list` (or `xcrun notarytool history`).
+- A local timeout does not mean the submission failed — poll `list` for the
+  submission id before doing anything else.
+- If you must resubmit, that is safe: notary allows duplicate submissions of
+  the same file, and **any** Accepted submission's ticket staples onto those
+  same bytes. Staple from an Accepted one and ignore the stragglers.
+- If a submission ends `Invalid`, fetch the reason:
+  `xcrun notarytool log <submission-id> --keychain-profile <profile>`.
+
+### Gatekeeper refuses the downloaded app ("cannot be opened…")
+
+Run the two checks the release chain runs, in order — they localize the break
+immediately:
+
+```bash
+codesign --verify --strict dist/AgentSpace.app   # signature intact?
+stapler validate dist/AgentSpace.app             # ticket present and valid?
+spctl --assess --type execute dist/AgentSpace.app # what Gatekeeper itself runs
+```
+
+- Signature fails → the bundle was modified after signing; rebuild.
+- Signature ok, staple invalid → notarized but not stapled (or stapled before
+  the ticket existed): `scripts/notarize.sh`.
+- All pass but Gatekeeper still refuses on *another Mac* → the DMG the user has
+  is not this one, or the download lost quarantine attributes — verify the
+  `stapler validate` of the exact DMG you shipped.
