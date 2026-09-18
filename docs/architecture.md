@@ -106,6 +106,20 @@ shared/Core/Sources/AgentSpaceCore/       the contract everything shares
   Security.swift        session token, token storage, log redaction
   SpaceRegistry.swift   the Space index, resolution by name/UUID
   WorkerClient.swift    the socket client (used by CLI, tests, GUI, MCP)
+  SpaceProvisioner.swift  creating and deleting a Space — §28, §41 (via the helper)
+  WorkspacePreparer.swift workspace settings → files on disk and access rights (§51)
+  ExecGuard.swift       the §36 exec refusal list — a product guard, not a sandbox
+  KeychainStore.swift   where a Space's login password lives (§9)
+  HelperProtocol.swift  the privileged helper's typed XPC interface (§6)
+  HelperClient.swift    helper mach-service name and the client side of it
+  HelperInstallation.swift  where the helper is and whether it answers (§38)
+  Doctor.swift          `agentspace doctor` — readiness checks with concrete fixes (§38)
+  Diagnostics.swift     the §37 export: whitelisted collection + redaction, both required
+  DiskUsage.swift       how much disk a Space actually occupies (§30)
+  Integrations.swift    one-click MCP configuration for supported clients (§34, §35)
+  PreviewController.swift  the live Desktop Preview stream (§52)
+  SystemSessions.swift  which accounts have live sessions on this machine (§39, §40)
+  AppDeepLink.swift     the agentspace:// scheme behind `agentspace desktop` (§31)
 
 native/AgentSpaceWorker/                  the daemon that lives in a session
   main.swift            arguments, readiness gates, bind, serve, shutdown
@@ -114,17 +128,19 @@ native/AgentSpaceWorker/                  the daemon that lives in a session
   Operations.swift      method dispatch — where the fail-closed order lives
   InputSynthesizer.swift  CGEvent posting, session tap only
   ScreenCapture.swift   preflight, screencapture, IHDR parsing, sips
+  ScreenCaptureKitSource.swift  the SCStream behind the live preview (§52)
   AppControl.swift      resolve, launch-and-wait-for-registration, quit, activate
   ShellExec.swift       posix_spawn, process group, timeout, stream capture
   AccessibilityBridge.swift  bounded AX tree walk and actions
 
 native/AgentSpaceCLI/                     the CLI (and the MCP server's backend)
-  main.swift            every command, --json everywhere, doctor
-  Doctor.swift          readiness checks, each with a concrete fix
+  main.swift            every command, --json everywhere, usage, doctor wiring
 
-packages/agentspace-mcp/                  stdio MCP server (TypeScript)
-apps/AgentSpace/                          SwiftUI app (phase 2+)
-native/AgentSpacePrivilegedHelper/        the root helper (phase 3)
+packages/agentspace-mcp/                  stdio MCP server (TypeScript) — spawns the
+                                          CLI, so §49's one-implementation rule holds
+apps/AgentSpace/                          the SwiftUI app — dashboard, create wizard,
+                                          desktop viewer, settings, deep-link entry
+native/AgentSpacePrivilegedHelper/        the root helper — typed XPC intents only (§6)
 ```
 
 `AgentSpaceCore` is a library with no side effects and no globals, which is what
