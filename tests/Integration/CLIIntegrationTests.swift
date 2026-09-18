@@ -402,6 +402,41 @@ final class CLIIntegrationTests: XCTestCase {
         }
     }
 
+    /// §40's Stop Agent at the process boundary: a clean shutdown (exit 0)
+    /// means the LaunchAgent's `KeepAlive.SuccessfulExit = false` leaves it
+    /// stopped — a real stop, not a crash-restart loop — and the registry
+    /// survives untouched, because stopping the agent is not deleting the Space.
+    func testStopTerminatesTheWorkerCleanlyAndKeepsTheRegistry() throws {
+        let (cli, _, space) = try liveSpace("Stop Test")
+        let socket = RuntimePaths(spaceID: space.id, root: cli.root).socketPath
+        XCTAssertTrue(FileManager.default.fileExists(atPath: socket), "the worker must be live first")
+
+        let result = cli.run(["stop", "Stop Test", "--json"])
+        XCTAssertEqual(result.exitCode, 0, result.output)
+        XCTAssertTrue(result.output.contains("stopping"), result.output)
+
+        // The worker exits on a 0.2 s delay so the reply lands first. The
+        // socket *file* lingers (exit does not unlink it), so the honest
+        // observable is the process itself, via the pid file.
+        let pidFile = RuntimePaths(spaceID: space.id, root: cli.root).pidPath
+        let deadline = Date().addingTimeInterval(5)
+        var gone = false
+        while Date() < deadline {
+            if let pid = Int(try String(contentsOfFile: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)),
+               kill(pid_t(pid), 0) != 0 {
+                gone = true
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertTrue(gone, "the worker process must have exited after a clean stop")
+
+        // And the CLI now says so, fail-closed: the worker is gone, not fake-alive.
+        let status = cli.run(["status", "Stop Test", "--json"])
+        XCTAssertNotEqual(status.exitCode, 0, "an offline worker is unavailable: \(status.output)")
+        XCTAssertTrue(status.output.contains("WORKER_OFFLINE"), status.output)
+    }
+
     /// §37 at the process boundary: the exported bundle names the Space and
     /// the worker's state, but the token that authenticates to that worker
     /// must not appear anywhere in it — the export is exactly the kind of

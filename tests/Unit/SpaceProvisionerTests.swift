@@ -57,6 +57,10 @@ final class SpaceProvisionerTests: XCTestCase {
             }
 
             switch request.operation {
+            case .logoutSession:
+                return HelperResponse(id: request.id, result: .obj([
+                    "loggedOut": .bool(true), "username": .string(request.username ?? ""),
+                ]))
             case .createUser:
                 return HelperResponse(id: request.id, result: .obj([
                     "username": .string(request.username ?? ""),

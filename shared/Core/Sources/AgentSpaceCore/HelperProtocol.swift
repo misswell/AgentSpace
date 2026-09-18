@@ -20,6 +20,7 @@ public enum HelperOperation: String, Codable, Sendable, CaseIterable {
     case prepareRuntimeDirectory
     case startWorker
     case stopWorker
+    case logoutSession
     case sessionInfo
     case helperStatus
 }
@@ -41,6 +42,9 @@ public struct HelperRequest: Codable, Equatable, Sendable {
     public var mainUser: String?
     /// For `installWorker`: the space's runtime root.
     public var runtimeRoot: String?
+    /// For `logoutSession`: the Space account's uid, cross-checked against the
+    /// username's real passwd entry before anything is torn down.
+    public var uid: uid_t?
 
     public init(
         id: String = UUID().uuidString,
@@ -51,7 +55,8 @@ public struct HelperRequest: Codable, Equatable, Sendable {
         password: String? = nil,
         removeHome: Bool? = nil,
         mainUser: String? = nil,
-        runtimeRoot: String? = nil
+        runtimeRoot: String? = nil,
+        uid: uid_t? = nil
     ) {
         self.id = id
         self.operation = operation
@@ -62,6 +67,7 @@ public struct HelperRequest: Codable, Equatable, Sendable {
         self.removeHome = removeHome
         self.mainUser = mainUser
         self.runtimeRoot = runtimeRoot
+        self.uid = uid
     }
 }
 
@@ -343,6 +349,26 @@ public enum HelperValidation {
                 return AgentSpaceError(
                     code: .helperRejected,
                     message: "\(request.operation.rawValue) requires the Space's AgentSpace account, so that only that Space's LaunchAgent can be started or stopped")
+            }
+            guard existingAccounts.contains(username) else {
+                return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")
+            }
+            return nil
+
+        case .logoutSession:
+            // §40: Logout ends the Space's whole GUI session (releasing its
+            // WindowServer, frames and RAM) while keeping the account and its
+            // home. It is `launchctl bootout gui/<uid>` — a root-only op, so
+            // it belongs here and nowhere else. The uid must name an AgentSpace
+            // account: a logout that could target the *main* user's session
+            // would be a self-destruct button wearing a feature's clothes.
+            guard let uid = request.uid, uid > 0 else {
+                return AgentSpaceError(code: .helperRejected, message: "logoutSession requires the Space's uid")
+            }
+            guard let username = request.username, isAgentSpaceAccount(username) else {
+                return AgentSpaceError(
+                    code: .helperRejected,
+                    message: "logoutSession is only answered for AgentSpace accounts")
             }
             guard existingAccounts.contains(username) else {
                 return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")

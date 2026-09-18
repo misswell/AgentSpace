@@ -189,6 +189,46 @@ final class SpaceService {
     /// Returns the worker's typed error untouched on failure. In particular this
     /// never falls back to capturing *this* session's screen, which would hand the
     /// user a picture of their own desktop and call it the agent's.
+    // MARK: - Stop / Logout (§40)
+
+    /// **Stop Agent** — stop the worker, keep the GUI session. The worker
+    /// exits 0, and the LaunchAgent's `KeepAlive.SuccessfulExit = false` means
+    /// launchd leaves a clean exit stopped: this is a real stop, not a
+    /// crash-restart loop. The session (WindowServer, frames) stays up, so the
+    /// next start is instant.
+    func stopWorker(for space: AgentSpace) -> Result<Bool, AgentSpaceError> {
+        let connection = SpaceConnection(space: space)
+        do {
+            let response = try connection.client.call(
+                method: Method.shutdown,
+                params: .obj(["reason": .string("stop-agent")]),
+                token: connection.token,
+                timeout: 5)
+            if let error = response.error { return .failure(error) }
+            return .success(true)
+        } catch {
+            // A worker that is already gone is not a failed stop.
+            return .success(true)
+        }
+    }
+
+    /// **Logout Desktop** — end the Space's whole GUI session, keeping the
+    /// account and home. This is root-only (`launchctl bootout gui/<uid>`), so
+    /// it goes through the privileged helper as a typed RPC and fails typed
+    /// when the helper is not installed — never by trying to `sudo` anything.
+    func logoutDesktop(for space: AgentSpace) -> Result<Bool, AgentSpaceError> {
+        do {
+            let response = try HelperClient.call(
+                HelperRequest(operation: .logoutSession, username: space.username, uid: space.uid))
+            if let error = response.error { return .failure(error) }
+            return .success(true)
+        } catch {
+            return .failure(AgentSpaceError(
+                code: .helperUnavailable,
+                message: "could not reach the privileged helper: \(error)"))
+        }
+    }
+
     // MARK: - Live preview (§52)
 
     /// Open the Space's live capture stream. Typed error untouched on failure —

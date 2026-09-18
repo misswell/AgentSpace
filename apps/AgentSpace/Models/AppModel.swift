@@ -189,6 +189,22 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// §40's Stop Agent: stop the worker, keep the session. The effective
+    /// state goes to offline/needsLogin on the next refresh — honestly.
+    func stopWorker(_ space: AgentSpace) {
+        guard case .success = service.stopWorker(for: space) else { return }
+        if selected?.space.id == space.id { reload() }
+    }
+
+    /// §40's Logout Desktop: helper-typed; a missing helper surfaces as the
+    /// typed error with its fix, which is the fail-closed behavior.
+    func logoutDesktop(_ space: AgentSpace) {
+        if case .failure(let error) = service.logoutDesktop(for: space) {
+            lastError = PresentedError(code: error.code.rawValue, message: error.message, fix: error.code.remediation)
+        }
+        if selected?.space.id == space.id { reload() }
+    }
+
     func deleteSpace(_ space: AgentSpace, removeHome: Bool) {
         guard provisioning == nil else { return }
         provisioning = Provisioning(operation: "Deleting \(space.name)")

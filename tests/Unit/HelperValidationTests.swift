@@ -89,6 +89,39 @@ final class HelperValidationTests: XCTestCase {
         }
     }
 
+    // MARK: - logoutSession (§40)
+
+    func testLogoutSessionRequiresASpaceAccountAndItsOwnUid() {
+        let good = HelperRequest(
+            operation: .logoutSession,
+            username: "_agentspace_a1b2c3",
+            uid: 502)
+        XCTAssertNil(HelperValidation.validate(good, existingAccounts: machine),
+                     "a valid request for an existing Space account is acceptable")
+
+        // The main user's name is refused — a logout that could target the
+        // human's own session would be a self-destruct button in a menu.
+        let mainUser = HelperRequest(operation: .logoutSession, username: "guofeng", uid: 501)
+        XCTAssertEqual(
+            HelperValidation.validate(mainUser, existingAccounts: machine)?.code,
+            .helperRejected)
+
+        // A uid that does not name the account is refused before the helper
+        // would ever compare it to the passwd entry.
+        let mismatched = HelperRequest(
+            operation: .logoutSession,
+            username: "_agentspace_a1b2c3",
+            uid: 0)
+        XCTAssertEqual(
+            HelperValidation.validate(mismatched, existingAccounts: machine)?.code,
+            .helperRejected)
+
+        let missingUid = HelperRequest(operation: .logoutSession, username: "_agentspace_a1b2c3")
+        XCTAssertEqual(
+            HelperValidation.validate(missingUid, existingAccounts: machine)?.code,
+            .helperRejected)
+    }
+
     // MARK: - createUser
 
     func testCreateUserAcceptsAWellFormedRequest() {
@@ -456,7 +489,9 @@ final class HelperValidationTests: XCTestCase {
                                "operation \(operation.rawValue) has a '\(word)' component, which suggests a generic escape hatch")
             }
         }
-        XCTAssertEqual(HelperOperation.allCases.count, 9)
+        // logoutSession is the tenth: a typed, uid-checked session teardown — not a
+        // generic escape hatch, which is the property this count pins.
+        XCTAssertEqual(HelperOperation.allCases.count, 10)
     }
 
     func testNoRequestFieldCanCarryAnArbitraryCommand() {

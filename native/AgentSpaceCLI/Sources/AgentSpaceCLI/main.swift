@@ -704,10 +704,6 @@ case "diagnostics":
     // a redaction pass over everything that does get collected.
     let bundle = Diagnostics.collect(root: rootOverride)
     if parsed.bool("json") {
-        let escaped = bundle
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
         emitter.success(.obj(["bundle": .string(bundle)]), human: nil)
     } else if let out = parsed.flags["out"] {
         do {

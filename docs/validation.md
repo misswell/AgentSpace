@@ -47,6 +47,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 27 | After a reboot a logged-out Space shows Needs Login, not offline; a crashed worker under a live session shows offline | ✓ | §23 — utmpx rejected empirically; process ownership is the discriminator |
 | 28 | The §52 live preview is pull-model, fail-closed on console, self-stops when unpulled, and falls back to the 1 FPS MVP when refused | ✓ | §24 — 6 controller tests + 2 process-boundary tests; SCK delivery itself needs a background session and is marked unverified |
 | 29 | The §37 diagnostics export is safe to hand out: whitelist collection + a redaction pass, with the token never surviving either | ✓ | §25 — 7 unit tests + a live-worker integration test |
+| 30 | Stop keeps the session, Logout ends the session through a typed root-only helper RPC, Delete is the only thing that removes a Space | ✓ | §26 — stop pinned by a live test; logout validation pinned; the logout run itself needs the root helper and is recorded as blocked |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1402,3 +1403,38 @@ A deliberate assertion in the integration test: the redactor firing on an
 export is itself suspicious — collection is a whitelist, so `<redacted-…>`
 appearing in a bundle means something secret-shaped got collected anyway, and
 the test would rather fail loudly than quietly look safe.
+
+---
+
+## 26. Stop, Logout, Delete (§40) — three endings, not one button
+
+The plan requires the UI to distinguish *Stop Worker* (stop the agent, keep the
+GUI session) from *Logout* (end the whole session, release its RAM, keep the
+account) from *Delete Space* (remove everything, ask about the home). Until now
+the distinction existed only in prose: the CLI had `stop`, the helper had
+`startWorker`/`stopWorker`, and nothing had a logout at all.
+
+The semantics of **Stop Agent** turn out to be already correct by design, and
+now pinned by test: the worker exits 0 on `shutdown`, and the LaunchAgent's
+`KeepAlive.SuccessfulExit = false` means launchd leaves a *clean* exit stopped.
+That is a real stop — not a crash-restart loop — while the session stays warm.
+
+**Logout Desktop** is the new typed helper RPC (`logoutSession`): it runs
+`launchctl bootout gui/<uid>` — root-only, so it belongs in the helper and
+nowhere else — after cross-checking the uid against the username's real passwd
+entry and refusing `_agentspace_`-less names. The protocol-size pin in the
+validation tests moves 9 → 10 deliberately: this is a typed, uid-checked
+operation, not an escape hatch.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 103 | `agentspace stop` exits the worker cleanly and launchd leaves it stopped; the registry keeps the Space | ✓ | live-worker integration test, pid observed gone |
+| 104 | After a stop, the CLI reports the worker offline (fail-closed), not fake-alive | ✓ | same test — `WORKER_OFFLINE` |
+| 105 | `logoutSession` accepts only an existing `_agentspace_` account with its own uid; a stale socket file after exit is stale, and tests read the pid | ✓ | validation tests + the note below |
+
+The logout itself needs the helper running as root — live verification remains
+blocked in this environment, as recorded since the helper round. Two testing
+notes that cost real time: a stopped worker's socket *file* lingers (exit does
+not unlink it — the honest observable is the pid), and `status` after a stop
+exits non-zero with `WORKER_OFFLINE`, which is the fail-closed contract
+behaving exactly as specified.

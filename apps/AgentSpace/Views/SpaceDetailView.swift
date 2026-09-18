@@ -125,6 +125,28 @@ struct SpaceDetailView: View {
                     Label("View Desktop", systemImage: "display")
                 }
                 .disabled(model.selected?.display == nil)
+
+                // §40: three different endings for a Space, deliberately not
+                // collapsed into one "stop". Stop keeps the session; Logout
+                // ends the session but keeps the account; Delete removes
+                // everything and asks about the home.
+                Menu {
+                    Button("Stop Agent") {
+                        if let space = model.selected?.space { model.stopWorker(space) }
+                    }
+                    .disabled(model.selected?.workerOnline != true)
+                    Button("Logout Desktop…") {
+                        if let space = model.selected?.space { model.logoutDesktop(space) }
+                    }
+                    Divider()
+                    Button("Delete Space…", role: .destructive) {
+                        showingDelete = true
+                    }
+                    .disabled(model.selected == nil)
+                } label: {
+                    Label("Space", systemImage: "gearshape")
+                }
+                .disabled(model.selected == nil)
             }
         }
         .sheet(isPresented: $showingViewer) {
