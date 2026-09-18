@@ -3469,3 +3469,27 @@ defects found, recorded so the surfaces are on the ledger.
 |---|---|---|---|
 | 240 | All nine §36 refused commands are rejected live with EXEC_DENIED naming the rule, while ordinary commands run | ✓ | §101 — the nine-command matrix |
 | 241 | The MCP server exposes exactly the fourteen tools §33 promises | ✓ | §101 — the registration sweep |
+
+
+---
+
+## 102. README executability audit — demo and helper paths hold; the acceptance gate's no-Space exit was undocumented and is now documented
+
+- **`scripts/demo.sh`** — runs end to end, exit 0, 14 checks with only
+  expected console/provisioning warnings: the README's "try it
+  without creating a user" promise holds.
+- **Helper self-check from `dist/`** — `--self-check` exits 1 with
+  "9 checks, 1 failing" (helper not installed, truthfully reported);
+  `agentspace helper` exits 3 with "not answering" and names
+  HELPER_UNAVAILABLE. Both README lines behave as written.
+- **`scripts/acceptance.sh`** — on this machine (no Space) it exits 66
+  with "No AgentSpace found", a code the README never mentioned; its
+  own `case` block only documents 0/1/3/4. Fixed: the README now
+  explains 66 (no Space yet — create one first; the fail-closed half
+  needs a Space's worker, not a second login).
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 242 | demo.sh runs end to end with exit 0 and only expected warnings | ✓ | §102 — the demo run |
+| 243 | Helper self-check and helper status from dist/ report their not-installed state truthfully (exits 1 and 3) | ✓ | §102 — the self-check run |
+| 244 | acceptance.sh on a machine without Spaces exits 66, and the README now documents that code | ✓ | §102 — the gate run + README fix |

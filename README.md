@@ -159,7 +159,9 @@ It opens TextEdit on your desktop, drives 1000 mixed click/type/scroll actions o
 the agent's desktop through the worker, then checks that your content, focus and
 pointer are untouched. Run it from your own desktop, never over ssh. Exit code 3
 means the gate could not run — no background session yet — and that is
-deliberately not the same as passing.
+deliberately not the same as passing. Exit code 66 means there is no Space at
+all yet (create one first); the fail-closed half needs a Space's worker, even
+before its first login.
 
 The worker's own readiness check, which needs no socket and no second user:
 
