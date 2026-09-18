@@ -7069,3 +7069,29 @@ be invented to close the distance.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 420 | All §1–§63 clauses and their residuals audited; three external gates (root helper, second GUI session, release URL) are the only completion blockers | snapshot | §258 — this round's residuals, all prior entries |
+
+
+---
+
+## 259. Snapshot refresh: §34's write-mode install confirmed recorded; no
+new faces found
+
+A last look at §34 found the write-mode path already covered by
+§18's entry — `agentspace integrate <target> --install` with
+format-specific parsing, merge preservation, idempotence,
+refusal on differing TOML, pre-change backups, and the recorded
+incident of a sandbox test writing the real config (fixed via
+HOME expansion). Nothing new to audit; this entry only refreshes
+the counters.
+
+**Repo:** 266 commits, working tree clean, 360 Swift tests +
+23 MCP tests green (both binaries build), validation index 420.
+
+**The three external gates stand:** root-only helper chain
+(approval prompts disabled), the second GUI session for §44/§48's
+positive isolation half, and the public release URL the cask
+waits on. The goal stays open on those alone.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 421 | §34's install mode fully recorded in §18; counters refreshed; gates unchanged | snapshot | §259 — docs/validation.md:1137–1160 |
