@@ -6189,3 +6189,25 @@ and TCC management is reserved for a human in the GUI.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 382 | The MCP server registers exactly the plan's fourteen tools, and no create/delete tool exists | ✓ | §220 — packages/agentspace-mcp/src (14 names extracted) |
+
+
+---
+
+## 221. §32's JSON status fields, plus why the display carries both
+coordinate spaces
+
+The worker's status response contains every field the plan's
+JSON example names — status/state (plus a human label), space
+(name and id), uid, worker (with pid and uptime),
+screenRecording, accessibility — as honest supersets: user,
+acceptsInput, session verdict with onConsole, and the full
+display geometry. A measured-history comment explains why
+display reports both point and pixel sizes: sending only point
+size once left a client reading status alone seeing
+pixelWidth 0, the GUI rendering "Pixels 0 x 0," and the Desktop
+Viewer losing the fallback it needs to map a click before the
+first capture arrives.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 383 | status --json returns the plan's six fields verbatim plus supersets, with the dual coordinate-space reason documented from a real regression | ✓ | §221 — Operations.swift:137–165, main.swift:771–773 |
