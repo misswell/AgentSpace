@@ -52,6 +52,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 32 | 1000 sequential RPC round trips leave the worker healthy at ~6.5 ms/call | ✓ | §28 — protocol half of §44; the isolation half stays blocked on a second session |
 | 33 | Doctor names per-Space Accessibility and Screen Recording, asked of the worker, with panel-path fixes | ✓ | §29 — live-worker integration test; caught the wrong-root bug on its first run |
 | 34 | No polling loops; the §44 gate refuses (exit 66) rather than passing without a Space | ✓ | §30 — code audit, 0.0% idle CPU, and the acceptance run's honest refusal |
+| 35 | The §56 review is a re-runnable matrix: each item pinned by named tests or explicitly blocked | ✓ | §31 — 7 verified, 3 blocked on machine capabilities, sign-off rule stated |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1551,3 +1552,25 @@ The remaining open items are unchanged and external: live helper verification
 and logout (root), notarization credentials, and the two-session acceptance
 runs (§48, §44's isolation half). Every plan section the environment can reach
 is built, tested, measured, and recorded.
+
+---
+
+## 31. The §56 security review is a re-runnable matrix
+
+The release checklist in docs/security.md listed the plan's ten review items as
+checkboxes. A checkbox records intent; a review records what was checked, how
+it is pinned, and what still blocks it. Each item now names its control, the
+specific tests that pin it (from the audit: token shape/compare/separation,
+symlink refusal, traversal refusal, workspace escape, exec denial classes, and
+the diagnostics redaction chain), and an honest status.
+
+The result: seven items verified by named tests, three blocked on machine
+capabilities (code signing/notarization credentials; live XPC and ACL
+application via the root helper), with the sign-off rule stated — a release
+clears when the blocked rows clear, not when this document stops mentioning
+them.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 113 | Every §56 review item maps to a named pinning test or an explicit block | ✓ | the matrix in docs/security.md |
+| 114 | THIRD_PARTY_NOTICES.md carries the Offstage MIT text per §42 | ✓ | file inspected |

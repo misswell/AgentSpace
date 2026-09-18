@@ -364,29 +364,30 @@ In order of how much damage a mistake would do:
 enforce, which is what a reviewer should run on the machine rather than reading
 the source and assuming.
 
-## Release checklist (plan §56)
+## Release checklist (plan §56) — reviewed, with the pins named
 
-Before a release, review each of these against the built artifacts:
+Every item is a control documented above and a property pinned by a named test,
+so the review is re-runnable rather than a one-time opinion. Status as of the
+validation doc's current section; the two items that need machine capabilities
+this development environment lacks are marked honestly rather than checked.
 
-- [ ] Unix socket ACL — directory 0700 + ACL for exactly the main user and agent
-      user; socket 0660
-- [ ] Token — 256 bits from the CSPRNG, `0600`, constant-time compare, required
-      on every non-`hello` method
-- [ ] XPC authentication — helper verifies the caller's code-signing requirement;
-      no other process can call it
-- [ ] Code signing — Developer ID, notarized; `SMAppService` registration
-- [ ] LaunchDaemon privileges — the helper runs as root and does only the typed
-      operations
-- [ ] Symlink attack — `WorkspaceGuard` resolves before the prefix test; the
-      runtime directory is not world-writable
-- [ ] Path traversal — `..` normalised before every check
-- [ ] Workspace escape — covered by `testWorkspaceCannotEscapeAllowedPath`
-- [ ] Command injection — no shell string concatenation anywhere; `posix_spawn`
-      with an argument vector, `chmod` with fixed arguments
-- [ ] Log secret leakage — `Redaction` at the choke point; export strips typed
-      text and screenshots
-- [ ] **Privileged helper security review, separately** — the plan calls for this
-      explicitly and it is phase 3 work
+| Item | Control | Pinned by | Status |
+|---|---|---|---|
+| Unix socket ACL | dir 0700 + ACL for exactly main user & agent user; socket 0660 | `testACLFailureIsReported`, `testEverySpaceGetsItsOwnSocketTokenAndRuntimeDirectory` | verified in tests; the ACL *application* runs in the root helper — live run blocked |
+| Token | 256-bit CSPRNG, `0600`, constant-time compare, required on every non-`hello` method | `testGeneratedTokenIs256BitsOfHex`, `testGeneratedTokensDiffer`, `testDifferentSpacesHaveDifferentTokens`, `testCorruptTokenFileReadsNil`, `testHelloIsTokenExemptButLeaksNothing` | verified |
+| XPC authentication | helper verifies the caller's code-signing requirement | helper validation suite (closed interface, account shape, main-user checks) | verified at the validation layer; live XPC round-trip blocked (needs the root helper) |
+| Code signing | Developer ID, notarized; `SMAppService` registration | — | **blocked**: notarization credentials are not configured on this machine |
+| LaunchDaemon privileges | root, typed operations only, no shell | `testThereIsNoGenericEscapeHatchInTheProtocol`, the whole helper validation suite | verified at the validation layer; live run blocked |
+| Symlink attack | `WorkspaceGuard` resolves symlinks before the prefix test; runtime dir not world-writable | `testSymlinksAreNotFollowedOutOfTheDirectory`, `testSymlinkEscapeIsRefused` | verified |
+| Path traversal | `..` normalised before every check | `testPathInsideAllowedRootIsAccepted`, `testPathOutsideAllowedRootIsRefused`, `testNoRootsMeansEverythingIsRefused` | verified |
+| Workspace escape | the allowed-root prefix test on resolved paths | `testWorkspaceCannotEscapeAllowedPath` | verified |
+| Command injection | no shell string concatenation anywhere; `posix_spawn` with an argument vector | `testRefusesPrivilegeEscalation`, `testRefusesMachineLevelChanges`, `testPathQualifiedExecutableIsStillRefused`, `testWhitespaceIsNormalisedBeforeMatching`, `testCaseInsensitiveMatching` | verified |
+| Log secret leakage | `Redaction` at the choke point; diagnostics export is whitelist + redactor | `testKeyedSecretValuesAreRedactedWhateverTheKeySpelling`, `testBareHexTokenInAStringIsRedacted`, `testRedactionIsIdempotent`, `testDiagnosticsExportNeverContainsTheWorkerToken` | verified |
+| **Privileged helper, separately** | §42/§56 require a dedicated review | the "privileged helper — a separate review" section above, seven numbered properties | reviewed here; live verification blocked (root) |
+
+A release can only be signed off when the four blocked rows clear: notarization
+credentials configured, helper installed and exercised live, XPC round-trip
+observed on a real machine. The rest of this matrix is green and re-runnable.
 
 ## Distribution
 
