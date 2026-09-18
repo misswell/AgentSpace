@@ -4442,3 +4442,23 @@ secret-shaped string into an export.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 303 | No password, secret or token reaches UserDefaults, a log statement, or a config.json file | ✓ | §141 — the three zero-hit greps |
+
+
+---
+
+## 142. §11's Aqua-session guard is implemented as a stronger structural check
+
+The plan names `launchctl managername` (should print Aqua, else
+refuse); the worker instead gates startup on
+`SessionGetInfo(sessionHasGraphicAccess)` — Gate 2 of main —
+exiting 69 with a named remedy when the session has no graphic
+access. This is the plan's intent met more strongly: managername is
+a text contract whose output shape drifts across macOS versions,
+while SessionGetInfo is a structured system API that also catches
+the pathological case (manager says Aqua but WindowServer is
+unreachable). Fail-closed at process start, before any socket binds,
+and Gate 1 (never root, exit 77) sits in front of it.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 304 | Worker startup fails closed without graphic access via SessionGetInfo, a stronger guard than the planned managername text parse | ✓ | §142 — Gate 1/Gate 2 in worker main |
