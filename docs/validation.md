@@ -3222,3 +3222,28 @@ HOME environment variable is not honored by tilde expansion.
 | 220 | install merges into the existing config (foreign keys survive), writes a same-second backup first, and re-install is idempotent | ✓ | §91 — the forensic record |
 | 221 | Tilde expansion ignores the HOME environment variable, as the source comment documents; `--config PATH` is the sandbox-safe path | ✓ | §91 — the accidental live proof |
 | 222 | codex and opencode targets emit their own formats (TOML for codex, JSON with `enabled` for opencode), each anchored to the real binary | ✓ | §91 — the raw-output probe |
+
+
+---
+
+## 92. Install semantics reproduced under control with --config PATH
+
+The §91 forensic findings are now reproduced deliberately inside a
+sandbox, using the documented `--config PATH` escape hatch:
+
+- `--install --config <path>` returns a structured receipt
+  (`{backup, path, created:false, target, binary}`) and writes exactly
+  that path — no tilde expansion, no HOME dependence.
+- Merge semantics hold: a pre-existing key (`existing: true`) and a
+  foreign server (`foo`) both survive; only `mcpServers.agentspace` is
+  added.
+- The backup file appears at `<path>.agentspace.bak` holding the exact
+  pre-install bytes, and a second install is a no-op (`foo` and
+  `agentspace`, nothing duplicated).
+
+Claim 220's evidence is thereby upgraded from accident forensics to a
+controlled reproduction; claim 221's escape hatch is verified live.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 223 | --install --config PATH writes exactly that path, returns a structured receipt, merges without clobbering, backs up first, and is idempotent on re-run | ✓ | §92 — the controlled reproduction |
