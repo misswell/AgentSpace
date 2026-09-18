@@ -4227,3 +4227,23 @@ Space per refresh would be exactly the overhead the plan forbids.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 289 | The app manages an array of Spaces with no single-user assumptions anywhere, and per-space isolation is pinned by dedicated tests | ✓ | §130 — the AppModel refresh and the test census |
+
+
+---
+
+## 131. §37's diagnostics export uses two independent secret controls
+
+Collection is whitelisted: doctor output, registry metadata, file
+*existence* only — token files, Keychain items, input payloads and
+frame data are never read, so those secrets cannot leak because they
+are never collected. Everything still passes `DiagnosticsRedactor`
+before leaving the process as defence in depth: 64-hex runs become
+`<redacted-token>` (commit SHAs are the documented false-positive
+cost), and `password|passphrase|secret|token` keys lose their values.
+The redactor is a pure, idempotent, order-independent function
+precisely so it can be tested property-style; the test census finds
+the redaction coverage present.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 290 | Diagnostics export collects by whitelist and redacts secret-shaped text at the boundary, with property-style tests on a pure redactor | ✓ | §131 — Diagnostics.swift and its tests |
