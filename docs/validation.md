@@ -5483,3 +5483,30 @@ log category with its ready-made log show predicate.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 352 | All ten §56 checklist items have named, verified implementations; the privileged-helper separate review is served by the helper log category and predicate | ✓ | §190 — main.swift socket attrs, Security.swift, CallerVerification, HelperSelfCheck, ExecGuard, HelperProtocol:521, Diagnostics |
+
+
+---
+
+## 191. §42's Offstage chain: full MIT notice, eight borrowed findings
+tabulated, divergences reasoned
+
+THIRD_PARTY_NOTICES.md reproduces Offstage's MIT license with
+its copyright intact, then states plainly that no source file
+was copied verbatim — and registers the debt anyway, because
+"the honest thing to do with a real debt is to acknowledge it
+rather than argue about whether it clears a threshold." Eight
+specific borrowings are tabled with what each contributed: the
+three CGEvent posting paths and their measured behaviour, always
+assigning event.flags, one event per grapheme cluster, the
+CGDisplayPixelsWide scaled-Retina trap (independently
+re-measured here), frontmost-from-window-list, the background
+Aqua session shape, posix_spawn SETSID/signal-mask details, and
+the socket-directory observation adopted as a sun_path length
+check. Deliberate divergences are tabulated with reasons in
+§8. No Swift file carries an Offstage copyright header — the
+consistent consequence of having copied no code — while the
+conceptual debt is fully recorded.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 353 | §42 satisfied the strict way: no verbatim copies (hence no per-file headers to preserve), MIT notice reproduced regardless, eight borrowings and all divergences documented | ✓ | §191 — THIRD_PARTY_NOTICES.md |
