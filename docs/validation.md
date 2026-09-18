@@ -2717,3 +2717,22 @@ this is its live counterpart on the current build.
 |---|---|---|---|
 | 184 | Ten concurrent socket clients each get an independent parseable response | ✓ | §69 — the concurrency probe |
 | 185 | A killed worker removes its socket file, and a restarted worker rebinds cleanly at the same path | ✓ | §69 — the kill/rebind cycle |
+
+
+---
+
+## 67b. The error-code vocabulary is closed: docs ⊆ source, with the one "miss" being a false alarm
+
+A cross-check of the 18 error codes named in `troubleshooting.md` against the
+source found every one defined — except `SPACE_NOT_FOUND`, which the first
+grep "missed" because it is not in `ErrorCodes.swift`: it is a wire-code case
+of the Space resolution enum (`Protocol.swift` `case notFound =
+"SPACE_NOT_FOUND"`), surfaced by the CLI at exit 66 and by the app's deep-link
+model. The code exists at the right layer (Space resolution, not transport
+errors); the doc is correct and the audit's first pass was too narrow. The
+troubleshooting note that a stale socket is not deleted on purpose (with the
+rebind behavior that §69 verified live) is present as well.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 186 | Every error code documented in troubleshooting is defined in source — the vocabulary is closed, and the one apparent gap resolved to a defined enum case at the Space-resolution layer | ✓ | §67b — the cross-check and its false alarm |
