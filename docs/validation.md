@@ -3056,3 +3056,30 @@ intact. A missing CLI, meanwhile, produces the diagnostic lookup-chain error
 |---|---|---|---|
 | 207 | The MCP server's tool calls traverse to the worker and back: status shows the true state, click is console-refused, exec returns output | ✓ | §84 — the stdio JSON-RPC drive |
 | 208 | A missing CLI binary yields the named lookup-chain error, never a silent fallback | ✓ | §84 — the AGENTSPACE_BIN-less probe |
+
+
+---
+
+## 85. Status permissions are live TCC truth (seeds cannot forge them), and unknown-space refusals name what exists
+
+Two follow-the-source clarifications from the previous round's probes:
+
+- **Permission fields are measured, not stored.** A registry seeded with
+  `screenRecording: false, accessibility: false` still reports true through
+  `agentspace status` — because the worker's status handler re-runs
+  `ScreenCapture.permissionGranted()` and `AccessibilityBridge.trusted()` on
+  every call (Operations.swift). A manifest cannot lie about permissions:
+  the machine's live TCC state is the only source, exactly §19's
+  "detect, never assume".
+- **Unknown-space refusals are self-describing.** Resolving a nonexistent
+  space yields SESSION_NOT_READY whose message names the reference *and*
+  lists the known Space names ("no AgentSpace named 'NoSuchSpace'. Known
+  Spaces: Mcp"), and the MCP layer's documented policy is to relay
+  code/message/fix verbatim — never collapse into "the command failed" — so
+  a model client can correct course from one error alone. Ambiguous names
+  additionally return BAD_REQUEST with the candidate UUIDs.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 209 | Worker status reports live TCC preflight results on every call; registry seeds cannot forge permission state | ✓ | §85 — the seeded-false probe and the Operations.swift source |
+| 210 | Unknown and ambiguous space references return self-describing envelopes (named reference, listed known Spaces, candidate UUIDs) relayed verbatim through MCP | ✓ | §85 — the resolve source and the envelope.ts policy |
