@@ -5815,3 +5815,30 @@ idea.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 366 | apps lists regular/accessory/LSUIElement classes with window-server evidence over stale caches; the visibility rule is Core-pinned and test-covered | ✓ | §204 — AppControl.swift:33–70, AppVisibility |
+
+
+---
+
+## 205. §18's AX surface: four verbs verbatim, elementAt folded in, tree
+bounded and honest about it
+
+ax.snapshot, ax.frontmost, ax.windows and ax.perform are
+registered in Core's protocol and documented method-for-method in
+protocol.md — the first phase's scope (frontmost, window list
+and titles, focused element, a basic tree) is covered by those
+four. The fifth plan name, ax.elementAt, does not exist as its
+own method: its use case is folded into ax.snapshot (pid +
+maxDepth tree, perform's own element lookup) — documented
+deviation, not a gap. The tree walk is bounded twice — maxDepth
+12, maxNodes 2000, a visited counter against cycles — and the
+response carries a "truncated" flag when the budget bites,
+because a browser AX tree can be tens of thousands of nodes.
+Honest limitation: no unit test drives the walker, since
+instantiating AXUIElement roots requires a real, permission-
+granted GUI session — the same externally blocked family as the
+isolation half; the implementation, bounds and flag are code-
+verified here.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 367 | §18's four ax verbs exist verbatim with the first-phase scope covered; elementAt folds into snapshot (documented); tree walk double-bounded with a truncated flag; AX tests need a live session (blocked family) | ✓ (elementAt deviation documented) | §205 — Protocol.swift, protocol.md:273–284, AccessibilityBridge.swift:18,149–177 |
