@@ -6106,3 +6106,25 @@ as a pure function so it can be fed anything secret-shaped.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 378 | Exported diagnostics enforce the plan's five removals via whitelist collection plus a tested pure redactor, with false-positive guards | ✓ | §216 — Diagnostics.swift:5–60, DiagnosticsTests.swift (7) |
+
+
+---
+
+## 217. §28's five setup steps as a live checklist
+
+SpaceDetailView's setup card renders the plan's five steps in
+order — open Fast User Switching, sign in as "AgentSpace –
+<name>" with the Space name interpolated, grant Accessibility
+(to agentspace-worker by name), grant Screen & System Audio
+Recording, switch back — and each step carries a live done
+flag driven by the same snapshot the plan says should flip the
+state to Ready: workerOnline ticks step 2, the two permission
+grants tick 3 and 4. The card appears only when the Space
+cannot accept input and is not console, "precisely then that
+the user needs to know what to do in the other session," and
+the Show Login Password and Open System Settings buttons sit
+where the flow needs them.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 379 | The wizard's five steps render as a live checklist with snapshot-driven ticks, shown exactly when the Space needs a manual sign-in | ✓ | §217 — SpaceDetailView.swift:300–318 |
