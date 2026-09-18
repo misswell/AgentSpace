@@ -3534,3 +3534,29 @@ defects found, recorded so the surfaces are on the ledger.
 |---|---|---|---|
 | 246 | All fifteen §31 commands exist on the CLI help surface | ✓ | §104 — the roster sweep (stderr captured) |
 | 247 | All 27 CLI verbs return parseable JSON under --json, including their error paths | ✓ | §104 — the 27-command sweep |
+
+
+---
+
+## 105. Token lifetime semantics: the session secret survives worker restarts by design
+
+- Verified with a live restart: the 64-hex token in the runtime
+  directory is unchanged across worker death and a fresh start, and
+  the old token still authenticates afterward (ok=true both before
+  and after).
+- **This is a documented property, not a bug**: the token file is the
+  shared contract between the worker and the main user's app/CLI, so
+  rotating on every start would break seamless reconnect after a
+  worker crash. §20 promises a 256-bit secret, not a rotation
+  schedule.
+- Security consequence, stated plainly: a token, once leaked to
+  another local process, stays valid for the life of the Space — the
+  only rotation point today is Space deletion (which removes the
+  runtime directory). A `--rotate-token` flag that re-mints on start
+  and requires the main user's app to re-read the file is the natural
+  hardening if a threat model ever demands it; recorded here so the
+  property is a decision, not an accident.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 248 | The session token persists across worker restarts and the pre-restart token still authenticates afterward | ✓ | §105 — the restart probe |
