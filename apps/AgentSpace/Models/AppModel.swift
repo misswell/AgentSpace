@@ -122,8 +122,8 @@ final class AppModel: ObservableObject {
                 // user to a Create button that then fails.
                 self.lastError = PresentedError(
                     code: "HELPER_UNAVAILABLE",
-                    message: "The helper was registered with launchd but is not answering yet.",
-                    fix: self.helperState.fix ?? "Try again in a moment, or look for com.agentspace.app in Console.")
+                    message: NSLocalizedString("The helper was registered with launchd but is not answering yet.", comment: ""),
+                    fix: self.helperState.fix ?? NSLocalizedString("Try again in a moment, or look for com.agentspace.app in Console.", comment: ""))
             }
         }
     }
@@ -143,7 +143,7 @@ final class AppModel: ObservableObject {
             if let error {
                 self.lastError = PresentedError(
                     code: "HELPER_REJECTED",
-                    message: "Could not remove the helper: \(error.localizedDescription)")
+                    message: String(format: NSLocalizedString("Could not remove the helper: %@", comment: ""), error.localizedDescription))
             }
         }
     }
@@ -162,7 +162,7 @@ final class AppModel: ObservableObject {
         // app never happens; falling back to the computed default keeps create
         // working rather than silently doing nothing.
         let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
-        provisioning = Provisioning(operation: "Creating \(name)")
+        provisioning = Provisioning(operation: String(format: NSLocalizedString("Creating %@", comment: ""), name))
         let directory = Self.worktreesDirectory
 
         Task {
@@ -214,7 +214,7 @@ final class AppModel: ObservableObject {
 
     func deleteSpace(_ space: AgentSpace, removeHome: Bool) {
         guard provisioning == nil else { return }
-        provisioning = Provisioning(operation: "Deleting \(space.name)")
+        provisioning = Provisioning(operation: String(format: NSLocalizedString("Deleting %@", comment: ""), space.name))
 
         let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
         let directory = Self.worktreesDirectory
@@ -290,14 +290,14 @@ final class AppModel: ObservableObject {
             } else {
                 lastError = PresentedError(
                     code: "NO_STORED_PASSWORD",
-                    message: "There is no stored password for \(space.name).",
-                    fix: "This Space was created before the password was stored, or its Keychain item was removed. Re-creating the Space generates a new one; the current password cannot be recovered.")
+                    message: String(format: NSLocalizedString("There is no stored password for %@", comment: ""), space.name),
+                    fix: NSLocalizedString("This Space was created before the password was stored, or its Keychain item was removed. Re-creating the Space generates a new one; the current password cannot be recovered.", comment: ""))
             }
         } catch {
             lastError = PresentedError(
                 code: "KEYCHAIN_DENIED",
                 message: "\(error)",
-                fix: "Unlock your login keychain (Keychain Access) and try again.")
+                fix: NSLocalizedString("Unlock your login keychain (Keychain Access) and try again.", comment: ""))
         }
     }
 
@@ -337,14 +337,14 @@ final class AppModel: ObservableObject {
         guard let id = AppDeepLink.spaceID(in: url) else {
             lastError = PresentedError(
                 code: "BAD_REQUEST",
-                message: "not an AgentSpace deep link: \(url.absoluteString)")
+                message: String(format: NSLocalizedString("not an AgentSpace deep link: %@", comment: ""), url.absoluteString))
             return
         }
         reload()
         guard snapshots.contains(where: { $0.space.id == id }) else {
             lastError = PresentedError(
                 code: "SPACE_NOT_FOUND",
-                message: "the link points at a Space that no longer exists (\(id.uuidString)). It was probably deleted after the link was made.")
+                message: String(format: NSLocalizedString("the link points at a Space that no longer exists (%@). It was probably deleted after the link was made.", comment: ""), id.uuidString))
             return
         }
         selection = id
@@ -435,7 +435,7 @@ final class AppModel: ObservableObject {
         } else {
             present(AgentSpaceError(
                 code: .workerOffline,
-                message: "there is no runtime directory for '\(snapshot.space.name)' yet, so the worker has never started"),
+                message: String(format: NSLocalizedString("there is no runtime directory for '%@' yet, so the worker has never started", comment: ""), snapshot.space.name)),
                 space: snapshot.space)
         }
     }
@@ -471,14 +471,14 @@ final class AppModel: ObservableObject {
                 try existing.write(to: URL(fileURLWithPath: path + ".agentspace.bak"))
             }
             try merged.write(to: URL(fileURLWithPath: path))
-            var message = "Configured \(target.displayName): \(path). Restart \(target.displayName) to pick it up."
-            if existing != nil { message += " Previous contents are at \(path).agentspace.bak." }
+            var message = String(format: NSLocalizedString("Configured %1$@: %2$@. Restart %3$@ to pick it up.", comment: ""), target.displayName, path, target.displayName)
+            if existing != nil { message += String(format: NSLocalizedString(" Previous contents are at %@.agentspace.bak.", comment: ""), path) }
             copiedMessage = message
         } catch {
             lastError = PresentedError(
                 code: "INTEGRATION_FAILED",
-                message: "could not configure \(target.displayName): \(error)",
-                fix: "Edit \(path) by hand, or use `agentspace integrate \(target.rawValue) --install` which reports the same refusal with more detail.")
+                message: String(format: NSLocalizedString("could not configure %1$@: %2$@", comment: ""), target.displayName, "\(error)"),
+                fix: String(format: NSLocalizedString("Edit %1$@ by hand, or use `agentspace integrate %2$@ --install` which reports the same refusal with more detail.", comment: ""), path, target.rawValue))
         }
     }
 
@@ -491,7 +491,7 @@ final class AppModel: ObservableObject {
     func copyAgentRules() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(Integrations.agentRulesSection(), forType: .string)
-        copiedMessage = "Agent safety rules copied. Paste them into AGENTS.md or CLAUDE.md."
+        copiedMessage = NSLocalizedString("Agent safety rules copied. Paste them into AGENTS.md or CLAUDE.md.", comment: "")
     }
 
     func copyMCPConfiguration() {
@@ -503,6 +503,6 @@ final class AppModel: ObservableObject {
         let snippet = Integrations.config(for: .generic, binaryPath: binary)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(snippet, forType: .string)
-        copiedMessage = "MCP configuration copied. Paste it into your client's mcpServers object."
+        copiedMessage = NSLocalizedString("MCP configuration copied. Paste it into your client's mcpServers object.", comment: "")
     }
 }

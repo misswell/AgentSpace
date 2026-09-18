@@ -83,12 +83,12 @@ struct DoctorView: View {
     }
 
     private func summary(_ report: Doctor.Report) -> String {
-        if report.ok && report.warned == 0 { return NSLocalizedString("All checks passed.") }
+        if report.ok && report.warned == 0 { return NSLocalizedString("All checks passed.", comment: "") }
         if report.ok {
-            return String(format: NSLocalizedString("%ld checks, %ld warning(s). AgentSpace can run."),
+            return String(format: NSLocalizedString("%ld checks, %ld warning(s). AgentSpace can run.", comment: ""),
                           report.checks.count, report.warned)
         }
-        return String(format: NSLocalizedString("%ld checks, %ld failure(s), %ld warning(s)."),
+        return String(format: NSLocalizedString("%ld checks, %ld failure(s), %ld warning(s).", comment: ""),
                       report.checks.count, report.failed, report.warned)
     }
 }
@@ -199,14 +199,14 @@ struct NewSpaceView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Card(title: NSLocalizedString("Name")) {
+                    Card(title: NSLocalizedString("Name", comment: "")) {
                         TextField("Frontend Test", text: $name)
                             .textFieldStyle(.roundedBorder)
                         Text("A macOS user named _agentspace_<random> is created for this Space. The display name is only a label.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
 
-                    Card(title: NSLocalizedString("Workspace")) {
+                    Card(title: NSLocalizedString("Workspace", comment: "")) {
                         Picker("", selection: $workspaceKind) {
                             Text("None").tag(0)
                             Text("Git Worktree").tag(1)
@@ -223,9 +223,9 @@ struct NewSpaceView: View {
                             Text("The agent works in its own worktree on its own branch, so it never edits the tree you have open.")
                                 .font(.caption).foregroundStyle(.secondary)
                             if case .gitWorktree(let repo, let branch, _) = workspace {
-                                Field(label: NSLocalizedString("Repository"), value: repo, monospaced: true)
-                                Field(label: NSLocalizedString("Branch"), value: branch, monospaced: true)
-                                Field(label: NSLocalizedString("Worktree"), value: AppModel.worktreesDirectory + "/<space-id>/…", monospaced: true)
+                                Field(label: NSLocalizedString("Repository", comment: ""), value: repo, monospaced: true)
+                                Field(label: NSLocalizedString("Branch", comment: ""), value: branch, monospaced: true)
+                                Field(label: NSLocalizedString("Worktree", comment: ""), value: AppModel.worktreesDirectory + "/<space-id>/…", monospaced: true)
                             }
                         } else if workspaceKind == 2 {
                             TextField("~/Documents/TestData", text: $repositoryPath)
@@ -247,7 +247,7 @@ struct NewSpaceView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button(NSLocalizedString("Create")) {
+                Button(NSLocalizedString("Create", comment: "")) {
                     model.createSpace(
                         name: name.trimmingCharacters(in: .whitespaces),
                         workspace: workspace,
@@ -258,8 +258,8 @@ struct NewSpaceView: View {
                               || name.trimmingCharacters(in: .whitespaces).isEmpty
                               || model.provisioning != nil)
                     .help(Text(model.helperState.isReachable
-                          ? NSLocalizedString("Create the Space's macOS user, runtime and worker.")
-                          : NSLocalizedString("The privileged helper must be installed and answering first.")))
+                          ? NSLocalizedString("Create the Space's macOS user, runtime and worker.", comment: "")
+                          : NSLocalizedString("The privileged helper must be installed and answering first.", comment: "")))
             }
             .padding(14)
         }
@@ -276,7 +276,7 @@ struct HelperCard: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        Card(title: NSLocalizedString("Privileged helper")) {
+        Card(title: NSLocalizedString("Privileged helper", comment: "")) {
             HStack(spacing: 8) {
                 StatusDot(state: model.helperState.isReachable ? .ready : .needsPermission)
                 Text(model.helperState.summary)
@@ -285,7 +285,7 @@ struct HelperCard: View {
             }
 
             if let version = model.helperState.helperVersionIfKnown {
-                Field(label: NSLocalizedString("Version"), value: version)
+                Field(label: NSLocalizedString("Version", comment: ""), value: version)
             }
 
             if model.helperState.isReachable {
@@ -294,19 +294,19 @@ struct HelperCard: View {
                     .foregroundStyle(.secondary)
             } else {
                 RefusalBanner(
-                    title: NSLocalizedString("Creating a Space needs the privileged helper"),
+                    title: NSLocalizedString("Creating a Space needs the privileged helper", comment: ""),
                     code: "HELPER_UNAVAILABLE",
                     message: "A Space is a real macOS user, so creating one is an administrator operation. AgentSpace does it through a root helper that exposes a closed list of typed operations — it never runs a shell, and it will only ever create or delete accounts named _agentspace_<6 hex>.",
-                    fix: model.helperState.fix ?? NSLocalizedString("Open the AgentSpace app and choose Install Helper.")
+                    fix: model.helperState.fix ?? NSLocalizedString("Open the AgentSpace app and choose Install Helper.", comment: "")
 
                 HStack {
                     Button {
                         model.installHelper()
                     } label: {
                         if model.isInstallingHelper {
-                            HStack(spacing: 6) { ProgressView().controlSize(.small); Text(NSLocalizedString("Installing…")) }
+                            HStack(spacing: 6) { ProgressView().controlSize(.small); Text(NSLocalizedString("Installing…", comment: "")) }
                         } else {
-                            Text(NSLocalizedString("Install Helper…"))
+                            Text(NSLocalizedString("Install Helper…", comment: ""))
                         }
                     }
                     .disabled(model.isInstallingHelper)
@@ -390,10 +390,10 @@ struct LoginInstructions: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Next, once — this is the only step that needs you")
                 .font(.callout.weight(.semibold))
-            instruction(1, NSLocalizedString("Open Fast User Switching (Control Centre) and sign in as the new Space."))
-            instruction(2, NSLocalizedString("Its password is in the Space's page: Show Login Password."))
-            instruction(3, NSLocalizedString("In that session, grant Accessibility and Screen Recording when the setup window asks."))
-            instruction(4, NSLocalizedString("Switch back to your own account. The agent keeps its desktop."))
+            instruction(1, NSLocalizedString("Open Fast User Switching (Control Centre) and sign in as the new Space.", comment: ""))
+            instruction(2, NSLocalizedString("Its password is in the Space's page: Show Login Password.", comment: ""))
+            instruction(3, NSLocalizedString("In that session, grant Accessibility and Screen Recording when the setup window asks.", comment: ""))
+            instruction(4, NSLocalizedString("Switch back to your own account. The agent keeps its desktop.", comment: ""))
             Text("The Space shows Needs Login until step 4 is done. AgentSpace will not start an agent in your account instead — if the background session is not there, every call fails with SESSION_NOT_READY.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -420,7 +420,7 @@ struct LoginPasswordView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(String(format: NSLocalizedString("Login password for %@"), revealed.spaceName)).font(.headline)
+            Text(String(format: NSLocalizedString("Login password for %@", comment: ""), revealed.spaceName)).font(.headline)
 
             Text(revealed.password)
                 .font(.system(.title3, design: .monospaced))
@@ -434,7 +434,7 @@ struct LoginPasswordView: View {
                 .foregroundStyle(.secondary)
 
             HStack {
-                Button(copied ? NSLocalizedString("Copied") : NSLocalizedString("Copy")) {
+                Button(copied ? NSLocalizedString("Copied", comment: "") : NSLocalizedString("Copy", comment: "")) {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(revealed.password, forType: .string)
                     copied = true

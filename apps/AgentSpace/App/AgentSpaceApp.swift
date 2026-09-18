@@ -86,7 +86,7 @@ struct SettingsView: View {
             Form {
                 Section {
                     Slider(value: $statusRefreshSeconds, in: 2...10, step: 1) {
-                        Text(String(format: NSLocalizedString("Status refresh: %lds"), Int(statusRefreshSeconds)))
+                        Text(String(format: NSLocalizedString("Status refresh: %lds", comment: ""), Int(statusRefreshSeconds)))
                     }
                     Text("Plan §53 sets a 2–5 s floor. Polling faster costs more than the app manages, so it is not offered.")
                         .font(.caption).foregroundStyle(.secondary)

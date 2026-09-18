@@ -15,6 +15,10 @@ final class HelperLog {
         logger.info("\(Redaction.scrubString(message), privacy: .public)")
     }
 
+    func warning(_ message: String) {
+        logger.warning("\(Redaction.scrubString(message), privacy: .public)")
+    }
+
     func error(_ message: String) {
         logger.error("\(Redaction.scrubString(message), privacy: .public)")
     }

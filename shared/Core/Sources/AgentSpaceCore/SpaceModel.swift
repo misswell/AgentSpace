@@ -45,14 +45,14 @@ public enum SpaceState: String, Codable, Sendable, CaseIterable {
     /// English text — unchanged.
     public var displayName: String {
         switch self {
-        case .created: return NSLocalizedString("Created")
-        case .needsLogin: return NSLocalizedString("Needs Login")
-        case .needsPermission: return NSLocalizedString("Needs Permission")
-        case .ready: return NSLocalizedString("Ready")
-        case .running: return NSLocalizedString("Running")
-        case .offline: return NSLocalizedString("Offline")
-        case .console: return NSLocalizedString("On Console")
-        case .error: return NSLocalizedString("Error")
+        case .created: return NSLocalizedString("Created", comment: "")
+        case .needsLogin: return NSLocalizedString("Needs Login", comment: "")
+        case .needsPermission: return NSLocalizedString("Needs Permission", comment: "")
+        case .ready: return NSLocalizedString("Ready", comment: "")
+        case .running: return NSLocalizedString("Running", comment: "")
+        case .offline: return NSLocalizedString("Offline", comment: "")
+        case .console: return NSLocalizedString("On Console", comment: "")
+        case .error: return NSLocalizedString("Error", comment: "")
         }
     }
 
@@ -106,8 +106,8 @@ public struct PermissionState: Codable, Equatable, Sendable {
     /// What is still missing, in the order the setup flow should ask for it.
     public var missing: [String] {
         var out: [String] = []
-        if !accessibility { out.append(NSLocalizedString("Accessibility")) }
-        if !screenRecording { out.append(NSLocalizedString("Screen Recording")) }
+        if !accessibility { out.append(NSLocalizedString("Accessibility", comment: "")) }
+        if !screenRecording { out.append(NSLocalizedString("Screen Recording", comment: "")) }
         return out
     }
 }
@@ -123,8 +123,8 @@ public struct SharedFolder: Codable, Equatable, Sendable, Identifiable {
 
         public var displayName: String {
             switch self {
-            case .readOnly: return NSLocalizedString("Read Only")
-            case .readWrite: return NSLocalizedString("Read & Write")
+            case .readOnly: return NSLocalizedString("Read Only", comment: "")
+            case .readWrite: return NSLocalizedString("Read & Write", comment: "")
             }
         }
     }
@@ -156,10 +156,10 @@ public enum Workspace: Codable, Equatable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .none: return NSLocalizedString("None")
+        case .none: return NSLocalizedString("None", comment: "")
         case .gitWorktree(let repo, let branch, _):
-            return String(format: NSLocalizedString("Git Worktree — %1$@ @ %2$@"), branch, repo)
-        case .sharedFolders: return NSLocalizedString("Shared Folder")
+            return String(format: NSLocalizedString("Git Worktree — %1$@ @ %2$@", comment: ""), branch, repo)
+        case .sharedFolders: return NSLocalizedString("Shared Folder", comment: "")
         }
     }
 
@@ -277,8 +277,8 @@ public struct ResourceUsage: Codable, Equatable, Sendable {
     }
 
     public var diskDisplay: String {
-        guard diskMeasured else { return NSLocalizedString("not measured") }
+        guard diskMeasured else { return NSLocalizedString("not measured", comment: "") }
         let text = ByteCountFormatter.string(fromByteCount: Int64(diskBytes), countStyle: .file)
-        return diskTruncated ? String(format: NSLocalizedString("at least %@"), text) : text
+        return diskTruncated ? String(format: NSLocalizedString("at least %@", comment: ""), text) : text
     }
 }

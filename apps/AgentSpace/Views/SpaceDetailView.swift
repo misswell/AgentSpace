@@ -176,41 +176,41 @@ struct SpaceDetailView: View {
 
     private func refusalTitle(for error: AgentSpaceError) -> String {
         switch error.code {
-        case .sessionIsConsole: return NSLocalizedString("This Space is on your physical display")
-        case .workerOffline: return NSLocalizedString("No worker is running")
-        case .accessibilityDenied: return NSLocalizedString("Accessibility permission is missing")
-        case .screenRecordingDenied: return NSLocalizedString("Screen Recording permission is missing")
-        case .noWindowServer: return NSLocalizedString("This Space has no desktop session")
-        default: return NSLocalizedString("Unavailable")
+        case .sessionIsConsole: return NSLocalizedString("This Space is on your physical display", comment: "")
+        case .workerOffline: return NSLocalizedString("No worker is running", comment: "")
+        case .accessibilityDenied: return NSLocalizedString("Accessibility permission is missing", comment: "")
+        case .screenRecordingDenied: return NSLocalizedString("Screen Recording permission is missing", comment: "")
+        case .noWindowServer: return NSLocalizedString("This Space has no desktop session", comment: "")
+        default: return NSLocalizedString("Unavailable", comment: "")
         }
     }
 
     // MARK: - Cards
 
     private func overviewCard(_ snapshot: SpaceSnapshot) -> some View {
-        Card(title: NSLocalizedString("Overview")) {
-            Field(label: NSLocalizedString("User"), value: "\(snapshot.space.username) (uid \(snapshot.space.uid))", monospaced: true)
-            Field(label: NSLocalizedString("Worker"),
+        Card(title: NSLocalizedString("Overview", comment: "")) {
+            Field(label: NSLocalizedString("User", comment: ""), value: "\(snapshot.space.username) (uid \(snapshot.space.uid))", monospaced: true)
+            Field(label: NSLocalizedString("Worker", comment: ""),
                   value: snapshot.workerOnline
-                    ? String(format: NSLocalizedString("running (pid %@)"), snapshot.workerPID.map(String.init) ?? "?")
-                    : NSLocalizedString("not running"),
+                    ? String(format: NSLocalizedString("running (pid %@)", comment: ""), snapshot.workerPID.map(String.init) ?? "?")
+                    : NSLocalizedString("not running", comment: ""),
                   tint: snapshot.workerOnline ? nil : .red)
-            Field(label: NSLocalizedString("Session"), value: snapshot.sessionVerdict ?? NSLocalizedString("unknown"), monospaced: true)
-            Field(label: NSLocalizedString("Accepts input"),
-                  value: snapshot.acceptsInput ? NSLocalizedString("yes") : NSLocalizedString("no"),
+            Field(label: NSLocalizedString("Session", comment: ""), value: snapshot.sessionVerdict ?? NSLocalizedString("unknown", comment: ""), monospaced: true)
+            Field(label: NSLocalizedString("Accepts input", comment: ""),
+                  value: snapshot.acceptsInput ? NSLocalizedString("yes", comment: "") : NSLocalizedString("no", comment: ""),
                   tint: snapshot.acceptsInput ? .green : .orange)
-            Field(label: NSLocalizedString("Workspace"), value: snapshot.space.workspace.displayName)
+            Field(label: NSLocalizedString("Workspace", comment: ""), value: snapshot.space.workspace.displayName)
             if snapshot.space.sharedFolders.isEmpty {
-                Field(label: NSLocalizedString("Shared folders"), value: NSLocalizedString("none"))
+                Field(label: NSLocalizedString("Shared folders", comment: ""), value: NSLocalizedString("none", comment: ""))
             } else {
                 ForEach(snapshot.space.sharedFolders) { folder in
-                    Field(label: NSLocalizedString("Shared"), value: "\(folder.path) — \(folder.access.displayName)", monospaced: true)
+                    Field(label: NSLocalizedString("Shared", comment: ""), value: "\(folder.path) — \(folder.access.displayName)", monospaced: true)
                 }
             }
             HStack(spacing: 8) {
                 Spacer().frame(width: 108)
-                PermissionChip(name: NSLocalizedString("Accessibility"), granted: snapshot.accessibility)
-                PermissionChip(name: NSLocalizedString("Screen Recording"), granted: snapshot.screenRecording)
+                PermissionChip(name: NSLocalizedString("Accessibility", comment: ""), granted: snapshot.accessibility)
+                PermissionChip(name: NSLocalizedString("Screen Recording", comment: ""), granted: snapshot.screenRecording)
                 Spacer(minLength: 0)
             }
             .padding(.top, 2)
@@ -218,21 +218,21 @@ struct SpaceDetailView: View {
     }
 
     private func displayCard(_ display: DisplayGeometry) -> some View {
-        Card(title: NSLocalizedString("Display")) {
-            Field(label: NSLocalizedString("Points"), value: "\(display.width) × \(display.height)", monospaced: true)
-            Field(label: NSLocalizedString("Pixels"), value: "\(display.pixelWidth) × \(display.pixelHeight)", monospaced: true)
-            Field(label: NSLocalizedString("Scale"), value: "\(display.scale)×", monospaced: true)
-            Text(String(format: NSLocalizedString("Input coordinates are points. A pixel read off a screenshot must be divided by %@ first."), "\(display.scale)"))
+        Card(title: NSLocalizedString("Display", comment: "")) {
+            Field(label: NSLocalizedString("Points", comment: ""), value: "\(display.width) × \(display.height)", monospaced: true)
+            Field(label: NSLocalizedString("Pixels", comment: ""), value: "\(display.pixelWidth) × \(display.pixelHeight)", monospaced: true)
+            Field(label: NSLocalizedString("Scale", comment: ""), value: "\(display.scale)×", monospaced: true)
+            Text(String(format: NSLocalizedString("Input coordinates are points. A pixel read off a screenshot must be divided by %@ first.", comment: ""), "\(display.scale)"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
 
     private func resourcesCard(_ resources: ResourceUsage, onMeasureDisk: @escaping () -> Void) -> some View {
-        Card(title: NSLocalizedString("Resources")) {
-            Field(label: NSLocalizedString("CPU"), value: String(format: "%.1f%%", resources.cpuPercent), monospaced: true)
-            Field(label: NSLocalizedString("Memory"), value: resources.memoryDisplay, monospaced: true)
-            Field(label: NSLocalizedString("Processes"), value: "\(resources.processCount)", monospaced: true)
+        Card(title: NSLocalizedString("Resources", comment: "")) {
+            Field(label: NSLocalizedString("CPU", comment: ""), value: String(format: "%.1f%%", resources.cpuPercent), monospaced: true)
+            Field(label: NSLocalizedString("Memory", comment: ""), value: resources.memoryDisplay, monospaced: true)
+            Field(label: NSLocalizedString("Processes", comment: ""), value: "\(resources.processCount)", monospaced: true)
 
             // Disk is a separate, explicitly-requested measurement, because it
             // walks the Space's whole home — tens of thousands of files for a
@@ -241,21 +241,21 @@ struct SpaceDetailView: View {
             // forbids. So it is a button, and it says what it costs.
             HStack(spacing: 8) {
                 if resources.diskMeasured {
-                    Field(label: NSLocalizedString("Home"), value: resources.diskDisplay, monospaced: true)
+                    Field(label: NSLocalizedString("Home", comment: ""), value: resources.diskDisplay, monospaced: true)
                     if resources.diskTruncated {
-                        Text(NSLocalizedString("(partial)"))
+                        Text(NSLocalizedString("(partial)", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.orange)
                             .help(Text("The walk hit its file budget. This is a lower bound, not an exact figure."))
                     }
                 } else {
-                    Button(NSLocalizedString("Measure Disk Usage")) { onMeasureDisk() }
+                    Button(NSLocalizedString("Measure Disk Usage", comment: "")) { onMeasureDisk() }
                         .controlSize(.small)
                         .help(Text("Walks every file in the Space's home. Takes a moment; not measured continuously."))
                 }
             }
 
-            Text(NSLocalizedString("Measured from this Space's own processes, aggregated by uid. A Space is not a VM, so there is no allocation to show."))
+            Text(NSLocalizedString("Measured from this Space's own processes, aggregated by uid. A Space is not a VM, so there is no allocation to show.", comment: ""))
             Text("CPU is the sum across those processes, so it can exceed 100% on a multi-core Mac. If the worker is running as your own account rather than a dedicated Space user, these numbers describe your whole login session — which is what the uid aggregation is honestly reporting, not a leak from somewhere else.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -265,14 +265,14 @@ struct SpaceDetailView: View {
     }
 
     private var appsCard: some View {
-        Card(title: NSLocalizedString("Applications")) {
+        Card(title: NSLocalizedString("Applications", comment: "")) {
             if let appsError {
-                RefusalBanner(title: NSLocalizedString("Could not list applications"),
+                RefusalBanner(title: NSLocalizedString("Could not list applications", comment: ""),
                               code: appsError.code,
                               message: appsError.message,
                               fix: appsError.fix)
             } else if apps.isEmpty {
-                Text(NSLocalizedString("Nothing is running in this Space."))
+                Text(NSLocalizedString("Nothing is running in this Space.", comment: ""))
                     .font(.callout).foregroundStyle(.secondary)
             } else {
                 ForEach(apps) { app in
@@ -281,7 +281,7 @@ struct SpaceDetailView: View {
                             .foregroundStyle(app.active ? Color.accentColor : Color.secondary)
                         Text(app.name).font(.callout)
                         if app.isAccessory {
-                            Text(NSLocalizedString("accessory"))
+                            Text(NSLocalizedString("accessory", comment: ""))
                                 .font(.caption2)
                                 .padding(.horizontal, 5).padding(.vertical, 1)
                                 .background(Capsule().fill(Color.secondary.opacity(0.15)))
@@ -290,7 +290,7 @@ struct SpaceDetailView: View {
                         Text("\(app.pid)").font(.caption.monospaced()).foregroundStyle(.secondary)
                     }
                 }
-                Text(NSLocalizedString("Menu-bar and accessory apps are listed too — omitting them makes every launch of one look like a failure."))
+                Text(NSLocalizedString("Menu-bar and accessory apps are listed too — omitting them makes every launch of one look like a failure.", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -302,32 +302,32 @@ struct SpaceDetailView: View {
     @ViewBuilder
     private func setupCard(_ snapshot: SpaceSnapshot) -> some View {
         if !snapshot.acceptsInput && snapshot.effectiveState != .console {
-            Card(title: NSLocalizedString("Setup")) {
-                Text(NSLocalizedString("An Agent Space needs one manual sign-in before it can run in the background."))
+            Card(title: NSLocalizedString("Setup", comment: "")) {
+                Text(NSLocalizedString("An Agent Space needs one manual sign-in before it can run in the background.", comment: ""))
                     .font(.callout)
                 VStack(alignment: .leading, spacing: 6) {
-                    step(1, NSLocalizedString("Open Fast User Switching from the menu bar"), done: true)
-                    step(2, String(format: NSLocalizedString("Sign in as “AgentSpace – %@”"), snapshot.space.name), done: snapshot.workerOnline)
-                    step(3, NSLocalizedString("Grant Accessibility to agentspace-worker in System Settings"), done: snapshot.accessibility)
-                    step(4, NSLocalizedString("Grant Screen & System Audio Recording"), done: snapshot.screenRecording)
-                    step(5, NSLocalizedString("Switch back to your own account"), done: false)
+                    step(1, NSLocalizedString("Open Fast User Switching from the menu bar", comment: ""), done: true)
+                    step(2, String(format: NSLocalizedString("Sign in as “AgentSpace – %@”", comment: ""), snapshot.space.name), done: snapshot.workerOnline)
+                    step(3, NSLocalizedString("Grant Accessibility to agentspace-worker in System Settings", comment: ""), done: snapshot.accessibility)
+                    step(4, NSLocalizedString("Grant Screen & System Audio Recording", comment: ""), done: snapshot.screenRecording)
+                    step(5, NSLocalizedString("Switch back to your own account", comment: ""), done: false)
                 }
                 .padding(.top, 2)
                 HStack {
-                    Button(NSLocalizedString("Show Login Password")) {
+                    Button(NSLocalizedString("Show Login Password", comment: "")) {
                         model.present(AgentSpaceError(
                             code: .internalError,
                             message: "the login password is stored in the Keychain when the Space is created; the Spaces list is managed by the privileged helper, which is phase 3"),
                             space: snapshot.space)
                     }
-                    Button(NSLocalizedString("Open System Settings")) {
+                    Button(NSLocalizedString("Open System Settings", comment: "")) {
                         NSWorkspace.shared.open(URL(
                             string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                     }
-                    Button(NSLocalizedString("Refresh")) { model.reload() }
+                    Button(NSLocalizedString("Refresh", comment: "")) { model.reload() }
                 }
                 .controlSize(.small)
-                Text(NSLocalizedString("AgentSpace never writes the TCC database. These grants are given by you, in that session, on purpose."))
+                Text(NSLocalizedString("AgentSpace never writes the TCC database. These grants are given by you, in that session, on purpose.", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -343,10 +343,10 @@ struct SpaceDetailView: View {
 
     private func dangerCard(_ snapshot: SpaceSnapshot) -> some View {
         let space = snapshot.space
-        return Card(title: NSLocalizedString("Maintenance")) {
+        return Card(title: NSLocalizedString("Maintenance", comment: "")) {
             HStack(spacing: 8) {
-                Button(NSLocalizedString("Reveal Runtime Folder")) { model.revealRuntimeDirectory() }
-                Menu(NSLocalizedString("Install MCP Into…")) {
+                Button(NSLocalizedString("Reveal Runtime Folder", comment: "")) { model.revealRuntimeDirectory() }
+                Menu(NSLocalizedString("Install MCP Into…", comment: "")) {
                     ForEach([Integrations.Target.claudeCode, .codex, .openCode], id: \.self) { target in
                         Button(target.displayName) {
                             integrationTarget = target
@@ -354,12 +354,12 @@ struct SpaceDetailView: View {
                         }
                     }
                 }
-                Button(NSLocalizedString("Copy MCP Configuration")) { model.copyMCPConfiguration() }
-                Button(NSLocalizedString("Copy Agent Rules")) {
+                Button(NSLocalizedString("Copy MCP Configuration", comment: "")) { model.copyMCPConfiguration() }
+                Button(NSLocalizedString("Copy Agent Rules", comment: "")) {
                     model.copyAgentRules()
                 }
                 .help(Text("The §35 safety rules, for AGENTS.md or CLAUDE.md. Copying only — your instructions file is written by you."))
-                Button(NSLocalizedString("Run Doctor")) { model.showingDoctor = true }
+                Button(NSLocalizedString("Run Doctor", comment: "")) { model.showingDoctor = true }
             }
             .controlSize(.small)
 
@@ -375,51 +375,51 @@ struct SpaceDetailView: View {
 
 
             HStack(spacing: 8) {
-                Button(NSLocalizedString("Show Login Password")) { model.revealPassword(for: space) }
+                Button(NSLocalizedString("Show Login Password", comment: "")) { model.revealPassword(for: space) }
                     .help(Text("Needed once, to sign in to this Space's macOS account for the first time."))
-                Button(NSLocalizedString("Delete Space…"), role: .destructive) { showingDelete = true }
+                Button(NSLocalizedString("Delete Space…", comment: ""), role: .destructive) { showingDelete = true }
                     .disabled(model.provisioning != nil)
             }
             .controlSize(.small)
 
-            Text(NSLocalizedString("Deleting removes this Space's macOS account, its runtime directory and its worker. A git worktree is removed but its branch is kept, and your own repository is never touched."))
+            Text(NSLocalizedString("Deleting removes this Space's macOS account, its runtime directory and its worker. A git worktree is removed but its branch is kept, and your own repository is never touched.", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
         }
         .confirmationDialog(
-            String(format: NSLocalizedString("Delete %@?"), space.name),
+            String(format: NSLocalizedString("Delete %@?", comment: ""), space.name),
             isPresented: $showingDelete,
             titleVisibility: .visible
         ) {
             // The home directory is a separate question because it is the one
             // irreversible step, and it holds the agent's own files — which the
             // user may want to look at after the Space is gone.
-            Button(NSLocalizedString("Delete Space, keep its home directory")) {
+            Button(NSLocalizedString("Delete Space, keep its home directory", comment: "")) {
                 model.deleteSpace(space, removeHome: false)
             }
-            Button(NSLocalizedString("Delete Space and its home directory"), role: .destructive) {
+            Button(NSLocalizedString("Delete Space and its home directory", comment: ""), role: .destructive) {
                 model.deleteSpace(space, removeHome: true)
             }
-            Button(NSLocalizedString("Cancel"), role: .cancel) { }
+            Button(NSLocalizedString("Cancel", comment: ""), role: .cancel) { }
         } message: {
-            Text(String(format: NSLocalizedString("The account %@ will be removed, and it will no longer be able to run anything. Your files are not affected."), space.username))
+            Text(String(format: NSLocalizedString("The account %@ will be removed, and it will no longer be able to run anything. Your files are not affected.", comment: ""), space.username))
         }
         // A second dialog on the same view: SwiftUI allows several, each gated by
         // its own `isPresented`.
         .confirmationDialog(
-            String(format: NSLocalizedString("Configure %@?"), integrationTarget?.displayName ?? NSLocalizedString("this client")),
+            String(format: NSLocalizedString("Configure %@?", comment: ""), integrationTarget?.displayName ?? NSLocalizedString("this client", comment: "")),
             isPresented: $showingIntegrationConfirm,
             titleVisibility: .visible
         ) {
-            Button(String(format: NSLocalizedString("Configure %@"), integrationTarget?.displayName ?? "")) {
+            Button(String(format: NSLocalizedString("Configure %@", comment: ""), integrationTarget?.displayName ?? "")) {
                 if let target = integrationTarget { model.installIntegration(target) }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             // §35: writing into a config file another tool owns is done only with
             // the user's explicit yes, and says exactly what will change.
-            Text(String(format: NSLocalizedString("AgentSpace will add itself as an MCP server in %@. Nothing else in the file changes, and the previous contents are saved next to it."), integrationTarget?.configPath ?? ""))
+            Text(String(format: NSLocalizedString("AgentSpace will add itself as an MCP server in %@. Nothing else in the file changes, and the previous contents are saved next to it.", comment: ""), integrationTarget?.configPath ?? ""))
         }
     }
 

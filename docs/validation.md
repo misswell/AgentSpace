@@ -2399,3 +2399,23 @@ script's own explicit `|| exit 1` guards are the durable fix.)
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 164 | `await_notarization` in scripts/notarize.sh polls by submission id after any `--wait` interruption, and only staple on Accepted | ✓ | §56 — the reworked script |
+| 165 | The DMG contains byte-identical app bits to the stapled dist app — same CDHash — and the app inside the DMG carries a valid staple of its own | ✓ | §57 — the mounted-DMG CDHash comparison |
+
+
+---
+
+## 57. The DMG ships exactly the stapled bits, provable by CDHash
+
+A notarized DMG whose inner app differs from the stapled app is the classic
+distribution bug: the ticket doesn't transfer, and users see Gatekeeper
+refuse bytes that "passed" on the build machine. §56's script already
+rebuilds the DMG *from the stapled app* — this check proves it.
+
+Mounting `dist/AgentSpace-0.1.0.dmg` and comparing: the inner app's CDHash
+(`44a4f757…`) is identical to `dist/AgentSpace.app`'s, and the inner app
+carries a valid staple of its own (`stapler validate` accepts it inside the
+mounted volume — which is exactly what a user's first launch will do).
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 166 | The DMG's inner app is stapled independently of the DMG staple, so Gatekeeper accepts a direct app drag-out as well as the mounted install | ✓ | §57 — the mounted-volume validation |
