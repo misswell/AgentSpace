@@ -25,6 +25,15 @@ VERSION="$(sed -n 's/.*cliVersion = "\(.*\)".*/\1/p' native/AgentSpaceCLI/Source
 [[ -n "$VERSION" ]] || { echo "could not read the CLI version" >&2; exit 1; }
 
 echo "== 1. release build =="
+# Guard against silently discarding notarization work: if the dist artifacts on
+# disk are stapled, a plain rebuild replaces them with unsigned-for-notary
+# output and the next download fails Gatekeeper. Say so, loudly.
+for prev in dist/AgentSpace.app dist/AgentSpace-*.dmg; do
+  if [[ -e "$prev" ]] && stapler validate "$prev" > /dev/null 2>&1; then
+    echo "  note: $prev is notarized and stapled; this rebuild replaces it —"
+    echo "        run scripts/notarize.sh again afterwards."
+  fi
+done
 ./scripts/bundle-app.sh release dist
 APP="dist/AgentSpace.app"
 DMG="dist/AgentSpace-$VERSION.dmg"

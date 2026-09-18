@@ -31,6 +31,30 @@ echo
 echo "== readiness =="
 .build/debug/agentspace doctor 2>&1 | sed -n '1,40p' | sed 's/^/   /'
 
+# Distribution readiness (§57): if a built app exists, check what a downloading
+# user will actually experience. Not built yet → skip; built but not stapled →
+# say so honestly rather than implying the DMG is distributable.
+if [[ -d dist/AgentSpace.app ]]; then
+  echo
+  echo "== distribution (dist/) =="
+  if stapler validate dist/AgentSpace.app > /dev/null 2>&1; then
+    echo "   ok  app notarized and stapled"
+    if ls dist/AgentSpace-*.dmg > /dev/null 2>&1; then
+      dmg="$(ls dist/AgentSpace-*.dmg | head -1)"
+      if stapler validate "$dmg" > /dev/null 2>&1; then
+        echo "   ok  $dmg notarized and stapled"
+      else
+        echo "   WARN  $dmg is not stapled — run scripts/notarize.sh before distributing" >&2
+      fi
+    fi
+    spctl --assess --type execute dist/AgentSpace.app > /dev/null 2>&1 \
+      && echo "   ok  Gatekeeper accepts the app" \
+      || echo "   WARN  Gatekeeper refuses the app" >&2
+  else
+    echo "   note  dist/AgentSpace.app is not stapled (development build)"
+  fi
+fi
+
 echo
 echo "== acceptance =="
 .build/debug/agentspace-session-test "$@"
