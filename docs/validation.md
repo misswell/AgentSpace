@@ -5185,3 +5185,26 @@ never reach the log file in the first place.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 340 | One subsystem constant serves all processes with all eight §37 categories in actual use; diagnostics stay behind the single redaction exit | ✓ | §178 — BundleIdentifiers.logSubsystem, per-target Log files, Diagnostics |
+
+
+---
+
+## 179. §24's worktree layout: the plan's ~ path is a deliberate deviation
+with a stronger key
+
+The plan sketches ~/.agentspace/worktrees/<space-id>/<repo>; the
+implementation puts worktrees under /Users/Shared/.AgentSpace/
+Worktrees/<space-uuid>/<repo>. The deviation is necessary, not
+accidental: the worker runs as the Agent user, whose permissions
+cannot traverse the main user's home, while the shared root is
+exactly where §20's ACL (main user, agent user, root) already
+lives. The uniqueness key is the Space's UUID rather than its
+name — the doc records why: on a case-insensitive filesystem two
+Spaces named Test and test are one directory, and two agents in
+one working tree is the bug the worktree exists to prevent.
+WorkspacePreparer additionally refuses any worktree path outside
+the workspace directory.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 341 | Worktrees live under the shared root with per-Space UUID keys and an escape check; the ~ path from the plan is recorded as a deliberate deviation forced by cross-user permissions | ✓ (deviation documented) | §179 — worktreesDirectory, SpaceProvisioner.worktreePath, WorkspacePreparer |
