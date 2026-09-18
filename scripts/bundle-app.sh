@@ -20,9 +20,14 @@ APP="$OUT_DIR/AgentSpace.app"
 BIN_DIR=".build/$CONFIGURATION"
 
 echo "== building ($CONFIGURATION) =="
-swift build -c "$CONFIGURATION" \
-  --product AgentSpaceApp --product agentspace --product agentspace-worker \
-  --product agentspace-helper
+# No --product flags on purpose: this SwiftPM treats repeated --product flags as
+# last-one-wins, so listing four products here built ONLY agentspace-helper and
+# still exited 0 — caught the first time the release build ran from a clean
+# .build, where the other three binaries had never existed. The debug path looked
+# fine for weeks because earlier full builds had left the other three in place.
+# Building the whole package is barely slower, and the [[ -x ]] assertions below
+# are the actual gate.
+swift build -c "$CONFIGURATION"
 
 for binary in AgentSpaceApp agentspace agentspace-worker agentspace-helper; do
   [[ -x "$BIN_DIR/$binary" ]] || { echo "missing $BIN_DIR/$binary" >&2; exit 1; }

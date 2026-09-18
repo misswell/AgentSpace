@@ -483,3 +483,34 @@ The helper's own behaviour below the XPC boundary — the `dscl` and `sysadminct
 invocations, their exit codes, and whether the daemon starts at all — has not been
 executed, because it needs root. §56 calls for a separate review of the helper; this
 is why. Everything above the boundary is tested, including every rollback path.
+
+---
+
+## Release gate (§56) — status
+
+Checked by `scripts/release.sh`, which runs the full sequence and prints what each
+step verified. The rule for a release script: saying "done" without saying what was
+checked is how an unsigned artifact ships.
+
+| Item (§56) | Status | Where |
+|---|---|---|
+| Code Signing (app, helper, worker, CLI, strict) | ✓ script, verified here | all four verify; Developer ID Application cert, team `U8U443D7ZL` |
+| XPC authentication | designed + unit-tested, needs live daemon | `docs/security.md` helper section; pid + code requirement, re-verified per call |
+| LaunchDaemon privileges | designed; daemon start needs an admin password | typed RPC only, no shell; `HelperValidationTests` (37 adversarial) |
+| Unix Socket ACL + Token | ✓ live-worker tests | `SafetyTests`: wrong token refused, socket mode 0700 |
+| Workspace escape | ✓ unit tests | `testWorkspaceCannotEscapeAllowedPath`: traversal, absolute, symlink-out |
+| Command injection | partial by design | `ExecGuard` is an evadable guardrail, documented as such; the real boundary is the Standard User uid |
+| Symlink attack | partial | disk walk does not follow symlinks out; runtime dirs are 0700 |
+| Log secret leakage | ✓ by construction | passwords never logged; `agentspace create` prints the account, never the secret; §9 |
+| Notarization | ✗ needs credentials | `notarytool store-credentials` has not been run on this machine (verified read-only) |
+
+The last item is the only blocker between the current artifact and a distributable
+DMG, and it is not solvable in this repository: it needs an App Store Connect
+API key or app-specific password, stored once with
+
+    xcrun notarytool store-credentials AGENTSPACE_NOTARY \
+      --apple-id <email> --team-id U8U443D7ZL --password <app-specific-password>
+
+after which `NOTARY_PROFILE=AGENTSPACE_NOTARY scripts/release.sh --notarize`
+submits, staples both the app and the DMG, and re-runs Gatekeeper to prove the
+result. Per §57, notarized releases should also carry a signed-off helper review.

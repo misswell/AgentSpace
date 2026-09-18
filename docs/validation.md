@@ -41,6 +41,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 21 | Disk usage is measured (agreeing with `du`), opt-in, budget-bounded, and never silently a zero | ✓ | §17 — `DiskUsageTests` + a live worker |
 | 22 | MCP configs for Claude Code, Codex and OpenCode generate, merge key-scoped, install idempotently, and refuse to overwrite a foreign entry | ✓ | §18 — plus an incident: a test that wrote the user's real config |
 | 23 | The §35 agent rules generate from one source, append marker-scoped and idempotently, and are copied — not written — from the GUI | ✓ | §19 |
+| 24 | The release pipeline builds all four binaries, verifies every signature, and produces a DMG whose contents verify | ✓ | §20 — after finding a SwiftPM invocation that silently built one of four |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1150,3 +1151,49 @@ path the wizard no longer computes; and a mechanically-added
 Each was dead weight from a change that had moved on — the lesson is not "keep
 warnings at zero" but that a refactor's cleanup should land with the refactor, and
 the compiler is the only reviewer who reads the leftovers.
+
+---
+
+## 20. Release packaging (§57) — and a build that silently built one thing out of four
+
+`scripts/release.sh` runs the whole distribution sequence and prints what each step
+verified: release build and bundle, strict signature verification of **all four**
+binaries, Gatekeeper assessment, DMG creation and verification, then notarization.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 65 | The release build produces all four binaries and the bundle script asserts each exists | ✓ | after the fix below; the assertions are the gate, not the build's exit code |
+| 66 | Every nested signature verifies strictly | ✓ | app, helper, worker, CLI — Developer ID Application, team `U8U443D7ZL` |
+| 67 | Gatekeeper's verdict is reported, with the actual user-facing consequence | ✓ | refused (notarization missing), and the message says what a user can do about it |
+| 68 | The DMG's checksum verifies, it mounts, contains the app, and the copy inside still verifies | ✓ | deterministic mountpoint, detached afterwards |
+| 69 | Notarization is skipped honestly, not attempted and failed | ✓ | credentials checked read-only first: `notarytool store-credentials` has not been run here |
+
+### The bug: a build that exits 0 having built one of four things
+
+`bundle-app.sh` invoked SwiftPM as
+`swift build -c release --product A --product B --product C --product D`. This
+toolchain treats **repeated `--product` flags as last-one-wins**: the command built
+only `agentspace-helper` and exited 0.
+
+The debug path had looked correct for weeks — because earlier *flagless* full
+builds had left the other three binaries in `.build/debug`, and the script's
+`[[ -x ]]` existence checks passed against those stale artifacts. The bug surfaced
+the first time the release configuration ran from a clean `.build`: helper built,
+three products missing, error `missing .build/release/AgentSpaceApp`.
+
+It is the plan's recurring lesson in yet another costume (§11: a check that can
+never pass; §15: a guard that can never fire). Here: a build whose *success signal*
+is its exit code, unchecked against what was actually asked of it. The fix builds
+the whole package — barely slower — and leaves the four existence assertions as the
+real gate.
+
+### Two smaller finds
+
+- `hdiutil attach -quiet` prints nothing, so the volume path parsed from its output
+  was empty and the DMG-content check failed against `/Volumes/` itself. Replaced
+  with a deterministic mountpoint (and the non-deprecated
+  `diskutil image attach --readOnly`), which also makes cleanup exact.
+- The Developer ID certificate is present and signing works; the only missing
+  distribution credential is the notarytool keychain profile, confirmed read-only.
+  The `--notarize` path fails with the exact one-time setup rather than a cryptic
+  notarytool error.
