@@ -81,36 +81,38 @@ public enum HelperInstallation {
         /// One line for the UI.
         public var summary: String {
             if isReachable {
-                return "installed and answering" + (helperVersionIfKnown.map { " (version \($0))" } ?? "")
+                return helperVersionIfKnown.map {
+                    String(format: NSLocalizedString("installed and answering (version %@)"), $0)
+                } ?? NSLocalizedString("installed and answering")
             }
             if plistInBundle == nil {
-                return "not in this build"
+                return NSLocalizedString("not in this build")
             }
             if isThisProcessTheApp {
                 switch appServiceStatus {
-                case .requiresApproval: return "waiting for approval in System Settings"
-                case .enabled: return "registered but not answering"
-                case .notRegistered: return "not registered yet"
-                case .notFound: return "not in this build"
-                @unknown default: return "unknown state"
+                case .requiresApproval: return NSLocalizedString("waiting for approval in System Settings")
+                case .enabled: return NSLocalizedString("registered but not answering")
+                case .notRegistered: return NSLocalizedString("not registered yet")
+                case .notFound: return NSLocalizedString("not in this build")
+                @unknown default: return NSLocalizedString("unknown state")
                 }
             }
-            return "not answering"
+            return NSLocalizedString("not answering")
         }
 
         /// What to do about it. `nil` when there is nothing to do.
         public var fix: String? {
             if isReachable { return nil }
             if plistInBundle == nil {
-                return "Run scripts/bundle-app.sh to produce a complete AgentSpace.app, then open it and choose “Install Helper”."
+                return NSLocalizedString("Run scripts/bundle-app.sh to produce a complete AgentSpace.app, then open it and choose “Install Helper”.")
             }
             if isThisProcessTheApp, appServiceStatus == .requiresApproval {
-                return "System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run `agentspace doctor` again."
+                return NSLocalizedString("System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run `agentspace doctor` again.")
             }
             if isThisProcessTheApp, appServiceStatus == .enabled {
-                return "It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and logs the refusal. Check with:\nlog show --predicate 'subsystem == \"\(BundleIdentifiers.logSubsystem)\" AND category == \"helper\"' --last 5m"
+                return String(format: NSLocalizedString("It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and logs the refusal. Check with:\nlog show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m"), BundleIdentifiers.logSubsystem)
             }
-            return "Open the AgentSpace app and choose “Install Helper”. macOS will ask for your password, because only an administrator can add a LaunchDaemon."
+            return NSLocalizedString("Open the AgentSpace app and choose “Install Helper”. macOS will ask for your password, because only an administrator can add a LaunchDaemon.")
         }
     }
 

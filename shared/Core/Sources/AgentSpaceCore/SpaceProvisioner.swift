@@ -166,7 +166,7 @@ public struct SpaceProvisioner {
         case .failure(let error):
             return bail(error)
         case .success(let plan):
-            steps.append(Step(name: "plan workspace", outcome: .done, detail: plan.summary))
+            steps.append(Step(name: NSLocalizedString("plan workspace"), outcome: .done, detail: plan.summary))
 
             // 1. The account.
             let username = HelperValidation.generateAccountName()
@@ -179,18 +179,22 @@ public struct SpaceProvisioner {
                 // HELPER_UNAVAILABLE ("install it"), a refusal is HELPER_REJECTED
                 // ("it said no"). Those need different fixes.
                 return bail(created.error ?? AgentSpaceError(
-                    code: .helperRejected, message: "the helper did not create the account"))
+                    code: .helperRejected, message: NSLocalizedString("the helper did not create the account")))
             }
             let uid = created.result?["uid"]?.intValue ?? 0
-            steps.append(Step(name: "create account", outcome: .done, detail: "\(username), uid \(uid), standard user"))
+            steps.append(Step(name: NSLocalizedString("create account"),
+                              outcome: .done,
+                              detail: String(format: NSLocalizedString("%@, uid %d, standard user"), username, uid)))
 
             cleanup.append {
                 let response = call(transport, HelperRequest(
                     operation: .deleteUser, username: username, removeHome: true))
                 return response.ok
-                    ? Step(name: "undo create account", outcome: .rolledBack("removed \(username)"), detail: "")
-                    : Step(name: "undo create account", outcome: .rollbackFailed(response.error?.message ?? "unknown"),
-                           detail: "the account \(username) still exists. `agentspace doctor` will show it as an orphan Space you can delete.")
+                    ? Step(name: NSLocalizedString("undo create account"),
+                           outcome: .rolledBack(String(format: NSLocalizedString("removed %@"), username)), detail: "")
+                    : Step(name: NSLocalizedString("undo create account"),
+                           outcome: .rollbackFailed(response.error?.message ?? "unknown"),
+                           detail: String(format: NSLocalizedString("the account %@ still exists. `agentspace doctor` will show it as an orphan Space you can delete."), username))
             }
 
             // 2. The runtime directory, with its ACLs.
@@ -199,9 +203,9 @@ public struct SpaceProvisioner {
                 mainUser: options.mainUser, runtimeRoot: options.root))
             guard prepared.ok, let runtimeDirectory = prepared.result?["runtimeDirectory"]?.stringValue else {
                 return bail(prepared.error ?? AgentSpaceError(
-                    code: .helperRejected, message: "the helper did not prepare the runtime directory"))
+                    code: .helperRejected, message: NSLocalizedString("the helper did not prepare the runtime directory")))
             }
-            steps.append(Step(name: "prepare runtime directory", outcome: .done, detail: runtimeDirectory))
+            steps.append(Step(name: NSLocalizedString("prepare runtime directory"), outcome: .done, detail: runtimeDirectory))
 
             // 2b. The workspace record the worker reads at startup. Written here,
             //     where it can be attributed to this Space's creation, rather than
@@ -223,13 +227,16 @@ public struct SpaceProvisioner {
                     // Not fatal: the worker's confinement is a guardrail, and a
                     // missing record makes it report `confined: false` rather than
                     // silently pretending. Reported, not hidden.
-                    steps.append(Step(name: "write workspace record", outcome: .skipped(
-                        "could not write \(recordURL.path); the worker will report confined: false"),
-                        detail: ""))
+                    steps.append(Step(name: NSLocalizedString("write workspace record"),
+                                      outcome: .skipped(String(
+                                        format: NSLocalizedString("could not write %@; the worker will report confined: false"),
+                                        recordURL.path)),
+                                      detail: ""))
                 } else {
-                    steps.append(Step(name: "write workspace record",
+                    steps.append(Step(name: NSLocalizedString("write workspace record"),
                                       outcome: .done,
-                                      detail: "\(plan.allowedRoots.count) allowed, \(plan.writableRoots.count) writable"))
+                                      detail: String(format: NSLocalizedString("%ld allowed, %ld writable"),
+                                                     plan.allowedRoots.count, plan.writableRoots.count)))
                 }
             }
 
@@ -239,9 +246,10 @@ public struct SpaceProvisioner {
                 return bail(error)
             case .success:
                 if plan.gitCommand != nil {
-                    steps.append(Step(name: "create git worktree", outcome: .done, detail: plan.summary))
+                    steps.append(Step(name: NSLocalizedString("create git worktree"), outcome: .done, detail: plan.summary))
                 } else {
-                    steps.append(Step(name: "create workspace directories", outcome: .done, detail: plan.directories.joined(separator: ", ")))
+                    steps.append(Step(name: NSLocalizedString("create workspace directories"), outcome: .done,
+                                      detail: plan.directories.joined(separator: ", ")))
                 }
             }
 
@@ -252,33 +260,36 @@ public struct SpaceProvisioner {
                 runtimeRoot: workerRoot))
             guard installed.ok else {
                 return bail(installed.error ?? AgentSpaceError(
-                    code: .helperRejected, message: "the helper did not install the worker"))
+                    code: .helperRejected, message: NSLocalizedString("the helper did not install the worker")))
             }
-            steps.append(Step(name: "install worker LaunchAgent", outcome: .done,
-                              detail: installed.result?["label"]?.stringValue ?? "installed"))
+            steps.append(Step(name: NSLocalizedString("install worker LaunchAgent"), outcome: .done,
+                              detail: installed.result?["label"]?.stringValue ?? NSLocalizedString("installed")))
 
             cleanup.append {
                 let response = call(transport, HelperRequest(
                     operation: .removeWorker, spaceID: spaceID, username: username))
                 return response.ok
-                    ? Step(name: "undo install worker", outcome: .rolledBack("removed the LaunchAgent"), detail: "")
-                    : Step(name: "undo install worker", outcome: .rollbackFailed(response.error?.message ?? "unknown"), detail: "")
+                    ? Step(name: NSLocalizedString("undo install worker"),
+                           outcome: .rolledBack(NSLocalizedString("removed the LaunchAgent")), detail: "")
+                    : Step(name: NSLocalizedString("undo install worker"),
+                           outcome: .rollbackFailed(response.error?.message ?? "unknown"), detail: "")
             }
 
             // 4. The Keychain, and the registry.
             do {
                 try keychain.store(password: password.value, for: spaceID)
-                steps.append(Step(name: "store password in Keychain", outcome: .done,
-                                  detail: "so you can sign in to this Space once"))
+                steps.append(Step(name: NSLocalizedString("store password in Keychain"), outcome: .done,
+                                  detail: NSLocalizedString("so you can sign in to this Space once")))
             } catch {
                 return bail(AgentSpaceError(code: .internalError, message: "\(error)"))
             }
             cleanup.append {
                 do {
                     try keychain.delete(for: spaceID)
-                    return Step(name: "undo store password", outcome: .rolledBack("removed the Keychain item"), detail: "")
+                    return Step(name: NSLocalizedString("undo store password"),
+                                outcome: .rolledBack(NSLocalizedString("removed the Keychain item")), detail: "")
                 } catch {
-                    return Step(name: "undo store password", outcome: .rollbackFailed("\(error)"), detail: "")
+                    return Step(name: NSLocalizedString("undo store password"), outcome: .rollbackFailed("\(error)"), detail: "")
                 }
             }
 
@@ -294,9 +305,9 @@ public struct SpaceProvisioner {
                 var updated = registry
                 updated.upsert(space)
                 try updated.save(root: options.root)
-                steps.append(Step(name: "save Space", outcome: .done, detail: name))
+                steps.append(Step(name: NSLocalizedString("save Space"), outcome: .done, detail: name))
             } catch {
-                return bail(AgentSpaceError(code: .internalError, message: "could not save the Space: \(error)"))
+                return bail(AgentSpaceError(code: .internalError, message: String(format: NSLocalizedString("could not save the Space: %@"), "\(error)")))
             }
 
             return Outcome(space: space, steps: steps, error: nil)
@@ -334,8 +345,8 @@ public struct SpaceProvisioner {
         let stopped = call(transport, HelperRequest(
             operation: .stopWorker, spaceID: space.id, username: space.username))
         steps.append(Step(
-            name: "stop worker",
-            outcome: stopped.ok ? .done : .skipped("the worker was not running"),
+            name: NSLocalizedString("stop worker"),
+            outcome: stopped.ok ? .done : .skipped(NSLocalizedString("the worker was not running")),
             detail: stopped.ok ? "" : (stopped.error?.message ?? "")))
 
         // 2. The worktree, if there is one, and only ever the worktree.
@@ -348,14 +359,15 @@ public struct SpaceProvisioner {
                 "git", "-C", repository, "worktree", "remove", "--force", path,
             ])
             if result.exitCode == 0 {
-                steps.append(Step(name: "remove git worktree", outcome: .done,
-                                  detail: "removed \(path); the branch \(branch) and your repository are untouched"))
+                steps.append(Step(name: NSLocalizedString("remove git worktree"), outcome: .done,
+                                  detail: String(format: NSLocalizedString("removed %1$@; the branch %2$@ and your repository are untouched"), path, branch)))
             } else {
                 // A failure here must not stop the deletion: the account is the
                 // important part, and a worktree the user can remove by hand is a
                 // far better outcome than an account that cannot be removed.
-                steps.append(Step(name: "remove git worktree", outcome: .skipped(
-                    "could not remove \(path): \(result.output.trimmingCharacters(in: .whitespacesAndNewlines)). Your repository and branch are untouched."),
+                steps.append(Step(name: NSLocalizedString("remove git worktree"), outcome: .skipped(
+                    String(format: NSLocalizedString("could not remove %1$@: %2$@. Your repository and branch are untouched."),
+                           path, result.output.trimmingCharacters(in: .whitespacesAndNewlines))),
                     detail: ""))
             }
         }
@@ -364,16 +376,16 @@ public struct SpaceProvisioner {
         let removed = call(transport, HelperRequest(
             operation: .removeWorker, spaceID: space.id, username: space.username))
         steps.append(Step(
-            name: "remove worker",
-            outcome: removed.ok ? .done : .skipped(removed.error?.message ?? "already removed"),
+            name: NSLocalizedString("remove worker"),
+            outcome: removed.ok ? .done : .skipped(removed.error?.message ?? NSLocalizedString("already removed")),
             detail: ""))
 
         do {
             try keychain.delete(for: space.id)
-            steps.append(Step(name: "forget password", outcome: .done, detail: ""))
+            steps.append(Step(name: NSLocalizedString("forget password"), outcome: .done, detail: ""))
         } catch {
-            warnings.append("the Keychain item could not be removed: \(error)")
-            steps.append(Step(name: "forget password", outcome: .failed("\(error)"), detail: ""))
+            warnings.append(String(format: NSLocalizedString("the Keychain item could not be removed: %@"), "\(error)"))
+            steps.append(Step(name: NSLocalizedString("forget password"), outcome: .failed("\(error)"), detail: ""))
         }
 
         // 4. The registry, *before* the account: if the account deletion fails, an
@@ -383,10 +395,10 @@ public struct SpaceProvisioner {
             var updated = registry
             updated.remove(id: space.id)
             try updated.save(root: options.root)
-            steps.append(Step(name: "remove Space record", outcome: .done, detail: ""))
+            steps.append(Step(name: NSLocalizedString("remove Space record"), outcome: .done, detail: ""))
         } catch {
             return Outcome(space: nil, steps: steps, error: AgentSpaceError(
-                code: .internalError, message: "could not update the Space registry: \(error)"))
+                code: .internalError, message: String(format: NSLocalizedString("could not update the Space registry: %@"), "\(error)")))
         }
 
         // 5. The account. Last, because it is the step that makes the Space stop
@@ -397,13 +409,15 @@ public struct SpaceProvisioner {
             // The account is named in every case, not only the fallback: the
             // registry entry has already been removed, so this message is the only
             // remaining pointer to the leftover account.
-            let detail = deleted.error?.message ?? "the helper refused"
+            let detail = deleted.error?.message ?? NSLocalizedString("the helper refused")
             return Outcome(space: nil, steps: steps, error: AgentSpaceError(
                 code: deleted.error?.code ?? .helperRejected,
-                message: "the account \(space.username) still exists: \(detail). It is no longer in the Space list, so remove it with `agentspace doctor` or System Settings → Users & Groups."))
+                message: String(format: NSLocalizedString("the account %1$@ still exists: %2$@. It is no longer in the Space list, so remove it with `agentspace doctor` or System Settings → Users & Groups."), space.username, detail)))
         }
-        steps.append(Step(name: "delete account", outcome: .done,
-                          detail: removeHome ? "removed \(space.username) and its home" : "removed \(space.username), home kept"))
+        steps.append(Step(name: NSLocalizedString("delete account"), outcome: .done,
+                          detail: removeHome
+                              ? String(format: NSLocalizedString("removed %@ and its home"), space.username)
+                              : String(format: NSLocalizedString("removed %@, home kept"), space.username)))
 
         // 6. The runtime directory. Best-effort, and last, because a leftover
         //    directory is harmless and does not block anything.
@@ -411,10 +425,10 @@ public struct SpaceProvisioner {
         if FileManager.default.fileExists(atPath: runtimeDirectory) {
             do {
                 try FileManager.default.removeItem(atPath: runtimeDirectory)
-                steps.append(Step(name: "remove runtime directory", outcome: .done, detail: ""))
+                steps.append(Step(name: NSLocalizedString("remove runtime directory"), outcome: .done, detail: ""))
             } catch {
-                warnings.append("the runtime directory \(runtimeDirectory) could not be removed: \(error)")
-                steps.append(Step(name: "remove runtime directory",
+                warnings.append(String(format: NSLocalizedString("the runtime directory %1$@ could not be removed: %2$@"), runtimeDirectory, "\(error)"))
+                steps.append(Step(name: NSLocalizedString("remove runtime directory"),
                                   outcome: .skipped("\(error)"), detail: ""))
             }
         }
@@ -424,7 +438,7 @@ public struct SpaceProvisioner {
         // behind rather than claiming a clean removal.
         if !warnings.isEmpty {
             for warning in warnings {
-                steps.append(Step(name: "warning", outcome: .skipped(warning), detail: ""))
+                steps.append(Step(name: NSLocalizedString("warning"), outcome: .skipped(warning), detail: ""))
             }
         }
         return Outcome(space: nil, steps: steps, error: nil)

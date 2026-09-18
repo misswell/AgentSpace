@@ -125,15 +125,31 @@ final class HelperService: NSObject, HelperXPCProtocol {
         }
 
         for command in HelperCommand.createUser(request) {
+            // `/usr/bin/createhomedir` was a Python script Apple removed in
+            // macOS 26; spawning it there fails with ENOENT and turned every
+            // create into a rollback. Where the tool is gone, macOS creates the
+            // home at the first GUI login — which plan §28's manual sign-in
+            // provides anyway — so the step is skipped rather than fatal.
+            if command.first == HelperCommand.createhomedir,
+               !FileManager.default.isExecutableFile(atPath: HelperCommand.createhomedir) {
+                log.warning("createhomedir is not present on this OS; skipping (the home is created at first login)")
+                continue
+            }
             let result = CommandRunner.run(command, timeout: 120)
             log.info("\(result.displayCommand) → exit \(result.exitCode)")
             if !result.ok {
                 // A failed `sysadminctl` has usually created the account record
                 // already. Leaving a half-made account behind would make the next
                 // attempt fail with "already exists" and confuse the user, so the
-                // partial state is cleaned up before reporting failure.
+                // partial state is cleaned up before reporting failure — and a
+                // cleanup that itself failed must be logged, because an orphaned
+                // account with no registry entry and no stored password is
+                // otherwise invisible to the app and unexplainable to the user.
                 log.error("createUser failed, removing partial account: \(result.standardError)")
-                _ = CommandRunner.run([HelperCommand.sysadminctl, "-deleteUser", username], timeout: 60)
+                let undo = CommandRunner.run([HelperCommand.sysadminctl, "-deleteUser", username], timeout: 60)
+                if !undo.ok {
+                    log.error("partial-account cleanup failed (\(undo.exitCode)): \(undo.standardError) — \(username) is left behind and must be removed by hand")
+                }
                 return HelperResponse(id: request.id, error: AgentSpaceError(
                     code: .helperRejected,
                     message: "could not create the account \(username): \(result.standardError.isEmpty ? "exit \(result.exitCode)" : result.standardError)"))
@@ -144,6 +160,13 @@ final class HelperService: NSObject, HelperXPCProtocol {
             return HelperResponse(id: request.id, error: AgentSpaceError(
                 code: .helperRejected,
                 message: "the account \(username) was created but has no uid, which should be impossible"))
+        }
+
+        if !FileManager.default.fileExists(atPath: "/Users/\(username)") {
+            // Not fatal: a missing home is created by macOS at the account's
+            // first GUI login. Logged because the honest place for this fact is
+            // the helper's record, not a surprise at sign-in.
+            log.warning("the home directory /Users/\(username) does not exist yet; macOS will create it at first login")
         }
 
         return HelperResponse(id: request.id, result: .obj([

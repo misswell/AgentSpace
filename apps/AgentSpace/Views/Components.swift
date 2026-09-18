@@ -97,7 +97,11 @@ struct PermissionChip: View {
             Capsule().fill((granted ? Color.green : Color.orange).opacity(0.10))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name): \(granted ? "granted" : "not granted")")
+        .accessibilityLabel(String(
+            format: NSLocalizedString("%@: %@"),
+            name, granted
+                ? NSLocalizedString("granted")
+                : NSLocalizedString("not granted")))
     }
 }
 
@@ -158,14 +162,14 @@ struct EmptyStateView: View {
             Image(systemName: "rectangle.on.rectangle.angled")
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(.secondary)
-            Text("No Agent Spaces")
+            Text(NSLocalizedString("No Agent Spaces"))
                 .font(.title3.weight(.semibold))
-            Text("An Agent Space is a separate macOS user with its own desktop, so an agent can work without touching your keyboard, mouse or screen.")
+            Text(NSLocalizedString("An Agent Space is a separate macOS user with its own desktop, so an agent can work without touching your keyboard, mouse or screen."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
-            Button("Create Agent Space…", action: onCreate)
+            Button(NSLocalizedString("Create Agent Space…"), action: onCreate)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
         }

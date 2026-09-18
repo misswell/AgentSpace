@@ -82,10 +82,10 @@ public enum Doctor {
             lines.append("")
             if ok {
                 lines.append(warned == 0
-                    ? "All checks passed."
-                    : "\(checks.count) checks, \(warned) warning(s). AgentSpace can run.")
+                    ? NSLocalizedString("All checks passed.")
+                    : String(format: NSLocalizedString("%ld checks, %ld warning(s). AgentSpace can run."), checks.count, warned))
             } else {
-                lines.append("\(checks.count) checks, \(failed) failure(s), \(warned) warning(s).")
+                lines.append(String(format: NSLocalizedString("%ld checks, %ld failure(s), %ld warning(s)."), checks.count, failed, warned))
             }
             return lines.joined(separator: "\n")
         }
@@ -104,7 +104,7 @@ public enum Doctor {
             }
         }
         checks.append(Check(
-            name: "Apple Silicon",
+            name: NSLocalizedString("Apple Silicon"),
             status: machine == "arm64" ? .pass : .fail,
             detail: "hw.machine = \(machine)",
             fix: machine == "arm64"
@@ -115,7 +115,7 @@ public enum Doctor {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         let versionString = "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
         checks.append(Check(
-            name: "macOS \(versionString)",
+            name: String(format: NSLocalizedString("macOS %@"), versionString),
             status: version.majorVersion >= 26 ? .pass : .fail,
             detail: "AgentSpace v1 requires macOS 26 or later; this is \(versionString).",
             fix: version.majorVersion >= 26 ? nil : "Upgrade to macOS 26 or later."))
@@ -126,24 +126,24 @@ public enum Doctor {
         switch verdict {
         case .usable:
             checks.append(Check(
-                name: "Input isolated",
+                name: NSLocalizedString("Input isolated"),
                 status: .pass,
                 detail: "this process is in a background Aqua session; input can be posted without reaching the console."))
         case .isConsole:
             checks.append(Check(
-                name: "Input isolated",
+                name: NSLocalizedString("Input isolated"),
                 status: .warn,
                 detail: "this process's session is the physical console. That is correct for the AgentSpace app and CLI — they never post input — but a worker running here would refuse every input call.",
                 fix: "If this is an AgentSpace worker session, fast-user-switch back to your own account. Input resumes automatically."))
         case .indeterminate:
             checks.append(Check(
-                name: "Input isolated",
+                name: NSLocalizedString("Input isolated"),
                 status: .warn,
                 detail: "CGSessionCopyCurrentDictionary did not answer, so the console state is unknown. AgentSpace fails closed: input would be refused.",
                 fix: "Re-run from a normal GUI login. If this persists, capture `agentspace doctor --json` in a bug report."))
         case .noWindowServer:
             checks.append(Check(
-                name: "Input isolated",
+                name: NSLocalizedString("Input isolated"),
                 status: .warn,
                 detail: "this session has no window server (SessionGetInfo reports sessionHasGraphicAccess = false).",
                 fix: "Run from a GUI login, not ssh."))
@@ -153,7 +153,7 @@ public enum Doctor {
         // single fact that decides whether a worker can do anything at all.
         let graphicAccess = SystemSessionInfo().hasGraphicAccess()
         checks.append(Check(
-            name: "WindowServer",
+            name: NSLocalizedString("WindowServer"),
             status: graphicAccess == true ? .pass : .fail,
             detail: "SessionGetInfo sessionHasGraphicAccess = \(graphicAccess.map(String.init) ?? "unknown")",
             fix: graphicAccess == true ? nil : "The session needs a real GUI login."))
@@ -164,7 +164,7 @@ public enum Doctor {
         let pixelsWide = CGDisplayPixelsWide(CGMainDisplayID())
         let consistent = geometry.scale <= 1 || pixelsWide == geometry.width
         checks.append(Check(
-            name: "Display geometry",
+            name: NSLocalizedString("Display geometry"),
             status: consistent ? .pass : .warn,
             detail: "\(geometry.width)x\(geometry.height) points, \(geometry.pixelWidth)x\(geometry.pixelHeight) pixels, scale \(geometry.scale), CGDisplayPixelsWide = \(pixelsWide)",
             fix: consistent ? nil : "CGDisplayPixelsWide disagrees with the display mode; AgentSpace uses the display mode (verified correct). Report this as a bug."))
@@ -186,7 +186,7 @@ public enum Doctor {
         let corrupt = SpaceRegistry.corruptRegistryFiles(root: resolvedRoot)
         if !corrupt.isEmpty {
             checks.append(Check(
-                name: "Registry integrity",
+                name: NSLocalizedString("Registry integrity"),
                 status: .fail,
                 detail: "the Space registry failed to decode \(corrupt.count) time(s); it was quarantined, not discarded: \(corrupt.map { ($0 as NSString).lastPathComponent }.joined(separator: ", "))",
                 fix: "Inspect the quarantined file(s) under \(resolvedRoot)/Spaces/ — they hold the pre-corruption bytes. Recover Spaces by hand into a fresh index.json or recreate them; delete the quarantine files when done."))
@@ -194,13 +194,13 @@ public enum Doctor {
 
         if registry.spaces.isEmpty {
             checks.append(Check(
-                name: "AgentSpaces",
+                name: NSLocalizedString("AgentSpaces"),
                 status: .warn,
                 detail: "no Spaces are registered yet.",
                 fix: "Create one with the AgentSpace app. Creating a Space needs the privileged helper, because it makes a macOS user."))
         } else {
             checks.append(Check(
-                name: "AgentSpaces",
+                name: NSLocalizedString("AgentSpaces"),
                 status: .pass,
                 detail: "\(registry.spaces.count) registered: \(registry.spaces.map(\.name).joined(separator: ", "))"))
             for space in registry.spaces {
@@ -213,7 +213,7 @@ public enum Doctor {
         // produce a socket nobody can find.
         let samplePath = AgentSpaceEnvironment.paths(spaceID: UUID()).socketPath
         checks.append(Check(
-            name: "Unix socket path",
+            name: NSLocalizedString("Unix socket path"),
             status: RuntimePaths.socketPathFits(samplePath) ? .pass : .fail,
             detail: "\(samplePath) is \(samplePath.utf8.count) of \(RuntimePaths.maxSocketPathBytes) bytes",
             fix: RuntimePaths.socketPathFits(samplePath) ? nil : "Shorten AGENTSPACE_ROOT."))
@@ -224,7 +224,7 @@ public enum Doctor {
             let record = paths.directory + "/space.json"
             let confined = FileManager.default.fileExists(atPath: record)
             checks.append(Check(
-                name: "Workspace confinement (\(space.name))",
+                name: String(format: NSLocalizedString("Workspace confinement (%@)"), space.name),
                 status: confined ? .pass : .warn,
                 detail: confined
                     ? "space.json declares allowedRoots; exec cwd and screenshot output are confined to them."
@@ -237,7 +237,7 @@ public enum Doctor {
         let ownAX = AXIsProcessTrusted()
         let ownSR = CGPreflightScreenCaptureAccess()
         checks.append(Check(
-            name: "This process's TCC grants (advisory)",
+            name: NSLocalizedString("This process's TCC grants (advisory)"),
             status: .pass,
             detail: "Accessibility = \(ownAX), Screen Recording = \(ownSR). TCC attributes grants to the responsible process, so for a CLI this reflects your terminal, not the worker.",
             fix: nil))
@@ -255,7 +255,7 @@ public enum Doctor {
         let paths = RuntimePaths(spaceID: space.id, root: resolvedRoot)
         guard FileManager.default.fileExists(atPath: paths.socketPath) else {
             return [Check(
-                name: "Worker (\(space.name))",
+                name: String(format: NSLocalizedString("Worker (%@)"), space.name),
                 status: .warn,
                 detail: "no socket at \(paths.socketPath) — the worker is not running.",
                 fix: "The AgentSpace user must be logged in through the GUI once. After that, `agentspace start \(space.name)`.")]
@@ -268,7 +268,7 @@ public enum Doctor {
             guard response.ok, let session = response.result?["session"] else {
                 let message = response.error?.message ?? "worker answered without a session block"
                 results.append(Check(
-                    name: "Worker (\(space.name))",
+                    name: String(format: NSLocalizedString("Worker (%@)"), space.name),
                     status: .fail,
                     detail: message,
                     fix: "Restart the worker in the AgentSpace session: `agentspace restart \(space.name)`."))
@@ -277,7 +277,7 @@ public enum Doctor {
             let permits = session["permitsInput"]?.boolValue ?? false
             let onConsole = session["onConsole"]?.boolValue ?? true
             results.append(Check(
-                name: "Worker (\(space.name))",
+                name: String(format: NSLocalizedString("Worker (%@)"), space.name),
                 status: permits ? .pass : .warn,
                 detail: permits
                     ? "running, uid \(response.result?["user"]?["uid"]?.intValue ?? -1), input permitted."
@@ -293,20 +293,20 @@ public enum Doctor {
                status.ok, let body = status.result {
                 let granted = body["accessibility"]?.boolValue ?? false
                 results.append(Check(
-                    name: "Accessibility (\(space.name))",
+                    name: String(format: NSLocalizedString("Accessibility (%@)"), space.name),
                     status: granted ? .pass : .fail,
                     detail: granted ? "granted to the worker." : "not granted to the worker.",
                     fix: granted ? nil : "In the AgentSpace user's session, open System Settings → Privacy & Security → Accessibility and enable agentspace-worker. The AgentSpace Setup window appears once after the first login."))
                 let recording = body["screenRecording"]?.boolValue ?? false
                 results.append(Check(
-                    name: "Screen Recording (\(space.name))",
+                    name: String(format: NSLocalizedString("Screen Recording (%@)"), space.name),
                     status: recording ? .pass : .fail,
                     detail: recording ? "granted to the worker." : "not granted to the worker.",
                     fix: recording ? nil : "In the AgentSpace user's session, open System Settings → Privacy & Security → Screen Recording and enable agentspace-worker."))
             }
         } catch {
             results.append(Check(
-                name: "Worker (\(space.name))",
+                name: String(format: NSLocalizedString("Worker (%@)"), space.name),
                 status: .fail,
                 detail: "socket exists but the worker did not answer: \(error)",
                 fix: "Remove the stale socket and restart: `agentspace restart \(space.name)`. If it keeps happening, check \(paths.workerLogPath)."))
@@ -333,13 +333,13 @@ public enum Doctor {
         let state = HelperInstallation.inspect()
         if state.isReachable {
             return Check(
-                name: "Privileged helper",
+                name: NSLocalizedString("Privileged helper"),
                 status: .pass,
                 detail: "installed, registered and answering (\(state.summary)).",
                 fix: nil)
         }
         return Check(
-            name: "Privileged helper",
+            name: NSLocalizedString("Privileged helper"),
             status: .warn,
             detail: "not available: \(state.summary). Creating and deleting Spaces needs it; driving an existing Space does not.",
             fix: state.fix)
@@ -349,7 +349,7 @@ public enum Doctor {
         let path = "/Library/Preferences/.GlobalPreferences.plist"
         guard let dictionary = NSDictionary(contentsOfFile: path) as? [String: Any] else {
             return Check(
-                name: "Fast User Switching",
+                name: NSLocalizedString("Fast User Switching"),
                 status: .warn,
                 detail: "could not read \(path).",
                 fix: "Enable it manually: System Settings → Control Center → Fast User Switching → Show in Menu Bar.")
@@ -358,7 +358,7 @@ public enum Doctor {
         // GUI session; the menu-extra key only controls whether the menu shows.
         let enabled = (dictionary["MultipleSessionEnabled"] as? NSNumber)?.boolValue
         return Check(
-            name: "Fast User Switching",
+            name: NSLocalizedString("Fast User Switching"),
             status: enabled == true ? .pass : .warn,
             detail: "MultipleSessionEnabled = \(enabled.map(String.init) ?? "unset")",
             fix: enabled == true

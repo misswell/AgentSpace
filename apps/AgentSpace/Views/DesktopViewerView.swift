@@ -63,7 +63,7 @@ struct DesktopViewerView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 if snapshot.space.uid != 0 {
-                    Text("uid \(snapshot.space.uid)")
+                    Text(String(format: NSLocalizedString("uid %u"), snapshot.space.uid))
                         .font(.caption.monospaced())
                         .foregroundStyle(.tertiary)
                 }
@@ -72,7 +72,7 @@ struct DesktopViewerView: View {
             }
             Spacer()
             if let result {
-                Text("\(result.width)×\(result.height) px · scale \(result.scale)")
+                Text(String(format: NSLocalizedString("%1$ld×%2$ld px · scale %3$ld"), result.width, result.height, result.scale))
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
             }
@@ -87,7 +87,7 @@ struct DesktopViewerView: View {
     private var content: some View {
         if let captureError {
             VStack {
-                RefusalBanner(title: "Cannot show the agent's desktop",
+                RefusalBanner(title: NSLocalizedString("Cannot show the agent's desktop"),
                               code: captureError.code,
                               message: captureError.message,
                               fix: captureError.fix)
@@ -150,12 +150,12 @@ struct DesktopViewerView: View {
                 .font(.system(size: 28))
                 .foregroundStyle(.orange)
             Text(snapshot.effectiveState == .console
-                 ? "This desktop is on your physical display"
-                 : "Input is not available")
+                 ? NSLocalizedString("This desktop is on your physical display")
+                 : NSLocalizedString("Input is not available"))
                 .font(.headline)
             Text(snapshot.effectiveState == .console
-                 ? "Clicks are disabled: they would land on your own screen. Fast-user-switch back and they resume automatically."
-                 : (snapshot.problem?.message ?? "The worker has not permitted input for this Space."))
+                 ? NSLocalizedString("Clicks are disabled: they would land on your own screen. Fast-user-switch back and they resume automatically.")
+                 : (snapshot.problem?.message ?? NSLocalizedString("The worker has not permitted input for this Space.")))
                 .font(.callout)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
@@ -194,7 +194,7 @@ struct DesktopViewerView: View {
             Spacer()
 
             if let lastCapture {
-                Text("updated \(lastCapture.formatted(date: .omitted, time: .standard))")
+                Text(String(format: NSLocalizedString("updated %@"), lastCapture.formatted(date: .omitted, time: .standard)))
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
             }
@@ -284,8 +284,8 @@ struct DesktopViewerView: View {
             } else {
                 captureError = AppModel.PresentedError(
                     code: "INTERNAL_ERROR",
-                    message: "the worker wrote a capture to \(shot.path) but it could not be read",
-                    fix: "Check the Space's runtime directory permissions.",
+                    message: String(format: NSLocalizedString("the worker wrote a capture to %@ but it could not be read"), shot.path),
+                    fix: NSLocalizedString("Check the Space's runtime directory permissions."),
                     spaceName: snapshot.space.name)
                 stopPreview()
             }
@@ -299,12 +299,12 @@ struct DesktopViewerView: View {
         guard let point = mapping.displayPoint(viewX: Double(location.x), viewY: Double(location.y)) else {
             // A click on the letterbox. Not an error worth a banner — the user
             // aimed at the black bar — but it must not become a click at the edge.
-            pendingAction = "click outside the desktop: ignored"
+            pendingAction = NSLocalizedString("click outside the desktop: ignored")
             return
         }
 
         lastClickPoint = point
-        pendingAction = "click → \(Int(point.x)), \(Int(point.y))"
+        pendingAction = String(format: NSLocalizedString("click → %1$ld, %2$ld"), Int(point.x), Int(point.y))
 
         let space = snapshot.space
         let action = InputAction.click(x: point.x, y: point.y, button: .left, count: 1, modifiers: [])

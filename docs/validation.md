@@ -2371,3 +2371,31 @@ documentation of what to run matches what exists to run.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 163 | `scripts/check-all.sh` passes all three layers in one run — suite, MCP smoke, GUI verify — and the README lists every script that exists | ✓ | §55 — the run output |
+
+
+---
+
+## 56. `notarytool --wait` timing out is "unknown", not "failed"
+
+Re-running `scripts/notarize.sh` after a 20-hour In Progress submission
+produced the sharpest notarization lesson yet:
+
+- The stuck submission `f2b61ecb…` never moved. A fresh submission of the
+  same bytes was **Accepted in under a minute**. A submission parked in In
+  Progress for hours is Apple-side; the remedy is to resubmit, not to wait.
+- But the DMG leg died with `HTTPClientError.connectTimeout` **after**
+  "Successfully uploaded" — and `notarytool info` showed the submission
+  In Progress at Apple. The long-poll connection died; the submission did
+  not. Treating that as failure would have resubmitted good bytes, wasted a
+  full review cycle, and left two submissions to reconcile.
+
+`scripts/notarize.sh` now encodes the distinction: `submit --wait` output is
+parsed for the submission id, `info` is polled every 60 s until a terminal
+status, and only Accepted proceeds to staple. `--wait` failure now means
+"poll by id", never "submit again". (The `2>&1 | tail` wrapper also masked
+the script's real exit code — the pipefail lesson, third occurrence; the
+script's own explicit `|| exit 1` guards are the durable fix.)
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 164 | `await_notarization` in scripts/notarize.sh polls by submission id after any `--wait` interruption, and only staple on Accepted | ✓ | §56 — the reworked script |

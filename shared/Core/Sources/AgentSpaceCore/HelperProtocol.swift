@@ -425,7 +425,10 @@ public enum HelperCommand {
             "-home", "/Users/\(username)",
             "-shell", "/bin/zsh",
         ])
-        // sysadminctl does not always create the home directory.
+        // sysadminctl does not always create the home directory, and on macOS 26+
+        // the `createhomedir` tool no longer exists at all (HelperService skips
+        // it there). A missing home is not fatal: macOS creates it at the
+        // account's first GUI login, which the flow requires anyway.
         commands.append([createhomedir, "-c", "-u", username])
         return commands
     }

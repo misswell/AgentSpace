@@ -96,58 +96,62 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     /// The operator-facing next step. Present on every error the worker emits,
     /// because "it failed" without "do this" is the thing that makes a tool
     /// unusable at 2am.
+    ///
+    /// Localized like every `NSLocalizedString` in Core: translated where the
+    /// main bundle carries tables (the GUI), the English key itself in the CLI
+    /// and the worker.
     public var remediation: String {
         switch self {
         case .sessionNotReady:
-            return "Fast user switch into the AgentSpace user once (System Settings → Control Center → Fast User Switching), then switch back. The session stays alive afterwards."
+            return NSLocalizedString("Fast user switch into the AgentSpace user once (System Settings → Control Center → Fast User Switching), then switch back. The session stays alive afterwards.")
         case .sessionIsConsole:
-            return "The AgentSpace desktop is on your physical display right now. Switch back to your own account; input resumes automatically and is refused until then."
+            return NSLocalizedString("The AgentSpace desktop is on your physical display right now. Switch back to your own account; input resumes automatically and is refused until then.")
         case .previewNotRunning:
-            return "Start the preview first (`preview.start`); a stream also stops itself after 10 seconds with no frame pulls."
+            return NSLocalizedString("Start the preview first (`preview.start`); a stream also stops itself after 10 seconds with no frame pulls.")
         case .noWindowServer:
-            return "The AgentSpace session has no window server. Log the AgentSpace user in through the GUI (not ssh) and retry."
+            return NSLocalizedString("The AgentSpace session has no window server. Log the AgentSpace user in through the GUI (not ssh) and retry.")
         case .workerOffline:
-            return "Start the Space's worker: `agentspace start <space>`, or check `agentspace doctor`."
+            return NSLocalizedString("Start the Space's worker: `agentspace start <space>`, or check `agentspace doctor`.")
         case .workerIsRoot:
-            return "The worker refuses to run as root. It must run as the AgentSpace user inside that user's Aqua session."
+            return NSLocalizedString("The worker refuses to run as root. It must run as the AgentSpace user inside that user's Aqua session.")
         case .accessibilityDenied:
-            return "In the AgentSpace session: System Settings → Privacy & Security → Accessibility → enable agentspace-worker. Then run `agentspace restart <space>`."
+            return NSLocalizedString("In the AgentSpace session: System Settings → Privacy & Security → Accessibility → enable agentspace-worker. Then run `agentspace restart <space>`.")
         case .screenRecordingDenied:
-            return "In the AgentSpace session: System Settings → Privacy & Security → Screen & System Audio Recording → enable agentspace-worker. Then run `agentspace restart <space>`."
+            return NSLocalizedString("In the AgentSpace session: System Settings → Privacy & Security → Screen & System Audio Recording → enable agentspace-worker. Then run `agentspace restart <space>`.")
         case .invalidCoordinate:
-            return "Coordinates are display POINTS (x right, y down, origin top-left of the main display), not screenshot pixels. Divide a pixel by the reported `scale`."
+            return NSLocalizedString("Coordinates are display POINTS (x right, y down, origin top-left of the main display), not screenshot pixels. Divide a pixel by the reported `scale`.")
         case .invalidAction:
-            return "Check the action list against docs/protocol.md. The whole batch is validated before anything is performed, so nothing was done."
+            return NSLocalizedString("Check the action list against docs/protocol.md. The whole batch is validated before anything is performed, so nothing was done.")
         case .noInputTarget:
-            return "No app is frontmost in the AgentSpace session, so the events would go nowhere. Launch or activate something there first, e.g. `agentspace launch <space> Finder`."
+            return NSLocalizedString("No app is frontmost in the AgentSpace session, so the events would go nowhere. Launch or activate something there first, e.g. `agentspace launch <space> Finder`.")
         case .appNotFound:
-            return "Pass an app name that exists in the AgentSpace session (`agentspace apps <space>`) or an absolute path to a .app bundle."
+            return NSLocalizedString("Pass an app name that exists in the AgentSpace session (`agentspace apps <space>`) or an absolute path to a .app bundle.")
         case .appLaunchTimeout:
-            return "The app was launched but never registered with the window server. It may be showing a modal in the AgentSpace session; take a screenshot to look."
+            return NSLocalizedString("The app was launched but never registered with the window server. It may be showing a modal in the AgentSpace session; take a screenshot to look.")
         case .appNotRunning:
-            return "The app is not running in that Space. `agentspace apps <space>` lists what is."
+            return NSLocalizedString("The app is not running in that Space. `agentspace apps <space>` lists what is.")
         case .workspaceInvalid:
-            return "Check the repository path, the branch name (it must start with agentspace/) and the shared folder paths. The message names the specific problem."
+            return NSLocalizedString("Check the repository path, the branch name (it must start with agentspace/) and the shared folder paths. The message names the specific problem.")
         case .workspaceDenied:
-            return "The path is outside this Space's workspace and shared folders. Add it in the Space's Shared Folders settings first."
+            return NSLocalizedString("The path is outside this Space's workspace and shared folders. Add it in the Space's Shared Folders settings first.")
         case .commandTimeout:
-            return "Raise the timeout or make the command shorter. The process group was terminated."
+            return NSLocalizedString("Raise the timeout or make the command shorter. The process group was terminated.")
         case .execDenied:
-            return "That command is on AgentSpace's refusal list. Run it yourself in your own terminal if you really mean it."
+            return NSLocalizedString("That command is on AgentSpace's refusal list. Run it yourself in your own terminal if you really mean it.")
         case .helperUnavailable:
-            return "The privileged helper is not installed. Creating and deleting Spaces needs it, because it makes a macOS user; driving an existing Space does not. Open the AgentSpace app and choose Install Helper."
+            return NSLocalizedString("The privileged helper is not installed. Creating and deleting Spaces needs it, because it makes a macOS user; driving an existing Space does not. Open the AgentSpace app and choose Install Helper.")
         case .helperRejected:
-            return "The privileged helper refused the request. Check the Space's name and account, and see the helper's log with `log show --predicate 'subsystem == \"\(BundleIdentifiers.logSubsystem)\" AND category == \"helper\"' --last 5m`."
+            return String(format: NSLocalizedString("The privileged helper refused the request. Check the Space's name and account, and see the helper's log with `log show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m`."), BundleIdentifiers.logSubsystem)
         case .unauthorized:
-            return "The session token does not match this Space. Re-read it from the runtime directory, or recreate the Space."
+            return NSLocalizedString("The session token does not match this Space. Re-read it from the runtime directory, or recreate the Space.")
         case .badRequest:
-            return "Malformed request. See docs/protocol.md for the exact shape."
+            return NSLocalizedString("Malformed request. See docs/protocol.md for the exact shape.")
         case .methodNotFound:
-            return "Unknown method. `agentspace doctor --json` prints the protocol this build speaks."
+            return NSLocalizedString("Unknown method. `agentspace doctor --json` prints the protocol this build speaks.")
         case .protocolMismatch:
-            return "GUI, CLI and worker are different builds. Reinstall so all three come from the same release."
+            return NSLocalizedString("GUI, CLI and worker are different builds. Reinstall so all three come from the same release.")
         case .internalError:
-            return "Export diagnostics (`agentspace doctor --export`) and attach them to a bug report."
+            return NSLocalizedString("Export diagnostics (`agentspace doctor --export`) and attach them to a bug report.")
         }
     }
 }
