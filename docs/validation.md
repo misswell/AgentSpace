@@ -6151,3 +6151,23 @@ Space's macOS user, runtime and worker."
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 380 | The wizard's three steps and three workspace choices render verbatim, with §51's branch prefix and §25's read-only default visible in captions | ✓ | §218 — DoctorView.swift:192–261 |
+
+
+---
+
+## 219. §34's integration actions, gated by user confirmation
+
+The Maintenance card carries all of §34: an "Install MCP
+Into…" menu iterating the three planned targets (claudeCode,
+codex, openCode), Copy MCP Configuration, and Copy Agent Rules.
+Every install routes through a confirmation dialog before
+anything is written, and the rules button copies rather than
+writes — its tooltip says so in §35's own voice: "Copying only
+— your instructions file is written by you." Supporting
+actions sit beside them: Reveal Runtime Folder, Run Doctor,
+Show Login Password ("Needed once"), and a destructive Delete
+Space disabled while provisioning runs.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 381 | §34's three install targets and Copy Config exist with user confirmation before any write, rules copy-only | ✓ | §219 — SpaceDetailView.swift:338–370 |
