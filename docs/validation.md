@@ -2904,3 +2904,25 @@ scattering.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 196 | The console guard's live coverage is input + screenshot + apps refused, exec and status proceeding — stricter than §12's letter and aligned with §54 | ✓ | §77 — the coverage map |
+
+
+---
+
+## 78. The coverage map extends to the AX surface, and `desktop` is correctly outside it
+
+Two closing checks on the console guard's map:
+
+- **ax snapshot / ax frontmost** — both refused on the console with the
+  standard envelope. The accessibility tree is user-desktop state too, so
+  the guard's handler-boundary check covers the §18 surface; the map from
+  §77 now reads: input, screenshot, apps, **and ax** refuse; exec and status
+  proceed.
+- **desktop** — refused by nothing, because it never touches the worker: it
+  emits the `agentspace://space/<uuid>` deep link ({"opened": true, ...}) and
+  hands it to the main app. The viewer the app then opens polls screenshots
+  through the guarded worker path, so isolation holds downstream without the
+  emitter itself needing the check.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 197 | ax commands are console-refused like input and screenshots, and the desktop command correctly bypasses the guard as a deep-link emitter that never contacts the worker | ✓ | §78 — the ax refusals and the deep-link capture |
