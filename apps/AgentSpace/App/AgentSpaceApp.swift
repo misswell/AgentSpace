@@ -34,6 +34,10 @@ struct RootView: View {
                 dismissButton: .default(Text("OK")))
         }
         .onAppear { model.reload() }
+        // `agentspace://space/<uuid>` — from the CLI's `desktop` command or any
+        // other poster. Handled by the model so the failure of a dead link is
+        // visible in the app's own error presentation.
+        .onOpenURL { model.handleDeepLink($0) }
     }
 }
 

@@ -26,6 +26,10 @@ final class AppModel: ObservableObject {
     @Published var selection: UUID?
     /// Settable because SwiftUI's `alert(item:)` needs a two-way binding.
     @Published var lastError: PresentedError?
+    /// Whether the selected Space's Desktop Viewer sheet is up. Owned by the
+    /// model, not the detail view, so a deep link can raise it: the CLI's
+    /// `desktop` command lands here (§31's `agentspace desktop <space>`).
+    @Published var showingDesktopViewer = false
     /// What is known about the privileged helper. Refreshed with everything else
     /// so the UI never offers a button that cannot work.
     @Published var helperState: HelperInstallation.State = HelperInstallation.inspect(ping: false)
@@ -323,6 +327,28 @@ final class AppModel: ObservableObject {
         default: break
         }
         return text
+    }
+
+    /// `agentspace://space/<uuid>` from the CLI's `desktop` command (§31):
+    /// select that Space and raise its Desktop Viewer. A link for a Space that
+    /// does not exist is reported here — the poster may be long gone, so this
+    /// is the only place the failure can be seen.
+    func handleDeepLink(_ url: URL) {
+        guard let id = AppDeepLink.spaceID(in: url) else {
+            lastError = PresentedError(
+                code: "BAD_REQUEST",
+                message: "not an AgentSpace deep link: \(url.absoluteString)")
+            return
+        }
+        reload()
+        guard snapshots.contains(where: { $0.space.id == id }) else {
+            lastError = PresentedError(
+                code: "SPACE_NOT_FOUND",
+                message: "the link points at a Space that no longer exists (\(id.uuidString)). It was probably deleted after the link was made.")
+            return
+        }
+        selection = id
+        showingDesktopViewer = true
     }
 
     func reload() {

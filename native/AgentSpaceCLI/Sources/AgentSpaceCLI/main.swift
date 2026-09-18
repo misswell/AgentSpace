@@ -805,6 +805,36 @@ case "screenshot":
     }
     exit(0)
 
+
+case "desktop":
+    // §31: put a Space's Desktop Viewer in front of the user. This is
+    // deliberately a deep link into the app, not a CLI screenshot loop: the
+    // viewer is the app's §52 pull-model stream with its own lifecycle, and
+    // duplicating it here would be a second reason for the machine to keep
+    // capturing. The CLI checks that the Space exists (SPACE_NOT_FOUND, exit
+    // 66, otherwise), then hands the app the link. The worker does not need to
+    // be online for this — the app shows the offline state honestly.
+    guard rest.first != nil else {
+        emitter.failure(AgentSpaceError(
+            code: .badRequest,
+            message: "usage: agentspace desktop <space>"), exitCode: 64)
+    }
+    let (desktopSpace, _) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)
+    let link = AppDeepLink.url(forSpaceID: desktopSpace.id)
+    let open = Process()
+    open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+    open.arguments = [link.absoluteString]
+    try open.run()
+    open.waitUntilExit()
+    guard open.terminationStatus == 0 else {
+        emitter.failure(AgentSpaceError(
+            code: .helperUnavailable,
+            message: "could not open the AgentSpace app (exit \(open.terminationStatus)). Is it in /Applications or built in dist/?"), exitCode: 69)
+    }
+    emitter.success(
+        ["opened": .bool(true), "space": .string(desktopSpace.name), "url": .string(link.absoluteString)],
+        human: "opening the Desktop Viewer for \(desktopSpace.name) — \(link.absoluteString)")
+
 case "preview":
     // §52's live preview from the command line: --start opens the stream,
     // --frame pulls the newest frame (base64), --stop closes it. The GUI runs

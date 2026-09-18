@@ -74,7 +74,6 @@ struct SpaceDetailView: View {
     @State private var apps: [AppEntry] = []
     @State private var appsError: AppModel.PresentedError?
     @State private var showingApps = false
-    @State private var showingViewer = false
 
     var body: some View {
         Group {
@@ -120,7 +119,7 @@ struct SpaceDetailView: View {
                 .disabled(model.selected == nil)
 
                 Button {
-                    showingViewer = true
+                    model.showingDesktopViewer = true
                 } label: {
                     Label("View Desktop", systemImage: "display")
                 }
@@ -149,7 +148,7 @@ struct SpaceDetailView: View {
                 .disabled(model.selected == nil)
             }
         }
-        .sheet(isPresented: $showingViewer) {
+        .sheet(isPresented: $model.showingDesktopViewer) {
             DesktopViewerView().environmentObject(model)
         }
     }

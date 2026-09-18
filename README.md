@@ -202,6 +202,13 @@ agentspace status dev --json
 }
 ```
 
+### `agentspace desktop <space>`
+
+Opens that Space's Desktop Viewer in the AgentSpace app — the same §52 stream
+the app shows, raised through the `agentspace://space/<uuid>` deep link. The
+worker does not need to be online; the viewer reports the offline state
+honestly rather than pretending.
+
 ## Give it to an agent (MCP)
 
 ```bash

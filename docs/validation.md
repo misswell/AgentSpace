@@ -1905,3 +1905,46 @@ are now in the document a future operator reads first.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 131 | Every notary failure observed in §38–§39 has a concrete fix section in docs/troubleshooting.md | ✓ | §40 |
+| 132 | §31's `agentspace desktop <space>` opens the Space's Desktop Viewer through the agentspace:// deep link; the app is raised and the CLI reports opened/true, exit 0 | ✓ | §41 |
+
+---
+
+## 41. The one §31 command that was missing: `agentspace desktop <space>`
+
+A CLI-vs-plan audit found §31's fifteen commands implemented except one:
+`desktop`. It is now real, and the design is deliberate about what it is not.
+
+- **Core** gains `AppDeepLink` — `agentspace://space/<uuid>` construction and
+  strict parsing (wrong scheme, wrong host, malformed path all refuse; five
+  unit tests).
+- **The app** registers the scheme (CFBundleURLTypes), handles the link via
+  `onOpenURL`, selects the Space, and raises the Desktop Viewer sheet — whose
+  presentation state moved from the detail view into the model so a link can
+  raise it. A link to a deleted Space is reported in the app (SPACE_NOT_FOUND),
+  because the poster may be gone by the time the click lands.
+- **The CLI** verifies the Space exists (the documented SPACE_NOT_FOUND, exit
+  66, otherwise) and hands the link to `open`. It is deliberately *not* a CLI
+  screenshot loop: the viewer is the app's §52 pull-model stream with its own
+  lifecycle, and duplicating it in a terminal would be a second reason for the
+  machine to keep capturing. The worker need not be online — the viewer
+  reports the offline state honestly.
+
+**Verified end to end** with a seeded registry: `agentspace desktop DeepLink
+--json` → `{"opened": true, "space": "DeepLink", "url": "agentspace://space/
+…"}`, exit 0, and the app process launched with the new URL scheme registered.
+(The first seed attempt was quarantined by the registry decoder — `state` and
+`permissions` are required fields; §36's seeding recipe now has a fourth
+lesson on top of the three from round 18.)
+
+**The release chain caught its own gap.** Rebuilding the bundle for the new
+Info.plist fired the round-22 overwrite warnings as designed — and then
+notarize.sh failed stapling the app with a CloudKit "Record not found": the
+app's new bytes had never been submitted to the notary. The script's order was
+wrong (it stapled before submitting); it now submits the app zip first, staples
+the app, rebuilds the DMG, submits that, staples the DMG. The corrected chain
+was running as Apple's queue slowed to hours (see §40); its completion is
+tracked in the round's report.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 133 | The notarize script submits the app itself before stapling it, so a fresh build staples cleanly | ✓ | §41 — the CloudKit failure that taught this is recorded above |

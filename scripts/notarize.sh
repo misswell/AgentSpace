@@ -48,19 +48,33 @@ else
   exit 1
 fi
 
-echo "== 1. staple the app, rebuild the DMG from it =="
+echo "== 1. notarize the app itself, then staple it =="
+# The app's bytes must be notarized before stapler can attach a ticket to
+# them: stapling a freshly built app that the notary has never seen fails with
+# a CloudKit "Record not found". A DMG submission also processes the nested
+# app, but relying on that leaves the app's ticket unavailable when the DMG
+# was built from an older bundle — submit the app explicitly, every time.
+ZIP="dist/AgentSpace-app-notarize.zip"
+rm -f "$ZIP"
+ditto -c -k --keepParent "$APP" "$ZIP"
+if [[ "$MODE" == "notarytool" ]]; then
+  xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
+else
+  asc notarization submit --file "$ZIP" --wait
+fi
+rm -f "$ZIP"
 xcrun stapler staple "$APP"
+
+echo "== 2. rebuild the DMG from the stapled app =="
 rm -f "$DMG"
 hdiutil create -quiet -volname "AgentSpace $VERSION" -srcfolder "$APP" -ov -format UDZO "$DMG"
 
-echo "== 2. submit the DMG and wait =="
+echo "== 3. notarize the DMG and staple it =="
 if [[ "$MODE" == "notarytool" ]]; then
   xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
 else
   asc notarization submit --file "$DMG" --wait
 fi
-
-echo "== 3. staple the DMG =="
 xcrun stapler staple "$DMG"
 
 echo "== 4. verify what a user will actually get =="
