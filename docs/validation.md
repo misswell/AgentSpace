@@ -5018,3 +5018,22 @@ a VM-style allocation exists.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 332 | No "Allocated" wording; the card shows real CPU/Memory/Processes/Disk with an honest uid-aggregation caveat | ✓ | §170 — the resources card and zero-hit grep |
+
+
+---
+
+## 171. §29's browser-profile and keychain isolation are structural, not
+implemented — and that is the correct shape
+
+Two of the plan's eight per-Space independences have no code,
+deliberately. A Space's browser profile lives inside the Space's
+home (DiskUsage.swift's doc says so explicitly), and a user's
+login Keychain is per-UID by the OS. Since §166 guarantees the
+account is standard and §76 guarantees an independent HOME, both
+items are derived from the construction itself. Code that
+"created" a browser profile or keychain at a shared path would
+*break* isolation — the absence is the feature.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 333 | Browser-profile and keychain isolation follow structurally from the standard account + independent HOME, with no — and no need for — dedicated code | ✓ | §171 — DiskUsage doc, the derived-from-construction reading |
