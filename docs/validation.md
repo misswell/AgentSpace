@@ -2030,3 +2030,4 @@ No code change — the audits' results are the record.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 141 | The third-party notice is regenerated nowhere else — the file is the single statement of the Offstage debt | ✓ | §44 — referenced from README and validation only |
+| 142 | The deep link is documented as a security surface: what it can do (select + raise the viewer), what it cannot do by construction (no token bypass, no input, no parameters beyond the UUID), and the reviewer's check on the handler | ✓ | security.md — The deep link is an entrance, so it stays a narrow one |
