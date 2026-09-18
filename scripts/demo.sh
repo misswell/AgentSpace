@@ -104,3 +104,9 @@ echo "   [exit ${PIPESTATUS[0]}]"
 
 echo
 echo "== done. worker pid was $WORKER_PID =="
+
+# Deliberately absent from this walkthrough: `desktop`. It raises the app's
+# Desktop Viewer sheet, which needs a real GUI session to land in and would
+# make this script neither headless nor repeatable - every other command here
+# either answers on stdout or leaves only the runtime directory behind, which
+# the cleanup at the top of the next run removes.

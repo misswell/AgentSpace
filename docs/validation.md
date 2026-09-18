@@ -2107,3 +2107,31 @@ hand an end user a path into `.build/debug`.
 |---|---|---|---|
 | 148 | The GUI copy path and the CLI integrate path agree on the envelope but intentionally diverge on the binary path — installed app vs developer build — and both are verified | ✓ | §47 — the pasteboard; §40 — the CLI JSON |
 | 149 | The deep link has a troubleshooting entry that matches the verified behavior: no silent path, the typed alerts, UUID rotation on recreate, and the boundary to WORKER_OFFLINE | ✓ | troubleshooting.md — A deep link does nothing, or reports SPACE_NOT_FOUND |
+| 150 | The Settings root field is wired to the launch-time AGENTSPACE_ROOT, and `open` does not pass shell env to a launched app — the field shows the env value only when the binary is executed directly | ✓ | §48 — the process env and the field, both read back |
+
+
+---
+
+## 48. The Settings root field, wired to the launch-time environment
+
+The Advanced tab's "AgentSpace root" field claims to read `AGENTSPACE_ROOT` at
+launch and to need a restart to apply. Both halves were exercised:
+
+1. Launched via `open` with `AGENTSPACE_ROOT=/tmp/as-root-probe` set in the
+   shell: the field showed the default. **`open` does not pass the shell's
+   environment to the app** — the request goes through launchd, which starts
+   the app with its own context. This is the macOS behavior the field's hint
+   ("read from AGENTSPACE_ROOT at launch; restart to apply") rests on, now
+   measured rather than assumed.
+2. Launched by executing the bundle binary directly with the env set: `ps -E`
+   confirmed the process carried `AGENTSPACE_ROOT=/tmp/as-root-probe`, and the
+   same AX path read the field as `/tmp/as-root-probe`. The field is genuinely
+   wired to the launch-time value, not to a saved preference.
+
+One consequence worth writing down for testers: to point the GUI at a different
+root, launch the binary directly — `AGENTSPACE_ROOT=… AgentSpace.app/Contents/
+MacOS/AgentSpace &` — not `open`.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 151 | The demo script's omission of `desktop` is documented as a design decision in the script itself: it would break headlessness and repeatability, which every command in the walkthrough preserves | ✓ | scripts/demo.sh — the closing note |
