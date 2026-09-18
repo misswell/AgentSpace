@@ -2989,3 +2989,24 @@ blocked with named gates — zero rows with a claim but no verdict.
 |---|---|---|---|
 | 201 | doctor --json and list --json complete §32's JSON-mode coverage with uniform, fix-carrying shapes | ✓ | §81 — the two shape probes |
 | 202 | The ledger's 223 claims all carry verdicts, including nine explicitly-blocked ✗ rows whose gates are named in the row — no evidence-free lines anywhere | ✓ | §81 — the structural audit and its false-alarm resolution |
+
+
+---
+
+## 82. The §56 checklist's first item audited live: the socket and token modes hold, and the odd-looking neighbor is innocent
+
+A running worker's runtime directory was stat-ed directly. `worker.sock` is
+0660 and `token` is 0600 — exactly what security.md promises ("mode 0660,
+group staff" and "mode 0600, 256 bits, CSPRNG"), with the token measuring
+65 bytes (64 hex chars plus newline: a real 256-bit secret, not a stub).
+The one file that looked wrong — `token.space` at 0644, world-readable,
+sitting next to a secret — turns out on reading its writer to contain only
+the space UUID in plain text (`main.swift` writes
+`spaceID.uuidString + "\n"` there), a discovery aid so the GUI and
+diagnostics can map a socket directory back to its space. No secret in it,
+so 0644 is fine; recording the fact here so the next auditor doesn't file
+the same false positive.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 203 | The live worker's socket and token file modes match security.md exactly (0660 / 0600), and token.space's 0644 is harmless because it contains only the space UUID | ✓ | §82 — the stat sweep and the writer-source read |
