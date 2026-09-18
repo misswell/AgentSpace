@@ -6012,3 +6012,27 @@ assertions, executed green this round.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 374 | §48's UUID/UID/socket/token correspondence is pinned by eleven green multi-space tests; the three forbidden assumption tokens remain absent | ✓ | §212 — MultiSpaceIsolationTests.swift (11 pass) |
+
+
+---
+
+## 213. §39's reboot semantics: mechanism, not policy, decides
+
+After a reboot the worker's LaunchAgent is not loaded at all —
+LimitLoadToSessionType=Aqua means no GUI session for the agent
+user, so nothing starts quietly; that is a launchd fact, not an
+app preference. The derivation then shows the honest state:
+testRebootedSpaceShowsNeedsLoginNotOffline pins that a rebooted
+Space (no session verdict, no graphical session, worker offline)
+is .needsLogin whether it was stored running or ready. The
+companion comment draws the line the plan implies but does not
+state: if the account owns processes the session IS alive and
+only the worker died — that is genuinely offline, where
+restarting the LaunchAgent is the right fix and "Needs Login
+would send the user through a pointless login." autoStartWorker
+(default true, §26 verbatim) governs the after-login flow only;
+no code path uses it to start a worker without a session.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 375 | Rebooted Spaces show needsLogin (not offline, not auto-started) via the Aqua gate plus the derivation test; live-session-dead-worker stays honestly offline | ✓ | §213 — SpaceStateDerivationTests.swift:17–47, SpaceModel.swift:212 |
