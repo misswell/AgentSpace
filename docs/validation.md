@@ -6211,3 +6211,24 @@ first capture arrives.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 383 | status --json returns the plan's six fields verbatim plus supersets, with the dual coordinate-space reason documented from a real regression | ✓ | §221 — Operations.swift:137–165, main.swift:771–773 |
+
+
+---
+
+## 222. §40's two verbs, each a launchd-level mechanism
+
+Stop Agent and Logout Desktop are distinct in kind, not degree.
+Stop Agent sends a worker shutdown with reason stop-agent and
+leans on KeepAlive.SuccessfulExit = false: a clean exit stays
+stopped — "a real stop, not a crash-restart loop" — while the
+session keeps WindowServer and frames, making the next start
+instant; a worker already gone is not a failed stop. Logout
+Desktop ends the whole GUI session via the root-only
+launchctl bootout gui/<uid>, routed through the privileged
+helper as a typed RPC that fails typed when the helper is
+missing — "never by trying to sudo anything" — and keeps the
+account and home for the next login.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 384 | §40's Stop vs Logout are distinct typed operations: stop rides KeepAlive semantics, logout is root-only through the helper, never sudo | ✓ | §222 — SpaceService.swift:194–230 |
