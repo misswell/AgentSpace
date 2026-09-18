@@ -2859,3 +2859,26 @@ real boundary remains the Standard User + UID separation.
 |---|---|---|---|
 | 193 | exec returns the full §23 result contract on a live worker run | ✓ | §75 — the echo round-trip |
 | 194 | §36's danger verbs are refused with EXEC_DENIED before shell contact | ✓ | §75 — the four-verb refusal sweep |
+
+
+---
+
+## 76. exec's cwd and timeout parameters do what §23 promises, live
+
+Two plan-promised exec parameters exercised through the real chain:
+
+- **--cwd /tmp "pwd"** → stdout `/private/tmp` (macOS's symlink resolution
+  via the child's own pwd), exit 0 — the working directory is applied, not
+  merely accepted.
+- **--timeout 1 against "sleep 10"** → `timedOut: true`, `exitCode: null`,
+  wall time 2.1 s rather than 10 s — the timeout actually kills the child
+  instead of waiting it out, and the null exit code communicates exactly
+  that (a killed process has no exit code to report).
+
+Together with §75's bare-command round-trip, the §23 parameter list (cwd,
+env, timeout) is covered live or by unit test, with the two observable
+parameters verified against real wall-clock behavior.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 195 | exec's --cwd lands the child in the requested directory, and --timeout kills it at the deadline with exitCode null — §23's observable parameters live | ✓ | §76 — the cwd and timeout probes |
