@@ -3394,3 +3394,31 @@ generated differently, they are enforced per socket at runtime.
 |---|---|---|---|
 | 235 | A second worker on an already-served Space fails fast with exit 78 and a named error, and the first worker's socket is undisturbed | ✓ | §98 — the post-fix race probe |
 | 236 | worker.pid is written after bind (correcting claim 234: the earlier absence was probe timing, not a missing feature) | ✓ | §98 — the runtime directory listing |
+
+
+---
+
+## 99. Doctor's Worker check now triages the three distinct causes of "no socket"
+
+The §98-era doctor matrix exposed a real diagnostic gap: a missing
+runtime directory, a missing session token, and a simply-not-running
+worker all produced the identical "no socket" detail — three problems
+with three different fixes, reported as one. Fixed: the Worker check
+now distinguishes
+
+- **runtime directory absent** → "the Space was never provisioned on
+  this machine" / fix: create the Space again or run the helper's
+  prepareRuntimeDirectory;
+- **runtime present, token absent** → "the worker has never run here,
+  or the runtime directory was reset" / fix: start the worker once so
+  it mints a token;
+- **both present, socket absent** → the original "no socket" with the
+  GUI-login fix.
+
+Verified live against the three seeds, and the full suite stays green
+(329 tests, 0 failures). §38's "failures must come with a concrete
+fix" now holds at the granularity that matters.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 237 | Doctor's Worker check names the actual root cause (missing runtime / missing token / not running) and gives the matching fix for each | ✓ | §99 — the three-seed triage probe |

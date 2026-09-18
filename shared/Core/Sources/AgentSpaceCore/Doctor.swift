@@ -254,6 +254,23 @@ public enum Doctor {
         // looked at the default runtime would report the wrong machine.
         let paths = RuntimePaths(spaceID: space.id, root: resolvedRoot)
         guard FileManager.default.fileExists(atPath: paths.socketPath) else {
+            // "No socket" has three distinct root causes with three distinct
+            // fixes; name the one that actually applies instead of always
+            // blaming the worker.
+            if !FileManager.default.fileExists(atPath: paths.directory) {
+                return [Check(
+                    name: String(format: NSLocalizedString("Worker (%@)", comment: ""), space.name),
+                    status: .warn,
+                    detail: "the runtime directory \(paths.directory) does not exist — the Space was never provisioned on this machine.",
+                    fix: "Create the Space again, or run the helper's prepareRuntimeDirectory for it.")]
+            }
+            if !FileManager.default.fileExists(atPath: paths.tokenPath) {
+                return [Check(
+                    name: String(format: NSLocalizedString("Worker (%@)", comment: ""), space.name),
+                    status: .warn,
+                    detail: "the session token is missing from \(paths.directory) — the worker has never run here, or the runtime directory was reset.",
+                    fix: "Start the worker once so it mints a token: `agentspace start \(space.name)`.")]
+            }
             return [Check(
                 name: String(format: NSLocalizedString("Worker (%@)", comment: ""), space.name),
                 status: .warn,
