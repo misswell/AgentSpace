@@ -2288,3 +2288,25 @@ what the UI actually exposes.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 162 | `scripts/gui-verify.sh` re-derives the §49 slider bounds, the §53 preview tiers, and the §46 dead-link alert mechanically, and passes 4/4 | ✓ | §54 — the run output |
+
+
+---
+
+## 55. One command runs everything a release needs
+
+`scripts/check-all.sh` aggregates the three independent verification layers —
+the Swift unit/safety suite, the MCP smoke against a live worker, and the GUI
+verification — in the order that fails fast, stopping at the first failure.
+
+The aggregate deliberately excludes `acceptance.sh`: the phase-0 gate opens
+TextEdit on the real desktop and runs for minutes. That is a decision to be
+made (with `--iterations 1000`, before an actual release), not a checkbox to
+silently absorb — the README says so in the same breath that lists the
+command.
+
+The README's build block now lists `gui-verify.sh` and the aggregate, so the
+documentation of what to run matches what exists to run.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 163 | `scripts/check-all.sh` passes all three layers in one run — suite, MCP smoke, GUI verify — and the README lists every script that exists | ✓ | §55 — the run output |

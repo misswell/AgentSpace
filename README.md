@@ -131,6 +131,15 @@ scripts/bundle-app.sh       # a signed dist/AgentSpace.app
 scripts/demo.sh             # end-to-end CLI run against a throwaway root
 scripts/mcp-smoke.sh        # real MCP JSON-RPC against a live worker
 scripts/acceptance.sh       # the phase-0 isolation gate (plan §44)
+scripts/gui-verify.sh       # the UI properties, re-read through the
+                            # accessibility tree (slider bounds, preview
+                            # tiers, the dead-link alert)
+```
+
+One command runs everything a release needs, in the order that fails fast:
+
+```bash
+scripts/check-all.sh        # test suite → MCP smoke → GUI verification
 ```
 
 The privileged helper reports its own state, and needs no root to do it:
