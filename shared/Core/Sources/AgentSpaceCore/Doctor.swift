@@ -326,7 +326,7 @@ public enum Doctor {
                 name: String(format: NSLocalizedString("Worker (%@)", comment: ""), space.name),
                 status: .fail,
                 detail: "socket exists but the worker did not answer: \(error)",
-                fix: "Remove the stale socket and restart: `agentspace restart \(space.name)`. If it keeps happening, check \(paths.workerLogPath)."))
+                fix: "Remove the stale socket and restart: `agentspace restart \(space.name)`. If it keeps happening, check \(paths.workerErrLogPath)."))
         }
         return results
     }

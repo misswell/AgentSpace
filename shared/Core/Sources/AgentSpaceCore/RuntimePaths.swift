@@ -12,7 +12,8 @@ import Foundation
 ///       token           the 256-bit session secret, mode 0600
 ///       status.json     last known status, written by the worker
 ///       worker.lock     flock'd by bind() so a second worker fails fast
-///       worker.log      the worker's own log, next to what it serves
+///       worker.out.log  the worker's stdout, via the LaunchAgent
+///       worker.err.log  the worker's stderr, via the LaunchAgent
 ///       space.json      written by the privileged helper (roots, main user)
 ///       screenshots/    where captures land by default
 ///   Spaces/
@@ -58,7 +59,10 @@ public struct RuntimePaths: Sendable {
     public var pidPath: String { directory + "/worker.pid" }
     public var tokenPath: String { directory + "/token" }
     public var statusPath: String { directory + "/status.json" }
-    public var workerLogPath: String { directory + "/worker.log" }
+    /// The LaunchAgent routes the worker's stdout/stderr here (HelperProtocol's
+    /// plist template), which is why they live in the runtime directory itself.
+    public var workerOutLogPath: String { directory + "/worker.out.log" }
+    public var workerErrLogPath: String { directory + "/worker.err.log" }
 
     /// `sockaddr_un.sun_path` is 104 bytes on Darwin including the terminator.
     /// Checked rather than assumed, because an over-long path truncates

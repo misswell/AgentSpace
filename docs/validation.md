@@ -3842,3 +3842,33 @@ posture that §62 first demoed survives every change since.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 266 | demo.sh runs end to end with exit 0 on the current tree, with the console fail-closed refusals and the §36 sudo refusal all live | ✓ | §114 — the re-run output |
+
+
+---
+
+## 114a. The §111 list contained a phantom: worker.log does not exist
+
+Following up on §111's own list found its first entry wrong. The
+worker's log path came from two sources that disagree:
+
+- `RuntimePaths.workerLogPath` (`worker.log`) was defined but written
+  by nobody — the demo fixture has no such file, and only Doctor's
+  fix text referenced it, sending a user to inspect a file that
+  could never exist.
+- The real logs go through the LaunchAgent's `StandardOutPath` /
+  `StandardErrorPath` (HelperProtocol's plist template), which points
+  at `worker.out.log` and `worker.err.log` **inside the runtime
+  directory** — the worker's own logs, next to what it serves, just
+  under their real names.
+
+Fixed in all three places: the dead property is replaced by
+`workerOutLogPath`/`workerErrLogPath` (with a comment naming the
+LaunchAgent as the writer), Doctor's stale-socket fix now points at
+`worker.err.log`, and both layout lists (swift doc comment,
+protocol.md) say out/err. 329 tests green; the §111-era claims 261's
+list is corrected by this one.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 267 | The worker's stdout/stderr land in the runtime directory as worker.out.log / worker.err.log via the LaunchAgent, and no worker.log exists | ✓ | §114a — HelperProtocol's plist template against RuntimePaths |
+| 268 | Doctor's stale-socket fix names a file that exists, and no dead path properties remain | ✓ | §114a — the replacement and the build |

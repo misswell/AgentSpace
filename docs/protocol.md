@@ -19,7 +19,8 @@ behind the session token.
       token              the 256-bit session secret, mode 0600
       status.json        last known status, written by the worker
       worker.lock        flock'd by bind() so a second worker fails fast
-      worker.log         the worker's own log, next to what it serves
+      worker.out.log     the worker's stdout, via the LaunchAgent
+      worker.err.log     the worker's stderr, via the LaunchAgent
       space.json         written by the privileged helper (roots, main user)
       screenshots/       where captures land by default
   Spaces/index.json      the Space registry
