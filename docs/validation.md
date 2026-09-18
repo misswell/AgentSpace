@@ -4145,3 +4145,25 @@ switch. Both English and Simplified Chinese strings carry the steps.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 284 | The five §28 sign-in steps appear verbatim in localized Setup strings, with the TCC declaration and the Show Login Password surface | ✓ | §126 — the strings census |
+
+
+---
+
+## 127. §30's resource monitor summarises by UID with actual usage
+
+`ResourceSample.sample(uid:)` makes one `ps -axo uid=,rss=,pcpu=`
+invocation, filters to the Space's uid, and sums RSS, CPU and
+process count — exactly §30's "根据 UID 汇总进程". Nothing reports
+Allocated anything; disk is actual bytes under the home (opt-in,
+because `du` costs). The doc comment ties the sampling rate to §53:
+a couple of seconds at most, and SafetyTests pins that a plain
+status call pays nothing for sampling.
+
+Stated honestly: the `ps` text parsing has no direct unit test — it
+is covered by the integration path and the safety assertion, not
+pin-parsed line by line.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 285 | Resource sampling summarises actual CPU/RAM/processes by UID with opt-in disk, no Allocated fields, and status stays sampling-free | ✓ | §127 — sample(uid:) and the safety assertion |
+| 286 | The ps parsing itself lacks a direct unit test (integration-covered) | — | §127, stated limitation |
