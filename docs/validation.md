@@ -4897,3 +4897,22 @@ the privileged commands.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 326 | The app target contains no privileged command strings and no Process( — §6's bans are enforced by absence, not discipline | ✓ | §164 — the zero-hit greps over apps/ |
+
+
+---
+
+## 165. §31's CLI-side ban holds: no privileged shelling, one benign Process
+
+The CLI target contains zero dscl/sysadminctl/sudo/launchctl
+execution — the only matches are two error messages that *say* the
+CLI never runs sudo or launchd and point the user to the helper.
+Its single Process() call is `agentspace desktop`'s
+`/usr/bin/open <deeplink>`: an unprivileged hand-off that puts the
+app's pull-model Desktop Viewer in front of the user rather than
+duplicating the capture loop (comment cites §52 deliberately). The
+privilege-requiring verbs are refused with the helper named as the
+owner.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 327 | The CLI shells nothing privileged; its sole subprocess is the §31 desktop deep link via /usr/bin/open; refusals name the helper as owner | ✓ | §165 — the grep census and the desktop case |
