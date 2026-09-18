@@ -4378,3 +4378,29 @@ keeps window ownership optional.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 298 | Launch waits for actual app registration before returning a pid, with LSUIElement apps exempt from the window criterion | ✓ | §138 — the two-signal registration wait in AppControl |
+
+
+---
+
+## 139. §18's ax family: four of five API names, all five content items
+
+The plan lists five ax APIs; the worker implements four —
+`axSnapshot`, `axFrontmost`, `axWindows`, `axPerform`. The §18
+content list ("当前 frontmost app / 窗口列表 / 窗口标题 / focused
+element / 基础 accessibility tree") is fully covered: axFrontmost
+returns the focused element alongside pid/name/bundleId, and
+axSnapshot returns the tree with window titles, focused elements and
+button labels. `ax.elementAt` — address a single element by path —
+does not exist anywhere: no Method case, no protocol.md entry, no
+test, no MCP tool. That is one consistent absence, not a
+two-definitions drift. It is recorded as a limitation rather than
+rushed in: per §63.13 AX path resolution must be verified against a
+real GUI session, which this machine cannot host, and shipping an
+unverifiable API would be exactly the guessing §63.13 forbids. The
+plan's own AX-first flow (read tree, find button, click) works with
+snapshot + perform today.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 299 | ax.snapshot/frontmost/windows/perform exist and cover all five §18 content items | ✓ | §139 — the dispatch census |
+| 300 | ax.elementAt is absent consistently everywhere; deferred, not drifted, because AX path resolution cannot be verified without a real GUI session | — | §139 — the zero-hit grep and the dispatch table |
