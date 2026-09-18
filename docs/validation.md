@@ -4049,3 +4049,29 @@ merge behaviour.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 278 | §35's four rules are generated verbatim from one function, installed idempotently by append-only merge, with tests pinning the wording | ✓ | §121 — Integrations.swift and its tests |
+
+
+---
+
+## 122. §39's restart behaviour holds, and autoStartWorker's V1 meaning is the plist
+
+Measured, the no-silent-start guarantee is not a flag check but a
+structural fact: the worker's LaunchAgent carries
+`LimitLoadToSessionType: Aqua`, so after a reboot — when the AgentSpace
+user has no GUI session — launchd never even considers the job. There
+is nothing to "not start secretly". `RunAtLoad` then gives the field's
+V1 meaning: once the user signs in once, the worker starts by itself.
+State derivation is fail-safe in the same direction — a stored
+ready/running Space with no worker derives to `.needsLogin` when a
+session dictionary says no graphical session exists, and to
+`.offline` when nothing can be asked; it never presumes running. New
+Spaces are born `.needsLogin`.
+
+Stated honestly: `autoStartWorker` has no consumer beyond the model
+type — §26 requires the field, while §39 explicitly defers auto-login
+past V1, so the field records intent the plist already embodies.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 279 | After reboot the worker cannot start secretly: the Aqua-only LaunchAgent is structurally inert without a GUI session, and RunAtLoad is the V1 autoStart semantics | ✓ | §122 — the plist template against the state derivation |
+| 280 | A ready/running Space with no worker derives to needsLogin (no graphical session) or offline (nothing answerable), never to running | ✓ | §122 — deriveState's branches |
