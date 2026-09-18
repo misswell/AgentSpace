@@ -3339,3 +3339,32 @@ generated differently, they are enforced per socket at runtime.
 |---|---|---|---|
 | 230 | worker --check emits a 12-key JSON readiness report that truthfully surfaces the console verdict and its input-refusal consequence | ✓ | §96 — the --check probe |
 | 231 | worker --once starts and parks awaiting a single request instead of exiting | ✓ | §96 — the --once probe |
+
+
+---
+
+## 97. Offline detection is clean; same-Space double-start has no mutex — recorded as a known weakness
+
+- **Worker death → WORKER_OFFLINE** — after the worker is killed, the
+  socket disappears and `agentspace status` returns exit 1 with
+  `WORKER_OFFLINE` and the named socket path: clean, specific offline
+  detection.
+- **Double start (known weakness)** — launching a second worker on the
+  same Space neither fails fast nor exits: it stays alive, and during
+  its startup the first worker's socket path stops accepting
+  connections. There is no crash and no data corruption, but also no
+  clean mutex; two instances can transiently fight over the socket
+  path. In production this is masked by the LaunchAgent guaranteeing a
+  single instance per Space, and the observed impact is transient — but
+  it is a real robustness gap in the worker's own startup path, so it
+  is recorded here rather than waved away. A startup file-lock (flock
+  on the runtime directory) is the natural fix.
+- Also noted: the worker does not currently write `worker.pid` into the
+  runtime directory (plan §20 lists it); CLI offline detection does not
+  depend on it, but the file is absent.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 232 | A dead worker yields exit 1 with WORKER_OFFLINE and the named socket path | ✓ | §97 — the kill-then-status probe |
+| 233 | Same-Space double start has no mutex: the second worker stays alive and transiently disturbs the first one's socket | ~ | §97 — the two-instance race probe |
+| 234 | worker.pid is not written by the current worker | ~ | §97 — the runtime directory listing |
