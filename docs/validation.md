@@ -5037,3 +5037,23 @@ items are derived from the construction itself. Code that
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 333 | Browser-profile and keychain isolation follow structurally from the standard account + independent HOME, with no — and no need for — dedicated code | ✓ | §171 — DiskUsage doc, the derived-from-construction reading |
+
+
+---
+
+## 172. §32's JSON mode is one emitter with no bypasses: sixty call sites,
+zero stray prints
+
+Every CLI command outputs through the single Emitter struct —
+thirty success/failure call sites across all dispatch cases, and
+the only print() calls in the file are *inside* the Emitter's own
+methods. In --json mode failures emit the complete envelope
+(status: unavailable, reason, ok: false, error{code, message,
+recoverable} and fix), so a script can branch on the whole
+answer; in human mode the code, message and remediation are all
+shown because, as the comment says, a bare "failed" is what makes
+a tool unusable.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 334 | All CLI output funnels through one Emitter; --json failures carry the full typed envelope; no command bypasses it | ✓ | §172 — the Emitter and its call-site census |
