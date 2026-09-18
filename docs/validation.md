@@ -6389,3 +6389,25 @@ implies. Spaces/index.json and Logs belong to the main user.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 391 | §20's runtime ACLs exist per-directory with a sticky-bit anti-deletion root, a 0700 token-carrying runtime dir (main user deliberately excluded), and one justified 750 read exception | ✓ (deviation documented) | §229 — HelperService.swift:338–372 |
+
+
+---
+
+## 230. §9's password chain, graded by what each secret guards
+
+The password lifecycle is exactly the plan's: 32 alphanumeric
+characters, per-Space, never fixed, stored in the macOS Keychain
+— header comment: "Explicitly not in a config.json, not in
+NSUserDefaults, and not in a log" — revealed once in the app via
+Show Login Password for the fast-user-switching login, and the
+Keychain gives the right lifecycle for free: owned by the main
+user's login keychain, unlocked when they log in, gone with the
+account. The generator documents a graded choice: rejection-free
+sampling of 62 chars is very slightly biased, "irrelevant for a
+per-Space login password that ... is never typed by a human" —
+while the session token, "the thing that actually guards the
+socket, uses SecRandomCopyBytes and is unbiased."
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 392 | §9's password is 32 chars/Space/Keychain-only with once-reveal in the UI, and the generator's bias trade-off is documented with the token graded above it | ✓ (deviation documented) | §230 — HelperProtocol.swift:179–206, KeychainStore.swift:1–24, SpaceDetailView.swift:317 |
