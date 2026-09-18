@@ -6276,3 +6276,22 @@ docs/validation.md §27.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 386 | §29's unified space management is AppModel + SpaceRegistry (documented split), 1:N by construction, with §53's no-polling discipline stated and measured | ✓ | §224 — AppModel.swift:6–23,159,215, SpaceService.swift:72–77 |
+
+
+---
+
+## 225. §30's per-uid aggregation as a pinned pure function
+
+ResourcesParsing.accumulate is the plan's "sum processes by
+UID" verbatim: one ps -axo uid=,rss=,pcpu= line per process,
+summed only where the line's uid equals the Space's, yielding
+processCount, memoryBytes (KB x 1024) and cpuPercent. It was
+extracted from the worker into a pure function so the
+text-parsing contract — "the part that has historically been
+untested" — is pinned directly. Malformed lines are skipped,
+not fatal: "a partial answer that keeps updating is more useful
+than a resource card that dies on one odd process."
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 387 | §30's per-uid summing exists as a tested pure function with skip-not-fail parsing | ✓ | §225 — ResourcesParsing.swift:1–40 |
