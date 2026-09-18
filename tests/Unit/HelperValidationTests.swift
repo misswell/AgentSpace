@@ -348,6 +348,24 @@ final class HelperValidationTests: XCTestCase {
             "the generated LaunchAgent is not a valid property list")
     }
 
+    func testTheLaunchAgentLogPathsMatchRuntimePaths() {
+        // §114a: a hand-written copy of the log paths here once diverged into a
+        // phantom worker.log. The plist must take its paths from RuntimePaths —
+        // and they must land inside the Space's runtime directory, which is
+        // where doctor's fix text (and the layout list) says they are.
+        let spaceID = UUID()
+        let plist = HelperCommand.workerLaunchAgent(
+            spaceID: spaceID, username: "_agentspace_a1b2c3",
+            workerPath: "/tmp/agentspace-worker", runtimeRoot: "/Users/Shared/.AgentSpace")
+        let paths = RuntimePaths(spaceID: spaceID, root: "/Users/Shared/.AgentSpace")
+        XCTAssertTrue(plist.contains(paths.workerOutLogPath),
+                      "plist stdout must be RuntimePaths.workerOutLogPath (\(paths.workerOutLogPath))")
+        XCTAssertTrue(plist.contains(paths.workerErrLogPath),
+                      "plist stderr must be RuntimePaths.workerErrLogPath (\(paths.workerErrLogPath))")
+        XCTAssertFalse(plist.contains("worker.log"),
+                       "the phantom worker.log must not come back")
+    }
+
     func testTheLaunchDaemonPlistIsValidAndMatchesTheMachServiceName() throws {
         // The shipped daemon plist and the name the client connects to are two
         // files that must agree. A mismatch produces a silent timeout, which is

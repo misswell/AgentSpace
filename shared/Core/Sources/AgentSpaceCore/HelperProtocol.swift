@@ -462,7 +462,11 @@ public enum HelperCommand {
         runtimeRoot: String
     ) -> String {
         let label = workerLabel(spaceID: spaceID)
-        let logDirectory = "\(runtimeRoot)/Runtime/\(spaceID.uuidString)"
+        // The log paths come from RuntimePaths so there is one source of
+        // truth; a hand-written copy here is how a phantom worker.log almost
+        // shipped (§114a).
+        let paths = RuntimePaths(spaceID: spaceID, root: runtimeRoot)
+        let logDirectory = paths.directory
         return """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -498,9 +502,9 @@ public enum HelperCommand {
                 <string>\(runtimeRoot)</string>
             </dict>
             <key>StandardOutPath</key>
-            <string>\(logDirectory)/worker.out.log</string>
+            <string>\(paths.workerOutLogPath)</string>
             <key>StandardErrorPath</key>
-            <string>\(logDirectory)/worker.err.log</string>
+            <string>\(paths.workerErrLogPath)</string>
             <key>ProcessType</key>
             <string>Interactive</string>
         </dict>

@@ -3872,3 +3872,22 @@ list is corrected by this one.
 |---|---|---|---|
 | 267 | The worker's stdout/stderr land in the runtime directory as worker.out.log / worker.err.log via the LaunchAgent, and no worker.log exists | ✓ | §114a — HelperProtocol's plist template against RuntimePaths |
 | 268 | Doctor's stale-socket fix names a file that exists, and no dead path properties remain | ✓ | §114a — the replacement and the build |
+
+
+---
+
+## 115. One source of truth for the log paths, now pinned by a test
+
+The §114a chase found its cause's twin: the plist template
+hand-wrote `worker.out.log`/`worker.err.log` while
+`RuntimePaths.workerOutLogPath`/`workerErrLogPath` sat unused (zero
+call sites) — two definitions of the same fact, which is exactly the
+shape that produced the phantom `worker.log`. The template now
+resolves its paths through `RuntimePaths`, and a new test
+(`testTheLaunchAgentLogPathsMatchRuntimePaths`) pins the plist to the
+properties, asserts both paths land inside the Space's runtime
+directory, and forbids the phantom's return. 330 tests green.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 269 | The LaunchAgent plist takes the worker log paths from RuntimePaths, with a test pinning the agreement and banning the phantom worker.log | ✓ | §115 — the new test, 330 green |
