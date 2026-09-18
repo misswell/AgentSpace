@@ -5354,3 +5354,27 @@ silently land a click a third of the way across the screen.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 347 | Screenshots return width/pixelWidth/scale as planned; input is points with the pixel-to-point rule in the error text; both pixel source and viewer mapping carry measured, not guessed, geometry | ✓ | §185 — ScreenCapture.Result, CoordinateValidator, PreviewMapping |
+
+
+---
+
+## 186. §14's batch input API: all nine verbs, bounded batches, refusals that
+never guess
+
+The action enum covers every §14 verb. doubleClick and
+rightClick are modeled as one click primitive with count and
+button, and the wire name derives accordingly — the same verb
+with explicit parameters rather than nine separate cases, which
+is the deeper model. Batches parse as a whole: a count over
+InputLimits.maxActions is refused, any single bad action fails
+the entire call (never a half-executed batch), and the summed
+sleep is capped per call so an agent cannot park the worker with
+sleeps. Modifier names accept the ecosystem's variants —
+cmd/command/meta/super/Unicode — and the key table is deliberately
+finite: an unknown key name is INVALID_ACTION, "never a guess",
+because silently typing the wrong key into someone's session is
+worse than refusing.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 348 | Nine §14 verbs present (doubleClick/rightClick as parameterized click with derived wire names), whole-batch parse with count and sleep caps, tolerant modifiers, finite fail-closed key table | ✓ | §186 — InputAction, InputLimits, KeyCombo |
