@@ -4112,3 +4112,19 @@ the integration tests exercise the machine-readable path.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 282 | All thirteen §31 commands exist in the CLI dispatch table, as a superset with JSON mode threaded throughout | ✓ | §124 — the command census |
+
+
+---
+
+## 125. §33's fourteen MCP tools match the plan list exactly
+
+The server registers exactly fourteen tools and every name in
+§33's list is present: list, status, screenshot, input, click, type,
+key, scroll, drag, launch, quit, apps, exec, ax_snapshot — no
+missing, no stray. The 23 MCP tests pin the wiring; the plan's
+recommended flow (status → screenshot → reason → input → screenshot
+→ verify) is what the tool descriptions encourage.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 283 | All fourteen §33 MCP tools are registered under their exact planned names, with the 23-test suite pinning the wiring | ✓ | §125 — the tool census against the plan |
