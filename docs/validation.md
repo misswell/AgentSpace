@@ -2181,3 +2181,25 @@ checklist next to the test run.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 155 | `agentspace --version` reports "agentspace 0.1.0 (protocol 1)" — binary version and wire protocol in one line, useful in bug reports | ✓ | §50 — the output |
+| 156 | The MCP package README's claim of "all 14 tools" matches the source exactly — every name in the README exists in src/, no name in src/ is missing from the README, and no hardcoded test count can drift | ✓ | §51 — the name-set diff |
+
+
+---
+
+## 51. The MCP README's tool list is audited against the source, not memory
+
+§42 audited the MCP code and its spawn-the-CLI seam. The README's claims were a
+separate unchecked surface: it says "All 14 tools are prefixed `agentspace_`",
+and a reader configures their agent from that list. A name-set diff between the
+README and `packages/agentspace-mcp/src/` shows: 14 unique names claimed, all
+14 present in source, none missing. The count is not a drift hazard — the
+README states the invariant ("all tools are prefixed") rather than repeating
+per-tool numbers that would rot.
+
+The only path that failed the existence check was
+`/Applications/AgentSpace.app/…`, which is the documented *installed* location
+on a user's machine, not a repository reference — correctly not a repo path.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 157 | The package README cannot silently diverge from the server: the tool names are a diffable set, and the diff is currently empty both ways | ✓ | §51 — the name-set diff |
