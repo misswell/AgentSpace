@@ -4284,3 +4284,22 @@ marketing.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 292 | No forbidden private mechanism appears anywhere in the Swift sources; the foundations are the public frameworks the plan names | ✓ | §133 — the zero-hit grep and the public-framework census |
+
+
+---
+
+## 134. §61's not-to-build list is honoured, and §23's exec surface is complete
+
+A grep across all product sources finds no marketplace, no LLM chat,
+no orchestration, no cloud sync, no team collaboration, no Docker —
+the features §61 explicitly excluded from V1 were never started, so
+the product stayed "一个 Mac + 多个后台 GUI Session". On the
+support side, §23's exec carries everything the plan lists:
+buffered stdout/stderr/exitCode/duration, cwd, environment, and
+timeout — with a comment pinning the effective-PATH subtlety so the
+resolved binary always matches the environment it runs with.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 293 | None of §61's excluded feature categories appear in the product sources | ✓ | §134 — the zero-hit grep |
+| 294 | §23's exec supports cwd, env, timeout and returns stdout/stderr/exitCode/duration exactly as planned | ✓ | §134 — ShellExec's parameter census |
