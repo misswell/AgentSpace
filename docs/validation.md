@@ -5964,3 +5964,28 @@ machine to keep capturing" — and shows the offline state honestly.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 372 | --json works across commands with the plan's six status fields verbatim, JSON-mode errors through one emitter, desktop as an honest deep link | ✓ | §210 — main.swift:53–54,134,176,748–800 |
+
+
+---
+
+## 211. §45's Phase-1 test matrix: all five scenarios pinned by name
+
+Each planned scenario has named tests: background usable
+(testBackgroundSessionIsUsable, plus delivered-only-to-worker);
+console refused (testInputRejectedWhenSessionIsConsole with its
+integration twin and three CLI-surface tests); no WindowServer
+refused *distinctly* — the test name is the point, a missing
+WindowServer must not masquerade as a generic not-ready;
+permission missing (PermissionState reports missing grants in
+setup order, permission problems win over everything, plus the
+two fail-closed guards for a missing dictionary and a missing
+console key); and socket down (crashed-worker-under-live-session
+shows offline, unauthorized client rejected, WORKER_OFFLINE
+surfacing through the CLI). The derivation suite additionally
+pins the §39 reboot case — needsLogin, not offline — and the
+unknown-session fail-closed case, which is the matrix's
+unwritten sixth row.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 373 | All five §45 scenarios have named, runnable tests, with the derivation suite covering reboot and unknown-state beyond the plan's list | ✓ | §211 — SafetyTests.swift:23,87,140,182; SessionGuardTests:45,55,95; SpaceStateDerivationTests:17–57; CLIIntegrationTests:437 |
