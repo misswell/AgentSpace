@@ -3422,3 +3422,29 @@ fix" now holds at the granularity that matters.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 237 | Doctor's Worker check names the actual root cause (missing runtime / missing token / not running) and gives the matching fix for each | ✓ | §99 — the three-seed triage probe |
+
+
+---
+
+## 100. Two clean surfaces: worker-control exit codes and the doctor's dead-socket branch
+
+Both verified as part of chasing down §99's referenced commands — no
+defects found, recorded so the surfaces are on the ledger.
+
+- **`start` / `stop` / `restart` on an unavailable session** exit 1
+  with a named error: `start` says "starting a worker is the
+  privileged helper's job; the CLI does not run launchd or sudo"
+  (WORKER_OFFLINE). The commands exist, the fixes they name are real,
+  and the exit-code contract holds (verified with direct capture —
+  the first probe was polluted by a `| head`, per the recurring trap).
+- **Doctor vs dead socket residue** — a regular file where
+  `worker.sock` should be makes the hello connect fail, and the Worker
+  check reports fail with "socket exists but the worker did not
+  answer: Socket operation on non-socket" plus the concrete fix
+  (remove the stale socket and restart). The §99 triage now covers all
+  four failure shapes: no runtime / no token / no socket / dead socket.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 238 | start/stop/restart on an unavailable session exit 1 with named errors and real fixes | ✓ | §100 — direct exit-code capture |
+| 239 | Doctor's Worker check names dead socket residue as "socket exists but the worker did not answer" with the stale-socket fix | ✓ | §100 — the residue probe |
