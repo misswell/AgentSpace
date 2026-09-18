@@ -75,6 +75,7 @@ public enum WorkspacePreparer {
         sharedFolders: [SharedFolder],
         spaceID: UUID,
         workspaceDirectory: String,
+        homeDirectory: String = NSHomeDirectory(),
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
         isGitRepository: (String) -> Bool = { isGitRepository(at: $0) }
     ) -> Result<Plan, AgentSpaceError> {
@@ -193,6 +194,11 @@ public enum WorkspacePreparer {
                     code: .workspaceInvalid,
                     message: "refusing to share \(resolved): sharing a system directory with an agent is never what was meant"))
             }
+            guard !isSensitiveHomePath(resolved, homeDirectory: homeDirectory) else {
+                return .failure(AgentSpaceError(
+                    code: .workspaceInvalid,
+                    message: "refusing to share \(resolved): the home directory, your Library and Keychains, and ~/.ssh are never shared with an agent. Share the specific project or data folder instead."))
+            }
             allowed.append(resolved)
             if folder.access == .readWrite { writable.append(resolved) }
         }
@@ -265,6 +271,22 @@ public enum WorkspacePreparer {
             if scalar.value < 0x20 { return false }
         }
         return true
+    }
+
+    /// Home locations that must never be shared with an agent, even
+    /// explicitly (§25's "禁止默认开放" list, hardened to "never"): the home
+    /// itself, the Library tree that holds the user's Keychains, and `~/.ssh`.
+    /// Desktop, Documents and Downloads stay shareable — §25's own UI example
+    /// shares a folder under Documents — because a user picking one of those
+    /// is expressing a specific, bounded intent.
+    static func isSensitiveHomePath(_ path: String, homeDirectory: String) -> Bool {
+        let sensitive = [
+            homeDirectory,
+            homeDirectory + "/Library",
+            homeDirectory + "/Library/Keychains",
+            homeDirectory + "/.ssh",
+        ]
+        return sensitive.contains(path)
     }
 
     /// Directories whose sharing would be a mistake no matter what the user meant.

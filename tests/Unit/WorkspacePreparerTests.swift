@@ -288,6 +288,36 @@ final class WorkspacePreparerTests: XCTestCase {
         }
     }
 
+    func testSensitiveHomePathsAreNeverShared() throws {
+        // §25's "禁止默认开放" list, hardened to "never": the home itself, the
+        // Library tree holding the Keychains, and ~/.ssh must not reach an
+        // agent even when a user picks them explicitly. Desktop, Documents and
+        // Downloads stay shareable — §25's own UI example shares a folder
+        // under Documents.
+        let home = "/Users/alice"
+        func tryShare(_ path: String) -> Result<WorkspacePreparer.Plan, AgentSpaceError> {
+            WorkspacePreparer.plan(
+                workspace: .sharedFolders,
+                sharedFolders: [SharedFolder(path: path, access: .readWrite)],
+                spaceID: UUID(),
+                workspaceDirectory: "/Users/_agentspace_x/Workspace",
+                homeDirectory: home,
+                fileExists: { _ in true })
+        }
+        for path in [home, home + "/Library", home + "/Library/Keychains", home + "/.ssh"] {
+            guard case .failure(let error) = tryShare(path) else {
+                return XCTFail("sharing \(path) with an agent was allowed")
+            }
+            XCTAssertEqual(error.code, .workspaceInvalid)
+            XCTAssertTrue(error.message.contains("Share the specific project"),
+                          "the refusal should point at the fix")
+        }
+        // The explicit-intent contrast: a folder under Documents is fine.
+        guard case .success = tryShare(home + "/Documents/TestData") else {
+            return XCTFail("a Documents subfolder must stay shareable")
+        }
+    }
+
     func testSharedFolderPathsAreValidated() throws {
         let missing = root.appendingPathComponent("nope").path
         for folder in ["relative/path", missing, "/tmp/../etc"] {

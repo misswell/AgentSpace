@@ -3949,3 +3949,33 @@ Two §22/§37 checks, one positive and one improvement:
 |---|---|---|---|
 | 272 | Production log categories are exactly the eight §37 names, in nine Logger instantiations | ✓ | §117 — the category census |
 | 273 | The §22 visibility rule lives in Core as AppVisibility.isVisible with all five branches pinned by tests | ✓ | §117 — the new tests, 335 green |
+
+
+---
+
+## 118. §25's sensitive-home list was a gap; it is now a guard
+
+§25 forbids opening — "禁止默认开放" — the home directory itself,
+Library, Desktop, Documents, Downloads, SSH and Keychain. Measured
+against the code: `isDangerousRoot` blocked only *system* roots
+(/System, /usr, …); none of the home-side paths had any defense. The
+fix follows the plan's own distinction:
+
+- **Hard-refused, even explicitly picked**: the home itself,
+  `~/Library` (the Keychains' parent), `~/Library/Keychains`, and
+  `~/.ssh`. Once shared, "I did not mean that" is not recoverable, so
+  these never reach an agent; the error names the fix ("share the
+  specific project or data folder instead").
+- **Still shareable by explicit intent**: Desktop, Documents and
+  Downloads — §25's own UI example shares a folder under Documents,
+  so hard-refusing them would contradict the plan. The "default" part
+  of the list is honoured by them never being pre-selected.
+
+The guard lives in `WorkspacePreparer` next to `isDangerousRoot`,
+takes an injectable home, and a new test pins all four refusals, the
+remedy text, and the Documents contrast. 336 tests green.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 274 | The home itself, ~/Library, ~/Library/Keychains and ~/.ssh are refused as shared folders even when explicitly picked, with the remedy named | ✓ | §118 — the new guard and test, 336 green |
+| 275 | Desktop/Documents/Downloads remain shareable by explicit intent, matching §25's own UI example | ✓ | §118 — the contrast assertion in the same test |
