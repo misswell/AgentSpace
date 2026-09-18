@@ -2694,3 +2694,26 @@ parser itself.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 183 | Eight malformed-socket-input classes each get a structured BAD_REQUEST envelope and leave the worker alive — the protocol layer is fail-closed against bad input, not just bad tokens | ✓ | §68 — the live 8-case fuzz |
+
+
+---
+
+## 69. Ten concurrent clients stay isolated, and the worker's lifecycle cleans up after itself
+
+Two lifecycle behaviors verified live against a running worker:
+
+- **Concurrency**: 10 simultaneous socket clients each received their own
+  parseable envelope — no cross-talk, no interleaved frames, no crash. The
+  connection-per-client handling holds under load.
+- **Kill and rebind**: after `kill`, the socket file is gone from the runtime
+  directory (the cleanup path runs, not just the process exit), and a fresh
+  worker immediately rebinds a new socket at the same path — no stale-socket
+  refusal, no manual cleanup.
+
+Phase 1's test matrix (§45) listed "socket disconnect" as a coverage line;
+this is its live counterpart on the current build.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 184 | Ten concurrent socket clients each get an independent parseable response | ✓ | §69 — the concurrency probe |
+| 185 | A killed worker removes its socket file, and a restarted worker rebinds cleanly at the same path | ✓ | §69 — the kill/rebind cycle |
