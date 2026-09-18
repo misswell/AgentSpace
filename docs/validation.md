@@ -3769,3 +3769,30 @@ is comments only).
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 261 | The runtime-directory layout is identical and complete in RuntimePaths.swift's doc comment and docs/protocol.md — all eight artifacts with their roles | ✓ | §111 — the walk that derived the list |
+
+
+---
+
+## 112. Two completeness audits, both clean: the script roster and the fix coverage
+
+- **Every script that exists is in the README.** 11 scripts in
+  `scripts/`; 10 appear by name. The one holdout, `mcp-smoke.mjs`,
+  is the node payload that `mcp-smoke.sh` execs — an implementation
+  file, not an entry point — so listing only entry points in the
+  README is the design, not an omission. §55's claim 163 gets its
+  roster side measured rather than asserted.
+- **Doctor's fixes are covered by the troubleshooting manual.** Six
+  sampled fix strings from `Doctor.swift` all have a home in
+  `docs/troubleshooting.md` — the four that failed a literal string
+  match are covered under different wording: the console remedy is
+  "Switch back to your own account with fast user switching" (§16),
+  the no-Space case sits inside the helper-unavailable entry, the
+  runtime-directory case is the exit-78 row of the exit-code table,
+  and the ssh case is the exit-69 row. Plan §38's
+  every-failure-names-a-fix holds twice over: once in the doctor's
+  own output, once in the manual it feeds.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 262 | The README names every user-facing script in scripts/ (11/11, with mcp-smoke.mjs correctly an internal payload) | ✓ | §112 — the roster cross-check |
+| 263 | Doctor's fix strings are covered by docs/troubleshooting.md, including under variant wording; no failure path lacks its remedy | ✓ | §112 — the six-fix sample and the variant recheck |
