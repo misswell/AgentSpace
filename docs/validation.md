@@ -3102,3 +3102,24 @@ Refusal is all-or-nothing, as §12's fail-closed rule requires.
 |---|---|---|---|
 | 211 | All nine §36 danger verbs are live-refused with EXEC_DENIED (the earlier four now completed to the full table) | ✓ | §86 — the nine-verb sweep |
 | 212 | A multi-action batch is refused atomically: nothing in the batch executes when the guard rejects | ✓ | §86 — the batch-input probe |
+
+
+---
+
+## 87. The --json contract holds across the verb set, and worker startup fails fast with sysexits codes
+
+- **JSON contract sweep** — every top-level verb invoked with `--json` emits
+  parseable JSON on stdout (list, status, doctor, diagnostics, helper,
+  desktop, version, and the worker-facing verbs under a live seed). The two
+  prose cases are both the usage path: `help` and a misspelled verb exit 2
+  with human text — the flag form `--help` exits 0.
+- **Startup robustness** — a malformed `--space-id` fails fast with a named
+  error and exit 64 (EX_USAGE); an unwritable runtime directory (missing
+  parent, read-only mode) fails with "could not write session token" and
+  exit 78 (EX_CONFIG). Classic sysexits semantics: scripts branch precisely
+  on what went wrong, and the worker never starts half-configured.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 213 | All top-level verbs emit valid JSON with --json; only the usage/help path is prose, by design | ✓ | §87 — the 27-verb sweep |
+| 214 | Worker startup rejects bad inputs with named errors and sysexits exit codes (64 EX_USAGE, 78 EX_CONFIG) | ✓ | §87 — the three failure probes |
