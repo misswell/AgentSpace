@@ -6836,3 +6836,26 @@ fabricated one.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 411 | §20's requestId is echoed on all three reply paths, defaulted to a UUID, and pinned by codec and shape tests | ✓ | §249 — main.swift:390–411, Protocol.swift:158–171, ProtocolTests.swift:10–34 |
+
+
+---
+
+## 250. §34's Copy Config exists — and its comment records a real fix
+
+copyAgentRules puts §35's rules on the clipboard instead of
+writing an instructions file — the comment names the reason
+verbatim ("the user's voice to their agents... §35 requires
+their explicit consent"), with the CLI's integrate rules
+--install as the opt-in alternative, backed up and
+marker-scoped. copyMCPConfiguration resolves the binary through
+Integrations rather than trusting a path: its comment records
+that the previous version hardcoded a CLI location this bundle
+has never contained, so the copied configuration pointed the
+MCP server at nothing — a genuine §34 gap found and closed.
+Both set a copiedMessage telling the user where to paste; the
+doctor view reuses the clipboard for diagnostics and the
+password reveal, keeping secrets off disk.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 412 | §34's Copy Config copies resolved paths (with the hardcode fix recorded), and rules copy rather than write per §35's consent rule | ✓ | §250 — AppModel.swift:486–507 |
