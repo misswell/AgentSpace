@@ -5429,3 +5429,28 @@ happened.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 350 | Subsystem single-sourced, helper category review-readable by predicate, and §37's password/token/screenshot/blob redaction applied at log time and export time, with counts | ✓ | §188 — Diagnostics.redact, HelperLog |
+
+
+---
+
+## 189. §6's app-layer prohibitions hold structurally: no process spawning,
+ten typed operations, argv not strings
+
+A precise regex over the app target finds no Process(), NSTask,
+posix_spawn, or bare system() call — the only textual matches are
+SwiftUI's .font(.system(...)), which is why the literal grep hit
+first and the precise one is the evidence. The app cannot create
+users, run root shells, or modify the system by any path: every
+privileged action goes through HelperClient and the ten-member
+HelperOperation enum (createUser, deleteUser, installWorker,
+removeWorker, prepareRuntimeDirectory, startWorker, stopWorker,
+logoutSession, sessionInfo, helperStatus) — a whitelist by
+construction, with no exec anywhere. The protocol never
+interpolates into command strings: HelperCommand builds argv
+arrays and the daemon spawns with posix_spawn, so there is no
+quoting layer for an attacker to escape, and the password field
+is documented as AgentSpace-generated only.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 351 | App target spawns no processes; privileged actions are the ten §6 typed operations with no exec; argv-array construction removes the quoting layer structurally | ✓ | §189 — apps/AgentSpace sweep, HelperOperation, HelperProtocol doc |
