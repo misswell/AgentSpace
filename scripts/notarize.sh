@@ -61,11 +61,33 @@ rm -f "$ZIP"
 # stale archive in it invites shipping the wrong bytes.
 trap 'rm -f "$ZIP"' EXIT
 ditto -c -k --keepParent "$APP" "$ZIP"
-if [[ "$MODE" == "notarytool" ]]; then
-  xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
-else
-  asc notarization submit --file "$ZIP" --wait
-fi
+
+# notarytool --wait is an HTTP long-poll, and its client can time out while
+# the submission itself is fine at Apple's end (observed: upload completed,
+# submission recorded, connectTimeout mid-poll). Treat a --wait failure as
+# "unknown", not "failed": poll by submission id before ever resubmitting,
+# because resubmitting good bytes wastes a full review cycle and leaves two
+# submissions to reconcile.
+await_notarization() { # <file>
+  local file="$1" id status
+  if [[ "$MODE" == "notarytool" ]]; then
+    id=$(xcrun notarytool submit "$file" --keychain-profile "$PROFILE" --wait 2>&1 \
+         | tee /dev/stderr | grep -m1 'id: ' | awk '{print $2}')
+    status=$(xcrun notarytool info "$id" --keychain-profile "$PROFILE" 2>/dev/null \
+             | grep -m1 'status:' | awk '{print $2}')
+    while [[ "$status" != "Accepted" && "$status" != "Rejected" && "$status" != "Invalid" ]]; do
+      echo "  submission $id still $status; polling every 60s (Ctrl-C to stop)" >&2
+      sleep 60
+      status=$(xcrun notarytool info "$id" --keychain-profile "$PROFILE" 2>/dev/null \
+               | grep -m1 'status:' | awk '{print $2}')
+    done
+    [[ "$status" == "Accepted" ]]
+  else
+    asc notarization submit --file "$file" --wait
+  fi
+}
+
+await_notarization "$ZIP" || { echo "app submission not Accepted — see log above" >&2; exit 1; }
 xcrun stapler staple "$APP"
 
 echo "== 2. rebuild the DMG from the stapled app =="
@@ -73,11 +95,7 @@ rm -f "$DMG"
 hdiutil create -quiet -volname "AgentSpace $VERSION" -srcfolder "$APP" -ov -format UDZO "$DMG"
 
 echo "== 3. notarize the DMG and staple it =="
-if [[ "$MODE" == "notarytool" ]]; then
-  xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
-else
-  asc notarization submit --file "$DMG" --wait
-fi
+await_notarization "$DMG" || { echo "DMG submission not Accepted — see log above" >&2; exit 1; }
 xcrun stapler staple "$DMG"
 
 echo "== 4. verify what a user will actually get =="
