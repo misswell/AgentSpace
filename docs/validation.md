@@ -4557,3 +4557,21 @@ model is a one-shot post-install settle, not a polling loop.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 309 | The app has no repeating status poll timer; refreshes are event-driven, exceeding §53's 2–5 s guidance | ✓ | §147 — the AppModel refresh-policy comment |
+
+
+---
+
+## 148. §22's app list covers regular, accessory and menu-bar apps explicitly
+
+The enumeration walks `activationPolicy` and labels each entry
+"regular" or "accessory" (prohibited-policy processes are not
+agent-launchable and are excluded by policy, not by accident). The
+comment states the product reason: accessory apps are menu-bar apps
+(LSUIElement) and omitting them would make every launch of such an
+app appear to fail. Window-server-visible stragglers are also
+included, so an app the launch registration path saw is not missing
+from the list.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 310 | apps lists regular and accessory (menu-bar/LSUIElement) apps with policy labels, covering §22's requirement | ✓ | §148 — the activationPolicy walk in AppControl |
