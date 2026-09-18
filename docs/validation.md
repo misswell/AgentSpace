@@ -5891,3 +5891,33 @@ the real file is the second tool.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 369 | All nine §36 commands are denied by name in Core's ExecGuard with agent-facing reasons, plus volume/delete/account supersets and a refused-executables table | ✓ | §207 — ExecGuard.swift:23–58 |
+
+
+---
+
+## 208. §16/§52's live preview: pull economics, three tiers, auto-stop on
+close
+
+PreviewController (Core, frame source injected) implements the
+ScreenCaptureKit upgrade's economics as a tested state machine.
+Pull model on purpose — the client asks for frames only while
+its viewer is open, the worker keeps at most one captured frame,
+newer frames win — because a push stream would need a second
+socket, and pull "fits §52's economics naturally." The tiers:
+previewStart defaults to 5 FPS for idle, callers may raise to 15
+(interactive) within a clamp to 1–30, and "窗口关闭: 0 FPS" is
+taken to its failure-proof end — ten seconds without a pull
+stops the stream itself, so a crashed GUI or a script that
+started a stream and exits cannot leave the worker capturing
+forever. Lifecycle hardening is test-pinned in six cases:
+restarting a running stream re-arms rather than tears down (a
+second viewer must not break the first), a failed start cleans
+up so the next start can succeed, FPS is clamped, and idle stop
+and pull-refresh are both covered. The real source is a thin
+adapter where every unverifiable-here behaviour lives — JPEG
+"cheaper than PNG at 15 FPS," minimumFrameInterval = 1/fps, and
+stream-error teardown with rebuild-on-next-start.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 370 | The live preview realizes §16/§52's tiers (5 idle, 15 interactive via clamped maxFPS, 0 on close) with pull economics, injected testable source, and a six-test lifecycle suite | ✓ | §208 — PreviewController.swift, SpaceService.swift:237, PreviewControllerTests.swift (6 pass) |
