@@ -6295,3 +6295,26 @@ than a resource card that dies on one odd process."
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 387 | §30's per-uid summing exists as a tested pure function with skip-not-fail parsing | ✓ | §225 — ResourcesParsing.swift:1–40 |
+
+
+---
+
+## 226. §27's dashboard chrome: badges that cannot say "maybe"
+
+The dashboard's visual language is a set of small components
+that encode the plan's semantics. The state dot colors by state
+(green ready/running, orange console, yellow needsLogin /
+needsPermission, red offline/error) with the state name as its
+accessibility label. The permission chip has exactly two
+states — its comment: "Two states only — granted or not —
+because a 'maybe' is what the whole fail-closed design exists
+to avoid." The refusal banner always shows the stable code
+monospaced and selectable, because "a user reporting a
+problem, and an agent reading a screenshot of this window,
+both need the stable name" — the agent as a first-class UI
+reader. Cards match System Settings detail panes; Create Agent
+Space… opens the §28 wizard.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 388 | §27's chrome encodes fail-closed semantics: two-state permission chips, state-named dots, stable error codes readable by humans and screenshot-reading agents | ✓ | §226 — Components.swift:12–105,172 |
