@@ -6171,3 +6171,21 @@ Space disabled while provisioning runs.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 381 | §34's three install targets and Copy Config exist with user confirmation before any write, rules copy-only | ✓ | §219 — SpaceDetailView.swift:338–370 |
+
+
+---
+
+## 220. §33's fourteen tool names, extracted as a complete set
+
+Extracting every agentspace_* identifier from the MCP server
+source yields fourteen names whose set equals the plan's list
+exactly — list, status, screenshot, input, click, type, key,
+scroll, drag, launch, quit, apps, exec, ax_snapshot — with no
+extras and none missing. Because the extraction is complete
+rather than sampled, it also proves the negative half of §33:
+no create or delete tool exists in the MCP package, since user
+and TCC management is reserved for a human in the GUI.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 382 | The MCP server registers exactly the plan's fourteen tools, and no create/delete tool exists | ✓ | §220 — packages/agentspace-mcp/src (14 names extracted) |
