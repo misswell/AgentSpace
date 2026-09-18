@@ -2967,3 +2967,25 @@ mutations, not around questions.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 200 | The helper status verbs return structured installed/expected-version answers with an inline fix and a script-branchable exit code, and require no root to ask | ✓ | §80 — the three-verb probe |
+
+
+---
+
+## 81. The last JSON corners close, and the validation ledger itself audits clean
+
+`doctor --json` emits all ten checks as uniform machine-readable objects
+(name, status, detail, fix — every failure self-carrying its remedy), and
+`list --json` is the clean `{count, spaces}` pair — §32's "all commands
+support --json" now has its final two shapes verified. A structural audit of
+this ledger then flagged apparent gaps — ids 11–15 and 45 "missing", nine
+rows "without verdicts". Both were false alarms of the audit's own narrow
+pattern: those rows carry the third verdict, **✗**, meaning *explicitly
+blocked*, each with its external dependency named in the row itself ("needs
+a second logged-in session", "needs root"). The full tally: 223 numbered
+claims — 211 ✓ machine-verified, 3 ~ partially verified, 9 ✗ explicitly
+blocked with named gates — zero rows with a claim but no verdict.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 201 | doctor --json and list --json complete §32's JSON-mode coverage with uniform, fix-carrying shapes | ✓ | §81 — the two shape probes |
+| 202 | The ledger's 223 claims all carry verdicts, including nine explicitly-blocked ✗ rows whose gates are named in the row — no evidence-free lines anywhere | ✓ | §81 — the structural audit and its false-alarm resolution |
