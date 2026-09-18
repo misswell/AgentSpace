@@ -5403,3 +5403,29 @@ bare failed is what makes a tool unusable".
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 349 | Every §31 command plus a superset exists; --json is global with a recorded parse-bug fix; the JSON failure envelope is §2's fail-closed shape verbatim | ✓ | §187 — main.swift command switch, booleanFlags, Emitter |
+
+
+---
+
+## 188. §37's logging: single subsystem, per-component categories, redaction
+at both boundaries
+
+The subsystem is the plan's com.agentspace.app, carried by
+BundleIdentifiers.logSubsystem — not hardcoded per process. The
+helper logs under its own category with a doc that hands a
+security review the exact predicate: `log show --predicate
+'subsystem == "com.agentspace.app" AND category == "helper"'`,
+so what the root component did is readable in isolation. §37's
+redaction list is all present in the pure redactor: 64-hex
+session tokens (with the argument for why nothing legitimate in
+a diagnostics bundle is 64 hex), key/value secrets in any
+spelling, inline screenshots by name, and long base64 blobs;
+everything is scrubbed again at the export boundary. Strings go
+to the log pre-redacted and privacy .public — the secrecy comes
+from the redactor, not from hoping the store hides them. The
+redactor counts its hits so an export can show redaction
+happened.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 350 | Subsystem single-sourced, helper category review-readable by predicate, and §37's password/token/screenshot/blob redaction applied at log time and export time, with counts | ✓ | §188 — Diagnostics.redact, HelperLog |
