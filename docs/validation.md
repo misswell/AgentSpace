@@ -75,56 +75,57 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 - [57. The DMG ships exactly the stapled bits, provable by CDHash](#57-the-dmg-ships-exactly-the-stapled-bits-provable-by-cdhash)
 
 ---
----|-------|--------|----------|
-| 1 | `CGSessionCopyCurrentDictionary()` is the right console signal, and the key is spelled `kCGSSessionOnConsoleKey` | ✓ | `SessionProbe` |
-| 2 | The console bit fails closed when unreadable | ✓ | `SessionGuardTests` (7 tests) |
-| 3 | `SessionGetInfo` / `sessionHasGraphicAccess` reliably reports whether the session has a window server | ✓ | `SessionProbe` + `testSystemSourceReportsGraphicAccess` |
-| 4 | `CGDisplayPixelsWide()` does NOT give pixels on a scaled Retina display | ✓ | `SessionProbe` — the trap is real on macOS 27 |
-| 5 | The worker refuses to start without a window server, and refuses to start as root | ~ | refusal logic verified; the *exit code paths* (69/77) not exercised end to end |
-| 6 | Every input shape is refused with `SESSION_IS_CONSOLE` when the session is the console | ✓ | `testInputRejectedWhenSessionIsConsoleIntegration` — 9 shapes, live worker, live socket |
-| 7 | An unauthorized client is rejected on every method | ✓ | `testUnauthorizedSocketClientRejected` |
-| 8 | Two Spaces have independent sockets and tokens, and neither token opens the other | ✓ | `testDifferentSpacesHaveDifferentTokens` |
-| 9 | The worker terminates cleanly on SIGTERM and removes its socket | ✓ | manual run, see below |
-| 10 | Screenshots come from the worker's own session and match its reported geometry | ~ | `testScreenshotNeverReturnsConsoleSession` — capture-path invariants asserted; cross-session comparison needs a second session |
-| 11 | Input really reaches a *background* session and nothing reaches the console | ✗ | **needs a second logged-in macOS user** |
-| 12 | A screenshot of a background session is never the console's framebuffer | ✗ | same |
-| 13 | Drag gestures work end to end | ✗ | same |
-| 14 | Accessibility tree reads succeed in a background session | ✗ | same |
-| 15 | App launch registration detection (`APP_LAUNCH_TIMEOUT`) | ✗ | same |
-| 16 | The MCP server exposes the CLI over stdio, and the fail-closed refusal survives the MCP boundary | ✓ | `scripts/mcp-smoke.sh` |
-| 17 | Creating a Space calls the helper in the order account → runtime → worker, and a bad workspace is refused before the helper is called at all | ✓ | §15 — `SpaceProvisionerTests` |
-| 18 | Every creation-step failure rolls back what it already did, and a *failed* rollback keeps the orphan account visible as an errored Space | ✓ | §15 |
-| 19 | The generated password reaches the Keychain and appears in no file; generated passwords never repeat | ✓ | §15 — real Keychain, own service namespace |
-| 20 | Eight Spaces get eight distinct sockets, tokens, runtime directories, account names and launchd labels; two Spaces differing only by case never share a working tree | ✓ | §16 — `MultiSpaceIsolationTests` |
-| 21 | Disk usage is measured (agreeing with `du`), opt-in, budget-bounded, and never silently a zero | ✓ | §17 — `DiskUsageTests` + a live worker |
-| 22 | MCP configs for Claude Code, Codex and OpenCode generate, merge key-scoped, install idempotently, and refuse to overwrite a foreign entry | ✓ | §18 — plus an incident: a test that wrote the user's real config |
-| 23 | The §35 agent rules generate from one source, append marker-scoped and idempotently, and are copied — not written — from the GUI | ✓ | §19 |
-| 24 | The release pipeline builds all four binaries, verifies every signature, and produces a DMG whose contents verify | ✓ | §20 — after finding a SwiftPM invocation that silently built one of four |
-| 25 | The CLI at the process boundary honors §32 JSON mode, exit 69/66, live-socket status, the console refusal, and per-root isolation | ✓ | §21 — ten spawned-binary tests; found the not-found exit bug and the §54 screenshot leak |
-| 26 | Registry corruption is quarantined with bytes intact, surfaced by doctor, and recoverable; MCP relays typed failures with no local fallback | ✓ | §22 — the quarantine test caught a name-collision bug in the quarantine itself |
-| 27 | After a reboot a logged-out Space shows Needs Login, not offline; a crashed worker under a live session shows offline | ✓ | §23 — utmpx rejected empirically; process ownership is the discriminator |
-| 28 | The §52 live preview is pull-model, fail-closed on console, self-stops when unpulled, and falls back to the 1 FPS MVP when refused | ✓ | §24 — 6 controller tests + 2 process-boundary tests; SCK delivery itself needs a background session and is marked unverified |
-| 29 | The §37 diagnostics export is safe to hand out: whitelist collection + a redaction pass, with the token never surviving either | ✓ | §25 — 7 unit tests + a live-worker integration test |
-| 30 | Stop keeps the session, Logout ends the session through a typed root-only helper RPC, Delete is the only thing that removes a Space | ✓ | §26 — stop pinned by a live test; logout validation pinned; the logout run itself needs the root helper and is recorded as blocked |
-| 31 | Idle resources measured against §53: worker 2.7 MB / 0.0% CPU; app 0.0% CPU. Memory, by physical footprint: 36–37 MB empty, **45–54 MB with a Space registered** (§36 first reproduced the condition; §37 widened the bounds), 19.1 MB bare floor. RSS metrics recorded beside them for comparability | ✓ | §27, §34–§36 — release-build measurements |
-| 32 | 1000 sequential RPC round trips leave the worker healthy at ~6.5 ms/call | ✓ | §28 — protocol half of §44; the isolation half stays blocked on a second session |
-| 33 | Doctor names per-Space Accessibility and Screen Recording, asked of the worker, with panel-path fixes | ✓ | §29 — live-worker integration test; caught the wrong-root bug on its first run |
-| 34 | No polling loops; the §44 gate refuses (exit 66) rather than passing without a Space | ✓ | §30 — code audit, 0.0% idle CPU, and the acceptance run's honest refusal |
-| 35 | The §56 review is a re-runnable matrix: each item pinned by named tests or explicitly blocked | ✓ | §31 — 7 verified, 3 blocked on machine capabilities, sign-off rule stated |
-| 36 | The release chain produces a Developer ID-signed app whose every nested binary verifies strictly, wrapped in a verified DMG whose contents re-verify | ✓ | §32 — `scripts/release.sh` end-to-end; Gatekeeper refusal isolated to notarization (`notarytool` profile absent, re-verified) |
-| 37 | Every artifact carries hardened runtime + a secure timestamp: the signature side of notarization is complete | ✓ | §33 — flags and Timestamp on app, helper, worker, CLI |
-| 125 | The release DMG was accepted by Apple's notary service, stapled (app + DMG), and Gatekeeper accepts the stapled app | ✓ | §38 — submission Accepted, `spctl --assess` exit 0 |
-| 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
-| 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
-| 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
-| 20 | The same 1000 actions land on the agent's desktop | ✗ | same gate, positive half; needs a second session |
-| 21 | The helper only ever mentions commands that exist, with no shell and no `-admin` | ✓ | `HelperValidationTests`, 37 tests |
-| 22 | The helper refuses every account it did not create | ✓ | `HelperValidationTests`, 37 tests |
-| 23 | The helper's binary, plist and worker path are correct inside a real signed bundle | ✓ | `agentspace-helper --self-check`, run by `bundle-app.sh` |
-| 24 | The helper answers over XPC and performs a real createUser | ✗ | needs the LaunchDaemon registered, which needs an administrator password |
-| 25–36 | The create/delete flows above the helper boundary — ordering, rollback, Keychain, worktree safety, CLI exit codes | ✓ | §15, with the helper call injected so the failure paths run for real |
-| 25 | A git-worktree Space gives the agent its own checkout and leaves the user's tree untouched | ✓ | `WorkspacePreparerTests`, 16 tests, real git |
-| 26 | A worktree workspace can never be the user's own working tree or branch | ✓ | `WorkspacePreparerTests` |
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| S1 | `CGSessionCopyCurrentDictionary()` is the right console signal, and the key is spelled `kCGSSessionOnConsoleKey` | ✓ | `SessionProbe` |
+| S2 | The console bit fails closed when unreadable | ✓ | `SessionGuardTests` (7 tests) |
+| S3 | `SessionGetInfo` / `sessionHasGraphicAccess` reliably reports whether the session has a window server | ✓ | `SessionProbe` + `testSystemSourceReportsGraphicAccess` |
+| S4 | `CGDisplayPixelsWide()` does NOT give pixels on a scaled Retina display | ✓ | `SessionProbe` — the trap is real on macOS 27 |
+| S5 | The worker refuses to start without a window server, and refuses to start as root | ~ | refusal logic verified; the *exit code paths* (69/77) not exercised end to end |
+| S6 | Every input shape is refused with `SESSION_IS_CONSOLE` when the session is the console | ✓ | `testInputRejectedWhenSessionIsConsoleIntegration` — 9 shapes, live worker, live socket |
+| S7 | An unauthorized client is rejected on every method | ✓ | `testUnauthorizedSocketClientRejected` |
+| S8 | Two Spaces have independent sockets and tokens, and neither token opens the other | ✓ | `testDifferentSpacesHaveDifferentTokens` |
+| S9 | The worker terminates cleanly on SIGTERM and removes its socket | ✓ | manual run, see below |
+| S10 | Screenshots come from the worker's own session and match its reported geometry | ~ | `testScreenshotNeverReturnsConsoleSession` — capture-path invariants asserted; cross-session comparison needs a second session |
+| S11 | Input really reaches a *background* session and nothing reaches the console | ✗ | **needs a second logged-in macOS user** |
+| S12 | A screenshot of a background session is never the console's framebuffer | ✗ | same |
+| S13 | Drag gestures work end to end | ✗ | same |
+| S14 | Accessibility tree reads succeed in a background session | ✗ | same |
+| S15 | App launch registration detection (`APP_LAUNCH_TIMEOUT`) | ✗ | same |
+| S16 | The MCP server exposes the CLI over stdio, and the fail-closed refusal survives the MCP boundary | ✓ | `scripts/mcp-smoke.sh` |
+| S17 | Creating a Space calls the helper in the order account → runtime → worker, and a bad workspace is refused before the helper is called at all | ✓ | §15 — `SpaceProvisionerTests` |
+| S18 | Every creation-step failure rolls back what it already did, and a *failed* rollback keeps the orphan account visible as an errored Space | ✓ | §15 |
+| S19 | The generated password reaches the Keychain and appears in no file; generated passwords never repeat | ✓ | §15 — real Keychain, own service namespace |
+| S20 | Eight Spaces get eight distinct sockets, tokens, runtime directories, account names and launchd labels; two Spaces differing only by case never share a working tree | ✓ | §16 — `MultiSpaceIsolationTests` |
+| S21 | Disk usage is measured (agreeing with `du`), opt-in, budget-bounded, and never silently a zero | ✓ | §17 — `DiskUsageTests` + a live worker |
+| S22 | MCP configs for Claude Code, Codex and OpenCode generate, merge key-scoped, install idempotently, and refuse to overwrite a foreign entry | ✓ | §18 — plus an incident: a test that wrote the user's real config |
+| S23 | The §35 agent rules generate from one source, append marker-scoped and idempotently, and are copied — not written — from the GUI | ✓ | §19 |
+| S24 | The release pipeline builds all four binaries, verifies every signature, and produces a DMG whose contents verify | ✓ | §20 — after finding a SwiftPM invocation that silently built one of four |
+| S25 | The CLI at the process boundary honors §32 JSON mode, exit 69/66, live-socket status, the console refusal, and per-root isolation | ✓ | §21 — ten spawned-binary tests; found the not-found exit bug and the §54 screenshot leak |
+| S26 | Registry corruption is quarantined with bytes intact, surfaced by doctor, and recoverable; MCP relays typed failures with no local fallback | ✓ | §22 — the quarantine test caught a name-collision bug in the quarantine itself |
+| S27 | After a reboot a logged-out Space shows Needs Login, not offline; a crashed worker under a live session shows offline | ✓ | §23 — utmpx rejected empirically; process ownership is the discriminator |
+| S28 | The §52 live preview is pull-model, fail-closed on console, self-stops when unpulled, and falls back to the 1 FPS MVP when refused | ✓ | §24 — 6 controller tests + 2 process-boundary tests; SCK delivery itself needs a background session and is marked unverified |
+| S29 | The §37 diagnostics export is safe to hand out: whitelist collection + a redaction pass, with the token never surviving either | ✓ | §25 — 7 unit tests + a live-worker integration test |
+| S30 | Stop keeps the session, Logout ends the session through a typed root-only helper RPC, Delete is the only thing that removes a Space | ✓ | §26 — stop pinned by a live test; logout validation pinned; the logout run itself needs the root helper and is recorded as blocked |
+| S31 | Idle resources measured against §53: worker 2.7 MB / 0.0% CPU; app 0.0% CPU. Memory, by physical footprint: 36–37 MB empty, **45–54 MB with a Space registered** (§36 first reproduced the condition; §37 widened the bounds), 19.1 MB bare floor. RSS metrics recorded beside them for comparability | ✓ | §27, §34–§36 — release-build measurements |
+| S32 | 1000 sequential RPC round trips leave the worker healthy at ~6.5 ms/call | ✓ | §28 — protocol half of §44; the isolation half stays blocked on a second session |
+| S33 | Doctor names per-Space Accessibility and Screen Recording, asked of the worker, with panel-path fixes | ✓ | §29 — live-worker integration test; caught the wrong-root bug on its first run |
+| S34 | No polling loops; the §44 gate refuses (exit 66) rather than passing without a Space | ✓ | §30 — code audit, 0.0% idle CPU, and the acceptance run's honest refusal |
+| S35 | The §56 review is a re-runnable matrix: each item pinned by named tests or explicitly blocked | ✓ | §31 — 7 verified, 3 blocked on machine capabilities, sign-off rule stated |
+| S36 | The release chain produces a Developer ID-signed app whose every nested binary verifies strictly, wrapped in a verified DMG whose contents re-verify | ✓ | §32 — `scripts/release.sh` end-to-end; Gatekeeper refusal isolated to notarization (`notarytool` profile absent, re-verified) |
+| S37 | Every artifact carries hardened runtime + a secure timestamp: the signature side of notarization is complete | ✓ | §33 — flags and Timestamp on app, helper, worker, CLI |
+| S38 | The release DMG was accepted by Apple's notary service, stapled (app + DMG), and Gatekeeper accepts the stapled app | ✓ | §38 — submission Accepted, `spctl --assess` exit 0 |
+| S39 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
+| S40 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
+| S41 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
+| S42 | The same 1000 actions land on the agent's desktop | ✗ | same gate, positive half; needs a second session |
+| S43 | The helper only ever mentions commands that exist, with no shell and no `-admin` | ✓ | `HelperValidationTests`, 37 tests |
+| S44 | The helper refuses every account it did not create | ✓ | `HelperValidationTests`, 37 tests |
+| S45 | The helper's binary, plist and worker path are correct inside a real signed bundle | ✓ | `agentspace-helper --self-check`, run by `bundle-app.sh` |
+| S46 | The helper answers over XPC and performs a real createUser | ✗ | needs the LaunchDaemon registered, which needs an administrator password |
+| S47 | The create/delete flows above the helper boundary — ordering, rollback, Keychain, worktree safety, CLI exit codes | ✓ | §15, with the helper call injected so the failure paths run for real |
+| S48 | A git-worktree Space gives the agent its own checkout and leaves the user's tree untouched | ✓ | `WorkspacePreparerTests`, 16 tests, real git |
+| S49 | A worktree workspace can never be the user's own working tree or branch | ✓ | `WorkspacePreparerTests` |
 
 ---
 
@@ -3560,3 +3561,24 @@ defects found, recorded so the surfaces are on the ledger.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 248 | The session token persists across worker restarts and the pre-restart token still authenticates afterward | ✓ | §105 — the restart probe |
+
+
+---
+
+## 106. Structural audit, round two: the ledger's two namespaces are now clean
+
+- **The per-section ledger** — 223 rows, numbered 25–248, no
+  duplicates, no gaps: every row carries a clean verdict (✓/~/✗) and
+  named evidence; the 9 blocked rows all name their gate.
+- **The early snapshot table** — the "at a glance" table that carried
+  the first 24 claims plus 125 had lost its header row and reused
+  section-ledger numbers for some rows, which made the numbering look
+  duplicated. Its rows are now numbered S1–S49 with a restored header:
+  the information is intact, the numeric namespace is unique, and the
+  gap at 1–24/125 is explained rather than papered over — those
+  claims live in the S-table, the live ledger starts at 25.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 249 | The ledger contains 223 uniquely-numbered claims with no gaps in 25–248, all with clean verdicts and evidence | ✓ | §106 — the structural re-audit |
+| 250 | The early snapshot survives as S1–S49 with a restored header, outside the numeric namespace | ✓ | §106 — the renumbering pass |
