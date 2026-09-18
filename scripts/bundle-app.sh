@@ -66,6 +66,13 @@ cp "$BIN_DIR/agentspace-helper" \
 cp apps/AgentSpace/Resources/com.agentspace.AgentSpace.Helper.plist \
    "$APP/Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist"
 
+# Localization tables. NSLocalizedString in Core and the GUI resolves against
+# the main bundle, so the .lproj folders must sit in Contents/Resources —
+# without them every lookup falls back to the English key, in every language.
+for lproj in apps/AgentSpace/Resources/*.lproj; do
+  cp -R "$lproj" "$APP/Contents/Resources/"
+done
+
 # The plist and the client must agree about the Mach service name, or the app
 # times out with no error to explain why. Asserted rather than assumed.
 PLIST="$APP/Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist"

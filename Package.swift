@@ -60,8 +60,19 @@ let package = Package(
             // Contents/Library/LaunchDaemons/). Declaring them as resources would
             // put a second, ignored copy in Contents/Resources, and an Info.plist
             // sitting in Resources is both wrong and confusing.
+            // Both plists are consumed by scripts/bundle-app.sh, which copies them
+            // to the places macOS requires (Contents/Info.plist and
+            // Contents/Library/LaunchDaemons/). Declaring them as resources would
+            // put a second, ignored copy in Contents/Resources, and an Info.plist
+            // sitting in Resources is both wrong and confusing. The .lproj tables
+            // are likewise copied by bundle-app.sh into Contents/Resources, where
+            // Bundle.main's NSLocalizedString lookups expect them — excluding them
+            // keeps SwiftPM from wrapping them in a resource bundle the app would
+            // never find.
             exclude: ["Resources/Info.plist",
-                      "Resources/com.agentspace.AgentSpace.Helper.plist"]
+                      "Resources/com.agentspace.AgentSpace.Helper.plist",
+                      "Resources/en.lproj",
+                      "Resources/zh-Hans.lproj"]
         ),
         // The phase-0 acceptance test (plan §44), as a runnable program rather
         // than an XCTest case: it must run from the *console* session and open a

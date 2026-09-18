@@ -2416,6 +2416,7 @@ mounted volume — which is exactly what a user's first launch will do).
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 166 | The DMG's inner app is stapled independently of the DMG staple, so Gatekeeper accepts a direct app drag-out as well as the mounted install | ✓ | §57 — the mounted-volume validation |
+| 168 | dist/AgentSpace.app (CDHash 44a4f757…) and dist/AgentSpace-0.1.0.dmg are both stapled, and `spctl --type execute` accepts the app as "Notarized Developer ID" — the full §57 distribution chain is closed | ✓ | §59 — the restored bytes and the corrected assessment type |
 
 
 ---
@@ -2440,3 +2441,39 @@ functional gain, so the meaning is recorded here instead.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 167 | `--check` in a console session reports ok with an explicit "will refuse all input" problem — readiness and input-permission are separate axes | ✓ | §58 — the JSON, and the blocking-problem list in source |
+
+
+---
+
+## 59. The distribution chain closes — after dist gets poisoned and the audit tooling misfires
+
+Two things had to be untangled before the chain could be declared closed.
+
+**The poisoning.** After the DMG was Accepted and stapled, `stapler validate`
+on `dist/AgentSpace.app` said it had no ticket — and the signature output
+showed why: a build stamped **00:49** with an extra Info.plist entry and an
+extra sealed file had replaced the notarized bytes. Exactly the scenario the
+notarize script's own comment warns about ("a stale archive in it invites
+shipping the wrong bytes" — here, an unnotarized rebuild in the distribution
+directory). The correct bytes still existed inside the stapled DMG, so the
+repair was to mount it and copy the stapled app back out. The restored
+`dist/AgentSpace.app` carries CDHash `44a4f757…` — identical to the DMG's
+inner app — plus its own ticket.
+
+**The misfiring audit.** With the bytes right, my ad-hoc chain check still
+reported "rejected": `spctl -t open` on the app ("Insufficient Context") and
+`spctl --type install` on the DMG (a DMG is not a pkg). Both were my command
+errors, not artifact problems. The correct types — which `notarize.sh` step 4
+already uses — say it plainly: `spctl --assess --type execute
+dist/AgentSpace.app` → **accepted, source=Notarized Developer ID**, and
+`stapler validate` accepts both the app and the DMG.
+
+The §57 chain is closed: Developer ID + hardened runtime + secure timestamp,
+notarized submissions `bdd6e4cc` (app) and `4e921542` (DMG) both Accepted,
+both stapled, Gatekeeper-clean, and the two dist artifacts provably contain
+the same code.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 169 | A notarized DMG is the recovery source for a poisoned dist app: mount, copy out, and the staple travels with it | ✓ | §59 — the restore, then the matching CDHash |
+| 170 | The Gatekeeper check for a .app is `--type execute`; `--type install` belongs to pkgs and `-t open` to documents — wrong types manufacture rejections out of good bytes | ✓ | §59 — the same app accepted under execute and rejected under the wrong types |
