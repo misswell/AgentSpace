@@ -6777,3 +6777,21 @@ directory — §56's escape concern, closed in the walk itself.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 408 | §30's Disk metric is a typed, opt-in measurement: null-vs-zero honesty, truncation as lower bound, du cross-checked, symlink-contained | ✓ | §246 — Operations.swift:655–696, DiskUsageTests.swift:30–92 (5/5) |
+
+
+---
+
+## 247. §22's five verbs, all present in the dispatch table
+
+§22 asks for launch, quit, forceQuit, apps, and activate.
+Launch's registration-wait and apps' LSUIElement inclusion were
+verified earlier; this pass closes the remaining three. quit
+and forceQuit share one path with a force flag (graceful vs
+SIGKILL semantics without duplicated code), and activate is its
+own method behind requireDesktopSession and a non-empty "app"
+string check — the console guard applies to making an app
+frontmost too, not only to input.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 409 | §22's five app-management verbs are all dispatched, with quit/forceQuit parameterized and activate behind the desktop-session guard | ✓ | §247 — Operations.swift:37–39, 410–415 |
