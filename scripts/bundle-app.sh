@@ -105,7 +105,12 @@ fi
 
 sign() {
   local path="$1" identifier="$2"
-  codesign --force --options runtime --timestamp=none \
+  # A secure timestamp is one of the notary service's requirements (§57): a
+  # Developer ID signature without one is refused before its contents are even
+  # examined. Ad-hoc signing has no timestamp authority, so it keeps =none.
+  local ts="--timestamp"
+  [[ "$IDENTITY" == "-" ]] && ts="--timestamp=none"
+  codesign --force --options runtime "$ts" \
     --identifier "$identifier" --sign "$IDENTITY" "$path" 2>&1 | sed 's/^/   /' \
     || codesign --force --identifier "$identifier" --sign - "$path" 2>&1 | sed 's/^/   /'
 }

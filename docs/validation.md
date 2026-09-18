@@ -54,6 +54,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 34 | No polling loops; the §44 gate refuses (exit 66) rather than passing without a Space | ✓ | §30 — code audit, 0.0% idle CPU, and the acceptance run's honest refusal |
 | 35 | The §56 review is a re-runnable matrix: each item pinned by named tests or explicitly blocked | ✓ | §31 — 7 verified, 3 blocked on machine capabilities, sign-off rule stated |
 | 36 | The release chain produces a Developer ID-signed app whose every nested binary verifies strictly, wrapped in a verified DMG whose contents re-verify | ✓ | §32 — `scripts/release.sh` end-to-end; Gatekeeper refusal isolated to notarization (`notarytool` profile absent, re-verified) |
+| 37 | Every artifact carries hardened runtime + a secure timestamp: the signature side of notarization is complete | ✓ | §33 — flags and Timestamp on app, helper, worker, CLI |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1606,3 +1607,37 @@ them.
 |---|---|---|---|
 | 115 | `release.sh` runs clean end-to-end; Developer ID signatures verify strictly on all nested binaries and inside the DMG | ✓ | this run |
 | 116 | Gatekeeper's remaining refusal is solely notarization; the profile is absent, re-checked | ✓ | `notarytool history --keychain-profile` error, re-run this round |
+
+
+---
+
+## 33. Notarization readiness: the signature side completed, the credential side diagnosed
+
+Following the §32 discovery that a real Developer ID certificate now signs the
+bundle, the notarization gap was narrowed to its exact remaining half.
+
+**The signature side is complete.** `bundle-app.sh` was signing with
+`--timestamp=none` — harmless for ad-hoc development builds, but it makes a
+Developer ID bundle un-notarizable, because the notary service refuses
+signatures without a secure timestamp before examining anything else. The
+script now requests a timestamp whenever it signs with a real identity and
+keeps `=none` only for ad-hoc. After a full `release.sh` re-run, every artifact
+— app envelope, helper, worker, CLI — carries both `flags=0x10000(runtime)` and
+a fresh `Timestamp=`, and strict verification still passes on all of them
+inside the rebuilt DMG. All three notary signature requirements (Developer ID
+chain, hardened runtime, secure timestamp, plus signed nested binaries) are now
+satisfied; the next notarization attempt cannot fail on signature grounds.
+
+**The credential side is diagnosed.** This session's App Store Connect CLI
+(`asc`) has a stored credential profile, but Apple rejects it:
+`UnauthenticatedRequest`, re-verified twice against the notary list endpoint.
+Re-authenticating (`asc auth login`) requires the API key's `.p8` file and
+issuer ID — user-held secrets this session neither has nor may invent. The
+submission command is otherwise one line (`asc notarization submit --file
+<zip> --wait`, then `xcrun stapler`), recorded here so the next round or the
+user can execute it directly once credentials are valid.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 117 | Hardened runtime + secure timestamp present on all four artifacts after the timestamp fix | ✓ | this run |
+| 118 | Notarization submission is blocked solely on the ASC credential (rejected by Apple, re-verified) | ✓ | `asc notarization list` 401, twice |
