@@ -30,6 +30,7 @@ let package = Package(
         // `.build/debug` and silently overwrite each other. The bundle renames it
         // to `AgentSpace` on the way in, where the destinations differ.
         .executable(name: "AgentSpaceApp", targets: ["AgentSpaceApp"]),
+        .executable(name: "agentspace-session-test", targets: ["SessionAcceptanceTest"]),
     ],
     targets: [
         .target(
@@ -53,6 +54,15 @@ let package = Package(
             name: "AgentSpaceApp",
             dependencies: ["AgentSpaceCore"],
             path: "apps/AgentSpace"
+        ),
+        // The phase-0 acceptance test (plan §44), as a runnable program rather
+        // than an XCTest case: it must run from the *console* session and open a
+        // real TextEdit, which a test host cannot do. `swift run
+        // agentspace-session-test` or scripts/acceptance.sh.
+        .executableTarget(
+            name: "SessionAcceptanceTest",
+            dependencies: ["AgentSpaceCore"],
+            path: "tests/Session"
         ),
         .testTarget(
             name: "AgentSpaceUnitTests",

@@ -36,6 +36,8 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 16 | The MCP server exposes the CLI over stdio, and the fail-closed refusal survives the MCP boundary | ✓ | `scripts/mcp-smoke.sh` |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
+| 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
+| 20 | The same 1000 actions land on the agent's desktop | ✗ | same gate, positive half; needs a second session |
 
 ---
 
@@ -551,3 +553,95 @@ The plan's §63.13 says not to guess macOS behaviour and to write minimal progra
 to check it; this round suggests the rule generalises to the product too — a
 green suite over correctly-unit-tested parts said nothing about whether the parts
 agreed with each other.
+
+---
+
+## 12. The phase-0 acceptance gate (§44)
+
+`tests/Session/main.swift`, run as `agentspace-session-test` or
+`scripts/acceptance.sh`. This is the plan's gate in one program: the console user
+has TextEdit open with `USER_SCREEN_123456`, the agent user has TextEdit with
+`AGENT_SCREEN`, the worker clicks, types and scrolls **1000 times**, and afterwards
+the console's content, focus and pointer must be unchanged.
+
+It runs from the **console** session — that is where the things being protected
+live — and drives the agent's desktop only through the worker's socket, over the
+same protocol the CLI, the GUI and the MCP server use. It never posts an event
+itself, and has no branch that tries the agent's TextEdit locally if the worker is
+unavailable: a test that could quietly drive the wrong session would pass, which is
+worse than having no test.
+
+### The result today
+
+```
+$ scripts/acceptance.sh --iterations 1000
+
+Worker is up. Session verdict: isConsole
+  accessibility:    granted
+  screen recording: granted
+  permits input:    false
+
+== fail-closed: the negative control ==
+Sampling this desktop for 1.5s with nothing sent, to learn what it does on its own…
+  the console was ALREADY changing before the run: pointer
+
+  PASS  move: refused with SESSION_IS_CONSOLE
+  PASS  click: refused with SESSION_IS_CONSOLE
+  PASS  doubleClick: refused with SESSION_IS_CONSOLE
+  PASS  rightClick: refused with SESSION_IS_CONSOLE
+  PASS  type: refused with SESSION_IS_CONSOLE
+  PASS  key: refused with SESSION_IS_CONSOLE
+  PASS  scroll: refused with SESSION_IS_CONSOLE
+  PASS  drag: refused with SESSION_IS_CONSOLE
+  PASS  1000 mixed: refused with SESSION_IS_CONSOLE
+
+Isolation of this desktop after 1000 refused actions:
+  PASS  the console's pointer never moved
+
+== isolation: the phase-0 gate ==
+  SKIP  the worker's session is 'isConsole', so it cannot accept input and
+        there is nothing to isolate yet
+
+Verdict: INCOMPLETE
+```
+
+Exit code **3** — *the gate could not run*, which is deliberately not the same as
+passing. `0` requires that the gate actually executed and that every property it
+measured was stable.
+
+So the negative half of the isolation claim is now verified rather than asserted:
+1000 mixed actions, every one refused, this desktop untouched. The positive half —
+that the same 1000 actions *do* land on the agent's desktop — needs a second login
+and remains skipped, as §7 records.
+
+### A flaw found in the test itself
+
+The first version compared the mouse position before and after and failed on any
+movement. It failed on the first run:
+
+```
+  FAIL  the console's mouse moved: (691, 986) → (685, 982)
+```
+
+That was not AgentSpace. A human was using the machine. The test could not tell
+"the agent moved the pointer" from "somebody moved the pointer", and a test that
+reports failures it cannot attribute gets ignored — which is worse than not having
+it, because it spends the credibility that the real failures need later.
+
+It now separates two kinds of evidence:
+
+1. **Attributable evidence, always a failure.** A leaked synthetic event would put
+   the pointer on a coordinate *this run asked for* — a precise fingerprint, and
+   the first thing checked.
+2. **Ambient evidence, a failure only if the property was stable when measured with
+   nothing sent.** A control window is sampled before the run. If the pointer was
+   already moving, a later movement is reported as inconclusive and the verdict is
+   **INCONCLUSIVE** (exit 4), not a failure and not a pass.
+
+The output above shows both mechanisms working: the pointer was moving during the
+control window, then stayed still for the whole action phase, so the run correctly
+reported a pass with the ambient motion noted.
+
+This is the same lesson as §11's bugs, from the other direction. §11 was about two
+components disagreeing; this is about a test measuring something real but
+attributing it to the wrong cause. Both are invisible to a green suite.

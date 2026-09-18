@@ -108,7 +108,20 @@ scripts/test.sh             # 170 tests; builds the worker first, because the
 scripts/bundle-app.sh       # a signed dist/AgentSpace.app
 scripts/demo.sh             # end-to-end CLI run against a throwaway root
 scripts/mcp-smoke.sh        # real MCP JSON-RPC against a live worker
+scripts/acceptance.sh       # the phase-0 isolation gate (plan §44)
 ```
+
+The acceptance gate is the one that decides whether the product works:
+
+```bash
+scripts/acceptance.sh --iterations 1000
+```
+
+It opens TextEdit on your desktop, drives 1000 mixed click/type/scroll actions on
+the agent's desktop through the worker, then checks that your content, focus and
+pointer are untouched. Run it from your own desktop, never over ssh. Exit code 3
+means the gate could not run — no background session yet — and that is
+deliberately not the same as passing.
 
 The worker's own readiness check, which needs no socket and no second user:
 
