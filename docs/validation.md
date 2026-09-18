@@ -6689,3 +6689,23 @@ and it is signed as one.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 404 | §58's namespace is a single constant table; remaining literal repeats are doc comments, name-isolated tests, a plist-label contract test, and codesign arguments pinned by it | ✓ | §242 — Doctor.swift:393–407, HelperValidationTests.swift:382, bundle-app.sh:126–131 |
+
+
+---
+
+## 243. §59's second screen: the side-by-side and the five promises
+
+The README's second screen carries the plan's Your Desktop |
+Agent Desktop table (VS Code/Chrome, Terminal/Simulator,
+Safari/Xcode) and the "You keep working / The agent keeps
+working" closing line. Below it, plan §2's own promises appear
+verbatim as the reader-facing sentence: "Your pointer does not
+move. Your keyboard is not taken. Your focus does not change.
+Your desktop does not flicker." — the five don'ts as five short
+sentences. The §1 architecture diagram (same Mac, same kernel,
+own Aqua session, own framebuffer, own input stream) and the
+§17 View Desktop entry point round out the first two screens.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 405 | §59's second screen renders the side-by-side table, the keeps-working line, and §2's five promises verbatim | ✓ | §243 — README.md:12–31 |
