@@ -160,13 +160,13 @@ final class ProtocolTests: XCTestCase {
         let expected: Set<String> = [
             "hello", "status", "screenshot", "input", "apps", "launch", "quit",
             "forceQuit", "activate", "exec", "ax.snapshot", "ax.frontmost",
-            "ax.windows", "ax.perform", "shutdown",
+            "ax.windows", "ax.elementAt", "ax.perform", "shutdown",
         ]
         let actual: Set<String> = [
             Method.hello, Method.status, Method.screenshot, Method.input,
             Method.apps, Method.launch, Method.quit, Method.forceQuit,
             Method.activate, Method.exec, Method.axSnapshot, Method.axFrontmost,
-            Method.axWindows, Method.axPerform, Method.shutdown,
+            Method.axWindows, Method.axElementAt, Method.axPerform, Method.shutdown,
         ]
         XCTAssertEqual(actual, expected)
     }

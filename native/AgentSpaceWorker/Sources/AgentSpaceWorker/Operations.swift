@@ -41,6 +41,7 @@ struct Operations {
             case Method.axSnapshot: return .success(try axSnapshot(params: params))
             case Method.axFrontmost: return .success(try axFrontmost())
             case Method.axWindows: return .success(try axWindows(params: params))
+            case Method.axElementAt: return .success(try axElementAt(params: params))
             case Method.axPerform: return .success(try axPerform(params: params))
             case Method.shutdown: return .success(try shutdown(params: params))
             case Method.previewStart: return .success(try previewStart(params: params))
@@ -540,6 +541,33 @@ struct Operations {
                 message: "no pid given and no app is frontmost in this AgentSpace.")
         }
         return AccessibilityBridge.windows(pid: pid)
+    }
+
+    /// Plan §18's `ax.elementAt`: what is under this point? The agent's usual
+    /// loop is screenshot → pick a spot → ask what element lives there, before
+    /// deciding to click or to reach it through an action instead of geometry.
+    func axElementAt(params: JSONValue) throws -> JSONValue {
+        try requireDesktopSession("read the element under a point")
+        try AccessibilityBridge.requireTrust()
+        guard let x = params["x"]?.doubleValue, let y = params["y"]?.doubleValue else {
+            throw AgentSpaceError(
+                code: .invalidCoordinate,
+                message: #"ax.elementAt needs "x" and "y", in points, of the location to inspect."#)
+        }
+        if let problem = CoordinateRules.validate(x: x, y: y, geometry: nil) {
+            throw problem
+        }
+        let (element, pid) = try AccessibilityBridge.elementAt(x: Float(x), y: Float(y))
+        var object: [String: JSONValue] = [
+            "pid": .int(Int(pid)),
+            "point": .obj(["x": .double(x), "y": .double(y)]),
+            "element": AccessibilityBridge.describe(element, depth: 0),
+        ]
+        if let app = NSRunningApplication(processIdentifier: pid) {
+            object["appName"] = .string(app.localizedName ?? "unknown")
+            if let bundleID = app.bundleIdentifier { object["bundleId"] = .string(bundleID) }
+        }
+        return .object(object)
     }
 
     func axPerform(params: JSONValue) throws -> JSONValue {

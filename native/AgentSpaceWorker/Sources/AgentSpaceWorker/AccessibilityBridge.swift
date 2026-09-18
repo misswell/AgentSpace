@@ -59,6 +59,25 @@ enum AccessibilityBridge {
         AXUIElementCreateApplication(pid)
     }
 
+    /// The deepest element under a global screen point (plan §18's
+    /// `ax.elementAt`). Hit-testing runs on the system-wide element, whose
+    /// coordinate space is the same top-left point space AgentSpace's input
+    /// API uses — the coordinates an agent read off a screenshot are the
+    /// coordinates this call takes, no conversion.
+    static func elementAt(x: Float, y: Float) throws -> (element: AXUIElement, pid: pid_t) {
+        var element: AXUIElement?
+        let result = AXUIElementCopyElementAtPosition(
+            AXUIElementCreateSystemWide(), x, y, &element)
+        guard result == .success, let hit = element else {
+            throw AgentSpaceError(
+                code: .noInputTarget,
+                message: "no accessibility element at (\(x), \(y)); the point may be outside any window, or on the desktop wallpaper.")
+        }
+        var pid: pid_t = 0
+        AXUIElementGetPid(hit, &pid)
+        return (hit, pid)
+    }
+
     /// The element's frame in the AX coordinate space (origin top-left, which
     /// matches AgentSpace's point space, so no flip is needed).
     static func frame(_ element: AXUIElement) -> CGRect? {

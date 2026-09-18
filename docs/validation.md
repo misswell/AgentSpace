@@ -6537,3 +6537,25 @@ negative ("coordinates start at the top-left").
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 398 | §15's point/pixel conversion exists with guarded scale, early bounds rejection, and dual-boundary validation with teaching errors | ✓ | §236 — Geometry.swift:57–100 |
+
+
+---
+
+## 237. §18's fifth API was missing; ax.elementAt now exists
+
+The plan lists five accessibility methods. Four were registered;
+ax.elementAt was not — the method-namespace test's expected set
+mirrored the omission, so it could not catch it (a complete-set
+check is only as complete as its negative list). Implemented:
+AccessibilityBridge.elementAt hit-tests the system-wide element
+via AXUIElementCopyElementAtPosition — the same top-left point
+space the input API uses, "no conversion" — and returns pid,
+app name, the point echoed back, and a describe() of the hit.
+Worker dispatch validates coordinates with the shared
+CoordinateRules and refuses outside a desktop session, like the
+other four. Expected/actual method sets updated; 346 Swift and
+23 MCP tests, 0 failures.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 399 | §18's ax.elementAt exists end-to-end (Method table, worker dispatch, hit-test bridge, namespace test), closing the missing-fifth-API gap | ✓ (gap closed) | §237 — Protocol.swift:24, AccessibilityBridge.swift:62–78, Operations.swift:545–572, ProtocolTests.swift:159–172 |

@@ -21,6 +21,7 @@ public enum Method {
     public static let axSnapshot = "ax.snapshot"
     public static let axFrontmost = "ax.frontmost"
     public static let axWindows = "ax.windows"
+    public static let axElementAt = "ax.elementAt"
     public static let axPerform = "ax.perform"
     public static let shutdown = "shutdown"
 
