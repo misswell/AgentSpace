@@ -3796,3 +3796,30 @@ is comments only).
 |---|---|---|---|
 | 262 | The README names every user-facing script in scripts/ (11/11, with mcp-smoke.mjs correctly an internal payload) | ✓ | §112 — the roster cross-check |
 | 263 | Doctor's fix strings are covered by docs/troubleshooting.md, including under variant wording; no failure path lacks its remedy | ✓ | §112 — the six-fix sample and the variant recheck |
+
+
+---
+
+## 113. §42 compliance, measured: the notices file and the zero-trace source
+
+Plan §42/§63.3 governs Offstage reuse: copy nothing without keeping
+the copyright and registering it in THIRD_PARTY_NOTICES.md. Both
+halves were measured rather than assumed:
+
+- **THIRD_PARTY_NOTICES.md is substantive.** It carries the full MIT
+  text with the copyright line, an explicit "no source file was
+  copied verbatim" statement that explains why the notice is
+  reproduced anyway (the debt is real: the measured findings are
+  Offstage's), and a table of the specific ideas and measurements
+  taken — the three CGEvent posting paths and their behaviour, the
+  always-assign-flags rule, one event per grapheme cluster.
+- **The Swift sources are trace-free.** A repo-wide search finds
+  "offstage" in exactly three places — THIRD_PARTY_NOTICES.md, this
+  ledger, and the README — and in **zero** Swift files. Copied code
+  under §42's rule would carry a copyright header; none exists. The
+  declaration and the tree agree.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 264 | THIRD_PARTY_NOTICES.md satisfies §42: full MIT text, the no-verbatim-copy statement with its reasoning, and a table of the ideas taken | ✓ | §113 — the file contents |
+| 265 | No Swift source file mentions or headers Offstage, consistent with the no-verbatim-copy declaration | ✓ | §113 — the zero-trace search |
