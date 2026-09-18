@@ -2079,3 +2079,30 @@ long gone, so the app is where the failure must be visible, and it is.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 146 | The deep link has no silent path: every input either raises the viewer or raises a typed alert naming the failure | ✓ | §45 + §46 |
+| 147 | The Settings window's Copy MCP Configuration puts a valid Claude-Code-format JSON on the clipboard, with AGENTSPACE_BIN pointing at the CLI inside the installed app — the installed scenario, whereas the CLI's integrate output points at the developer build | ✓ | §47 — the pasteboard, read back after the AX click |
+
+
+---
+
+## 47. Copy MCP Configuration, driven and read back from the real Settings window
+
+The GUI half of §34 had never been exercised. System Events walked in: the
+app's Settings window has a General and an Advanced tab; Advanced holds the
+copy button. After the AX click, the pasteboard contained:
+
+```json
+{ "mcpServers": { "agentspace": {
+    "command": "npx", "args": ["-y", "@agentspace/mcp"],
+    "env": { "AGENTSPACE_BIN": ".../dist/AgentSpace.app/Contents/Helpers/agentspace" } } } }
+```
+
+Two things are right, and they are different rights. The JSON is the
+Claude Code envelope, parseable as-is. And `AGENTSPACE_BIN` points *inside the
+installed app* — the path a real user needs — while the CLI's `integrate
+--json` (§40) points at the developer build the CLI itself was run from. Same
+generator logic, two correct scenarios; the GUI copy does not accidentally
+hand an end user a path into `.build/debug`.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 148 | The GUI copy path and the CLI integrate path agree on the envelope but intentionally diverge on the binary path — installed app vs developer build — and both are verified | ✓ | §47 — the pasteboard; §40 — the CLI JSON |
