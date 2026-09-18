@@ -5057,3 +5057,24 @@ a tool unusable.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 334 | All CLI output funnels through one Emitter; --json failures carry the full typed envelope; no command bypasses it | ✓ | §172 — the Emitter and its call-site census |
+
+
+---
+
+## 173. §22's launch does not trust the exit code: it waits for registration
+
+AppControl.launch states the plan's rule in its own comment —
+open's success only means LaunchServices accepted the request;
+returning a pid at that moment hands the agent a number it cannot
+use. It launches via NSWorkspace inside the Aqua session, then
+polls (150 ms) until a pid resolves by any of three routes — the
+expected pid alive, the bundle identifier, or the before/after
+process diff — and treats window ownership as the registration
+signal, with a half-budget window deadline so LSUIElement/menu-bar
+apps (which never own windows) are not stalled to the full
+timeout. Failure is honest: APP_LAUNCH_TIMEOUT with the
+suggestion to screenshot the Agent session for a hidden modal.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 335 | Launch waits for a real pid plus window ownership (menu-bar exempt), failing with APP_LAUNCH_TIMEOUT instead of trusting acceptance | ✓ | §173 — AppControl.launch |
