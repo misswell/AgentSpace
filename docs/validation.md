@@ -5672,3 +5672,25 @@ not the test; the full listing is the second tool.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 360 | All eight §55 test names are adopted verbatim, with a six-test superset around them | ✓ | §198 — SafetyTests.swift, SessionGuardTests.swift |
+
+
+---
+
+## 199. §3's API floor: every source compiles against macOS 13, no 26-only
+API anywhere
+
+The plan asks only that macOS-26-specific APIs be avoided during
+development; the build floor is set lower still —
+Package.swift declares platforms [.macOS(.v13)] — and a
+repo-wide sweep finds zero `#available(macOS 26...)` or 27
+gates: no source path needs anything newer. The supported-range
+statement (Apple Silicon, macOS 26+) remains a product decision
+enforced by doctor's version check, while the API floor is a
+development discipline kept two major versions below it — which
+also means the plan's later verification matrix (macOS 15, 26,
+27) is already inside the compile-compatible range rather than
+above it.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 361 | Build floor is macOS 13 with zero 26+-gated APIs — stricter than §3's "avoid 26-only APIs" — while the supported range stays a doctor-enforced product decision | ✓ (superset) | §199 — Package.swift:22, availability sweep |
