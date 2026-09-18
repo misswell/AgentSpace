@@ -4693,3 +4693,23 @@ protocol's verb surface.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 316 | Every §31 CLI command exists; forceQuit rides quit --force; activate and doctor are extras | ✓ | §154 — the dispatch-case census |
+
+
+---
+
+## 155. §28's sign-in-once guidance is shown twice, with the fallback ban spelled out
+
+The create wizard (DoctorView) walks the user through four
+numbered instructions matching §28's five planned steps — open
+Fast User Switching, sign in as the Space, grab the password via
+Show Login Password, grant Accessibility and Screen Recording in
+the setup window, switch back — and closes with the §2 ban in
+plain language: "AgentSpace will not start an agent in your
+account instead — if the background session is not there, every
+call fails with SESSION_NOT_READY." SpaceDetailView shows the same
+steps with done-markers during onboarding. The only-human step is
+labelled as such ("this is the only step that needs you").
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 317 | The one-time login guidance exists in two views, matches §28's steps, and states the no-fallback rule to the user | ✓ | §155 — the wizard instructions in both views |
