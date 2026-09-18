@@ -6977,3 +6977,24 @@ where anyone auditing §27 will look first.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 417 | §27's [Terminal] mockup button is unimplemented and now recorded as deliberately out of scope (deferred by §46/§61; exec path exists via §23/§31) | ✓ (deviation documented) | §255 — SpaceDetailView.swift:133–141, AgentSpaceApp.swift:68 |
+
+
+---
+
+## 256. §26's eight states are rendered completely, with console colored
+as a refusal rather than an error
+
+§183 pinned the model side; this round checks the render side.
+StatusDot maps every one of the eight states to a color — no
+default arm, so a new state fails to compile until it is
+rendered — and carries an accessibility label from
+`SpaceState.displayName`. The semantics matter most: `console`
+is orange, not the red shared by `offline`/`error`, matching
+the model's own comment that console "is *not* an error, it is
+a hard refusal" — the same distinction §245 found in the detail
+view, where the console explanation row is deliberately absent
+while the dot itself still shows.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 418 | All eight §26 states have a StatusDot color and accessibility label; console is orange (a refusal), not red (an error) | ✓ | §256 — Components.swift:10–24, SpaceModel.swift:24–33 |
