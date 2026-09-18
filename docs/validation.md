@@ -2203,3 +2203,31 @@ on a user's machine, not a repository reference — correctly not a repo path.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 157 | The package README cannot silently diverge from the server: the tool names are a diffable set, and the diff is currently empty both ways | ✓ | §51 — the name-set diff |
+| 158 | CLI failure exit codes are layered by meaning — 2 for unknown commands, 1 for readiness failures, 66 (the documented not-found code) for a missing Space — with every message carrying its code prefix and a fix | ✓ | §52 — the three error paths, measured with PIPESTATUS |
+
+
+---
+
+## 52. CLI exit codes layer by meaning, and the PIPESTATUS lesson bites again
+
+Spot-checking failure paths (with `PIPESTATUS`, after being burned once more by
+reading `head`'s exit code instead of the CLI's):
+
+- `agentspace nonsense` → `unknown command`, **exit 2** (usage-class).
+- `agentspace status` with no Space existing → `SESSION_NOT_READY` plus a
+  concrete fix line, **exit 1** (readiness-class).
+- `agentspace status nosuchspace` → not-found, **exit 66** — the documented
+  code, called out in a source comment so it survives refactoring.
+- `agentspace launch` with no arguments → `BAD_REQUEST` plus the usage line.
+
+Three distinct classes, three distinct codes, every message prefixed with its
+code and carrying the next action. A wrapper can branch on the exit code alone
+and be right; a human reading stderr gets the reason and the fix either way.
+
+Also confirmed while here: `docs/architecture.md` already lists
+`AppDeepLink.swift` behind the `agentspace://` scheme — the module map stayed
+current through the desktop round.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 159 | The module map names every file that exists — including the last one added (AppDeepLink) — and no file exists that the map does not name | ✓ | §52 — the grep, plus the standing §43 audit |
