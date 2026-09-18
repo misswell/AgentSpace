@@ -267,6 +267,9 @@ func usage() -> String {
 
     OBSERVE
       screenshot <space>              Capture the Space's desktop
+      desktop <space>                 Open the Space's Desktop Viewer in the app
+      preview <space> --start|frame|stop
+                                      Drive the live preview stream (§52 debug)
       apps <space>                    Apps running in the Space
       ax <space> snapshot             Accessibility tree of the frontmost app
       ax <space> frontmost            Frontmost app and focused element
