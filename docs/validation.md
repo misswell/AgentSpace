@@ -3999,3 +3999,32 @@ that a bare "contains sudo" check would miss (env prefixes, `sudo
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 276 | All nine §36 refusals exist in ExecGuard.rules, as a superset of twenty-two documented rules | ✓ | §119 — the rule list against §36 |
+
+
+---
+
+## 120. §41's deletion guarantees hold, against a real repository
+
+The delete path (§41) was measured on both sides:
+
+- **The implementation is the reverse of creation, with the two
+  careful steps where the plan demands them.** The worker is stopped
+  before the LaunchAgent plist is removed (otherwise the job keeps
+  running until the next boot); the worktree is removed with
+  `git worktree remove --force` — forced because an agent almost
+  certainly left uncommitted changes and the user asked for the
+  deletion — while the **branch is kept** and the original repository
+  is never touched; a worktree-removal failure downgrades to a
+  skipped step ("Your repository and branch are untouched") rather
+  than blocking the account's deletion; the home directory is removed
+  only when asked and is a separate UI question.
+- **The tests exercise this against a real git repository.**
+  `testDeleteRemovesEverythingAndKeepsTheUsersRepository` creates an
+  actual repo, deletes the Space, and asserts the worktree is gone,
+  the user's README is byte-identical, the branch `agentspace/a`
+  survives, and the Keychain and registry are empty. Dirty-worktree
+  downgrade and the home opt-in have their own tests.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 277 | Space deletion removes only the worktree — the branch survives and the user's repository is untouched, verified against a real git repo | ✓ | §120 — the delete-path tests |
