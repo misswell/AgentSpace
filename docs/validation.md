@@ -4791,3 +4791,23 @@ the ScreenCaptureKit stream").
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 321 | 5 FPS idle preview, 0 FPS on close, and 1 FPS fallback are wired end-to-end; 15 FPS is parameterised but has no interactive call site | ✓ (honest limitation) | §159 — previewStart/previewStop and the viewer's tick |
+
+
+---
+
+## 160. §17's click pipeline is complete: PreviewMapping converts view to
+agent points in both directions, scale excluded by design
+
+DesktopViewerView maps a click through PreviewMapping: the click's
+fraction across the image times the display's *point* size is the
+agent point (displayPoint), and the reverse viewPoint renders the
+last sent click as a marker so a mis-scaled mapping is visible to
+the user. The backing scale deliberately never enters the
+calculation — the doc comment says so and the type does not take
+it as a parameter (§15's points contract). The mapped point feeds
+InputAction.click straight into the same .cgSessionEventTap RPC
+path the CLI uses.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 322 | Viewer clicks convert view→point and point→view through one mapping type; scale is excluded; the result posts through the normal input RPC | ✓ | §160 — PreviewMapping and the viewer's click handler |
