@@ -3083,3 +3083,22 @@ Two follow-the-source clarifications from the previous round's probes:
 |---|---|---|---|
 | 209 | Worker status reports live TCC preflight results on every call; registry seeds cannot forge permission state | ✓ | §85 — the seeded-false probe and the Operations.swift source |
 | 210 | Unknown and ambiguous space references return self-describing envelopes (named reference, listed known Spaces, candidate UUIDs) relayed verbatim through MCP | ✓ | §85 — the resolve source and the envelope.ts policy |
+
+
+---
+
+## 86. The exec danger-verb table is refused in full, and a refused batch input executes nothing
+
+The §36 danger list was driven live verb by verb: sudo, installer,
+diskutil eraseDisk, launchctl bootstrap system, dscl, sysadminctl,
+rm -rf /, shutdown and reboot — all nine come back EXEC_DENIED from the
+exec guard (earlier rounds had verified four). And the batch input path,
+submitted as multi-action JSON through `agentspace input --file -`, is
+refused at the handler boundary with SESSION_IS_CONSOLE before any action
+runs — no partial execution, no trace of the later actions in the batch.
+Refusal is all-or-nothing, as §12's fail-closed rule requires.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 211 | All nine §36 danger verbs are live-refused with EXEC_DENIED (the earlier four now completed to the full table) | ✓ | §86 — the nine-verb sweep |
+| 212 | A multi-action batch is refused atomically: nothing in the batch executes when the guard rejects | ✓ | §86 — the batch-input probe |
