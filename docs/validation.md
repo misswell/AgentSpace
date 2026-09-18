@@ -2836,3 +2836,26 @@ route an agent would use.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 192 | All five input families are refused live with SESSION_IS_CONSOLE through the real CLI-worker chain, completing §12's event-type list on both the unit and live halves | ✓ | §74 — the five-command refusal sweep |
+
+
+---
+
+## 75. exec works, and §36's danger verbs are refused — both sides of the shell surface, live
+
+Two sides of the exec surface verified through the real chain:
+
+- **Happy path**: `echo hello-from-agent` executed inside the worker and
+  returned the full §23 contract — exitCode 0, stdout captured verbatim,
+  stderr empty, duration (32 ms), plus timedOut/truncated/signal flags.
+- **Danger path**: four representative §36 verbs — `sudo`, `rm -rf /`,
+  `shutdown`, `installer` — were refused with `EXEC_DENIED` before reaching
+  a shell. The guard is one verb-matching code path, so the four samples
+  confirm the mechanism rather than each enumeration entry.
+
+§36's own framing stands: this is product-level defense, not a sandbox — the
+real boundary remains the Standard User + UID separation.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 193 | exec returns the full §23 result contract on a live worker run | ✓ | §75 — the echo round-trip |
+| 194 | §36's danger verbs are refused with EXEC_DENIED before shell contact | ✓ | §75 — the four-verb refusal sweep |
