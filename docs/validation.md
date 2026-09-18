@@ -55,6 +55,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 35 | The §56 review is a re-runnable matrix: each item pinned by named tests or explicitly blocked | ✓ | §31 — 7 verified, 3 blocked on machine capabilities, sign-off rule stated |
 | 36 | The release chain produces a Developer ID-signed app whose every nested binary verifies strictly, wrapped in a verified DMG whose contents re-verify | ✓ | §32 — `scripts/release.sh` end-to-end; Gatekeeper refusal isolated to notarization (`notarytool` profile absent, re-verified) |
 | 37 | Every artifact carries hardened runtime + a secure timestamp: the signature side of notarization is complete | ✓ | §33 — flags and Timestamp on app, helper, worker, CLI |
+| 125 | The release DMG was accepted by Apple's notary service, stapled (app + DMG), and Gatekeeper accepts the stapled app | ✓ | §38 — submission Accepted, `spctl --assess` exit 0 |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1800,3 +1801,49 @@ operate, users are not disturbed.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 124 | No §61-excluded feature exists anywhere in the shipped source tree | ✓ | this grep sweep, zero hits |
+
+
+---
+
+## 38. Notarization cleared end-to-end (§57) — the blocker was the wrong credential channel
+
+§33 recorded the notarization submission as blocked on ASC credentials. That
+diagnosis was right about the credential being broken and wrong about the
+channel: the working credential was never an App Store Connect API key — it is
+the machine's **shared Apple-ID notarytool profile** (`octoshrink-notary`,
+login keychain, used by every project on this Mac, restored 2026-09-11 per the
+octo-shrink project's records). Round 15's probe checked `notarytool` profile
+"agentspace" (absent) and the asc CLI's stored key (rejected); the shared
+profile was only found by following this machine's own rule from
+`~/.codex/AGENTS.md` — project-specific credential records live in each
+project's AGENTS.md, and a profile name must be verified live in-session
+before reuse. Verified live: the profile returned real submission history with
+today's Accepted entries.
+
+What then happened, in order:
+
+1. **First submission: Accepted.** The round-15 DMG (Developer ID, hardened
+   runtime, timestamps) went to the notary service and was accepted — the
+   round-15 signature work paid off exactly as designed: the submission could
+   not fail on signature grounds.
+2. **Stapled both artifacts; `spctl --assess` now exits 0** — Gatekeeper
+   accepts the app. A user can download the DMG, drag-install, and open it
+   with no right-click workaround. The §33 install instruction (right-click →
+   Open) is retired.
+3. **Canonical artifact ordering:** the first DMG contained the pre-stapled
+   app, so it was rebuilt from the stapled app and resubmitted (submission
+   `b1b02585`). The submit `--wait` poll hit a `connectTimeout` — resolved by
+   routing through this machine's proxy (`127.0.0.1:7890`, the global rule for
+   Apple traffic), and the submission is tracked to a terminal status before
+   stapling, per the same verify-don't-assume rule.
+
+`scripts/notarize.sh` now encodes the whole flow with the working credential:
+verify the profile live → staple the app → rebuild the DMG from the stapled
+app → submit → staple the DMG → `stapler validate` + `spctl` on both. The
+one-command release is now genuinely one command: `release.sh` then
+`notarize.sh`.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 126 | The notary submission was Accepted and both artifacts staple-validate | ✓ | §38 — `stapler validate` output |
+| 127 | Gatekeeper accepts the stapled app (`spctl --assess` exit 0) | ✓ | §38 |

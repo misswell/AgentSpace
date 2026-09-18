@@ -376,7 +376,7 @@ this development environment lacks are marked honestly rather than checked.
 | Unix socket ACL | dir 0700 + ACL for exactly main user & agent user; socket 0660 | `testACLFailureIsReported`, `testEverySpaceGetsItsOwnSocketTokenAndRuntimeDirectory` | verified in tests; the ACL *application* runs in the root helper — live run blocked |
 | Token | 256-bit CSPRNG, `0600`, constant-time compare, required on every non-`hello` method | `testGeneratedTokenIs256BitsOfHex`, `testGeneratedTokensDiffer`, `testDifferentSpacesHaveDifferentTokens`, `testCorruptTokenFileReadsNil`, `testHelloIsTokenExemptButLeaksNothing` | verified |
 | XPC authentication | helper verifies the caller's code-signing requirement | helper validation suite (closed interface, account shape, main-user checks) | verified at the validation layer; live XPC round-trip blocked (needs the root helper) |
-| Code signing | Developer ID, hardened runtime, secure timestamp, notarized; `SMAppService` registration | `codesign --verify --strict` on the app and every nested binary, re-verified inside the DMG by `release.sh`; `flags=0x10000(runtime)` + `Timestamp=` on all four artifacts | Developer ID signing **verified** (Guofeng Liu, U8U443D7ZL); hardened runtime and secure timestamp now applied on every artifact — the signature side of notarization is satisfied. Submission itself is blocked: the stored App Store Connect API credential is rejected by Apple (`UnauthenticatedRequest`, re-verified); re-auth needs the user's `.p8` and issuer ID |
+| Code signing | Developer ID, hardened runtime, secure timestamp, notarized, stapled; `SMAppService` registration | `codesign --verify --strict` + `stapler validate` + `spctl --assess` on the app and DMG; the whole chain was executed live | **cleared end-to-end.** Developer ID (Guofeng Liu, U8U443D7ZL) + hardened runtime + timestamps; the DMG was submitted to Apple's notary service and **Accepted**, both app and DMG stapled, and `spctl` now accepts the app — a user can download, drag-install, and open with no right-click workaround. The credential that made it work is the machine's shared Apple-ID notarytool profile (`octoshrink-notary`, verified live in-session per this machine's global rule), not the ASC API key the asc CLI had stored |
 | LaunchDaemon privileges | root, typed operations only, no shell | `testThereIsNoGenericEscapeHatchInTheProtocol`, the whole helper validation suite | verified at the validation layer; live run blocked |
 | Symlink attack | `WorkspaceGuard` resolves symlinks before the prefix test; runtime dir not world-writable | `testSymlinksAreNotFollowedOutOfTheDirectory`, `testSymlinkEscapeIsRefused` | verified |
 | Path traversal | `..` normalised before every check | `testPathInsideAllowedRootIsAccepted`, `testPathOutsideAllowedRootIsRefused`, `testNoRootsMeansEverythingIsRefused` | verified |
@@ -385,9 +385,11 @@ this development environment lacks are marked honestly rather than checked.
 | Log secret leakage | `Redaction` at the choke point; diagnostics export is whitelist + redactor | `testKeyedSecretValuesAreRedactedWhateverTheKeySpelling`, `testBareHexTokenInAStringIsRedacted`, `testRedactionIsIdempotent`, `testDiagnosticsExportNeverContainsTheWorkerToken` | verified |
 | **Privileged helper, separately** | §42/§56 require a dedicated review | the "privileged helper — a separate review" section above, seven numbered properties | reviewed here; live verification blocked (root) |
 
-A release can only be signed off when the four blocked rows clear: notarization
-credentials configured, helper installed and exercised live, XPC round-trip
-observed on a real machine. The rest of this matrix is green and re-runnable.
+A release can only be signed off when the remaining blocked rows clear: the
+helper installed and exercised live (which also delivers the XPC round-trip and
+ACL application), observed on a real machine. Notarization is no longer among
+them — it cleared end-to-end on this machine. The rest of this matrix is green
+and re-runnable.
 
 ## Distribution
 
