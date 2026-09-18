@@ -7113,3 +7113,23 @@ blockers.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 422 | §37's redaction fully recorded in §25; counters refreshed; gates unchanged | snapshot | §260 — docs/validation.md §25 table |
+
+
+---
+
+## 261. Snapshot refresh: build clean, counters stable
+
+Build completes clean; 267 commits; tree clean; 360 Swift +
+23 MCP tests green; index at 422. No new audit faces — every
+§1–§63 clause and its residuals has a numbered record, and the
+last four entries were confirmations of already-recorded work
+(§34 install, §37 redaction) or snapshots. The three external
+gates stand unchanged: the root-only helper chain (approval
+prompts disabled here), the second GUI session §44/§48's
+positive isolation half needs, and the public release URL the
+cask waits on. They are the only completion blockers; the goal
+stays open on them alone.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 423 | Snapshot: build clean, all clauses recorded, three external gates the only blockers | snapshot | §261 — this round |
