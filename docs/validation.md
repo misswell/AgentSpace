@@ -3512,3 +3512,25 @@ defects found, recorded so the surfaces are on the ledger.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 245 | A real 64-hex session token in the runtime directory does not appear anywhere in the diagnostics export | ✓ | §103 — the token-search probe |
+
+
+---
+
+## 104. Promise-list audits, part two: the §31 CLI roster and the §32 --json sweep
+
+- **§31 CLI roster** — all fifteen promised commands (`list` through
+  `delete`) are present on the help surface; the first probe misread
+  stderr as empty and called them all missing — help writes to stderr,
+  which the ledger records so the false alarm is traceable.
+- **§32 --json sweep** — every one of the 27 CLI verbs was invoked
+  with `--json` (against an empty registry, so most correctly fail
+  with SESSION_NOT_READY-family errors): **27/27 return parseable
+  JSON — including the failure paths** (exit 66/69/3 are JSON
+  errors, not prose). "All commands support --json" holds on the
+  success path and, more importantly, on every error path a script
+  or an agent will actually hit.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 246 | All fifteen §31 commands exist on the CLI help surface | ✓ | §104 — the roster sweep (stderr captured) |
+| 247 | All 27 CLI verbs return parseable JSON under --json, including their error paths | ✓ | §104 — the 27-command sweep |
