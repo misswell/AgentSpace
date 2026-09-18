@@ -5329,3 +5329,28 @@ no polling timers, no growing caches, no continuous capture.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 346 | One lifetime-bound preview timer, event-driven reloads, and a request-scoped disk walk give the §53 idle shape; the worker's live idle-RAM number remains gated on a real session | ✓ (live figure gated) | §184 — DesktopViewerView, AppModel reload sites, measureDisk comment |
+
+
+---
+
+## 185. §15's coordinate contract: Point-based input, pixel/scale in the
+payload, conversion taught in the error
+
+The screenshot result carries exactly the plan's shape — width/
+height of the written PNG, pixelWidth/pixelHeight of the full
+framebuffer before any downscale, and scale. Input coordinates
+are points, and the coordinate validator teaches the §15 rule
+inside its rejection: off-display coordinates report the display
+size in points and say "Screenshot pixels must be divided by
+scale=N first." pixelWidth comes from CGDisplayCopyDisplayMode,
+not CGDisplayPixelsWide, with a measured macOS 27 note explaining
+why (the latter returned 3840 on a 1728-point scaled Retina
+display, which would derive scale 1). PreviewMapping closes the
+loop for the viewer: view point -> image fraction -> display
+point, using the display's point size so a downscaled preview
+never needs the backing scale — the obvious pixel-division would
+silently land a click a third of the way across the screen.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 347 | Screenshots return width/pixelWidth/scale as planned; input is points with the pixel-to-point rule in the error text; both pixel source and viewer mapping carry measured, not guessed, geometry | ✓ | §185 — ScreenCapture.Result, CoordinateValidator, PreviewMapping |
