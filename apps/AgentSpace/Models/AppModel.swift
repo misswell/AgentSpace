@@ -8,10 +8,13 @@ import AgentSpaceCore
 /// Two deliberate choices are visible here.
 ///
 /// **Refresh is slow and on demand.** Plan §53 sets a 2–5 s floor on status
-/// polling and forbids the 100 ms loop that makes a management app cost more than
-/// the thing it manages. Nothing here polls while the window is closed, and the
-/// only fast timer in the app is the desktop preview, which runs at 1 FPS and only
-/// while it is on screen.
+/// polling, prefers event notifications outright, and forbids the 100 ms loop
+/// that makes a management app cost more than the thing it manages. Nothing
+/// polls on a timer at all: refreshes happen on foreground, selection and
+/// explicit request, and the only repeating timer in the app is the desktop
+/// preview — the §52 stream at 5 FPS while the viewer is open, falling back to
+/// 1 FPS screenshots when the stream is refused. Idle, measured in
+/// docs/validation.md §27: 0.0% CPU.
 ///
 /// **Input is gated on `acceptsInput`.** The buttons that drive the agent's
 /// desktop are disabled unless the worker itself said input is permitted. The GUI

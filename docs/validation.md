@@ -51,6 +51,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 31 | Idle resources measured against §53: worker 2.7 MB / 0.0% CPU; app 0.0% CPU, 108.8 MB RAM (~9% over, honest miss with the lever recorded) | ✓ | §27 — release-build measurements, registry-independent |
 | 32 | 1000 sequential RPC round trips leave the worker healthy at ~6.5 ms/call | ✓ | §28 — protocol half of §44; the isolation half stays blocked on a second session |
 | 33 | Doctor names per-Space Accessibility and Screen Recording, asked of the worker, with panel-path fixes | ✓ | §29 — live-worker integration test; caught the wrong-root bug on its first run |
+| 34 | No polling loops; the §44 gate refuses (exit 66) rather than passing without a Space | ✓ | §30 — code audit, 0.0% idle CPU, and the acceptance run's honest refusal |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1513,3 +1514,40 @@ That second row is another of the green-suite lessons: the check *looked* right
 and silently examined the default `/Users/Shared` runtime — where nothing
 lives — and would have reported "no socket" forever on any non-default root.
 The test failed on its first run, which is the only reason the bug died.
+
+---
+
+## 30. §53 polling audit, §59 README, and the acceptance gate's honest refusal
+
+Closing the last audit gaps the plan names:
+
+- **Polling.** The app contains no recurring status poll at all — refreshes are
+  event-driven (foreground, selection, explicit request), which is §53's
+  stated preference over any 2–5 s timer, and idle CPU measured 0.0% in §27.
+  The only repeating timer in the app is the desktop preview (§52 stream at
+  5 FPS, 1 FPS fallback). A stale doc comment still describing the 1 FPS MVP
+  was corrected rather than left to contradict the code.
+- **§59 README.** The first screen matches the plan's required pitch verbatim
+  in substance — the one-liner, the No VM / No second macOS / No remote Mac
+  triple, and the two-column "you keep working / agent keeps working" — and
+  needs no change.
+- **§34 integrations** were re-verified as already pinned: 16 unit tests over
+  the TOML/JSON merges, backup creation, and the §35 agent-rules text.
+
+**The acceptance gate ran and refused correctly.** `scripts/acceptance.sh` is
+the §44 gate. Its readiness half passes on this machine ("10 checks, 3
+warnings — AgentSpace can run"); it then exits 66 because no Space exists to
+drive — creating one needs the root helper, blocked on this machine since the
+helper round. That refusal *is* the correct behavior: a gate that pretended to
+pass without a Space would be a gate that lies. Exit 66 with the doctor's
+readiness verdict alongside is recorded as the honest terminal state here.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 111 | No recurring status poll exists in the app; the only repeating timer is the preview | ✓ | code audit + 0.0% idle CPU |
+| 112 | The §44 gate refuses (exit 66) rather than passing without a Space | ✓ | acceptance run on this machine |
+
+The remaining open items are unchanged and external: live helper verification
+and logout (root), notarization credentials, and the two-session acceptance
+runs (§48, §44's isolation half). Every plan section the environment can reach
+is built, tested, measured, and recorded.
