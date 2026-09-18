@@ -334,6 +334,10 @@ struct SpaceDetailView: View {
                     }
                 }
                 Button("Copy MCP Configuration") { model.copyMCPConfiguration() }
+                Button("Copy Agent Rules") {
+                    model.copyAgentRules()
+                }
+                .help("The §35 safety rules, for AGENTS.md or CLAUDE.md. Copying only — your instructions file is written by you.")
                 Button("Run Doctor") { model.showingDoctor = true }
             }
             .controlSize(.small)

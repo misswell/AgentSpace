@@ -124,6 +124,65 @@ public enum Integrations {
         }
     }
 
+    // MARK: - Agent rules (plan §35)
+
+    /// The marker that brackets AgentSpace's section in a user's instructions file.
+    ///
+    /// Anything between these lines is AgentSpace's and may be replaced; anything
+    /// outside them is the user's and is never touched. Idempotent installs need
+    /// the markers to recognise their own work.
+    public static let agentRulesMarkerBegin = "<!-- agentspace:rules begin -->"
+    public static let agentRulesMarkerEnd = "<!-- agentspace:rules end -->"
+
+    /// The safety rules recommended for any agent driving AgentSpace — plan §35,
+    /// verbatim in substance.
+    ///
+    /// These four lines are the product's entire threat model stated as
+    /// instructions: an agent that follows them cannot act on the console, and an
+    /// agent that ignores them was never constrained by a config file anyway. They
+    /// are generated rather than hardcoded at call sites so that the wording —
+    /// which is a security property — has exactly one source of truth.
+    public static func agentRules() -> String {
+        """
+        - Any command that can open a visible macOS window must run through AgentSpace.
+        - Never launch GUI applications directly in the user's current session.
+        - If AgentSpace reports that its background session is unavailable, stop and report the problem.
+        - Never fall back to the user's console session.
+        """
+    }
+
+    /// The rules as a markdown section, ready to append to `AGENTS.md` or
+    /// `CLAUDE.md`, wrapped in the markers above.
+    public static func agentRulesSection() -> String {
+        """
+        \(agentRulesMarkerBegin)
+        ## AgentSpace
+
+        \(agentRules())
+
+        \(agentRulesMarkerEnd)
+        """
+    }
+
+    /// Append the rules to an existing instructions file's contents.
+    ///
+    /// Idempotent: a file that already carries the section comes back unchanged.
+    /// The user's own content stays exactly where it was — the section is
+    /// **appended**, never spliced into the middle, because instructions files are
+    /// read top-to-bottom by the agent and the user's own ordering means something
+    /// to them.
+    public static func mergeAgentRules(existing: Data?) -> Data {
+        let current = existing.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        if current.contains(agentRulesMarkerBegin) {
+            return existing ?? Data()
+        }
+        var updated = current
+        if !updated.isEmpty && !updated.hasSuffix("\n") { updated += "\n" }
+        if !updated.isEmpty { updated += "\n" }
+        updated += agentRulesSection() + "\n"
+        return Data(updated.utf8)
+    }
+
     // MARK: - Install
 
     public enum InstallError: Error, CustomStringConvertible {

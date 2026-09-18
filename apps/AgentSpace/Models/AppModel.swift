@@ -1,6 +1,6 @@
 import Foundation
 import SwiftUI
-import ServiceManagement
+@preconcurrency import ServiceManagement
 import AgentSpaceCore
 
 /// The GUI's state.
@@ -154,7 +154,7 @@ final class AppModel: ObservableObject {
         // `root` is nil only when the service was built without one, which in this
         // app never happens; falling back to the computed default keeps create
         // working rather than silently doing nothing.
-        let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root ?? RuntimePaths.root
+        let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
         provisioning = Provisioning(operation: "Creating \(name)")
         let directory = Self.worktreesDirectory
 
@@ -193,15 +193,16 @@ final class AppModel: ObservableObject {
         guard provisioning == nil else { return }
         provisioning = Provisioning(operation: "Deleting \(space.name)")
 
+        let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+        let directory = Self.worktreesDirectory
         Task {
-            let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root ?? RuntimePaths.root
             let outcome = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
                     continuation.resume(returning: SpaceProvisioner.delete(
                         space: space, removeHome: removeHome,
                         options: SpaceProvisioner.Options(
                             root: root,
-                            workspaceDirectory: Self.worktreesDirectory,
+                            workspaceDirectory: directory,
                             mainUser: NSUserName()),
                         transport: { try HelperClient.call($0) },
                         registry: SpaceRegistry.load(root: root),
@@ -434,6 +435,18 @@ final class AppModel: ObservableObject {
                 message: "could not configure \(target.displayName): \(error)",
                 fix: "Edit \(path) by hand, or use `agentspace integrate \(target.rawValue) --install` which reports the same refusal with more detail.")
         }
+    }
+
+    /// Copy the §35 agent safety rules, ready to paste into AGENTS.md/CLAUDE.md.
+    ///
+    /// Copy rather than write: an instructions file is the user's voice to their
+    /// agents, and §35 requires their explicit consent before AgentSpace's rules
+    /// appear in it. The CLI's `integrate rules --install` exists for those who
+    /// prefer that, with a backup and marker-scoped idempotence.
+    func copyAgentRules() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(Integrations.agentRulesSection(), forType: .string)
+        copiedMessage = "Agent safety rules copied. Paste them into AGENTS.md or CLAUDE.md."
     }
 
     func copyMCPConfiguration() {

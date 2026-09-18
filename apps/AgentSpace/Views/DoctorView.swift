@@ -138,7 +138,6 @@ struct NewSpaceView: View {
         switch workspaceKind {
         case 1, 2:
             let expanded = (repositoryPath as NSString).expandingTildeInPath
-            let slug = branch.isEmpty ? "work" : branch.replacingOccurrences(of: "agentspace/", with: "")
             if workspaceKind == 1, !expanded.isEmpty {
                 // The path is filled in by SpaceProvisioner once the Space has an
                 // id, so the preview below shows the parent it will live under

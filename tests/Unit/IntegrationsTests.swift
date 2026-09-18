@@ -140,6 +140,46 @@ final class IntegrationsTests: XCTestCase {
         }
     }
 
+    // MARK: - Agent rules (§35)
+
+    func testTheRulesStateAllFourCommitments() throws {
+        // These four lines are the plan's §35 text and the product's threat model.
+        // Each is asserted by its distinctive phrase so a rewording that quietly
+        // weakens one of them fails here rather than shipping.
+        let rules = Integrations.agentRules()
+        XCTAssertTrue(rules.contains("must run through AgentSpace"), rules)
+        XCTAssertTrue(rules.contains("Never launch GUI applications directly in the user's current session"), rules)
+        XCTAssertTrue(rules.contains("stop and report the problem"), rules)
+        XCTAssertTrue(rules.contains("Never fall back to the user's console session"), rules)
+    }
+
+    func testTheSectionIsMarkedSoInstallsAreIdempotent() throws {
+        let section = Integrations.agentRulesSection()
+        XCTAssertTrue(section.contains(Integrations.agentRulesMarkerBegin))
+        XCTAssertTrue(section.contains(Integrations.agentRulesMarkerEnd))
+        // Idempotence is what makes "install" safe to press twice: the second run
+        // must be a no-op, not a second copy of the rules.
+        let once = Integrations.mergeAgentRules(existing: nil)
+        let twice = Integrations.mergeAgentRules(existing: once)
+        XCTAssertEqual(String(decoding: once, as: UTF8.self), String(decoding: twice, as: UTF8.self))
+        XCTAssertEqual(String(decoding: twice, as: UTF8.self).components(separatedBy: "## AgentSpace").count - 1, 1)
+    }
+
+    func testInstallingRulesAppendsAndPreservesTheUsersOwnText() throws {
+        let existing = Data("# My project\n\nAlways run the full test suite before committing.\n".utf8)
+        let merged = String(decoding: Integrations.mergeAgentRules(existing: existing), as: UTF8.self)
+
+        XCTAssertTrue(merged.hasPrefix("# My project"), "the user's text must stay first")
+        XCTAssertTrue(merged.contains("Always run the full test suite before committing."),
+                      "the user's own instruction was lost")
+        XCTAssertTrue(merged.contains("Never fall back to the user's console session"))
+
+        // And an already-marked file is returned untouched — no reformatting of
+        // the user's own writing.
+        let again = String(decoding: Integrations.mergeAgentRules(existing: Data(merged.utf8)), as: UTF8.self)
+        XCTAssertEqual(again, merged)
+    }
+
     // MARK: - The default path
 
     func testTheDefaultPathIsTheShippedCLINotANonexistentOne() throws {

@@ -254,6 +254,7 @@ func usage() -> String {
     MANAGEMENT (changes the machine; needs the privileged helper)
       integrate <target>              Print MCP config for claude|codex|opencode
                                       [--install writes it, backing up first]
+                                      agentspace integrate rules       Agent safety rules (§35)
       create <name>                   Create a Space: macOS user, runtime, worker
       delete <space>                  Delete a Space (--remove-home to also remove
                                       its home directory)
@@ -527,8 +528,48 @@ case "integrate":
     guard let targetName = rest.first else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace integrate <claude|codex|opencode|generic> [--install]"), exitCode: 64)
     }
+    if targetName == "rules" {
+        // Plan §35: the safety rules recommended for any agent driving AgentSpace.
+        // They are printed by default; --install appends them to CLAUDE.md inside
+        // AgentSpace's own markers, leaving the user's text alone.
+        if parsed.bool("install") {
+            let path = ((parsed.flag("config") ?? "~/CLAUDE.md") as NSString).expandingTildeInPath
+            let existing = FileManager.default.contents(atPath: path)
+            let merged = Integrations.mergeAgentRules(existing: existing)
+            let directory = (path as NSString).deletingLastPathComponent
+            do {
+                try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+                if let existing, !FileManager.default.fileExists(atPath: path + ".agentspace.bak") {
+                    try existing.write(to: URL(fileURLWithPath: path + ".agentspace.bak"))
+                }
+                try merged.write(to: URL(fileURLWithPath: path))
+            } catch {
+                emitter.failure(AgentSpaceError(code: .internalError, message: "\(error)"), exitCode: 70)
+            }
+            if emitter.json {
+                emitter.success(.obj([
+                    "target": .string("rules"), "path": .string(path),
+                    "alreadyPresent": .bool(existing.map { String(decoding: $0, as: UTF8.self).contains(Integrations.agentRulesMarkerBegin) } ?? false),
+                ]))
+            }
+            print("Agent rules written to \(path)")
+            exit(0)
+        }
+        if emitter.json {
+            emitter.success(.obj([
+                "target": .string("rules"),
+                "rules": .string(Integrations.agentRules()),
+                "section": .string(Integrations.agentRulesSection()),
+            ]))
+        }
+        print("Recommended for AGENTS.md / CLAUDE.md (append only with the user's consent — plan §35):")
+        print("")
+        print(Integrations.agentRulesSection())
+        exit(0)
+    }
+
     guard let target = Integrations.Target(rawValue: targetName) else {
-        emitter.failure(AgentSpaceError(code: .badRequest, message: "unknown target '\(targetName)'. Targets: \(Integrations.Target.allCases.map(\.rawValue).joined(separator: ", "))"), exitCode: 64)
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "unknown target '\(targetName)'. Targets: rules, \(Integrations.Target.allCases.map(\.rawValue).joined(separator: ", "))"), exitCode: 64)
     }
 
     guard let binaryPath = Integrations.defaultBinaryPath() else {

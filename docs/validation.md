@@ -40,6 +40,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 20 | Eight Spaces get eight distinct sockets, tokens, runtime directories, account names and launchd labels; two Spaces differing only by case never share a working tree | ✓ | §16 — `MultiSpaceIsolationTests` |
 | 21 | Disk usage is measured (agreeing with `du`), opt-in, budget-bounded, and never silently a zero | ✓ | §17 — `DiskUsageTests` + a live worker |
 | 22 | MCP configs for Claude Code, Codex and OpenCode generate, merge key-scoped, install idempotently, and refuse to overwrite a foreign entry | ✓ | §18 — plus an incident: a test that wrote the user's real config |
+| 23 | The §35 agent rules generate from one source, append marker-scoped and idempotently, and are copied — not written — from the GUI | ✓ | §19 |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1116,3 +1117,36 @@ rewrite as close to the original as `JSONSerialization` can produce.
 with the JSON collapsed onto one line. It is valid JSON and `add-json` accepts it,
 but it is ugly, and anyone retyping it by hand should paste the block below it
 instead.
+
+---
+
+## 19. Agent safety rules (§35) — generated once, copied or installed
+
+Plan §35 requires that installing the MCP server also produce a recommended rule
+set for the agent that will drive it, and that writing it into `AGENTS.md` or
+`CLAUDE.md` happen only with the user's consent. `Integrations.agentRules()` is the
+single source of that text; `agentspace integrate rules` prints it, `--install`
+appends it marker-scoped, and the GUI offers **Copy Agent Rules**.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 61 | All four commitments appear, each asserted by its distinctive phrase | ✓ | a weakened rewording fails the test rather than shipping |
+| 62 | Appending preserves the user's own text, in place, first | ✓ | their heading and their own instruction asserted unchanged |
+| 63 | Re-running the install is a no-op, not a second copy | ✓ | marker-scoped idempotence, byte-identical output |
+| 64 | The GUI copies rather than writes | ✓ | an instructions file is the user's voice to their agents; §35 requires consent, and copy *is* consent |
+
+The markers (`<!-- agentspace:rules begin/end -->`) do double duty: they make
+idempotence possible, and they tell a human reading the file later exactly which
+lines are AgentSpace's and which are their own.
+
+### A warning sweep worth recording
+
+Bringing the build back to zero warnings surfaced five leftovers from this round's
+own refactors, none of which the passing test suite could see: `bail()` still
+destructured an error into `code` and `message` it no longer used; a `var` that is
+only ever read; a `_ = created` placeholder; a wizard-computed `slug` feeding a
+path the wizard no longer computes; and a mechanically-added
+`?? RuntimePaths.root` appended to a chain that already ended in a non-optional.
+Each was dead weight from a change that had moved on — the lesson is not "keep
+warnings at zero" but that a refactor's cleanup should land with the refactor, and
+the compiler is the only reviewer who reads the leftovers.

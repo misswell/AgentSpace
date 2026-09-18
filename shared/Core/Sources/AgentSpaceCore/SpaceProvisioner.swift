@@ -123,8 +123,6 @@ public struct SpaceProvisioner {
         let spaceID = UUID()
 
         func bail(_ error: AgentSpaceError) -> Outcome {
-            let code = error.code
-            let message = error.message
             // Undo in reverse, so a step is only undone after the things that
             // depended on it have already gone.
             for undo in cleanup.reversed() {
@@ -143,12 +141,10 @@ public struct SpaceProvisioner {
                 // The username is recovered from the step list rather than tracked
                 // separately, because the step is the record of what actually
                 // happened on the machine and a second copy could disagree with it.
-                let created = steps.first { $0.name == "create account" }
-                var broken = AgentSpace(
+                let broken = AgentSpace(
                     id: spaceID, name: name, username: usernameFrom(steps) ?? "",
                     uid: 0, state: .error, createdAt: Date(),
                     workspace: workspace, sharedFolders: sharedFolders)
-                _ = created
                 var updated = registry
                 updated.upsert(broken)
                 try? updated.save(root: options.root)
@@ -286,7 +282,7 @@ public struct SpaceProvisioner {
                 }
             }
 
-            var space = AgentSpace(
+            let space = AgentSpace(
                 id: spaceID, name: name, username: username, uid: uid_t(uid),
                 // Created but not logged in yet: the account exists, the worker
                 // cannot start until the user signs in once. Reporting `ready` here

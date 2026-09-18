@@ -18,7 +18,11 @@ import Security
 /// The Keychain also gives the right *lifecycle* for free: the item is owned by
 /// the main user's login keychain, unlocked when they are logged in, and it
 /// disappears with the account.
-public struct KeychainStore {
+///
+/// `Sendable`: a plain struct over `SecItem*`, which is thread-safe, and nothing
+/// here mutates beyond its own `service` value. Provisioning runs it on a
+/// background queue, so this is stated rather than left to a warning.
+public struct KeychainStore: Sendable {
 
     /// The Keychain service name. Configurable so tests can use a separate
     /// namespace and never touch, or be confused by, real Space passwords.
