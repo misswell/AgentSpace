@@ -64,19 +64,22 @@ and what is not, with the measurements.
 
 **Working today**
 
+- `AgentSpace.app` — the SwiftUI app: Space list, live status, Desktop Viewer with
+  click-to-input, diagnostics
 - `agentspace-worker` — the per-Space daemon: unix socket RPC, fail-closed console
   guard, session-tap input, screenshot, app lifecycle, `exec`, accessibility tree
 - `agentspace` — the CLI, with `--json` on everything, plus `agentspace doctor`
 - `@agentspace/mcp` — the MCP server: 14 tools over stdio, bridged to the same CLI
 - `AgentSpaceCore` — the shared protocol, models and safety logic
-- 151 Swift tests (0 failures; the safety suite runs against a live worker over a
-  live socket) and 19 MCP tests
+- 170 Swift tests and 19 MCP tests, 0 failures; the safety suite runs against a
+  live worker over a live socket
 
 **Not built yet**
 
-- The SwiftUI app (phase 2) and the privileged helper (phase 3), so Spaces cannot
-  be created from the GUI yet
+- The privileged helper (phase 3), so Spaces cannot be created or deleted from the
+  GUI yet — everything that *drives* an existing Space works
 - Workspace editing (phase 7)
+- ScreenCaptureKit live preview (phase 8; today the viewer is 1 FPS screenshots)
 
 **Verified on this machine** — macOS 27.0, Apple Silicon:
 
@@ -98,14 +101,16 @@ session.
 Requires Apple Silicon and macOS 26+. Xcode command line tools and Swift 6.
 
 ```bash
-swift build                 # agentspace-worker and agentspace
-swift test                  # 151 tests; the worker integration tests need the
-                            # binary built first
-scripts/demo.sh             # end-to-end run against a throwaway root
+scripts/build.sh            # both binaries, sanity-checked, signed
+scripts/test.sh             # 170 tests; builds the worker first, because the
+                            # safety suite spawns it and a skipped suite is not
+                            # a passing suite
+scripts/bundle-app.sh       # a signed dist/AgentSpace.app
+scripts/demo.sh             # end-to-end CLI run against a throwaway root
+scripts/mcp-smoke.sh        # real MCP JSON-RPC against a live worker
 ```
 
-Binaries land in `.build/debug/`. The worker's own readiness check, which needs no
-socket and no second user:
+The worker's own readiness check, which needs no socket and no second user:
 
 ```bash
 .build/debug/agentspace-worker --check

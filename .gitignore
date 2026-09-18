@@ -21,3 +21,6 @@ npm-debug.log*
 # Test and probe output
 *.log
 /tmp-probe
+
+# Built app bundles
+dist/

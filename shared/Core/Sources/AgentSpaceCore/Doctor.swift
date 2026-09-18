@@ -1,28 +1,34 @@
 import Foundation
 import CoreGraphics
 import ApplicationServices
-import AgentSpaceCore
 
 /// `agentspace doctor` — plan §38.
 ///
 /// Every failing check must come with a concrete fix. A doctor that says "✗" and
 /// stops has moved the problem, not solved it.
-enum Doctor {
+public enum Doctor {
 
-    enum Status: String {
+    public enum Status: String {
         case pass
         case warn
         case fail
         case skip
     }
 
-    struct Check {
-        var name: String
-        var status: Status
-        var detail: String
-        var fix: String?
+    public struct Check {
+        public var name: String
+        public var status: Status
+        public var detail: String
+        public var fix: String?
 
-        var symbol: String {
+        public init(name: String, status: Status, detail: String, fix: String? = nil) {
+            self.name = name
+            self.status = status
+            self.detail = detail
+            self.fix = fix
+        }
+
+        public var symbol: String {
             switch status {
             case .pass: return "✓"
             case .warn: return "!"
@@ -32,14 +38,16 @@ enum Doctor {
         }
     }
 
-    struct Report {
-        var checks: [Check]
+    public struct Report {
+        public var checks: [Check]
 
-        var failed: Int { checks.filter { $0.status == .fail }.count }
-        var warned: Int { checks.filter { $0.status == .warn }.count }
-        var ok: Bool { failed == 0 }
+        public init(checks: [Check]) { self.checks = checks }
 
-        var json: JSONValue {
+        public var failed: Int { checks.filter { $0.status == .fail }.count }
+        public var warned: Int { checks.filter { $0.status == .warn }.count }
+        public var ok: Bool { failed == 0 }
+
+        public var json: JSONValue {
             .obj([
                 "ok": .bool(ok),
                 "failed": .int(failed),
@@ -60,7 +68,7 @@ enum Doctor {
         /// needed here — but `detail` strings are still funnelled through
         /// `Redaction` on the way out, in case a future check embeds a path that
         /// contains something sensitive.
-        func render() -> String {
+        public func render() -> String {
             var lines: [String] = []
             for check in checks {
                 lines.append("\(check.symbol) \(check.name)")
@@ -77,15 +85,13 @@ enum Doctor {
                     ? "All checks passed."
                     : "\(checks.count) checks, \(warned) warning(s). AgentSpace can run.")
             } else {
-                lines.append("\(failed) check(s) failed. AgentSpace cannot run until these are fixed.")
+                lines.append("\(checks.count) checks, \(failed) failure(s), \(warned) warning(s).")
             }
             return lines.joined(separator: "\n")
         }
     }
 
-    // MARK: The checks
-
-    static func run(root: String? = nil) -> Report {
+    public static func run(root: String? = nil) -> Report {
         var checks: [Check] = []
 
         // 1. Apple Silicon. Plan §3: v1 is arm64 only.
@@ -307,8 +313,8 @@ public enum BundleIdentifiers {
 }
 
 /// Display geometry for the doctor, isolated so the check is easy to read.
-enum SessionProbeGeometry {
-    static func current() -> DisplayGeometry {
+public enum SessionProbeGeometry {
+    public static func current() -> DisplayGeometry {
         let displayID = CGMainDisplayID()
         let bounds = CGDisplayBounds(displayID)
         let mode = CGDisplayCopyDisplayMode(displayID)

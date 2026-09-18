@@ -473,6 +473,68 @@ final class SafetyTests: XCTestCase {
         XCTAssertTrue(try harness.call(Method.hello).ok)
     }
 
+    // MARK: - Status shape
+
+    /// `status` must report the display in BOTH coordinate spaces.
+    ///
+    /// It originally reported only the point size. Every client that read
+    /// `status` and wanted the backing-store size then got nothing: the GUI
+    /// rendered "Pixels 0 x 0", and its Desktop Viewer lost the mapping fallback
+    /// it needs before the first capture arrives. `hello` had reported both all
+    /// along, so the two methods disagreed — which is exactly the kind of drift a
+    /// test on the wire shape catches and a unit test on either side does not.
+    func testStatusReportsBothCoordinateSpaces() throws {
+        let harness = try WorkerHarness()
+        try harness.start()
+        defer { harness.stop() }
+
+        let response = try harness.call(Method.status)
+        XCTAssertTrue(response.ok, response.error?.message ?? "")
+        guard let display = response.result?["display"] else {
+            return XCTFail("status returned no display block")
+        }
+
+        let width = display["width"]?.intValue ?? 0
+        let height = display["height"]?.intValue ?? 0
+        let pixelWidth = display["pixelWidth"]?.intValue ?? 0
+        let pixelHeight = display["pixelHeight"]?.intValue ?? 0
+        let scale = display["scale"]?.intValue ?? 0
+
+        XCTAssertGreaterThan(width, 0, "point width must be reported")
+        XCTAssertGreaterThan(height, 0, "point height must be reported")
+        XCTAssertGreaterThan(scale, 0, "scale must be reported")
+        XCTAssertEqual(pixelWidth, width * scale,
+                       "pixels must be points x scale, not absent or zero")
+        XCTAssertEqual(pixelHeight, height * scale)
+
+        // `hello` and `status` describe the same machine, so they must agree.
+        let hello = try harness.call(Method.hello)
+        XCTAssertEqual(hello.result?["display"]?["pixelWidth"]?.intValue, pixelWidth,
+                       "hello and status disagree about the display")
+        XCTAssertEqual(hello.result?["display"]?["scale"]?.intValue, scale)
+    }
+
+    /// `status` must not fork `ps` unless resources were actually asked for:
+    /// plan §53 wants the UI to poll this every few seconds for nearly nothing.
+    func testStatusOmitsResourcesUnlessAskedAndNeverBlocksInput() throws {
+        let harness = try WorkerHarness()
+        try harness.start()
+        defer { harness.stop() }
+
+        let summary = try harness.call(Method.status)
+        XCTAssertNil(summary.result?["resources"],
+                     "a plain status must not pay for a resource sample")
+
+        let full = try harness.call(Method.status, .object(["resources": .string("full")]))
+        XCTAssertTrue(full.ok, full.error?.message ?? "")
+        guard let resources = full.result?["resources"] else {
+            return XCTFail("resources: full returned no resources block")
+        }
+        XCTAssertNotNil(resources["cpuPercent"])
+        XCTAssertNotNil(resources["memoryBytes"])
+        XCTAssertNotNil(resources["processCount"])
+    }
+
     // MARK: - Helpers
 
     private func rawRequest(harness: WorkerHarness, payload: Data) throws -> RPCResponse {

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>AgentSpace</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.agentspace.AgentSpace</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>AgentSpace</string>
+	<key>CFBundleDisplayName</key>
+	<string>AgentSpace</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<!--
+	  AgentSpace itself never captures the screen or posts input: the worker does
+	  that, inside the AgentSpace user's session. These strings exist because the
+	  app does read the *worker's* screenshot out of the runtime directory and the
+	  user may be prompted for the app's own grants on first launch, and a missing
+	  purpose string turns that into a crash rather than a prompt.
+	-->
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>AgentSpace shows you a live view of your agent's own desktop. It never captures the desktop you are looking at.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>AgentSpace asks Finder to reveal a Space's runtime folder when you request it.</string>
+	<!-- LSUIElement is deliberately NOT set: this is a normal app with a Dock icon
+	     and a menu bar, not a background agent. -->
+</dict>
+</plist>

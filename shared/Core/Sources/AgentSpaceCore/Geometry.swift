@@ -105,3 +105,141 @@ public enum CoordinateRules {
         return nil
     }
 }
+
+/// Maps a click inside the Desktop Viewer's preview image back to a display
+/// point that the input API can act on.
+///
+/// This is the arithmetic behind plan §17: the user clicks on a picture of the
+/// agent's desktop in the main app, and that click has to arrive as a real click
+/// in the *other* session. Three coordinate spaces are in play:
+///
+/// ```
+///   view point      where the user clicked, in SwiftUI points inside the view
+///        ↓          fit the image, discard the letterbox
+///   image fraction  how far across the captured picture the click was, 0…1
+///        ↓          × the captured display's size IN POINTS
+///   display point   what `agentspace click` accepts
+/// ```
+///
+/// The fraction is the key step, and it is why this type stores the *display's
+/// point* size rather than its pixel size.
+///
+/// A preview is normally downscaled (`--max-width`), so the image's own pixel
+/// dimensions are not the framebuffer's and definitely not the display's points:
+/// a 640x360 preview of a 1920x1080-point display has three different widths for
+/// the same picture. Dividing the image's pixels by the backing scale — the
+/// obvious-looking move — gives 320 instead of 960, a click that lands a third
+/// of the way across the screen with no error to explain it.
+///
+/// The image always covers the whole captured display, so the click's fraction
+/// across the image is the click's fraction across the display, and that
+/// fraction times the display's point width is the point. The backing scale
+/// never enters the calculation, and is deliberately not a parameter here.
+public struct PreviewMapping: Equatable, Sendable {
+    public struct Rect: Equatable, Sendable {
+        public var x: Double
+        public var y: Double
+        public var width: Double
+        public var height: Double
+        public init(x: Double, y: Double, width: Double, height: Double) {
+            self.x = x; self.y = y; self.width = width; self.height = height
+        }
+        public func contains(x px: Double, y py: Double) -> Bool {
+            px >= x && py >= y && px < x + width && py < y + height
+        }
+    }
+
+    /// The preview image's size in pixels, as reported by the worker.
+    public let imageWidth: Int
+    public let imageHeight: Int
+    /// The captured display's size in **points** — the space input lives in.
+    public let displayWidth: Int
+    public let displayHeight: Int
+    /// The size of the view the image is drawn in, in SwiftUI points.
+    public let viewWidth: Double
+    public let viewHeight: Double
+
+    public init(imageWidth: Int, imageHeight: Int,
+                displayWidth: Int, displayHeight: Int,
+                viewWidth: Double, viewHeight: Double) {
+        self.imageWidth = imageWidth
+        self.imageHeight = imageHeight
+        self.displayWidth = displayWidth
+        self.displayHeight = displayHeight
+        self.viewWidth = viewWidth
+        self.viewHeight = viewHeight
+    }
+
+    /// Build from a screenshot result and the geometry the worker reported.
+    ///
+    /// Prefer this to the memberwise initialiser: it takes the display's point
+    /// size from `DisplayGeometry`, which is the value the worker validated the
+    /// coordinates against, so the preview and the input API cannot disagree
+    /// about how big the display is.
+    public static func fitting(
+        imageWidth: Int,
+        imageHeight: Int,
+        geometry: DisplayGeometry,
+        viewWidth: Double,
+        viewHeight: Double
+    ) -> PreviewMapping {
+        PreviewMapping(
+            imageWidth: imageWidth,
+            imageHeight: imageHeight,
+            displayWidth: geometry.width,
+            displayHeight: geometry.height,
+            viewWidth: viewWidth,
+            viewHeight: viewHeight)
+    }
+
+    /// The rectangle the image actually occupies once fitted into the view.
+    /// `nil` when either the image or the view has no size, which happens for one
+    /// frame before the first capture arrives.
+    public var fittedRect: Rect? {
+        guard imageWidth > 0, imageHeight > 0, viewWidth > 0, viewHeight > 0 else { return nil }
+        let imageAspect = Double(imageWidth) / Double(imageHeight)
+        let viewAspect = viewWidth / viewHeight
+        let width: Double
+        let height: Double
+        if imageAspect > viewAspect {
+            // Relatively wider than the view: spans it, bars top and bottom.
+            width = viewWidth
+            height = viewWidth / imageAspect
+        } else {
+            height = viewHeight
+            width = viewHeight * imageAspect
+        }
+        return Rect(x: (viewWidth - width) / 2, y: (viewHeight - height) / 2,
+                    width: width, height: height)
+    }
+
+    /// Where a click in the view lands on the display, in points.
+    ///
+    /// Returns `nil` for a click in the letterbox rather than clamping to the
+    /// nearest edge. A click on the black bar has no meaning, and silently
+    /// turning it into a click at the very edge would move the agent's pointer
+    /// somewhere the user did not ask for.
+    public func displayPoint(viewX: Double, viewY: Double) -> (x: Double, y: Double)? {
+        guard let rect = fittedRect, rect.contains(x: viewX, y: viewY) else { return nil }
+        let u = (viewX - rect.x) / rect.width
+        let v = (viewY - rect.y) / rect.height
+        // `floor`, not `round`: a click in the last pixel of the image is a click
+        // on the last point of the display, and rounding would produce
+        // `displayWidth`, which is off the screen by one and would come back as
+        // INVALID_COORDINATE.
+        let x = (u * Double(displayWidth)).rounded(.down)
+        let y = (v * Double(displayHeight)).rounded(.down)
+        return (x: min(x, Double(max(0, displayWidth - 1))),
+                y: min(y, Double(max(0, displayHeight - 1))))
+    }
+
+    /// The inverse, for drawing an indicator at the agent's last known pointer
+    /// position. Returns `nil` if the point is off the display.
+    public func viewPoint(displayX: Double, displayY: Double) -> (x: Double, y: Double)? {
+        guard let rect = fittedRect, displayWidth > 0, displayHeight > 0 else { return nil }
+        let u = displayX / Double(displayWidth)
+        let v = displayY / Double(displayHeight)
+        guard u >= 0, u <= 1, v >= 0, v <= 1 else { return nil }
+        return (x: rect.x + u * rect.width, y: rect.y + v * rect.height)
+    }
+}

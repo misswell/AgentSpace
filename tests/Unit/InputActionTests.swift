@@ -296,3 +296,93 @@ final class InputActionTests: XCTestCase {
         }
     }
 }
+
+// MARK: - Wire encoding
+
+extension InputActionTests {
+    /// Every action must survive the trip the GUI and the MCP server make: encode
+    /// it with `wireValue`, then feed it to the worker's own parser.
+    ///
+    /// This is the test that keeps the encoder honest. A field renamed on one side
+    /// only would otherwise surface as `INVALID_ACTION` at runtime, in a session
+    /// the developer cannot see, for an action that looked correct where it was
+    /// constructed.
+    func testEveryActionRoundTripsThroughItsWireForm() {
+        let cases: [InputAction] = [
+            .move(x: 500, y: 300),
+            .click(x: 10, y: 20, button: .left, count: 1, modifiers: []),
+            .click(x: 10, y: 20, button: .left, count: 2, modifiers: []),
+            .click(x: 10, y: 20, button: .right, count: 1, modifiers: [.cmd, .shift]),
+            .drag(fromX: 1, fromY: 2, toX: 300, toY: 400, button: .left, modifiers: []),
+            .scroll(x: nil, y: nil, dx: 0, dy: -500),
+            .scroll(x: 5, y: 6, dx: 12, dy: 34),
+            .type(text: "hello, world"),
+            .type(text: "日本語 — accents: éàü"),
+            .key(combo: "cmd+l"),
+            .key(combo: "shift+cmd+="),
+            .sleep(ms: 250),
+        ]
+
+        for (index, action) in cases.enumerated() {
+            let wire = action.wireValue
+            switch InputAction.parse(wire, index: index) {
+            case .failure(let error):
+                XCTFail("\(action) did not survive its own wire form \(wire): \(error.message)")
+            case .success(let parsed):
+                XCTAssertEqual(parsed, action,
+                    "\(action) encoded to \(wire) and came back as \(parsed)")
+            }
+        }
+    }
+
+    /// The discriminator must match what the worker switches on, since that is
+    /// how it picks the parser.
+    func testWireTypeNameMatchesTheDiscriminator() {
+        let cases: [InputAction] = [
+            .move(x: 1, y: 1),
+            .click(x: 1, y: 1, button: .left, count: 1, modifiers: []),
+            .click(x: 1, y: 1, button: .left, count: 2, modifiers: []),
+            .drag(fromX: 0, fromY: 0, toX: 1, toY: 1, button: .left, modifiers: []),
+            .scroll(x: nil, y: nil, dx: 0, dy: 1),
+            .type(text: "x"),
+            .key(combo: "a"),
+            .sleep(ms: 1),
+        ]
+        for action in cases {
+            XCTAssertEqual(action.wireValue["type"]?.stringValue, action.typeName,
+                "\(action) is discriminated as \(action.typeName) but encoded otherwise")
+        }
+    }
+
+    /// A single click must not carry a redundant `count`, so a worker that treats
+    /// a present-but-1 count as suspicious cannot reject the common case.
+    func testSingleClickOmitsTheRedundantCount() {
+        let wire = InputAction.click(x: 5, y: 5, button: .left, count: 1, modifiers: []).wireValue
+        XCTAssertNil(wire["count"])
+        XCTAssertEqual(wire["type"]?.stringValue, "click")
+    }
+
+    /// Modifiers are only sent when there are some, and they use the worker's own
+    /// spelling.
+    func testModifiersAreOmittedWhenEmptyAndNamedCorrectlyWhenNot() {
+        let plain = InputAction.click(x: 1, y: 1, button: .left, count: 1, modifiers: []).wireValue
+        XCTAssertNil(plain["modifiers"])
+
+        let modified = InputAction.click(x: 1, y: 1, button: .left, count: 1,
+                                         modifiers: [.cmd, .shift]).wireValue
+        let names = modified["modifiers"]?.arrayValue?.compactMap { $0.stringValue }
+        XCTAssertEqual(names, ["cmd", "shift"])
+    }
+
+    /// Scroll's optional origin must be absent rather than zero — a scroll at
+    /// (0,0) is a different request from a scroll wherever the pointer is.
+    func testScrollOmitsAnAbsentOriginRatherThanSendingZero() {
+        let centred = InputAction.scroll(x: nil, y: nil, dx: 0, dy: -100).wireValue
+        XCTAssertNil(centred["x"])
+        XCTAssertNil(centred["y"])
+
+        let located = InputAction.scroll(x: 0, y: 0, dx: 0, dy: -100).wireValue
+        XCTAssertEqual(located["x"]?.intValue, 0)
+        XCTAssertEqual(located["y"]?.intValue, 0)
+    }
+}

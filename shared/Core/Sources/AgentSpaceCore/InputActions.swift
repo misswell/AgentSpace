@@ -376,3 +376,73 @@ extension Result where Success == KeyCombo.Parsed, Failure == AgentSpaceError {
         return nil
     }
 }
+
+// MARK: - Wire encoding
+
+extension InputAction {
+    /// The action as the worker's parser expects to read it.
+    ///
+    /// This lives in Core rather than in each front end so the GUI, the CLI and
+    /// the MCP server cannot disagree about the field names — the worker's parser
+    /// is the authority, and a second encoder elsewhere would eventually drift
+    /// from it and produce `INVALID_ACTION` for an action that looked correct at
+    /// the call site.
+    ///
+    /// Round-trips through `InputAction.parse`, which is asserted in
+    /// `InputActionTests.testEveryActionRoundTripsThroughItsWireForm`.
+    public var wireValue: JSONValue {
+        switch self {
+        case .move(let x, let y):
+            return .object(["type": .string("move"), "x": .double(x), "y": .double(y)])
+
+        case .click(let x, let y, let button, let count, let modifiers):
+            // `doubleClick` and `rightClick` are worker-side conveniences; a count
+            // of 2 is sent as the discriminator so the worker's own validation
+            // sees the same shape either way.
+            var object: [String: JSONValue] = [
+                "type": .string(count >= 2 ? "doubleClick" : "click"),
+                "x": .double(x),
+                "y": .double(y),
+                "button": .string(button.rawValue),
+            ]
+            if count != 1 { object["count"] = .int(count) }
+            if !modifiers.isEmpty {
+                object["modifiers"] = .array(modifiers.map { .string($0.rawValue) })
+            }
+            return .object(object)
+
+        case .drag(let fromX, let fromY, let toX, let toY, let button, let modifiers):
+            var object: [String: JSONValue] = [
+                "type": .string("drag"),
+                "fromX": .double(fromX),
+                "fromY": .double(fromY),
+                "toX": .double(toX),
+                "toY": .double(toY),
+                "button": .string(button.rawValue),
+            ]
+            if !modifiers.isEmpty {
+                object["modifiers"] = .array(modifiers.map { .string($0.rawValue) })
+            }
+            return .object(object)
+
+        case .scroll(let x, let y, let dx, let dy):
+            var object: [String: JSONValue] = [
+                "type": .string("scroll"),
+                "dx": .int(dx),
+                "dy": .int(dy),
+            ]
+            if let x { object["x"] = .double(x) }
+            if let y { object["y"] = .double(y) }
+            return .object(object)
+
+        case .type(let text):
+            return .object(["type": .string("type"), "text": .string(text)])
+
+        case .key(let combo):
+            return .object(["type": .string("key"), "key": .string(combo)])
+
+        case .sleep(let ms):
+            return .object(["type": .string("sleep"), "ms": .int(ms)])
+        }
+    }
+}

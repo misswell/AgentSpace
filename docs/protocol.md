@@ -112,7 +112,7 @@ this every few seconds and §53 wants that to be nearly free.
   "worker": true, "workerPid": 55007, "workerUptimeSeconds": 412,
   "screenRecording": true, "accessibility": true,
   "session": { "verdict": "usable", "onConsole": false },
-  "display": { "width": 1920, "height": 1080, "scale": 2 },
+  "display": { "width": 1920, "height": 1080, "pixelWidth": 3840, "pixelHeight": 2160, "scale": 2 },
   "workspace": { "confined": true, "allowedRoots": ["…"], "writableRoots": ["…"] },
   "resources": { "cpuPercent": 8.4, "memoryBytes": 1460000000, "processCount": 47 }
 }

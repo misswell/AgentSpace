@@ -117,9 +117,16 @@ struct Operations {
                 "verdict": .string(verdictName(verdict)),
                 "onConsole": .bool(verdict == .isConsole || verdict == .indeterminate),
             ]),
+            // Both coordinate spaces, as `hello` already reported them. Sending
+            // only the point size here meant a client that read `status` alone
+            // saw `pixelWidth: 0` — the GUI rendered "Pixels 0 x 0", and its
+            // Desktop Viewer lost the fallback it needs to map a click before the
+            // first capture arrives.
             "display": .obj([
                 "width": .int(geometry.width),
                 "height": .int(geometry.height),
+                "pixelWidth": .int(geometry.pixelWidth),
+                "pixelHeight": .int(geometry.pixelHeight),
                 "scale": .int(geometry.scale),
             ]),
             "workspace": .obj([

@@ -295,6 +295,24 @@ case .failure(let error):
     exit(2)
 }
 
+// `--version` has to be answered before the empty-command check below, because
+// `agentspace --version` has no positional command and would otherwise be treated
+// as a usage error and dump the help text. (`--help` was already handled here,
+// but `--version` was not; both are now.)
+if parsed.bool("version") {
+    if parsed.bool("json") {
+        print("""
+        {
+          "cli" : "\(cliVersion)",
+          "protocol" : \(agentSpaceProtocolVersion)
+        }
+        """)
+    } else {
+        print("agentspace \(cliVersion) (protocol \(agentSpaceProtocolVersion))")
+    }
+    exit(0)
+}
+
 if parsed.bool("help") || parsed.positionals.isEmpty {
     print(usage())
     exit(parsed.positionals.isEmpty && !parsed.bool("help") ? 2 : 0)
@@ -312,11 +330,10 @@ let rest = Array(parsed.positionals.dropFirst())
 
 switch command {
 
-case "version", "--version":
+case "version":
     emitter.success(.obj([
         "cli": .string(cliVersion),
         "protocol": .int(agentSpaceProtocolVersion),
-        "worker": .string(cliVersion),
     ]), human: "agentspace \(cliVersion) (protocol \(agentSpaceProtocolVersion))")
 
 case "doctor":

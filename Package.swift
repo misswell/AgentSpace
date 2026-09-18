@@ -24,6 +24,12 @@ let package = Package(
         .library(name: "AgentSpaceCore", targets: ["AgentSpaceCore"]),
         .executable(name: "agentspace-worker", targets: ["AgentSpaceWorker"]),
         .executable(name: "agentspace", targets: ["AgentSpaceCLI"]),
+        // Named `AgentSpaceApp`, not `AgentSpace`, because the CLI product is
+        // `agentspace` and the default macOS filesystem is case-insensitive: two
+        // products whose names differ only in case land on the same path in
+        // `.build/debug` and silently overwrite each other. The bundle renames it
+        // to `AgentSpace` on the way in, where the destinations differ.
+        .executable(name: "AgentSpaceApp", targets: ["AgentSpaceApp"]),
     ],
     targets: [
         .target(
@@ -39,6 +45,14 @@ let package = Package(
             name: "AgentSpaceCLI",
             dependencies: ["AgentSpaceCore"],
             path: "native/AgentSpaceCLI/Sources/AgentSpaceCLI"
+        ),
+        // The GUI. An executable rather than an app bundle target because SwiftPM
+        // has no bundle product; scripts/bundle-app.sh wraps the binary into a
+        // proper .app with an Info.plist, which is what TCC and the Dock need.
+        .executableTarget(
+            name: "AgentSpaceApp",
+            dependencies: ["AgentSpaceCore"],
+            path: "apps/AgentSpace"
         ),
         .testTarget(
             name: "AgentSpaceUnitTests",

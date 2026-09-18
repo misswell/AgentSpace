@@ -33,7 +33,9 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 13 | Drag gestures work end to end | ✗ | same |
 | 14 | Accessibility tree reads succeed in a background session | ✗ | same |
 | 15 | App launch registration detection (`APP_LAUNCH_TIMEOUT`) | ✗ | same |
-| 16 | The MCP server exposes the CLI over stdio, and the fail-closed refusal survives the MCP boundary | ✓ | `scripts/mcp-smoke.sh` — 38 checks |
+| 16 | The MCP server exposes the CLI over stdio, and the fail-closed refusal survives the MCP boundary | ✓ | `scripts/mcp-smoke.sh` |
+| 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
+| 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 
 ---
 
@@ -144,20 +146,23 @@ concern rather than a worker one.
 ## 4. Test suite — actual results
 
 ```
-$ swift test
-Executed 151 tests, with 1 test skipped and 0 failures (0 unexpected) in 48.57s
+$ scripts/test.sh
+Executed 170 tests, with 1 test skipped and 0 failures (0 unexpected) in 7.43s
 ```
 
 | Suite | Tests | Failures | Skipped |
 |---|---|---|---|
 | `ExecGuardTests` | 19 | 0 | 0 |
 | `GeometryTests` | 11 | 0 | 0 |
-| `InputActionTests` | 30 | 0 | 0 |
+| `InputActionTests` | 35 | 0 | 0 |
+| `PreviewMappingTests` | 12 | 0 | 0 |
 | `ProtocolTests` | 16 | 0 | 0 |
-| `SafetyTests` | 17 | 0 | **1** |
+| `SafetyTests` | 19 | 0 | **1** |
 | `SecurityTests` | 24 | 0 | 0 |
 | `SessionGuardTests` | 15 | 0 | 0 |
 | `SpaceModelTests` | 19 | 0 | 0 |
+
+Plus 19 `node --test` tests in `packages/agentspace-mcp`.
 
 The single skip is `testScreenshotNeverReturnsConsoleSession`. It is written to
 **activate automatically** once an AgentSpace session exists; today it asserts
@@ -426,3 +431,123 @@ whose session is the console. That field is the one a well-behaved MCP client
 should read before deciding whether to send input at all, and it is derived from
 the same `SessionGuard` verdict that gates the input path — not from a separate
 guess that could disagree with it.
+
+---
+
+## 10. The SwiftUI app — verified by looking at it
+
+The GUI cannot be confirmed by compiling it. `scripts/bundle-app.sh` builds a
+signed `AgentSpace.app` (Developer ID, TeamIdentifier `U8U443D7ZL`), and the app
+was launched against a two-Space registry with one worker actually running. The
+window was then captured **by window id** rather than by screen region, so the
+capture is the app's own content and not whatever happened to be on top of it:
+
+```
+$ /tmp/windowlist AgentSpace
+WINDOWID PID     LAYER  BOUNDS            OWNER / TITLE
+10964    18120   0      900x612@538,250   AgentSpace — Frontend Test
+
+$ screencapture -x -o -l10964 /tmp/guiwindow.png
+```
+
+The result showed, from real data rather than fixtures:
+
+- the sidebar with both Spaces and their *effective* states — `Frontend Test / On
+  Console` in orange, `Safari Test / Needs Login` in yellow;
+- `User  _agentspace_a37f91 (uid 502)`, `Worker  running (pid 18115)`,
+  `Session  isConsole`, `Accepts input  no`;
+- `Accessibility` and `Screen Recording` chips both green, read from the worker;
+- `Points 1920 × 1080`, `Scale 2×`;
+- live resources with a process count in the hundreds.
+
+Two of those lines were **wrong**, and the screenshot is the only reason they were
+caught. Details in §11.
+
+`tests/probes/WindowListProbe.swift` is what made this possible, and it is worth
+keeping: `screencapture -R x,y,w,h` captures a screen *region* and therefore
+whoever is on top, so it is useless for verifying that one app rendered. Only
+`screencapture -l <id>` isolates the window, and the id is reachable only through
+`CGWindowListCopyWindowInfo`.
+
+### Why the window came up behind everything
+
+Launching the bundled binary directly from a shell — `AGENTSPACE_ROOT=… 
+dist/AgentSpace.app/Contents/MacOS/AgentSpace` — gives the process the bundle's
+identity (so TCC attributes correctly) but does **not** ask the window server to
+activate it, so it appears behind existing windows. `open -a` activates properly
+but gives no way to pass the environment. `osascript … set frontmost` did not
+raise it either. The AX window query and `screencapture -l` worked anyway, which
+is the reason to prefer them over a region capture.
+
+## 11. Bugs found by looking at the running app
+
+Four defects were found after everything compiled and all tests passed. Three of
+them a test could not have found, because each was a *disagreement between two
+correct components* rather than a failure inside one.
+
+### 1. `agentspace` and `AgentSpace` are the same file on macOS
+
+The package declared two executable products, `agentspace` (CLI) and `AgentSpace`
+(GUI). The default macOS filesystem is **case-insensitive**, so both were written
+to the same path in `.build/debug` and one silently overwrote the other. The
+symptoms were bizarre and gave no hint of the cause:
+
+- the app bundle contained no CLI at all, though `cp` reported success;
+- `agentspace --version` printed no version — it started a **SwiftUI event loop
+  and hung forever**, because the file at that path was the GUI;
+- the bundle's `AgentSpace` was the CLI, so the app did not exist either.
+
+Nothing errored. Confirmed the filesystem fact directly:
+
+```
+$ echo AAA > Foo && echo BBB > foo && cat Foo
+BBB
+```
+
+Fixed by naming the GUI's SwiftPM product `AgentSpaceApp` (the bundle renames it
+to `AgentSpace` on the way in, where the destinations genuinely differ) and
+putting the CLI in `Contents/Helpers/agentspace`. Two guards now make it
+impossible to reintroduce: `bundle-app.sh` refuses to finish if the GUI and CLI
+binaries have the same SHA-256, and `build.sh` runs `agentspace --version` and
+requires it to print a version.
+
+### 2. `--version` dumped the help text
+
+`agentspace --version` printed the usage and exited 2, because `--version` is a
+boolean flag, so `positionals` was empty and the empty-command check fired before
+the version branch. `--help` was handled; `--version` was overlooked. Fixed, and
+`build.sh` now asserts the output, so a CLI that cannot answer `--version` fails
+the build rather than shipping.
+
+### 3. `status` reported the display in only one coordinate space
+
+`hello` returned `width`, `height`, `pixelWidth`, `pixelHeight` and `scale`.
+`status` returned only the first two and `scale`. Both were "correct" against
+their own tests; the disagreement only showed up as `Pixels 0 × 0` in the app's
+Display card, and would have cost the Desktop Viewer its mapping fallback before
+the first capture arrives. Fixed, documented in `docs/protocol.md`, and pinned by
+`testStatusReportsBothCoordinateSpaces`, which asserts that `hello` and `status`
+agree — the cross-check that neither side's own tests could make.
+
+### 4. The preview mapping was wrong for a downscaled capture
+
+`PreviewMapping` initially converted a click by dividing the image's pixel
+coordinate by the backing scale. That is right only when the image *is* the
+framebuffer. A `--max-width 640` preview of a 1920×1080-point display has three
+different widths in play, and the click landed at 320 instead of 960 — a third of
+the way across the screen, with no error. `PreviewMappingTests` caught it before
+the app existed: the type now carries the display's **point** size and works in
+fractions, so a downscale cannot move a click, and the backing scale is not a
+parameter at all.
+
+The same file also pinned the off-by-one at the bottom-right corner: rounding
+gave `displayWidth`, one point off the display, which the worker would reject as
+`INVALID_COORDINATE` — a bug that would have looked like an agent problem.
+
+### The pattern
+
+Three of these four were only visible by *running the thing and looking at it*.
+The plan's §63.13 says not to guess macOS behaviour and to write minimal programs
+to check it; this round suggests the rule generalises to the product too — a
+green suite over correctly-unit-tested parts said nothing about whether the parts
+agreed with each other.
