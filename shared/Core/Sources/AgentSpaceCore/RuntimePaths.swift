@@ -11,6 +11,10 @@ import Foundation
 ///       worker.pid      pid of the listening worker
 ///       token           the 256-bit session secret, mode 0600
 ///       status.json     last known status, written by the worker
+///       worker.lock     flock'd by bind() so a second worker fails fast
+///       worker.log      the worker's own log, next to what it serves
+///       space.json      written by the privileged helper (roots, main user)
+///       screenshots/    where captures land by default
 ///   Spaces/
 ///     index.json        the Space registry (main user's view)
 ///   Logs/

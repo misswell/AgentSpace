@@ -3740,3 +3740,32 @@ audit's "repo tree" evidence is now a measured fact.
 |---|---|---|---|
 | 259 | All eleven §21 error codes exist in docs/protocol.md, and the canonical enum is a documented superset with inline reasoning | ✓ | §110 — the eleven-code walk and the enum source |
 | 260 | docs/architecture.md documents the deep-link launch path, the launch-storm mechanism, and the dedup, with the one-window invariant pinned by gui-verify | ✓ | §110 — the new Lifecycle paragraph |
+
+
+---
+
+## 111. The runtime-directory layout, complete in both authoritative places
+
+The runtime layout list appeared twice — once in `RuntimePaths.swift`'s
+doc comment, once in `docs/protocol.md` — and both were written when
+the directory held four files. Since then the hardening and the
+worker grew five more artifacts, and neither list had kept up:
+
+- `status.json` — the worker's last known status (existed in the
+  properties and on disk, missing from the swift comment).
+- `worker.lock` — §97's flock target, the reason a second worker
+  fails fast.
+- `worker.log` — the worker's own log, sitting next to what it
+  serves.
+- `space.json` and `screenshots/` — written by the helper and the
+  capture path respectively; present in protocol.md, missing from
+  the swift comment.
+
+Both lists now carry all eight entries with one-line roles, derived
+by walking `RuntimePaths`' properties plus the bind/worker writes —
+not by copying either stale list. 329 tests still green (the change
+is comments only).
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 261 | The runtime-directory layout is identical and complete in RuntimePaths.swift's doc comment and docs/protocol.md — all eight artifacts with their roles | ✓ | §111 — the walk that derived the list |
