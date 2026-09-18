@@ -2775,3 +2775,22 @@ condition, readable by a driver, from one JSON object.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 189 | Every §32 status field has a live implementation mapping, with the draft "status" key superseded by the more precise state/stateLabel/session split — and the console fail-closed state is machine-readable in one payload | ✓ | §71 — the 15-field real-chain capture |
+
+
+---
+
+## 72. The download user's path passes Gatekeeper end to end
+
+The earlier Gatekeeper verification (§59) assessed the app in the repo's
+dist — a binary with no quarantine xattr. This round closed the remaining
+gap: the DMG was mounted, the app copied out, and a genuine quarantine
+attribute (`0083;68f00000;Safari;`) injected — byte-for-byte what a browser
+download leaves. On that quarantined copy, `stapler validate` passes
+("The validate action worked!") and `spctl --assess --type execute` exits 0.
+The whole story a first-time user lives through — download, mount, copy,
+double-click — is now covered by direct assessment, not inference from the
+repo copy.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 190 | A quarantined copy of the stapled DMG app passes both stapler validate and Gatekeeper's execute assessment — the real download user's double-click path | ✓ | §72 — the quarantine simulation |
