@@ -8,6 +8,8 @@
 	<string>AgentSpace</string>
 	<key>CFBundleExecutable</key>
 	<string>AgentSpace</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.agentspace.AgentSpace</string>
 	<key>CFBundleInfoDictionaryVersion</key>

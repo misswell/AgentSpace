@@ -56,6 +56,7 @@ cp "$BIN_DIR/AgentSpaceApp"     "$APP/Contents/MacOS/AgentSpace"
 cp "$BIN_DIR/agentspace-worker" "$APP/Contents/MacOS/agentspace-worker"
 cp "$BIN_DIR/agentspace"        "$APP/Contents/Helpers/agentspace"
 cp apps/AgentSpace/Resources/Info.plist "$APP/Contents/Info.plist"
+cp apps/AgentSpace/Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 # The helper and its LaunchDaemon. The helper goes in Contents/Library/LaunchDaemons
 # next to its plist, because BundleProgram is resolved relative to Contents and the

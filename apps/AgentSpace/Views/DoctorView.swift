@@ -297,7 +297,7 @@ struct HelperCard: View {
                     title: NSLocalizedString("Creating a Space needs the privileged helper", comment: ""),
                     code: "HELPER_UNAVAILABLE",
                     message: "A Space is a real macOS user, so creating one is an administrator operation. AgentSpace does it through a root helper that exposes a closed list of typed operations — it never runs a shell, and it will only ever create or delete accounts named _agentspace_<6 hex>.",
-                    fix: model.helperState.fix ?? NSLocalizedString("Open the AgentSpace app and choose Install Helper.", comment: "")
+                    fix: model.helperState.fix ?? NSLocalizedString("Open the AgentSpace app and choose Install Helper.", comment: ""))
 
                 HStack {
                     Button {

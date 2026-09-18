@@ -14,6 +14,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 
 ## Contents
 
+- [Contents](#contents)
 - [Phase 0 / 1 — status at the end of round 1](#phase-0-1-status-at-the-end-of-round-1)
 - [1. Session dictionary — measured output](#1-session-dictionary-measured-output)
 - [2. Display geometry — the scale trap, confirmed](#2-display-geometry-the-scale-trap-confirmed)
@@ -70,15 +71,11 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 - [53. The Preview width control is display-size only, by construction](#53-the-preview-width-control-is-display-size-only-by-construction)
 - [54. The GUI checks become a script, and the script finds the flakiness](#54-the-gui-checks-become-a-script-and-the-script-finds-the-flakiness)
 - [55. One command runs everything a release needs](#55-one-command-runs-everything-a-release-needs)
+- [56. `notarytool --wait` timing out is "unknown", not "failed"](#56-notarytool-wait-timing-out-is-unknown-not-failed)
+- [57. The DMG ships exactly the stapled bits, provable by CDHash](#57-the-dmg-ships-exactly-the-stapled-bits-provable-by-cdhash)
 
 ---
-
----
-
-## Phase 0 / 1 — status at the end of round 1
-
-| # | Claim | Status | Evidence |
-|---|-------|--------|----------|
+---|-------|--------|----------|
 | 1 | `CGSessionCopyCurrentDictionary()` is the right console signal, and the key is spelled `kCGSSessionOnConsoleKey` | ✓ | `SessionProbe` |
 | 2 | The console bit fails closed when unreadable | ✓ | `SessionGuardTests` (7 tests) |
 | 3 | `SessionGetInfo` / `sessionHasGraphicAccess` reliably reports whether the session has a window server | ✓ | `SessionProbe` + `testSystemSourceReportsGraphicAccess` |
