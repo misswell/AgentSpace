@@ -4749,3 +4749,24 @@ launchd.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 319 | Setup and Uninstall are complete and typed: register/unregister on the app side, ten typed helper verbs, no raw launchd edits | ✓ | §157 — the verb dispatch and uninstallHelper body |
+
+
+---
+
+## 158. §35's four safety rules exist verbatim, generated from one source
+
+Integrations.agentRules() emits all four sentences word-for-word
+("Any command that can open a visible macOS window must run
+through AgentSpace." / "Never launch GUI applications directly in
+the user's current session." / "If AgentSpace reports that its
+background session is unavailable, stop and report the problem." /
+"Never fall back to the user's console session."), with a comment
+stating the wording is a security property and therefore has
+exactly one source of truth. agentRulesSection() wraps them with
+markers for AGENTS.md / CLAUDE.md, and Copy Config puts the same
+section on the pasteboard. My first grep missed it by searching
+only the app target — the generator lives in Core.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 320 | All four §35 rule sentences are verbatim in one generator consumed by the marker section and Copy Config | ✓ | §158 — Integrations.agentRules() |
