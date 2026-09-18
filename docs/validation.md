@@ -6615,3 +6615,31 @@ completion that depends on them.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 401 | The audit pass is closed: all auditable clauses verified, session gaps fixed and recorded, three external blockers precisely characterized | ✓ | §239 — this snapshot; blockers also listed in every round report |
+
+
+---
+
+## 240. §42's reuse ledger: zero verbatim copies, debts itemized anyway
+
+THIRD_PARTY_NOTICES.md reproduces Offstage's MIT license in
+full — "reproduced anyway, because the debt is real and the
+honest thing to do with a real debt is to acknowledge it rather
+than to argue about whether it clears a threshold" — even
+though no source file was copied verbatim; a tree-wide grep
+finds no Offstage copyright header in any .swift file, which is
+consistent with the claim. Seven borrowed ideas/measurements
+are itemized (the three CGEvent tap paths, explicit flags,
+grapheme-per-event typing, Retina point semantics re-measured
+here on macOS 27.0, frontmost-pid from the window list, the
+background-Aqua shape, posix_spawn details), deliberate
+divergences are tabulated in §8, and one correction to Offstage
+itself is recorded: its kCGSSessionManagerNameKey check with an
+"Aqua" fallback is inert on macOS 27.0 — the key is absent from
+the dictionary — so AgentSpace reads SessionGetInfo's
+sessionHasGraphicAccess bit instead. §63.2's no-fork requirement
+and §63.13's measure-don't-guess rule are both satisfied in the
+same document.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 402 | §42/§63.3's MIT ledger is complete: full license, zero-copy claim consistent with the tree, seven itemized borrowings, divergences cross-referenced, and an upstream correction recorded | ✓ | §240 — THIRD_PARTY_NOTICES.md:1–75 |
