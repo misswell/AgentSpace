@@ -4999,3 +4999,22 @@ repository and branch are untouched.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 331 | The §41 chain runs in dependency-safe order, keeps branches, touches the original repo never, treats home removal as a separate explicit ask, and names the account on late failures | ✓ | §169 — SpaceProvisioner.delete |
+
+
+---
+
+## 170. §30's negative space holds: no "Allocated" anywhere, only actual usage
+
+Zero matches for "allocated" across the app and core targets.
+The resources card shows the plan's four real quantities — CPU
+(percentage, with a caption that it can exceed 100% on a
+multi-core Mac), Memory, Processes, and an on-demand Measure
+Disk Usage button — and its caption states the honest reading of
+uid aggregation: if the worker runs under your own account, the
+numbers describe your whole login session, which is what the
+aggregation is honestly reporting, not a leak. Nothing pretends
+a VM-style allocation exists.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 332 | No "Allocated" wording; the card shows real CPU/Memory/Processes/Disk with an honest uid-aggregation caveat | ✓ | §170 — the resources card and zero-hit grep |
