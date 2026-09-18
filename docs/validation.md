@@ -3291,3 +3291,28 @@ controlled reproduction; claim 221's escape hatch is verified live.
 |---|---|---|---|
 | 226 | exec --env K=V values reach the child process, including multiple flags | ✓ | §94 — the printenv and shell-echo probes |
 | 227 | stdout truncation has a real ceiling between 2 MB and 5 MB, reported via the truncated flag, with sub-ceiling output returned complete | ✓ | §94 — the 100 KB / 1 MB / 2 MB / 5 MB bracket |
+
+
+---
+
+## 95. Two Spaces live side by side: distinct sockets, distinct tokens, and a hard cross-authentication wall
+
+Two workers were launched simultaneously in one console session (the
+closest live stand-in for §48's dual-Space acceptance, which still needs
+a second GUI session for the input-isolation half):
+
+- **Coexistence** — both sockets exist, paths differ, tokens differ
+  (64 hex characters each = 256 bits).
+- **Cross-authentication matrix** — each Space's own token is accepted
+  on its own socket; both cross combinations (A's token on B's socket
+  and vice versa) are refused with UNAUTHORIZED; and after the cross
+  attempts both workers still serve their own tokens immediately.
+
+This is the live counterpart of the unit test
+`testDifferentSpacesHaveDifferentTokens`: per-Space secrets are not just
+generated differently, they are enforced per socket at runtime.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 228 | Two Space workers coexist with independent sockets and independent 256-bit tokens | ✓ | §95 — the dual-worker probe |
+| 229 | A Space's token is valid only on its own socket: both cross combinations are UNAUTHORIZED, with no degradation afterward | ✓ | §95 — the cross-authentication matrix |
