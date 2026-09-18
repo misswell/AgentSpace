@@ -5717,3 +5717,25 @@ it is not present.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 362 | No §4-forbidden UI stack appears in project sources or manifests; MCP deps are exactly the planned TypeScript/Node/SDK triple | ✓ | §200 — two-tool sweep, package.json |
+
+
+---
+
+## 201. §30's display side: four real metrics on the card, "Allocated"
+nowhere, disk measured only when asked
+
+SpaceDetailView's resources card shows exactly the §30 list —
+CPU as a percentage, Memory as a human-readable byte figure,
+process count, and Disk behind an explicitly-requested
+measurement — all in monospaced fields after the OrbStack/Xcode
+style the plan points at. A case-insensitive sweep of the app
+source finds no "Allocated" anywhere: nothing pretends this is a
+VM with reserved resources. The disk field's comment states why
+it is on demand — the walk over tens of thousands of files is
+kept off the polling path (the same discipline §184 recorded for
+the timer) — and the numbers themselves are the UID-summed
+figures the §182 parser produces.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 363 | Dashboard shows CPU/Memory/Processes/Disk as real per-UID figures with zero "Allocated" wording, disk gated behind an explicit measurement | ✓ | §201 — SpaceDetailView.swift:96,231–237 |
