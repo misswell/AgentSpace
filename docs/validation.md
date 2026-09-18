@@ -5119,3 +5119,25 @@ into.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 337 | needsLogin vs offline is derived from hasGraphicalSession with nil kept honest, shared by all callers; no auto-start into an unlogged session | ✓ | §175 — SpaceState.effective |
+
+
+---
+
+## 176. §34's integrations surface: three typed installs plus two copy
+actions, path drift already caught once
+
+SpaceDetailView offers install buttons per target — claudeCode,
+codex, openCode — and AppModel.installIntegration merges each
+client's real format (TOML for Codex, JSON mcpServers, JSON mcp)
+rather than overwriting. Copy Config exists as copyMCPConfiguration,
+which resolves the binary path through Integrations.defaultBinaryPath:
+its comment records the earlier drift where a hardcoded
+Contents/MacOS/agentspace — a file this bundle has never contained —
+made the copied config point at nothing. Copy Agent Rules implements
+§35's consent shape: the user pastes the rules themselves; the CLI's
+integrate rules --install is the opt-in alternative with backup and
+marker-scoped idempotence.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 338 | Three per-target installs merge real client configs; Copy Config resolves the shipped CLI path (drift caught and fixed); rules copying keeps user consent | ✓ | §176 — installIntegration, copyMCPConfiguration, SpaceDetailView |
