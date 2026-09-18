@@ -214,6 +214,12 @@ public struct SpaceProvisioner {
             let recordURL = URL(fileURLWithPath: runtimeDirectory).appendingPathComponent("space.json")
             var record = plan.spaceRecord
             record["spaceName"] = name
+            // The helper's own answer for where this account's home is. The worker
+            // reads it back for disk measurement; recording it here rather than
+            // letting the worker guess keeps one source of truth.
+            if let home = created.result?["home"]?.stringValue, !home.isEmpty {
+                record["home"] = home
+            }
             record["mainUser"] = options.mainUser
             record["createdAt"] = ISO8601DateFormatter().string(from: Date())
             if let data = try? JSONSerialization.data(withJSONObject: record, options: [.prettyPrinted, .sortedKeys]) {

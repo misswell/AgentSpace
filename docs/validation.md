@@ -38,6 +38,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 18 | Every creation-step failure rolls back what it already did, and a *failed* rollback keeps the orphan account visible as an errored Space | ✓ | §15 |
 | 19 | The generated password reaches the Keychain and appears in no file; generated passwords never repeat | ✓ | §15 — real Keychain, own service namespace |
 | 20 | Eight Spaces get eight distinct sockets, tokens, runtime directories, account names and launchd labels; two Spaces differing only by case never share a working tree | ✓ | §16 — `MultiSpaceIsolationTests` |
+| 21 | Disk usage is measured (agreeing with `du`), opt-in, budget-bounded, and never silently a zero | ✓ | §17 — `DiskUsageTests` + a live worker |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1002,3 +1003,52 @@ and `BBB` while the console is untouched — the plan's §48 acceptance — stil
 two logged-in users, which needs an administrator password this machine does not
 have. What is verified is that the *plumbing* cannot confuse two Spaces, and that
 two real workers enforce their own tokens against each other.
+
+---
+
+## 17. Disk usage (§30) — measured, not allocated, and never a silent zero
+
+Plan §30 wants CPU, RAM, process count **and disk** per Space. The first three were
+already aggregated from the process table by uid; disk was a field on the model that
+nobody filled in.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 46 | The measurement agrees with `du` on a directory with nested subdirectories | ✓ | `DiskUsageTests`, within 64 KB of `du -sk` |
+| 47 | The walk stops at its budget and reports itself **truncated** rather than exact | ✓ | 40 files, budget 10 → `truncated: true`, fewer files counted |
+| 48 | Symlinks are not followed out of the directory, and a self-referential loop does not hang it | ✓ | a 512 KB target behind a link is not counted |
+| 49 | An unmeasured Space reports "not measured", not a measured zero | ✓ | `diskMeasured` is distinct from `diskBytes == 0` |
+| 50 | The ordinary status poll does **not** walk the home directory | ✓ | `testDiskUsageIsMeasuredOnlyWhenAsked` — no `diskBytes` unless asked |
+| 51 | An explicit `"disk"` request measures the Space's own home | ✓ | same test, against a seeded home of two files |
+| 52 | The UI offers disk as an explicit action with its cost explained | ✓ | Space detail page |
+
+### The two decisions
+
+**Allocated, not logical.** `totalFileAllocatedSize` rather than `fileSize`: on APFS
+with compression, sparse files and clones these differ, and allocated is the number
+the filesystem gives back when the blocks are freed — the one `du`, Finder and the
+user can all reproduce.
+
+**Opt-in, and bounded.** A Space's home holds a browser profile and an IDE's caches;
+tens of thousands of files is normal. Walking it on the 2–5 s status poll would pin
+the CPU, which §53 forbids, so it is a separate request (`resources: "disk"`) and a
+button in the UI that says what it costs. The walk stops at 250 000 entries and sets
+`diskTruncated`, so an agent that has filled its disk with `node_modules` yields "at
+least N" rather than a wrong exact figure.
+
+### Two bugs while writing this
+
+**The test measured the wrong home and reported it as success.** The first version
+seeded nothing, so the worker measured the real home of whoever ran the tests —
+thousands of files, so the walk hit its budget and returned a *truncated* bound. The
+assertion "truncated should be false" failed, which was the only reason it was
+noticed. It now seeds a home of two known files and asserts the figure is below a
+megabyte, which also proves the walk did not silently measure the real home.
+
+**The harness wrote its space record in `init`, where nothing could configure it.**
+Assigning `spaceRecord` after `try WorkerHarness()` was already too late: `init` had
+run with `nil` and written nothing, so the worker fell back to the real home every
+time. The write moved to `start()`, which is also the correct lifecycle — the file
+must exist before the worker reads it, and that is true at `start()` and not before.
+The same lesson as §11 and §15 from yet another angle: the code was correct *where it
+was*, and wrong because of when it ran.

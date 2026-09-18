@@ -59,6 +59,12 @@ final class WorkerHarness {
         return nil
     }
 
+    /// Written to `<runtime>/space.json` before the worker starts, for tests that
+    /// need the worker to see a particular configuration — confinement roots, or a
+    /// home whose size is known. `nil` (the default) reproduces production's
+    /// "helper has not written a record yet" state honestly.
+    var spaceRecord: [String: Any]?
+
     init(spaceName: String = "Safety Test Space") throws {
         // A deliberately SHORT root. `sun_path` is 103 bytes and the layout adds
         // `/Runtime/<uuid>/worker.sock` (57 more), so `NSTemporaryDirectory()`
@@ -87,6 +93,11 @@ final class WorkerHarness {
 
     /// Start the worker and wait for its socket to answer.
     func start(extraArguments: [String] = [], timeout: TimeInterval = 20) throws {
+        if let spaceRecord {
+            let data = try JSONSerialization.data(withJSONObject: spaceRecord, options: [.sortedKeys])
+            try data.write(to: URL(fileURLWithPath: paths.directory + "/space.json"))
+        }
+
         guard let binary = WorkerHarness.locateWorkerBinary() else {
             throw XCTSkip("""
                 agentspace-worker has not been built. Run `swift build` (or \

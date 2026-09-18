@@ -77,6 +77,43 @@ final class SpaceService {
 
     /// Full status for one Space: worker liveness, session verdict, permissions,
     /// geometry and (on request) resources.
+    /// Measure just the Space's home directory, on request.
+    ///
+    /// Separate from `snapshot` because it walks every file in the home and can
+    /// take hundreds of milliseconds — the ordinary 2–5 s status poll must not pay
+    /// for it (§53). The disk figure is the only thing this returns.
+    func measureDisk(for space: AgentSpace, timeout: Double = 30) -> Result<ResourceUsage, AgentSpaceError> {
+        let connection = SpaceConnection(space: space)
+        guard connection.paths.socketPathFits else {
+            return .failure(AgentSpaceError(
+                code: .internalError,
+                message: "the runtime path for '\(space.name)' is \(connection.paths.socketPath.utf8.count) bytes, over the \(RuntimePaths.maxSocketPathBytes)-byte unix socket limit"))
+        }
+        let response: RPCResponse
+        do {
+            response = try connection.client.call(
+                method: Method.status,
+                params: .object(["resources": .string("disk")]),
+                token: connection.token)
+        } catch {
+            return .failure(AgentSpaceError(
+                code: .workerOffline,
+                message: "no worker is answering for '\(space.name)': \(error)",
+                recoverable: true))
+        }
+        if let error = response.error { return .failure(error) }
+        guard let resources = response.result?["resources"] else {
+            return .success(ResourceUsage())
+        }
+        return .success(ResourceUsage(
+            cpuPercent: resources["cpuPercent"]?.doubleValue ?? 0,
+            memoryBytes: UInt64(resources["memoryBytes"]?.intValue ?? 0),
+            processCount: resources["processCount"]?.intValue ?? 0,
+            diskBytes: UInt64(resources["diskBytes"]?.intValue ?? 0),
+            diskMeasured: resources["diskBytes"]?.intValue != nil,
+            diskTruncated: resources["diskTruncated"]?.boolValue ?? false))
+    }
+
     func snapshot(for space: AgentSpace, includeResources: Bool = false, timeout: Double = 4) -> SpaceSnapshot {
         var snapshot = SpaceSnapshot(space: space)
         let connection = SpaceConnection(space: space)
@@ -88,6 +125,8 @@ final class SpaceService {
         }
 
         let params: JSONValue = includeResources
+            // "full" is CPU, memory and process count. Disk is a separate request
+            // ("disk") because it walks the whole home; see `measureDisk`.
             ? .object(["resources": .string("full")])
             : .object([:])
 
@@ -128,7 +167,11 @@ final class SpaceService {
                     cpuPercent: resources["cpuPercent"]?.doubleValue ?? 0,
                     memoryBytes: UInt64(resources["memoryBytes"]?.intValue ?? 0),
                     processCount: resources["processCount"]?.intValue ?? 0,
-                    diskBytes: UInt64(resources["diskBytes"]?.intValue ?? 0))
+                    // `diskBytes` is absent or null unless the caller asked for
+                    // "disk"; a null must not read as a measured zero.
+                    diskBytes: UInt64(resources["diskBytes"]?.intValue ?? 0),
+                    diskMeasured: resources["diskBytes"]?.intValue != nil,
+                    diskTruncated: resources["diskTruncated"]?.boolValue ?? false)
             }
             snapshot.lastRefreshed = Date()
         }

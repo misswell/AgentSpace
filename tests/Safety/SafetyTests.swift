@@ -249,6 +249,51 @@ final class SafetyTests: XCTestCase {
         XCTAssertEqual(try second.errorCode(Method.status, token: first.token.hex), .unauthorized)
     }
 
+    /// Plan §30: Disk Usage, measured on request.
+    ///
+    /// The distinction being tested is the one that would otherwise be a silent
+    /// lie: an *unmeasured* disk must not read as a measured zero. A Space that
+    /// reports "0 bytes" when nobody looked is worse than one that says nothing.
+    func testDiskUsageIsMeasuredOnlyWhenAsked() throws {
+        // A home whose size is known, so the measurement can be asserted exactly
+        // rather than only "present". Without this the worker measures the real
+        // home of whoever ran the tests — thousands of files, so the walk hits its
+        // budget and reports a truncated bound, which is honest but not assertable.
+        let home = "/tmp/as-home-\(UUID().uuidString.prefix(8))"
+        try FileManager.default.createDirectory(atPath: home, withIntermediateDirectories: true)
+        try "measured".write(toFile: home + "/one.txt", atomically: true, encoding: .utf8)
+        try "also".write(toFile: home + "/two.txt", atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: home) }
+
+        let harness = try WorkerHarness()
+        harness.spaceRecord = ["home": home]
+        try harness.start()
+        defer { harness.stop() }
+
+        // The ordinary status poll must NOT include a disk figure...
+        let ordinary = try harness.call(Method.status, .object(["resources": .string("full")]))
+        let full = try XCTUnwrap(ordinary.result?["resources"])
+        XCTAssertNil(full["diskBytes"]?.intValue,
+                     "the default resources request walked the home directory")
+        // ...but CPU, memory and process count are still there.
+        XCTAssertNotNil(full["memoryBytes"]?.intValue)
+        XCTAssertNotNil(full["processCount"]?.intValue)
+
+        // Asked for explicitly, it is measured and non-null.
+        let measured = try harness.call(Method.status, .object(["resources": .string("disk")]))
+        let disk = try XCTUnwrap(measured.result?["resources"])
+        XCTAssertNotNil(disk["diskBytes"]?.intValue,
+                        "an explicit disk request returned no figure: \(disk)")
+        XCTAssertFalse(disk["diskTruncated"]?.boolValue ?? false,
+                       "the walk hit its budget for a home this small")
+
+        // And the figure describes *that* home: two small files, so it must be far
+        // below a megabyte — which also proves the walk did not silently measure
+        // the real home instead.
+        XCTAssertLessThan(disk["diskBytes"]?.intValue ?? Int.max, 1 << 20,
+                          "measured something other than the seeded home: \(disk)")
+    }
+
     // MARK: - 5. Screenshots
 
     /// Plan §55: `testScreenshotNeverReturnsConsoleSession`.

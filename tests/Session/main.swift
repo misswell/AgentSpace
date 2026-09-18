@@ -446,7 +446,13 @@ func prepareConsoleTextEdit(report: Report) -> AXUIElement? {
             }
             // A new instance opens an empty untitled document only sometimes, so
             // ask for one through the menu — via AX, which does not move the mouse.
-            AX.pressMenuItem(in: pid, menu: "File", item: "New")
+            //
+            // The result is checked rather than dropped: if the menu press fails
+            // there is no document to type into, and the failure would otherwise
+            // appear much later as a puzzling "no window" from a different step.
+            if !AX.pressMenuItem(in: pid, menu: "File", item: "New") {
+                return nil
+            }
         }
         usleep(300_000)
     }

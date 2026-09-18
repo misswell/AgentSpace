@@ -131,12 +131,17 @@ struct HelperSelfCheck {
                 : "The plist must ship at Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist for SMAppService to register it. Run scripts/bundle-app.sh."))
 
         // 6. Is it registered with launchd? Read-only.
-        let status = HelperClient.status
-        let registered = HelperClient.isInstalled
+        //
+        // Inspect once, through the same path `agentspace doctor` and the app's
+        // helper card use — so the three cannot report different things. The
+        // previous version read the raw status and then re-read it twice through
+        // other accessors, using none of the first answer.
+        let installation = HelperInstallation.inspect(ping: false)
+        let registered = installation.isReachable || HelperClient.isInstalled
         report.checks.append(Check(
             name: "registered with launchd",
             ok: registered,
-            detail: "SMAppService reports: \(HelperClient.statusDescription())",
+            detail: installation.summary,
             fix: registered ? nil
                 : "Open the AgentSpace app and choose Install Helper. macOS will ask for your password, because only an administrator can add a LaunchDaemon."))
 

@@ -206,13 +206,30 @@ public struct ResourceUsage: Codable, Equatable, Sendable {
     public var cpuPercent: Double
     public var memoryBytes: UInt64
     public var processCount: Int
+    /// Allocated bytes in the Space's home. Only meaningful when `diskMeasured`.
     public var diskBytes: UInt64
+    /// Whether the home directory was actually walked. Distinct from
+    /// `diskBytes == 0`, which is what an *empty* home legitimately measures —
+    /// conflating the two would let the UI claim a Space uses no disk because
+    /// nobody looked (plan §30).
+    public var diskMeasured: Bool
+    /// True when the walk hit its budget, making `diskBytes` a lower bound.
+    public var diskTruncated: Bool
 
-    public init(cpuPercent: Double = 0, memoryBytes: UInt64 = 0, processCount: Int = 0, diskBytes: UInt64 = 0) {
+    public init(
+        cpuPercent: Double = 0,
+        memoryBytes: UInt64 = 0,
+        processCount: Int = 0,
+        diskBytes: UInt64 = 0,
+        diskMeasured: Bool = false,
+        diskTruncated: Bool = false
+    ) {
         self.cpuPercent = cpuPercent
         self.memoryBytes = memoryBytes
         self.processCount = processCount
         self.diskBytes = diskBytes
+        self.diskMeasured = diskMeasured
+        self.diskTruncated = diskTruncated
     }
 
     public var memoryDisplay: String {
@@ -220,6 +237,8 @@ public struct ResourceUsage: Codable, Equatable, Sendable {
     }
 
     public var diskDisplay: String {
-        ByteCountFormatter.string(fromByteCount: Int64(diskBytes), countStyle: .file)
+        guard diskMeasured else { return "not measured" }
+        let text = ByteCountFormatter.string(fromByteCount: Int64(diskBytes), countStyle: .file)
+        return diskTruncated ? "at least \(text)" : text
     }
 }

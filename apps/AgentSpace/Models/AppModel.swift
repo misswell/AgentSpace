@@ -33,6 +33,9 @@ final class AppModel: ObservableObject {
     /// The password for one Space, revealed on request and then dismissed. Held
     /// only while the sheet is open — never persisted by the app.
     @Published var revealedPassword: RevealedPassword?
+    /// The Space whose disk is currently being measured, so the button can show
+    /// progress instead of being pressed twice.
+    @Published var measuringDisk: UUID?
 
     struct Provisioning: Equatable, Identifiable {
         var id = UUID()
@@ -212,6 +215,38 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Measure one Space's home directory, on request.
+    ///
+    /// Kept out of `reload()` deliberately: it walks every file in the Space's
+    /// home, which for a browser profile plus an IDE's caches is tens of thousands
+    /// of them. Doing that on the 2–5 s status poll would pin the CPU, which §53
+    /// forbids. The result is merged into the existing snapshot so the rest of the
+    /// page does not flicker.
+    func measureDiskUsage(for space: AgentSpace) {
+        guard measuringDisk != space.id else { return }
+        measuringDisk = space.id
+
+        Task {
+            let outcome = await Task.detached(priority: .utility) {
+                SpaceService().measureDisk(for: space)
+            }.value
+            self.measuringDisk = nil
+
+            switch outcome {
+            case .success(let usage):
+                // Merge into the array rather than replacing the whole snapshot:
+                // the disk walk takes a moment, and rebuilding everything would
+                // discard the session verdict that was current when it started.
+                if let index = self.snapshots.firstIndex(where: { $0.space.id == space.id }) {
+                    self.snapshots[index].resources = usage
+                }
+            case .failure(let error):
+                self.lastError = PresentedError(
+                    code: error.code.rawValue, message: error.message, fix: error.code.remediation)
+            }
+        }
+    }
+
     func dismissProvisioning() {
         provisioning = nil
     }
@@ -295,6 +330,9 @@ final class AppModel: ObservableObject {
     }
 
     /// Refresh the resource numbers for whichever Space is selected.
+    /// Measure the selected Space's home directory (plan §30).
+    func measureDisk(for space: AgentSpace) { measureDiskUsage(for: space) }
+
     func refreshSelectedResources() {
         guard let index = snapshots.firstIndex(where: { $0.id == selection }) else { return }
         let space = snapshots[index].space

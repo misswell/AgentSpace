@@ -45,11 +45,22 @@ public final class WorkerContext {
         self.startedAt = Date()
         self.uid = getuid()
         self.username = String(cString: namePtr)
-        self.home = NSHomeDirectory()
         let record = WorkerContext.readSpaceRecord(paths: paths)
         self.mainUser = record?["mainUser"] as? String
         self.allowedRoots = (record?["allowedRoots"] as? [String]) ?? []
         self.writableRoots = Set((record?["writableRoots"] as? [String]) ?? [])
+        // The helper records the account's home at creation, which is the
+        // authoritative answer; `NSHomeDirectory()` is the fallback for a worker
+        // started before that field existed.
+        //
+        // Safe to honour from the record: the walk it feeds reads only file
+        // metadata, runs as this Space's own user, and is budget-bounded — so a
+        // tampered path costs the worker a slow stat walk, not a privilege
+        // boundary. And space.json is written by root into a directory this user
+        // cannot write to.
+        self.home = (record?["home"] as? String).flatMap {
+            $0.isEmpty ? nil : $0
+        } ?? NSHomeDirectory()
     }
 
     /// The helper writes `<runtime>/space.json` at creation time.

@@ -115,7 +115,11 @@ final class HelperService: NSObject, HelperXPCProtocol {
     }
 
     private func createUser(_ request: HelperRequest) -> HelperResponse {
-        guard let username = request.username, let password = request.password else {
+        // Both fields must be present. The password is not bound here because the
+        // argv is built by `HelperCommand`, which reads it from the request; this
+        // guard is about refusing an incomplete request, not about handling the
+        // secret — and a second binding of it is a second place it could leak.
+        guard let username = request.username, request.password != nil else {
             return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "missing username or password"))
         }
 

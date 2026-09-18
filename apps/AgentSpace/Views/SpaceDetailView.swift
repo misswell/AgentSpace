@@ -94,7 +94,7 @@ struct SpaceDetailView: View {
                             displayCard(display)
                         }
                         if let resources = snapshot.resources {
-                            resourcesCard(resources)
+                            resourcesCard(resources) { model.measureDisk(for: snapshot.space) }
                         }
                         if showingApps {
                             appsCard
@@ -207,14 +207,33 @@ struct SpaceDetailView: View {
         }
     }
 
-    private func resourcesCard(_ resources: ResourceUsage) -> some View {
+    private func resourcesCard(_ resources: ResourceUsage, onMeasureDisk: @escaping () -> Void) -> some View {
         Card(title: "Resources") {
             Field(label: "CPU", value: String(format: "%.1f%%", resources.cpuPercent), monospaced: true)
             Field(label: "Memory", value: resources.memoryDisplay, monospaced: true)
             Field(label: "Processes", value: "\(resources.processCount)", monospaced: true)
-            if resources.diskBytes > 0 {
-                Field(label: "Home", value: resources.diskDisplay, monospaced: true)
+
+            // Disk is a separate, explicitly-requested measurement, because it
+            // walks the Space's whole home — tens of thousands of files for a
+            // browser profile plus an IDE's caches. Measuring it on the 2–5 s
+            // status poll would put the app permanently on the CPU, which §53
+            // forbids. So it is a button, and it says what it costs.
+            HStack(spacing: 8) {
+                if resources.diskMeasured {
+                    Field(label: "Home", value: resources.diskDisplay, monospaced: true)
+                    if resources.diskTruncated {
+                        Text("(partial)")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .help("The walk hit its file budget. This is a lower bound, not an exact figure.")
+                    }
+                } else {
+                    Button("Measure Disk Usage") { onMeasureDisk() }
+                        .controlSize(.small)
+                        .help("Walks every file in the Space's home. Takes a moment; not measured continuously.")
+                }
             }
+
             Text("Measured from this Space's own processes, aggregated by uid. A Space is not a VM, so there is no allocation to show.")
             Text("CPU is the sum across those processes, so it can exceed 100% on a multi-core Mac. If the worker is running as your own account rather than a dedicated Space user, these numbers describe your whole login session — which is what the uid aggregation is honestly reporting, not a leak from somewhere else.")
                 .font(.caption)

@@ -137,8 +137,14 @@ struct Operations {
         ]
         // Resource sampling forks `ps`, so it is opt-in: plan §53 wants status
         // polling every 2-5s to be nearly free.
-        if params["resources"]?.stringValue == "full" {
-            object["resources"] = Resources.sample(uid: context.uid).json
+        if let resources = params["resources"]?.stringValue, resources == "full" || resources == "disk" {
+            // Disk is a separate request from CPU/memory: it costs a directory walk
+            // over the Space's whole home, and the app's 2–5 s status poll must not
+            // pay for that (§53).
+            object["resources"] = Resources.sample(
+                uid: context.uid,
+                includeDisk: resources == "disk",
+                home: context.home).json
         }
         return .object(object)
     }
@@ -537,20 +543,30 @@ enum Resources {
         var cpuPercent: Double
         var memoryBytes: UInt64
         var processCount: Int
+        /// Allocated bytes under the Space's home, or `nil` when it was not
+        /// measured. `nil` rather than `0`, because "we did not look" and "it is
+        /// empty" are different claims and only one of them is honest (plan §30
+        /// asks for Disk, but a zero would be read as a measured zero).
+        var diskBytes: UInt64?
+        /// True when the walk hit its budget and `diskBytes` is a lower bound.
+        var diskTruncated = false
 
         var json: JSONValue {
-            .obj([
+            var object: [String: JSONValue] = [
                 "cpuPercent": .double(cpuPercent),
                 "memoryBytes": .int(Int(memoryBytes)),
                 "processCount": .int(processCount),
-            ])
+            ]
+            object["diskBytes"] = diskBytes.map { .int(Int($0)) } ?? .null
+            if diskTruncated { object["diskTruncated"] = .bool(true) }
+            return .obj(object)
         }
     }
 
     /// One `ps` invocation, filtered to the uid. Called at most every couple of
     /// seconds by the UI, so the fork cost is acceptable and avoids the
     /// private-API surface of `proc_pidinfo` across a `libproc` boundary.
-    static func sample(uid: uid_t) -> Sample {
+    static func sample(uid: uid_t, includeDisk: Bool = false, home: String? = nil) -> Sample {
         var sample = Sample(cpuPercent: 0, memoryBytes: 0, processCount: 0)
         guard let output = runPS() else { return sample }
         for line in output.split(separator: "\n") {
@@ -560,6 +576,11 @@ enum Resources {
             sample.processCount += 1
             sample.memoryBytes += rssKilobytes * 1024
             sample.cpuPercent += cpu
+        }
+        if includeDisk, let home {
+            let measured = DiskUsage.allocatedBytes(under: home)
+            sample.diskBytes = measured.bytes
+            sample.diskTruncated = measured.truncated
         }
         return sample
     }
