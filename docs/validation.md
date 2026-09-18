@@ -6931,3 +6931,20 @@ single-parameter signature. 360 tests green.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 415 | §52's keyboard monitor is re-synced on readiness changes and torn down on revocation, under the macOS 13 floor | ✓ | §253 — DesktopViewerView.swift:47–80 |
+
+
+---
+
+## 254. The three-layer gate re-run after the keyboard fix
+
+check-all.sh — test suite, MCP smoke, GUI verification — passes
+all three layers again after the §52 keyboard forwarding work
+(360 Swift tests, the MCP server speaking to a live worker, and
+gui-verify's 5/5 accessibility-tree checks including the
+preview tiers). The dist integrity guard passed silently; the
+phase-0 isolation gate stays deliberately outside the aggregate,
+a decision rather than a checkbox, per its own comment.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 416 | The full check-all gate passes all three layers after the keyboard work | ✓ | §254 — scripts/check-all.sh run this round |
