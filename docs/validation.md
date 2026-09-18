@@ -6559,3 +6559,21 @@ other four. Expected/actual method sets updated; 346 Swift and
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 399 | §18's ax.elementAt exists end-to-end (Method table, worker dispatch, hit-test bridge, namespace test), closing the missing-fifth-API gap | ✓ (gap closed) | §237 — Protocol.swift:24, AccessibilityBridge.swift:62–78, Operations.swift:545–572, ProtocolTests.swift:159–172 |
+
+
+---
+
+## 238. §18's first-phase checklist, complete after the ax.elementAt fix
+
+The plan's "at least provide" list for phase one: frontmost app
+(axFrontmost, with focusedElement attached), window list
+(axWindows via kAXWindowsAttribute), window titles (describe()
+emits title at depth 0, capped at 500 characters per §37),
+focused element, and the basic tree (axSnapshot,
+interestingOnly) — plus, since this round, the fifth method
+ax.elementAt. Every item a worker can be asked for without the
+visual channel, which is the point of keeping both channels.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 400 | §18's phase-one AX surface is complete: frontmost, window list, titles, focused element, tree, and elementAt | ✓ | §238 — AccessibilityBridge.swift:101–136,184–195, Operations.swift:494–543 |
