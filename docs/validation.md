@@ -53,6 +53,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 33 | Doctor names per-Space Accessibility and Screen Recording, asked of the worker, with panel-path fixes | ✓ | §29 — live-worker integration test; caught the wrong-root bug on its first run |
 | 34 | No polling loops; the §44 gate refuses (exit 66) rather than passing without a Space | ✓ | §30 — code audit, 0.0% idle CPU, and the acceptance run's honest refusal |
 | 35 | The §56 review is a re-runnable matrix: each item pinned by named tests or explicitly blocked | ✓ | §31 — 7 verified, 3 blocked on machine capabilities, sign-off rule stated |
+| 36 | The release chain produces a Developer ID-signed app whose every nested binary verifies strictly, wrapped in a verified DMG whose contents re-verify | ✓ | §32 — `scripts/release.sh` end-to-end; Gatekeeper refusal isolated to notarization (`notarytool` profile absent, re-verified) |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1574,3 +1575,34 @@ them.
 |---|---|---|---|
 | 113 | Every §56 review item maps to a named pinning test or an explicit block | ✓ | the matrix in docs/security.md |
 | 114 | THIRD_PARTY_NOTICES.md carries the Offstage MIT text per §42 | ✓ | file inspected |
+
+
+---
+
+## 32. The release chain, re-run end-to-end (§57)
+
+`scripts/release.sh` was executed against the current tree. Results:
+
+- **Strict signature verification passes on all four artifacts** — the app
+  envelope, the privileged helper, the worker, and the CLI — and the signer is
+  a real Developer ID: `Guofeng Liu (U8U443D7ZL)`. This is new since the helper
+  round's "signing blocked" note: the user's Developer ID certificate is now in
+  the keychain, and the bundle script picks it up.
+- **The DMG verifies and its contents re-verify** — checksum, contains the app,
+  and the copy inside still passes strict verification. What a user installs is
+  what this repository built.
+- **Gatekeeper still refuses, and the cause is now isolated to notarization** —
+  the expected refusal for Developer ID-signed-but-unnotarized software. The
+  `notarytool` keychain profile was re-checked and is absent; storing one
+  requires interactive Apple-ID two-factor auth or an App Store Connect API
+  key, neither of which this session can perform. Until then the honest install
+  instruction is right-click → Open (or clearing quarantine), exactly as the
+  script prints.
+- Notarization step skipped by the script itself, with the reminder that a
+  notarized release also requires the helper review sign-off in
+  docs/security.md.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 115 | `release.sh` runs clean end-to-end; Developer ID signatures verify strictly on all nested binaries and inside the DMG | ✓ | this run |
+| 116 | Gatekeeper's remaining refusal is solely notarization; the profile is absent, re-checked | ✓ | `notarytool history --keychain-profile` error, re-run this round |
