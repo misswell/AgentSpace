@@ -3247,3 +3247,27 @@ controlled reproduction; claim 221's escape hatch is verified live.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 223 | --install --config PATH writes exactly that path, returns a structured receipt, merges without clobbering, backs up first, and is idempotent on re-run | ✓ | §92 — the controlled reproduction |
+
+
+---
+
+## 93. exec's promised fields verified live: timeout kills the process group, cwd is workspace-checked
+
+- **Timeout** — `exec --timeout 500 "sleep 3"` returns `timedOut: true`,
+  `exitCode: null`, `signal: SIGTERM` and the note "the process group was
+  terminated after 500ms": the kill is group-wide (no orphaned children),
+  the call never hangs, and `duration` records the full reaping time
+  (~2.5 s wall — reaping trails the 500 ms deadline; the kill itself is
+  enforced at it).
+- **Duration/exitCode** — a quick command returns `exitCode: 0`,
+  `duration: 29`, stdout captured verbatim.
+- **cwd discipline** — an existing directory is honored (`/tmp` →
+  `/private/tmp`, the real macOS symlink expansion); a nonexistent one is
+  refused with BAD_REQUEST and a message beginning "cwd ... is not an
+  existing directory in the AgentSpace ..." — the workspace boundary from
+  §24 is visible in the error path, not just the happy path.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 224 | exec timeout terminates the whole process group (SIGTERM, timedOut, null exitCode) and returns without hanging | ✓ | §93 — the sleep-3 probe |
+| 225 | exec validates cwd against the AgentSpace workspace and names the offending path; a valid cwd is honored with real macOS expansion | ✓ | §93 — the two cwd probes |
