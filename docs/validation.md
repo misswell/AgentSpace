@@ -6367,3 +6367,25 @@ suite: 346 tests, 0 failures (341 + 5 new StatusSnapshotTests).
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 390 | §20's status.json exists as a tested, live-verified last-known snapshot written by the worker (gap found and closed this round) | ✓ (gap closed) | §228 — StatusSnapshot.swift, main.swift:537–552,564–568, tests/Unit/StatusSnapshotTests.swift |
+
+
+---
+
+## 229. §20's runtime ACL, tightened beyond the plan
+
+The plan allows three principals on the runtime tree; the
+implementation is stricter on purpose. The shared root is 1770 —
+"the sticky bit stops one Space from deleting another's runtime
+directory" — the Space's runtime dir is 0700 to its own uid
+because "the socket there carries a live session token, so
+nobody else gets to open it, including the main user", and
+screenshots is 750 — "the one thing the main user needs to
+read, because the app shows the preview in the main user's
+session." The main user talks to the worker through the
+authenticated socket, not the filesystem, so excluding it from
+the directory is the tightening the plan's own token design
+implies. Spaces/index.json and Logs belong to the main user.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 391 | §20's runtime ACLs exist per-directory with a sticky-bit anti-deletion root, a 0700 token-carrying runtime dir (main user deliberately excluded), and one justified 750 read exception | ✓ (deviation documented) | §229 — HelperService.swift:338–372 |
