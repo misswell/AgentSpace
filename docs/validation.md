@@ -4636,3 +4636,21 @@ idempotent.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 313 | Stop Worker keeps the GUI session (instant restart); Logout ends it root-only via the helper; both fail/stop per §40 | ✓ | §151 — stopWorker and logoutDesktop in SpaceService |
+
+
+---
+
+## 152. §21's recoverable flag defaults per-code so retries cannot be mislabelled
+
+AgentSpaceError carries code, message and recoverable, and
+recoverable defaults to the code's own isRecoverable classification:
+"callers cannot accidentally mark a hard failure as retryable."
+Console collisions and missing sessions are retryable-after-action;
+signature-check failures are not recoverable by retrying the same
+request — the doc comments classify them per code. The error also
+exposes recoverySuggestion from the code's remediation text, so a
+CLI/MCP caller gets the specific fix, not "something went wrong".
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 314 | The error object carries a per-code-defaulted recoverable flag plus a remediation suggestion, per §21 | ✓ | §152 — the AgentSpaceError init and comments |
