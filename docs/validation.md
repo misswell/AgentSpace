@@ -7095,3 +7095,21 @@ waits on. The goal stays open on those alone.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 421 | §34's install mode fully recorded in §18; counters refreshed; gates unchanged | snapshot | §259 — docs/validation.md:1137–1160 |
+
+
+---
+
+## 260. Snapshot refresh: §37's redaction confirmed recorded; nothing new
+
+§37's export safety was already §25's entry (whitelist
+collection, a redaction pass that never lets the token through,
+and the documented conservatism about not mangling 40-hex SHAs).
+No new audit faces. Counters: 267 commits, tree clean, 360 Swift
++ 23 MCP tests green, index at 421 before this entry. The three
+external gates (root-only helper chain, the second GUI session,
+the release URL) are unchanged and remain the only completion
+blockers.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 422 | §37's redaction fully recorded in §25; counters refreshed; gates unchanged | snapshot | §260 — docs/validation.md §25 table |
