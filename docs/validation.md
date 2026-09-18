@@ -6516,3 +6516,24 @@ Writable roots are a declared subset of readable roots.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 397 | §24's worktree mode enforces repo-existence, branch prefix (refused, not renamed), and path confinement with argv-array git | ✓ | §235 — WorkspacePreparer.swift:1–60,95–135 |
+
+
+---
+
+## 236. §15's pixel-to-point conversion, shared at both boundaries
+
+DisplayGeometry carries the conversion the plan's formula
+names: point(fromPixel:) divides by scale (guarding scale > 0,
+rounding half-up), pixel(fromPoint:) multiplies back, and
+contains() rejects points outside the display before any event
+is constructed — the INVALID_COORDINATE from §21 fired early.
+CoordinateRules.validate is shared by worker and CLI "so a bad
+coordinate is rejected at the edge and at the trust boundary
+(plan §56: never trust the client)"; its error messages teach —
+non-finite, outside ±100_000 ("a mistake, not a very large
+monitor", tuned to catch a pixel/point mix-up from a model), or
+negative ("coordinates start at the top-left").
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 398 | §15's point/pixel conversion exists with guarded scale, early bounds rejection, and dual-boundary validation with teaching errors | ✓ | §236 — Geometry.swift:57–100 |
