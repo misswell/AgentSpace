@@ -5283,3 +5283,25 @@ tests) is thereby closed. Suite now 341 tests, 0 failures.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 344 | Per-uid sampling parses one ps line per process with malformed lines skipped, CPU summed not capped, disk honest about unmeasured; parsing is in Core and directly tested (5 tests) | ✓ | §182 — ResourcesParsing, Resources.sample, ResourcesParsingTests |
+
+
+---
+
+## 183. §26's data model: all eleven fields and all eight states, one typed
+refinement
+
+AgentSpace carries every field the plan lists — id, name,
+username, uid, state, createdAt, lastStartedAt, workspace,
+sharedFolders, permissions, autoStartWorker — with the doc citing
+plan §26, and SpaceState enumerates exactly the eight plan states
+(created, needsLogin, needsPermission, ready, running, offline,
+console, error) with per-case docs. One deliberate refinement:
+plan writes workspace as Workspace? optional; the implementation
+uses a non-optional Workspace enum whose .none case is explicit.
+That is stronger than optional — "no workspace" is a modeled
+state, not a nil to unwrap or forget — and the custom Codable
+maps legacy records to .none rather than failing.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 345 | The model matches §26 field-for-field with all eight states; workspace optionality is a documented, typed refinement (.none case instead of nil) with legacy-safe decoding | ✓ (refinement documented) | §183 — AgentSpace, SpaceState, Workspace |
