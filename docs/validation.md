@@ -6232,3 +6232,25 @@ account and home for the next login.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 384 | §40's Stop vs Logout are distinct typed operations: stop rides KeepAlive semantics, logout is root-only through the helper, never sudo | ✓ | §222 — SpaceService.swift:194–230 |
+
+
+---
+
+## 223. §22's registration wait: a pid you can name, then a window
+
+Launch never trusts LaunchServices' success — the comment says
+it plainly: "open's success only means LaunchServices accepted
+the request; returning a pid at that moment hands the agent a
+number it cannot use." The wait resolves a pid three ways
+(expected pid verified, bundle-id lookup, or a
+before/after pid-set diff), then grants half the remaining
+budget for the app to own an on-screen window — a menu-bar
+(LSUIElement) app never will, and waiting the full budget
+would stall every such launch. Failure is teachable:
+appLaunchTimeout says the app "never registered a process" and
+suggests taking a screenshot to look for a modal. NSWorkspace
+from inside the Aqua session launches into that session.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 385 | launch waits for real registration — a namable pid plus optional window ownership with an LSUIElement-aware half-budget — and fails with an actionable error | ✓ | §223 — AppControl.swift:160–245 |
