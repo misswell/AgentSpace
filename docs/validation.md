@@ -2231,3 +2231,26 @@ current through the desktop round.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 159 | The module map names every file that exists — including the last one added (AppDeepLink) — and no file exists that the map does not name | ✓ | §52 — the grep, plus the standing §43 audit |
+| 160 | The Preview width control offers four fixed pixel tiers (960/1280/1600/1920, default 1600) and is labeled as display-size only — click coordinates are unaffected, so the setting cannot skew input geometry | ✓ | §53 — the menu items and value, read back through AX |
+
+
+---
+
+## 53. The Preview width control is display-size only, by construction
+
+The General tab's "Preview width" popup offers exactly four fixed tiers —
+960, 1280, 1600, 1920 px, default 1600 — and its caption states that click
+coordinates "are derived from the display's own size, not the image's."
+
+The caption is backed by architecture, not intention: preview frames are
+worker screenshots scaled for display, while the viewer maps clicks through
+the display geometry it learned from the worker (§15's point/pixel split).
+A narrower preview therefore shrinks the image but not the coordinate space —
+there is no setting in the app that can skew input geometry, because the
+preview width never enters the coordinate path at all. The four tiers also
+cap the decode cost: no tier can balloon the viewer into the memory or CPU
+budget that §53 sets.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 161 | `agentspace-worker --version` prints `0.1.0` and exits 0 — the daemon is diagnosable from a shell without spawning a session | ✓ | §53 — the output |
