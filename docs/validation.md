@@ -2754,3 +2754,24 @@ or agent can query and find undocumented.
 |---|---|---|---|
 | 187 | The Offstage MIT notice is registered verbatim while the codebase contains zero copied Offstage code — reimplemented per §42, not forked | ✓ | §70 — the notice and the source-wide grep |
 | 188 | All 27 CLI subcommand verbs respond to --help | ✓ | §70 — the flag sweep |
+
+
+---
+
+## 71. The §32 status fields, mapped to what the real chain actually emits
+
+Driven through the real CLI→worker chain (seeded Space, live socket), `status
+--json` emits 15 fields — a superset of §32's example. Mapping the plan's six
+keys onto the implementation: `space`, `uid`, `worker`, `screenRecording` and
+`accessibility` exist verbatim; the plan's draft key `"status": "running"` is
+emitted as `"state"` plus a human `stateLabel`, and a nested `session`
+object carries `onConsole` and the verdict. The implementation's names are
+the better contract — state and its label are distinct concerns, and the
+session verdict is the §58 two-axis split made visible in machine output. On
+this console machine the payload shows `state: "console"`,
+`session.verdict: "isConsole"`, `acceptsInput: false` — the fail-closed
+condition, readable by a driver, from one JSON object.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 189 | Every §32 status field has a live implementation mapping, with the draft "status" key superseded by the more precise state/stateLabel/session split — and the console fail-closed state is machine-readable in one payload | ✓ | §71 — the 15-field real-chain capture |
