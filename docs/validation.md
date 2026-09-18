@@ -5555,3 +5555,25 @@ the §171 derivations are: what is missing is the design.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 355 | No §43-forbidden framework appears in any code or script (two-tool sweep); capture and session checks use only the public macOS surface | ✓ | §193 — repo-wide sweeps, ScreenCapture.swift:8,66 |
+
+
+---
+
+## 194. §5's monorepo layout: everything present, one consolidation, three
+supersets
+
+Every path the plan lists exists: apps/AgentSpace with its UI,
+Models, Services, Views and Resources; the three native targets;
+packages/agentspace-mcp; tests/{Unit,Integration,Session}; all
+four named docs plus validation.md; scripts, THIRD_PARTY_NOTICES
+and README. Three additions beyond the plan: tests/Safety (the
+suite §55 calls most important), tests/probes, and
+AgentSpaceApp's own build target. One consolidation: the plan's
+shared/{Protocol,Models,Utilities} is a single AgentSpaceCore
+module — three separate targets would make Protocol depend on
+Models' types, and one module is that dependency graph solved
+rather than split. Consolidation, not omission.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 356 | §5's tree matches path for path, with Safety/probes/App as supersets and shared/* consolidated into one Core module whose rationale is the dependency graph itself | ✓ (consolidation documented) | §194 — repo tree, Package.swift |
