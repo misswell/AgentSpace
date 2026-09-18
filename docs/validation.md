@@ -43,6 +43,7 @@ verified) · **✗ not verified** (needs something this machine does not have) �
 | 23 | The §35 agent rules generate from one source, append marker-scoped and idempotently, and are copied — not written — from the GUI | ✓ | §19 |
 | 24 | The release pipeline builds all four binaries, verifies every signature, and produces a DMG whose contents verify | ✓ | §20 — after finding a SwiftPM invocation that silently built one of four |
 | 25 | The CLI at the process boundary honors §32 JSON mode, exit 69/66, live-socket status, the console refusal, and per-root isolation | ✓ | §21 — ten spawned-binary tests; found the not-found exit bug and the §54 screenshot leak |
+| 26 | Registry corruption is quarantined with bytes intact, surfaced by doctor, and recoverable; MCP relays typed failures with no local fallback | ✓ | §22 — the quarantine test caught a name-collision bug in the quarantine itself |
 | 17 | The SwiftUI app launches, loads the registry, and renders the real worker state | ✓ | `scripts/bundle-app.sh` + captured window, §10 |
 | 18 | Clicking the Desktop Viewer's preview maps to the right display point | ~ | `PreviewMappingTests`, 12 tests; the live click needs a background session |
 | 19 | 1000 mixed actions are all refused when the session is the console, and the console is untouched | ✓ | `scripts/acceptance.sh` — §12 |
@@ -1264,3 +1265,38 @@ registry schema is `kind`, not `type`, with ISO-8601 dates. Relatedly,
 its own comment calls out as something that must not happen silently; the
 behavior and the comment still disagree, and the comment is now marked as
 describing an unresolved limitation.
+
+---
+
+## 22. Registry hardening and the MCP failure seam (§50)
+
+Two small pieces that close recorded limitations rather than open new fronts.
+
+**The registry no longer discards corruption.** An undecodable `index.json` used
+to load as empty — every Space silently "deleted", and the next save overwriting
+the only evidence of what existed. Now the corrupt file is quarantined beside
+itself (`index.json.corrupt-<timestamp>-<random>`, bytes intact), doctor reports
+a **Registry integrity** failure with the file names and a concrete recovery
+fix, and loading still returns empty so the app keeps working. The first
+quarantine test caught a real bug in the quarantine itself: the timestamp-only
+name collided within a second, and the failed move the `try?` hid lost one
+generation of evidence — fixed with a unique suffix and an existence-retry loop.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 79 | Round-trip save/load preserves Spaces; missing registry is not corruption | ✓ | no quarantine files on the healthy and first-run paths |
+| 80 | Corruption quarantines with bytes intact and removes the live file | ✓ | the original content asserted byte-for-byte after load |
+| 81 | Repeated corruptions keep every generation | ✓ | the collision bug is dead |
+| 82 | Recovery save after quarantine loads cleanly, evidence survives | ✓ | the path a user would actually take |
+| 83 | Doctor surfaces quarantine as a failing check with the file names and a fix | ✓ | exercised end-to-end through the CLI with a corrupt registry |
+
+**The MCP server's failure seam is pinned (§50).** The property: an unavailable
+Space reaches the agent as AgentSpace's typed envelope — code, message, fix —
+and there is no code path that substitutes local execution. Four tests against
+the real CLI binary: not-found is exit 66 with a parseable envelope whose code
+is from the §21 list and whose `fix` is present; `formatFailure` tells the agent
+explicitly that there is **no local fallback to the console session**; a success
+envelope is never misread as a failure; and an absent binary surfaces a spawn
+error, again never a fallback. Also: `node --test test/` ran only the first
+test file on this Node (19 vs 23) — the script now uses a glob, and the count
+difference is itself the proof.

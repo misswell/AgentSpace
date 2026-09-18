@@ -178,6 +178,20 @@ public enum Doctor {
         // 8. Spaces and their workers.
         let resolvedRoot = root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
         let registry = SpaceRegistry.load(root: resolvedRoot)
+
+        // A quarantined registry means the index failed to decode at some
+        // point: every Space "disappeared" once, and the evidence of what was
+        // there sits in a quarantine file. Diagnosed here, not discovered by a
+        // user asking where their Spaces went.
+        let corrupt = SpaceRegistry.corruptRegistryFiles(root: resolvedRoot)
+        if !corrupt.isEmpty {
+            checks.append(Check(
+                name: "Registry integrity",
+                status: .fail,
+                detail: "the Space registry failed to decode \(corrupt.count) time(s); it was quarantined, not discarded: \(corrupt.map { ($0 as NSString).lastPathComponent }.joined(separator: ", "))",
+                fix: "Inspect the quarantined file(s) under \(resolvedRoot)/Spaces/ — they hold the pre-corruption bytes. Recover Spaces by hand into a fresh index.json or recreate them; delete the quarantine files when done."))
+        }
+
         if registry.spaces.isEmpty {
             checks.append(Check(
                 name: "AgentSpaces",

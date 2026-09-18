@@ -37,6 +37,47 @@ public struct SpaceRegistry: Codable, Sendable {
         root + "/Spaces/index.json"
     }
 
+    /// Files produced by quarantine: `index.json.corrupt-<timestamp>`.
+    /// Doctor checks these so a corrupt registry is diagnosed, not discovered.
+    public static func corruptRegistryFiles(root: String? = nil) -> [String] {
+        let resolvedRoot = root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+        let directory = resolvedRoot + "/Spaces"
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
+        return names.filter { $0.hasPrefix("index.json.corrupt-") }
+            .sorted()
+            .map { directory + "/\($0)" }
+    }
+
+    /// Move a corrupt `index.json` aside, preserving its bytes. Never throws:
+    /// if even the quarantine fails (permissions, read-only volume), loading
+    /// still returns an empty registry — degrading to the old behavior is
+    /// better than crashing the caller.
+    ///
+    /// The name carries a random suffix in addition to the timestamp because
+    /// the ISO stamp only resolves to seconds, and two corruptions in the same
+    /// second would otherwise collide — the first test of this very function
+    /// caught exactly that, with one generation of evidence silently lost to a
+    /// failed move the `try?` hid.
+    static func quarantine(path: String, data: Data) {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        let directory = (path as NSString).deletingLastPathComponent
+        // Retry with a fresh suffix until the destination is unused; a handful
+        // of tries is beyond any plausible collision rate.
+        for _ in 0..<8 {
+            let suffix = String(UUID().uuidString.prefix(8)).lowercased()
+            let destination = directory + "/index.json.corrupt-\(stamp)-\(suffix)"
+            do {
+                try FileManager.default.moveItem(atPath: path, toPath: destination)
+                return
+            } catch CocoaError.fileWriteFileExists {
+                continue
+            } catch {
+                return
+            }
+        }
+    }
+
     // MARK: Load / save
 
     public static func load(root: String? = nil) -> SpaceRegistry {
@@ -48,11 +89,14 @@ public struct SpaceRegistry: Codable, Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let registry = try? decoder.decode(SpaceRegistry.self, from: data) else {
-            // KNOWN LIMITATION (validation.md §21): an undecodable registry is
-            // returned as empty, so every Space looks deleted. The comment that
-            // used to live here claimed this was surfaced; it never was. A
-            // repair path (quarantine the corrupt file, keep last-good) belongs
-            // to the registry's own hardening, not to this decode call.
+            // An undecodable registry must not be *silently* treated as "no
+            // Spaces" — that would make every Space look deleted, and the next
+            // save would overwrite the only evidence of what existed. So the
+            // corrupt file is quarantined beside itself: the empty registry is
+            // still returned (the app must keep working), but the original
+            // bytes survive under a name that says what happened, and
+            // `corruptRegistryFiles` lets doctor surface it.
+            Self.quarantine(path: path, data: data)
             return SpaceRegistry(spaces: [])
         }
         return registry
