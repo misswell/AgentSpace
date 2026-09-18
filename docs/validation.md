@@ -6474,3 +6474,24 @@ satisfied. 346 tests, 0 failures.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 395 | §40's Stop/Logout/Delete endings are distinct in the UI with per-state disabling, and Logout's ellipsis promise now has its confirmation dialog (gap found and closed this round) | ✓ (gap closed) | §233 — SpaceDetailView.swift:128–148,421–435 |
+
+
+---
+
+## 234. §39's "do not silently start after reboot" is launchd mechanics
+
+The worker's LaunchAgent carries RunAtLoad=true — but that
+starts the worker when the Space's Aqua session loads, not at
+boot. After a reboot no GUI session exists for the agent user,
+so there is nothing to load the agent into: the plan's "show
+Needs Login, never silently start the agent" is not policy code
+here, it is what a per-user, LimitLoadToSessionType=Aqua launchd
+job physically is. RunAtLoad is exactly §10's chain — login once,
+the agent auto-starts — and the provisioner orders runtime
+before worker for the same reason ("launchd refuses to spawn a
+job whose log file it cannot open — producing a worker that
+never starts with no error anyone can see").
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 396 | §39's no-silent-start after reboot holds by launchd mechanics (per-user Aqua agent, RunAtLoad on session load), with provisioning ordered so the job can actually spawn | ✓ | §234 — HelperProtocol.swift:483–500, SpaceProvisioner.swift:100–110 |
