@@ -3123,3 +3123,21 @@ Refusal is all-or-nothing, as §12's fail-closed rule requires.
 |---|---|---|---|
 | 213 | All top-level verbs emit valid JSON with --json; only the usage/help path is prose, by design | ✓ | §87 — the 27-verb sweep |
 | 214 | Worker startup rejects bad inputs with named errors and sysexits exit codes (64 EX_USAGE, 78 EX_CONFIG) | ✓ | §87 — the three failure probes |
+
+
+---
+
+## 88. Token authentication audited on the raw wire: every wrong shape is refused, the right one unaffected
+
+Hand-crafted RPC lines (the §20 shape: protocol, requestId, token, method,
+params) were sent straight to the worker's socket: the correct token is
+accepted; a same-length wrong token, a short token, a null token and an
+empty token all return `ok=false code=UNAUTHORIZED` — and after the four
+refusals, the correct token is still accepted immediately, so failed
+attempts leave no state and no lockout to weaponize. Combined with §82's
+mode audit (0600 on disk) this closes the §56 "Token" item end to end:
+generation, storage, comparison and refusal all observed live.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 215 | Every wrong token shape (wrong value, short, null, empty) is refused with UNAUTHORIZED while the correct token keeps working, with no state pollution across attempts | ✓ | §88 — the five-state wire probe |
