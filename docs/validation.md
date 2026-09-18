@@ -2003,3 +2003,30 @@ Full build clean, 325 tests, 0 failures.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 138 | `agentspace --help` describes exactly the commands that dispatch, no more and no fewer | ✓ | §41 → mechanical diff, the two omissions fixed |
+| 139 | `agentspace integrate rules` emits §35's four sentences verbatim, wrapped in idempotent markers, and the output itself states the consent rule — the text is never written anywhere by AgentSpace | ✓ | §44 |
+| 140 | THIRD_PARTY_NOTICES.md carries the full MIT text, a table of every idea and measurement taken from Offstage, the divergence table reference, and the measured kCGSSessionManagerNameKey correction | ✓ | §42 — re-audited against the plan's §63 notice rule |
+
+
+---
+
+## 44. The §35 rules and the Offstage debt, re-audited
+
+Two plan requirements that had never been re-checked against their artefacts:
+
+- **§35's four sentences are verbatim** in `agentspace integrate rules`, wrapped
+  in `agentspace:rules begin/end` markers (so a re-run can update in place), and
+  the header line states the consent rule: append only with the user's consent.
+  AgentSpace never writes the text itself — printing it *is* the confirmation
+  step.
+- **The Offstage notice holds up.** Full MIT text, the eight-item table of ideas
+  and measurements actually taken (each with what was reproduced vs. re-measured
+  here), the pointer to §8's divergence table, and the measured correction:
+  `kCGSSessionManagerNameKey` is absent from `CGSessionCopyCurrentDictionary()`
+  on this macOS, so Offstage's `"Aqua"` fallback is inert and AgentSpace uses
+  `SessionGetInfo`'s `sessionHasGraphicAccess` instead (§1).
+
+No code change — the audits' results are the record.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 141 | The third-party notice is regenerated nowhere else — the file is the single statement of the Offstage debt | ✓ | §44 — referenced from README and validation only |
