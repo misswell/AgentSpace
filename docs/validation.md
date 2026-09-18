@@ -6577,3 +6577,41 @@ visual channel, which is the point of keeping both channels.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 400 | §18's phase-one AX surface is complete: frontmost, window list, titles, focused element, tree, and elementAt | ✓ | §238 — AccessibilityBridge.swift:101–136,184–195, Operations.swift:494–543 |
+
+
+---
+
+## 239. Closure audit snapshot: every auditable clause has been audited
+
+The plan-part audit is complete — no remaining clause with
+unverified substance was found, so per the working method this
+entry records the state instead of filling.
+
+**State:** 245 commits, 241 validation entries, 346 Swift tests
+and 23 MCP tests with 0 failures, clean tree, demo.sh and
+mcp-smoke.sh exit 0. acceptance.sh correctly stops at "No
+AgentSpace found" — that script exercises a real created Space,
+which is exactly what blocker 1 withholds.
+
+**This session's found-and-closed gaps:** §228 status.json was
+promised by comments and written by nothing (pure Core function
++ worker wiring + 5 tests); §233 Logout Desktop… executed
+behind a dialog-promising ellipsis (confirmation added);
+§237 ax.elementAt was the missing fifth §18 method (implemented
+end-to-end). Everything else audited returned ✓, several with
+documented deviations that held up under re-reading.
+
+**The three external blockers, restated:** (1) the privileged
+helper running live with a real createUser/deleteUser/
+logoutSession chain — requires root; approval prompts are
+disabled in this session, so it cannot be granted here; (2) the
+positive half of §44/§48 isolation — a second GUI session held
+for 30 minutes, needing exactly that human login; (3) the
+Homebrew cask — waiting on a public GitHub release URL, which
+requires the user to decide whether the repository gets pushed.
+The goal stays open while these exist; nothing above claims
+completion that depends on them.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 401 | The audit pass is closed: all auditable clauses verified, session gaps fixed and recorded, three external blockers precisely characterized | ✓ | §239 — this snapshot; blockers also listed in every round report |
