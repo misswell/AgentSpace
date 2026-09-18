@@ -4615,3 +4615,24 @@ helper already manages ACLs for.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 312 | Worktree paths are <root>/Worktrees/<space-id>/<repo>, keyed by UUID with the case-collision rationale documented | ✓ (location deviation with rationale) | §150 — worktreePath and the worktreesDirectory comment |
+
+
+---
+
+## 151. §40's Stop vs Logout distinction is implemented with the exact semantics
+
+stopWorker sends the worker RPC shutdown with reason "stop-agent";
+the comment pins the mechanism — KeepAlive.SuccessfulExit = false
+means launchd leaves a clean exit stopped (a real stop, not a
+crash-restart loop) — and states the §40 outcome verbatim: "the
+session (WindowServer, frames) stays up, so the next start is
+instant." logoutDesktop is the §40 Logout: ending the whole GUI
+session while keeping account and home, root-only via
+launchctl bootout gui/<uid> through the privileged helper as a typed
+RPC — "never by trying to sudo anything" — and failing typed when
+the helper is absent. A worker already gone is success: stop is
+idempotent.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 313 | Stop Worker keeps the GUI session (instant restart); Logout ends it root-only via the helper; both fail/stop per §40 | ✓ | §151 — stopWorker and logoutDesktop in SpaceService |
