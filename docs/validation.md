@@ -4713,3 +4713,21 @@ labelled as such ("this is the only step that needs you").
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 317 | The one-time login guidance exists in two views, matches §28's steps, and states the no-fallback rule to the user | ✓ | §155 — the wizard instructions in both views |
+
+
+---
+
+## 156. §10's remaining two forbidden mechanisms are absent
+
+Fresh greps close the §10 list §43 did not cover explicitly: no
+Xvfb reference anywhere (it is a Linux concept the codebase never
+touches), and no DYLD injection — no DYLD_INSERT,
+dyld_inject or task_for_pid. Combined with §43's earlier zero-hits
+(SkyLight, ScreenSharing, screensharingd, TCC.db writes,
+Virtualization, VNC, RDP), every mechanism §10 and §43 forbid has
+now been verified absent by search, and the first-login flow rides
+Fast User Switching exactly as the plan says.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 318 | Xvfb and DYLD-injection mechanisms have zero source presence, completing the §10/§43 forbidden-mechanism sweep | ✓ | §156 — the two zero-hit greps |
