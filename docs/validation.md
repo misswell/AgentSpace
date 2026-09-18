@@ -4186,3 +4186,26 @@ seriously, not missing features.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 287 | All seven §46 GUI elements exist; the wizard offers §28's three workspace kinds and previews the worktree path before creating | ✓ | §128 — the views census |
+
+
+---
+
+## 129. §16/§17/§52's Desktop Viewer: 1 FPS MVP, 5 FPS stream, zero cost closed
+
+The viewer implements all three plan sections at once. The MVP
+screenshot loop polls at 1 FPS and only while the view exists —
+`onAppear` starts the timer, `onDisappear` invalidates it and sends
+`previewStop`, so a closed window costs exactly zero captures. The
+ScreenCaptureKit upgrade (§16's second stage) exists as
+previewStart/frame/stop at 5 FPS with the worker auto-stopping an
+orphaned stream; a refused stream (console session, missing grant)
+falls back to the 1 FPS MVP rather than showing nothing. Clicks are
+translated, never forwarded: `PreviewMapping` converts through the
+image fraction and the display's point size, letterbox clicks are
+dropped rather than clamped, and the surface refuses input whenever
+the worker says input is not permitted — §17's local-remote-desktop
+without a remote protocol.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 288 | The viewer polls 1 FPS only while open (onAppear/onDisappear), streams 5 FPS when available, falls back to the MVP, drops letterbox clicks, and refuses input when the worker refuses | ✓ | §129 — DesktopViewerView's lifecycle and mapping |
