@@ -3368,3 +3368,29 @@ generated differently, they are enforced per socket at runtime.
 | 232 | A dead worker yields exit 1 with WORKER_OFFLINE and the named socket path | ✓ | §97 — the kill-then-status probe |
 | 233 | Same-Space double start has no mutex: the second worker stays alive and transiently disturbs the first one's socket | ~ | §97 — the two-instance race probe |
 | 234 | worker.pid is not written by the current worker | ~ | §97 — the runtime directory listing |
+
+
+---
+
+## 98. The §97 mutex gap is fixed: flock on the runtime directory, second worker fails fast with EX_CONFIG
+
+- **The fix** — `bind()` now takes an exclusive, non-blocking `flock` on
+  `worker.lock` next to the socket before touching anything. The kernel
+  releases the lock when the process dies, so a crashed worker leaves
+  nothing to clean up; the descriptor is intentionally held for the
+  worker's lifetime. On `EWOULDBLOCK` the second worker exits 78 with
+  "another worker is already serving this Space" instead of unlinking
+  the live socket.
+- **Verified live** — first worker up and serving; second worker on the
+  same Space exits 78 with the named error; the first worker remains
+  alive and still serves authenticated status afterward. Full suite:
+  329 tests, 0 failures.
+- **Correction to §97** — claim 234 was an artifact of probe timing:
+  `worker.pid` **is** written (after bind, alongside `token.space` and
+  `status.json.pid`); the earlier probe checked before the write
+  landed. Retracted.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 235 | A second worker on an already-served Space fails fast with exit 78 and a named error, and the first worker's socket is undisturbed | ✓ | §98 — the post-fix race probe |
+| 236 | worker.pid is written after bind (correcting claim 234: the earlier absence was probe timing, not a missing feature) | ✓ | §98 — the runtime directory listing |

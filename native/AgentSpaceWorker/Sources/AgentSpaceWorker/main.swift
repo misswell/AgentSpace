@@ -256,6 +256,7 @@ final class SocketServer {
     }
 
     enum BindError: Error {
+        case alreadyRunning
         case socketFailed(String)
         case pathTooLong(Int)
         case bindFailed(String)
@@ -267,9 +268,26 @@ final class SocketServer {
         guard RuntimePaths.socketPathFits(socketPath) else {
             throw BindError.pathTooLong(socketPath.utf8.count)
         }
+        // Single-instance guard: an exclusive, non-blocking flock on a lock
+        // file next to the socket. The kernel releases the lock when the
+        // process dies, so a crashed worker leaves nothing to clean up.
+        // Without this, a second worker would unlink the live socket below
+        // and steal the endpoint out from under the first one.
+        let lockPath = (socketPath as NSString).deletingLastPathComponent + "/worker.lock"
+        let lockFD = open(lockPath, O_CREAT | O_RDWR, 0o600)
+        guard lockFD >= 0 else {
+            throw BindError.socketFailed(String(cString: strerror(errno)))
+        }
+        guard flock(lockFD, LOCK_EX | LOCK_NB) == 0 else {
+            close(lockFD)
+            throw BindError.alreadyRunning
+        }
+        // lockFD is intentionally not closed: holding the descriptor is what
+        // holds the lock for the lifetime of this worker.
         // A stale socket from a crashed worker would make `bind` fail with
         // EADDRINUSE forever, so it is removed first. Safe because the
-        // directory is ACL'd to this Space.
+        // directory is ACL'd to this Space, and the flock above guarantees
+        // no other live worker owns this endpoint.
         unlink(socketPath)
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -500,6 +518,11 @@ case .success(let arguments):
 
     do {
         try server.bind()
+    } catch SocketServer.BindError.alreadyRunning {
+        let message = "another worker is already serving this Space"
+        Log.worker.error(message)
+        FileHandle.standardError.write(Data(("agentspace-worker: " + message + "\n").utf8))
+        exit(78) // EX_CONFIG: the environment already has a worker here
     } catch {
         let message = "could not bind \(socketPath): \(error)"
         Log.worker.error(message)
