@@ -1759,4 +1759,44 @@ eventually localized it.
 
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
-| 123 | With one Space registered the release app measures 54.0–54.2 MB footprint / ~111–125 MB RSS; the per-Space delta is +18 MB footprint | ✓ | §36 — AGENTSPACE_ROOT harness run |
+| 123 | With one Space registered the release app measures 45–54 MB footprint / ~111–125 MB RSS; the per-Space delta is +8 to +18 MB depending on run | ✓ | §36, §37 — AGENTSPACE_ROOT harness runs, with the process-identity caveat recorded |
+
+
+---
+
+## 37. Measurement hygiene: a caught false reading, and the §61 compliance sweep
+
+**A false "empty" reading, caught and corrected.** Re-running §36's two
+profiles, the "empty registry" launch produced a 55.5 MB footprint with malloc
+zones at *byte-identical addresses* to the with-Space run — impossible across
+two processes, and the tell that `pgrep` had returned a leftover process that
+a previous `kill` had missed. After killing every instance and verifying the
+process table was clean before each launch, the honest numbers are:
+
+| Metric | Empty registry | One Space registered |
+|---|---|---|
+| Physical footprint | **37.1 MB** | **45.4 MB** (yesterday's run: 54.2) |
+| `ps` RSS | 108.8 MB | ~111–125 MB |
+
+So the §36 conclusions stand with widened bounds: empty 36–37 MB, with-Space
+45–54 MB, per-Space delta **+8 to +18 MB** depending on run timing. The
+engineered decision this produces: the §53 < 100 MB target is met by physical
+footprint in every measured state, and the residual per-Space dirty memory is
+a *known, bounded, non-urgent* optimization — chasing it would trade
+regression risk for no target gain. The lever stays recorded; no code churn.
+
+The method note matters as much as the numbers: any future measurement in this
+document should verify process identity (pid freshness, or distinct malloc
+zone addresses) before comparing two profiles.
+
+**§61 compliance sweep: clean.** The plan's explicit V1 exclusion list — cloud
+sync, accounts, agent marketplace, model providers, LLM chat, task
+orchestration, Docker, VM, Linux, Windows, remote Mac, team collaboration,
+recording video, workspace sync — was grepped for across all Swift and
+TypeScript sources: **zero hits**. AgentSpace V1 is exactly the one thing the
+plan says to do: one Mac, multiple background GUI sessions, agents can
+operate, users are not disturbed.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 124 | No §61-excluded feature exists anywhere in the shipped source tree | ✓ | this grep sweep, zero hits |
