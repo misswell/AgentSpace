@@ -3823,3 +3823,22 @@ halves were measured rather than assumed:
 |---|---|---|---|
 | 264 | THIRD_PARTY_NOTICES.md satisfies §42: full MIT text, the no-verbatim-copy statement with its reasoning, and a table of the ideas taken | ✓ | §113 — the file contents |
 | 265 | No Swift source file mentions or headers Offstage, consistent with the no-verbatim-copy declaration | ✓ | §113 — the zero-trace search |
+
+
+---
+
+## 114. The demo stays green on the current tree after the doc-sweep rounds
+
+§109–§113 changed only documentation and comments; §107 restored dist
+from the stapled DMG. The end-to-end demo was re-run to confirm the
+behaviour underneath did not drift: **exit 0**, every check passing —
+the worker comes up, `status` reports the console session honestly
+(`On Console`, `isConsole`), `apps` and `screenshot` and all input
+verbs are refused with `SESSION_IS_CONSOLE` carrying the switch-back
+remedy, `sudo` is refused with `EXEC_DENIED` naming its rule, and a
+plain `exec id -un` runs as the real user (uid 501). The fail-closed
+posture that §62 first demoed survives every change since.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 266 | demo.sh runs end to end with exit 0 on the current tree, with the console fail-closed refusals and the §36 sudo refusal all live | ✓ | §114 — the re-run output |
