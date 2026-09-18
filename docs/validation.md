@@ -5510,3 +5510,26 @@ conceptual debt is fully recorded.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 353 | §42 satisfied the strict way: no verbatim copies (hence no per-file headers to preserve), MIT notice reproduced regardless, eight borrowings and all divergences documented | ✓ | §191 — THIRD_PARTY_NOTICES.md |
+
+
+---
+
+## 192. §57's distribution chain: hardened signing, ordered notarization, stapled DMG
+
+scripts/release.sh rebuilds dist/AgentSpace-$VERSION.dmg from
+clean state; bundle-app.sh signs with --options runtime and
+verifies deep/strict; notarize.sh checks the notarytool profile
+is live, submits with --wait (retrying, because the doc records
+that notarytool's long-poll client can time out), staples the
+app before packaging — the comment notes the app's bytes must be
+notarized before stapler can attach a ticket — then hdiutil
+creates the UDZO image and stapler staples and validates the DMG
+itself. Mac App Store exclusion is documented with the plan's
+own reasoning (privileged helper, system users) in
+docs/security.md, and the App Store Connect key path for the
+user's own credentials is in troubleshooting. The cask remains
+gated on a public release URL, as before.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 354 | Developer ID + hardened runtime + submit/staple/validate chain scripted in correct order, DMG excluded from MAS with documented reasoning; cask still waits on a release URL | ✓ (cask gated) | §192 — release.sh, bundle-app.sh, notarize.sh, security.md:410 |
