@@ -6643,3 +6643,25 @@ same document.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 402 | §42/§63.3's MIT ledger is complete: full license, zero-copy claim consistent with the tree, seven itemized borrowings, divergences cross-referenced, and an upstream correction recorded | ✓ | §240 — THIRD_PARTY_NOTICES.md:1–75 |
+
+
+---
+
+## 241. The §42 ledger's promised divergence table really exists
+
+§240's notice points at "docs/validation.md §8" for the
+deliberate divergences; this round checked the pointer rather
+than trusting it. §8 is a nine-row table (Area / Offstage /
+AgentSpace / Why) — a superset of the six divergences the
+notice names, each mapped: session-availability (the inert
+manager-name key vs SessionGetInfo), UPPER_SNAKE error
+vocabulary fixed by §21, per-index input validation messages,
+the 256-bit per-Space token ("a compromise inside one Space
+must not drive a sibling Space"), the buffered exec result
+shape fixed by §23. §8 links back to the notice for the MIT
+text, so the two documents cross-reference each other honestly
+and neither points at nothing.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 403 | §8's divergence table exists, covers a superset of the notice's six claimed divergences, and cross-references the notice back | ✓ | §241 — docs/validation.md §8, THIRD_PARTY_NOTICES.md:44–46 |
