@@ -6948,3 +6948,32 @@ a decision rather than a checkbox, per its own comment.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 416 | The full check-all gate passes all three layers after the keyboard work | ✓ | §254 — scripts/check-all.sh run this round |
+
+
+---
+
+## 255. §27's [Terminal] mockup button: recorded as deliberately out of
+scope, not silently missing
+
+Auditing §27's dashboard mockup against the detail view: the
+card's real actions are all present and named exactly as later
+sections require — Stop Agent, Logout Desktop…, Delete Space…
+(§40's three verbs, §233's ellipsis confirmations), Show Login
+Password (§9), and the desktop entry that opens the §52 viewer.
+The mockup's second button, [Terminal], has no implementation
+anywhere, and no earlier record says so.
+
+The judgment, stated rather than buried: the plan's own phase
+list never asks for it. §46's GUI phase names dashboard,
+wizard, permissions, screenshot, input, logs — no terminal —
+and §61 restricts V1 to doing one thing well. The capability it
+sketches already exists as the §23 exec API and §31's
+`agentspace exec`, which is what agents use; an embedded GUI
+terminal is a human convenience the plan deferred. Recorded as
+a known gap with its reasoning, in the "missing is a feature"
+register, so the mockup and the shipping UI disagree on paper
+where anyone auditing §27 will look first.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 417 | §27's [Terminal] mockup button is unimplemented and now recorded as deliberately out of scope (deferred by §46/§61; exec path exists via §23/§31) | ✓ (deviation documented) | §255 — SpaceDetailView.swift:133–141, AgentSpaceApp.swift:68 |
