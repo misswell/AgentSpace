@@ -4575,3 +4575,22 @@ from the list.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 310 | apps lists regular and accessory (menu-bar/LSUIElement) apps with policy labels, covering §22's requirement | ✓ | §148 — the activationPolicy walk in AppControl |
+
+
+---
+
+## 149. §30's "actual, not allocated" is stated verbatim in the sampler
+
+The Resources.Sample doc comment says it in the plan's own words:
+"Deliberately not 'allocated' numbers: a Space is not a VM, so the
+honest figure is what its processes are really using." The field
+set is exactly §30's four metrics (cpuPercent, memoryBytes,
+processCount, diskBytes); diskBytes is Optional-with-null rather
+than zero because "'we did not look' and 'it is empty' are different
+claims and only one of them is honest", and diskTruncated marks a
+budget-limited lower bound. A UI-side grep for "allocated" returns
+nothing.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 311 | Resource sampling reports actual per-UID usage with honest nil/truncation semantics; no Allocated fields anywhere | ✓ | §149 — the Resources.Sample comment and UI grep |
