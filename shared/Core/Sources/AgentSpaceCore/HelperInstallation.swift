@@ -35,11 +35,13 @@ public enum HelperInstallation {
         return nil
     }
 
-    /// The LaunchDaemon plist inside the app bundle.
+    /// The LaunchDaemon plist inside the app bundle. The file name routes
+    /// through `BundleIdentifiers.helperPlist` so the §58 single-source rule
+    /// holds for this path too.
     public static var launchDaemonPlist: URL? {
         guard let bundle = containingAppBundle else { return nil }
         return bundle.appendingPathComponent(
-            "Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist")
+            "Contents/Library/LaunchDaemons/" + BundleIdentifiers.helperPlist)
     }
 
     public static var helperBinary: URL? {

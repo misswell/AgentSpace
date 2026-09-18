@@ -213,12 +213,16 @@ enum SelfCheckPaths {
     }
 
     static func launchDaemonPlist() -> String {
+        // The file name routes through BundleIdentifiers.helperPlist (§58):
+        // the resolution *start point* differs from Core's bundle-relative
+        // lookup — this process is the daemon, so Bundle.main is the daemon,
+        // not the app — but the name must come from one place.
         if Bundle.main.bundlePath.hasSuffix(".app") {
-            return Bundle.main.bundlePath + "/Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist"
+            return Bundle.main.bundlePath + "/Contents/Library/LaunchDaemons/" + BundleIdentifiers.helperPlist
         }
         // Running the binary from a build directory.
         let executable = Bundle.main.executablePath ?? CommandLine.arguments[0]
-        return (executable as NSString).deletingLastPathComponent + "/com.agentspace.AgentSpace.Helper.plist"
+        return (executable as NSString).deletingLastPathComponent + "/" + BundleIdentifiers.helperPlist
     }
 
     /// Local accounts, without needing root.

@@ -4654,3 +4654,24 @@ CLI/MCP caller gets the specific fix, not "something went wrong".
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 314 | The error object carries a per-code-defaulted recoverable flag plus a remediation suggestion, per §21 | ✓ | §152 — the AgentSpaceError init and comments |
+
+
+---
+
+## 153. §58 audit found and fixed a real drift: two code paths hand-wrote the
+helper plist file name
+
+BundleIdentifiers.helperPlist already exists as the §58 single
+source, but HelperInstallation.launchDaemonPlist (Core) and
+HelperSelfCheck.launchDaemonPlist (helper) each spelled the full
+file name literally — exactly the two-definitions drift the plan
+forbids. Both now route through the constant; the helper keeps its
+own resolution start point (Bundle.main there is the daemon, not
+the app, so the two lookups are not duplicates of logic — only of
+the name), and a comment explains why. Human-facing diagnostic
+strings that quote the path stay literal on purpose. All 336 tests
+pass after the change.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 315 | Bundle-id and plist-name literals route through BundleIdentifiers in both code paths; only prose strings remain literal | ✓ (fixed this round) | §153 — the two edits and the green suite |
