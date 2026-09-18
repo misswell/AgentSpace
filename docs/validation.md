@@ -4481,3 +4481,21 @@ plan's "sleep" as a settle hint rather than an unbounded halt.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 305 | All nine §14 actions are expressible; doubleClick and rightClick are parameterisations of click | ✓ | §143 — the InputAction enum census |
+
+
+---
+
+## 144. §15's points contract is carried in every screenshot result
+
+Geometry.swift opens with the contract verbatim: "an agent always
+speaks in points" — a pixel coordinate posted as a point misses
+every target by a factor of `scale`, so width/height (points), the
+pixel dimensions and the backing scale all travel explicitly in each
+screenshot result, making the planned `pointX = pixelX / scale`
+arithmetic possible without guessing. The file also records a
+measured macOS 27.0 quirk (CGDisplayPixelsWide returning points) —
+the kind of empirical note §63.13 demands instead of assuming.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 306 | Screenshot results carry points, pixels and scale explicitly so coordinate conversion never guesses | ✓ | §144 — the Geometry contract comment |
