@@ -2947,3 +2947,23 @@ regressions to nothing.
 |---|---|---|---|
 | 198 | The console-refused/proceeding map is exhaustive over the CLI verb set, closing with launch/quit/activate refused | ✓ | §79 — the final three-verb sweep |
 | 199 | The complete check-all regression (guard, Swift suite, MCP smoke, gui-verify) passes on the current tree | ✓ | §79 — the three-layer run |
+
+
+---
+
+## 80. The helper status surface answers honestly and structurally, with no root required
+
+The `agentspace helper` verbs (`installed`, `status`, `check`) were probed on
+a machine where no helper is installed. All three answer with the same
+structured JSON — `installed: false`, `helperVersion: null`,
+`expectedVersion: "0.1.0"` — plus the §38-style inline fix ("run
+bundle-app.sh, then open the app and choose Install Helper"), and exit 3 so
+a script or agent can branch on it without parsing prose. The read-only
+query works without elevated privileges: checking whether the helper exists
+is a local launchd/socket inspection, not a privileged operation — the
+privilege boundary stays where §6 puts it, around installation and
+mutations, not around questions.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 200 | The helper status verbs return structured installed/expected-version answers with an inline fix and a script-branchable exit code, and require no root to ask | ✓ | §80 — the three-verb probe |
