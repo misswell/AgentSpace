@@ -4247,3 +4247,22 @@ the redaction coverage present.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 290 | Diagnostics export collects by whitelist and redacts secret-shaped text at the boundary, with property-style tests on a pure redactor | ✓ | §131 — Diagnostics.swift and its tests |
+
+
+---
+
+## 132. §38's thirteen doctor checks are all present, plus two extras
+
+Mapping the plan's list to the check names: Apple Silicon; macOS
+version ("Upgrade to macOS 26 or later"); privileged helper; Fast
+User Switching (via MultipleSessionEnabled); Spaces (AgentSpaces +
+registry integrity); Worker; Aqua session ("Run from a GUI login,
+not ssh"); Screen Recording; Accessibility; Unix socket; Input
+isolated; WindowServer; Workspace confinement — thirteen of
+thirteen, plus Display geometry and an advisory TCC-grants check the
+plan never asked for. Failures carry concrete remedies by design
+(the triage taxonomy of §99–§100).
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 291 | All thirteen §38 doctor checks exist under matching names, with two extras and concrete remedies | ✓ | §132 — the check-name census |
