@@ -73,6 +73,10 @@
 "Deleting removes this Space's macOS account, its runtime directory and its worker. A git worktree is removed but its branch is kept, and your own repository is never touched." = "Deleting removes this Space's macOS account, its runtime directory and its worker. A git worktree is removed but its branch is kept, and your own repository is never touched.";
 "Delete %@?" = "Delete %@?";
 "Delete Space, keep its home directory" = "Delete Space, keep its home directory";
+"Log out the desktop for %@?" = "Log out the desktop for %@?";
+"Log Out Desktop" = "Log Out Desktop";
+"this Space" = "this Space";
+"The agent worker stops with the session. To run agents again, sign in to this Space's desktop once more." = "The agent worker stops with the session. To run agents again, sign in to this Space's desktop once more.";
 "Delete Space and its home directory" = "Delete Space and its home directory";
 "Cancel" = "Cancel";
 "The account %@ will be removed, and it will no longer be able to run anything. Your files are not affected." = "The account %@ will be removed, and it will no longer be able to run anything. Your files are not affected.";

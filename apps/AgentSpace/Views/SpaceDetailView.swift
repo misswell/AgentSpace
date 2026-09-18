@@ -135,7 +135,7 @@ struct SpaceDetailView: View {
                     }
                     .disabled(model.selected?.workerOnline != true)
                     Button("Logout Desktop…") {
-                        if let space = model.selected?.space { model.logoutDesktop(space) }
+                        showingLogout = true
                     }
                     Divider()
                     Button("Delete Space…", role: .destructive) {
@@ -418,9 +418,26 @@ struct SpaceDetailView: View {
             // the user's explicit yes, and says exactly what will change.
             Text(String(format: NSLocalizedString("AgentSpace will add itself as an MCP server in %@. Nothing else in the file changes, and the previous contents are saved next to it.", comment: ""), integrationTarget?.configPath ?? ""))
         }
+        // The "…" on Logout Desktop… promises this dialog. Logout is reversible
+        // but not free: the agent worker dies with the session, and coming back
+        // needs one manual fast-user-switch login — so the cost is said here,
+        // where it can still be declined.
+        .confirmationDialog(
+            String(format: NSLocalizedString("Log out the desktop for %@?", comment: ""), model.selected?.space.name ?? NSLocalizedString("this Space", comment: "")),
+            isPresented: $showingLogout,
+            titleVisibility: .visible
+        ) {
+            Button(NSLocalizedString("Log Out Desktop", comment: "")) {
+                if let space = model.selected?.space { model.logoutDesktop(space) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(NSLocalizedString("The agent worker stops with the session. To run agents again, sign in to this Space's desktop once more.", comment: ""))
+        }
     }
 
     @State private var showingDelete = false
+    @State private var showingLogout = false
     @State private var integrationTarget: Integrations.Target?
     @State private var showingIntegrationConfirm = false
 

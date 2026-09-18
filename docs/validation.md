@@ -6451,3 +6451,26 @@ say "something went wrong".
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 394 | §38's remedy requirement holds: every failing doctor check names a concrete, executable fix | ✓ | §232 — Doctor.swift (26 fix strings), sample at :105–219 |
+
+
+---
+
+## 233. §40's three endings, plus a HIG promise now kept
+
+The Space menu's comment states §40's semantics verbatim:
+"three different endings for a Space, deliberately not
+collapsed into one 'stop'. Stop keeps the session; Logout ends
+the session but keeps the account; Delete removes everything
+and asks about the home." Stop is disabled unless the worker is
+online; Delete carries the destructive role and §227's two-branch
+dialog. The audit caught one gap: "Logout Desktop…" used the
+macOS ellipsis that promises a follow-up dialog, but executed
+immediately. Fixed: the ellipsis now delivers a confirmation
+that says the real cost — the worker stops with the session and
+coming back needs one manual login. The localization test suite
+caught the four new strings missing from both tables, and was
+satisfied. 346 tests, 0 failures.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 395 | §40's Stop/Logout/Delete endings are distinct in the UI with per-state disabling, and Logout's ellipsis promise now has its confirmation dialog (gap found and closed this round) | ✓ (gap closed) | §233 — SpaceDetailView.swift:128–148,421–435 |

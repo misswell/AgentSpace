@@ -73,6 +73,10 @@
 "Deleting removes this Space's macOS account, its runtime directory and its worker. A git worktree is removed but its branch is kept, and your own repository is never touched." = "删除会移除该 Space 的 macOS 账号、运行时目录和 worker。git worktree 会被移除但分支保留，你自己的仓库不会被碰。";
 "Delete %@?" = "删除 %@？";
 "Delete Space, keep its home directory" = "删除 Space，但保留其家目录";
+"Log out the desktop for %@?" = "要登出 %@ 的桌面吗？";
+"Log Out Desktop" = "登出桌面";
+"this Space" = "此 Space";
+"The agent worker stops with the session. To run agents again, sign in to this Space's desktop once more." = "Agent Worker 会随会话一起停止。要再次运行 Agent，请再登录一次该 Space 的桌面。";
 "Delete Space and its home directory" = "删除 Space 及其家目录";
 "Cancel" = "取消";
 "The account %@ will be removed, and it will no longer be able to run anything. Your files are not affected." = "账号 %@ 将被移除，之后不能再运行任何东西。你的文件不受影响。";
