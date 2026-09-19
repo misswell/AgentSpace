@@ -164,6 +164,84 @@ osascript -e 'key code 53' >/dev/null 2>&1
 osascript -e 'tell application "System Events" to tell process "AgentSpace" to keystroke "w" using command down' >/dev/null 2>&1
 sleep 1
 
+# --- The wizard: Create is armed exactly when the helper is current ----------
+# §274's hole was that a stale helper talked its way past the check by
+# describing itself, so what is pinned here is the *relationship*, not a state:
+# the Create button's enabled flag must disagree with the presence of the
+# HELPER_OUTDATED banner never. Both sides are language-stable — the banner is
+# an untranslated error code, the button is found by its identifier — so the
+# check holds on a Chinese system and on an English one, and it passes whether
+# or not this machine happens to be running an old daemon right now.
+osascript >/dev/null 2>&1 <<'EOF'
+tell application "System Events"
+	tell process "AgentSpace"
+		set frontmost to true
+		keystroke "n" using command down
+		delay 2
+		set _f to my findById(window 1, "agentNameField", text field, 0)
+		if _f is not missing value then
+			set value of _f to "gui verify"
+			delay 1
+			set _c to my findById(window 1, "wizardContinue", button, 0)
+			if _c is not missing value then click _c
+			delay 2
+		end if
+	end tell
+end tell
+EOF
+CARDS="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+on textsOf(theWindow, theDepth, theAcc)
+	if theDepth > 9 then return theAcc
+	tell application \"System Events\"
+		try
+			if class of theWindow is static text then set end of theAcc to (value of theWindow) as text
+		end try
+		try
+			repeat with _e in (UI elements of theWindow)
+				set theAcc to my textsOf(_e, theDepth + 1, theAcc)
+			end repeat
+		end try
+	end tell
+	return theAcc
+end textsOf
+
+tell application \"System Events\"
+	tell process \"AgentSpace\"
+		set _acc to {}
+		repeat with _w in windows
+			set _acc to my textsOf(_w, 0, _acc)
+		end repeat
+		set _t to \"\"
+		repeat with _x in _acc
+			set _t to _t & (_x as text) & linefeed
+		end repeat
+		return _t
+	end tell
+end tell" 2>/dev/null)"
+case "$CARDS" in
+  *HELPER_OUTDATED*) OUTDATED=1;;
+  *) OUTDATED=0;;
+esac
+CREATE_ENABLED="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	tell process \"AgentSpace\"
+		set _b to my findById(window 1, \"createAgentButton\", button, 0)
+		if _b is missing value then return \"not found\"
+		return (enabled of _b) as text
+	end tell
+end tell" 2>/dev/null | tr -d ' ,')"
+if [ "$CREATE_ENABLED" = "not found" ]; then
+  check "wizard reached the helper card" "the card" "no createAgentButton"
+elif [ "$OUTDATED" = "1" ]; then
+  check "Create is refused while the helper is stale" "false" "$CREATE_ENABLED"
+else
+  check "Create is armed for a current helper" "true" "$CREATE_ENABLED"
+fi
+# Close the wizard rather than create anything: this test reads, it does not
+# change the machine.
+osascript -e 'tell application "System Events" to tell process "AgentSpace" to key code 53' >/dev/null 2>&1
+sleep 1
+
 # --- Deep link: dead Space raises SPACE_NOT_FOUND (§46) ---------------------
 TMPROOT="$(mktemp -d /tmp/gui-verify.XXXXXX)"
 mkdir -p "$TMPROOT/Spaces"

@@ -111,6 +111,7 @@ struct NewAgentWizard: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(trimmedName.isEmpty)
+                    .accessibilityIdentifier("wizardContinue")
                 } else {
                     Button(NSLocalizedString("Create Agent", comment: "")) {
                         model.createSpace(
@@ -124,6 +125,12 @@ struct NewAgentWizard: View {
                               || trimmedName.isEmpty
                               || model.provisioning != nil)
                     .help(Text(createButtonHelp))
+                    // The one button in the app that makes a macOS user. Its
+                    // enabled state *is* the staleness verdict, so
+                    // `scripts/gui-verify.sh` reads it against the banner's
+                    // HELPER_OUTDATED code — neither of which is a translated
+                    // string, so the check works in any system language.
+                    .accessibilityIdentifier("createAgentButton")
                 }
             }
             .padding(14)
@@ -156,6 +163,7 @@ struct NewAgentWizard: View {
         Card(title: NSLocalizedString("Agent Name", comment: "")) {
             TextField("Coding Agent", text: $name)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("agentNameField")
             Text("A macOS user named _agentspace_<random> is created for this agent. The display name is only a label.")
                 .font(.caption).foregroundStyle(.secondary)
         }
@@ -269,6 +277,7 @@ struct HelperCard: View {
                     }
                 }
                 .disabled(model.isInstallingHelper)
+                .accessibilityIdentifier("reinstallHelperButton")
             } else if model.helperState.isReachable {
                 Text("The helper is installed and answering. Creating an agent account will make a standard (never administrator) macOS user named _agentspace_<6 hex>, a runtime directory, and a LaunchAgent for its worker.")
                     .font(.caption)
