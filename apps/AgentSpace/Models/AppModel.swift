@@ -22,7 +22,7 @@ import AgentSpaceCore
 @MainActor
 final class AppModel: ObservableObject {
 
-    /// "0.1.3 (412)" — marketing version plus the build number that
+    /// "0.1.4 (412)" — marketing version plus the build number that
     /// `scripts/bundle-app.sh` stamps from git at bundle time. Shown in the
     /// sidebar so "am I looking at the copy I just built?" is answered on
     /// screen; the About panel reads the same plist keys.
@@ -100,6 +100,8 @@ final class AppModel: ObservableObject {
 
     private let service: SpaceService
     private var refreshTask: Task<Void, Never>?
+    private var accountDiscoveryGeneration = 0
+    @Published private(set) var finishingSetup: UUID?
 
     init(service: SpaceService = SpaceService()) {
         self.service = service
@@ -260,12 +262,48 @@ final class AppModel: ObservableObject {
     }
 
     func discoverAccounts() {
-        let attached = Set(snapshots.map { $0.space.username })
+        accountDiscoveryGeneration += 1
+        let generation = accountDiscoveryGeneration
+        let attached = Set(service.loadRegistry().spaces.map { $0.username })
         Task {
             let accounts = await Task.detached(priority: .userInitiated) {
                 AccountDiscovery.discover().filter { !attached.contains($0.username) }
             }.value
+            guard generation == self.accountDiscoveryGeneration else { return }
             self.availableAccounts = accounts
+        }
+    }
+
+    /// Finish the one deferred step for an account whose home directory was
+    /// created by its first GUI login. The helper remains the only component
+    /// allowed to write the LaunchAgent; this method merely retries the typed
+    /// operation after the user has completed that macOS login.
+    func finishPendingSetup(_ space: AgentAccount) {
+        guard finishingSetup == nil else { return }
+        finishingSetup = space.id
+        let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+        let accountRoot = space.runtimeRoot ?? root
+        let directory = Self.worktreesDirectory
+        let registry = service.loadRegistry()
+        Task {
+            let outcome = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    continuation.resume(returning: AccountAttachService.finishPendingSetup(
+                        account: space,
+                        options: AccountAttachService.Options(
+                            root: accountRoot,
+                            registryRoot: root,
+                            workspaceDirectory: directory,
+                            mainUser: NSUserName()),
+                        transport: { try HelperClient.call($0) },
+                        registry: registry))
+                }
+            }
+            self.finishingSetup = nil
+            if let error = outcome.error {
+                self.lastError = self.presented(for: error, space: space)
+            }
+            self.reload()
         }
     }
 

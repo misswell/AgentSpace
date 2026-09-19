@@ -23,6 +23,7 @@ import AgentSpaceCore
 ///    screen.
 struct DesktopViewerView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
     @State private var image: NSImage?
     @State private var result: ScreenshotResult?
     @State private var lastCapture: Date?
@@ -160,6 +161,14 @@ struct DesktopViewerView: View {
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
             }
+            Button {
+                model.showingDesktopViewer = false
+                dismiss()
+            } label: {
+                Label(NSLocalizedString("Close", comment: ""), systemImage: "xmark")
+            }
+            .keyboardShortcut(.cancelAction)
+            .accessibilityIdentifier("closeDesktopViewer")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

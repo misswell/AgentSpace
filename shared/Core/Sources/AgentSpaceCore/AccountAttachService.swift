@@ -160,22 +160,46 @@ public struct AccountAttachService {
             rollbackRuntime(accountID: accountID, username: account.username, options: options, transport: transport, steps: &steps)
             return Outcome(account: nil, steps: steps, error: error)
         }
-        steps.append(Step(name: "install worker", outcome: .done, detail: installed.result?["label"]?.stringValue ?? "installed"))
+        let installDeferred = installed.result?["deferred"]?.boolValue == true
+        if installDeferred {
+            let reason = installed.result?["reason"]?.stringValue
+            let detail = installed.result?["homeDirectory"]?.stringValue ?? account.homeDirectory
+            steps.append(Step(
+                name: "install worker",
+                outcome: .skipped(reason == "homeDirectoryMissing"
+                    ? "waiting for the account's first GUI login"
+                    : "waiting for the worker installation to become available"),
+                detail: detail))
+        } else {
+            steps.append(Step(name: "install worker", outcome: .done,
+                              detail: installed.result?["label"]?.stringValue ?? "installed"))
+        }
 
         // Start immediately when the account already has an Aqua session. An
         // offline account is still successfully attached; launchd will load the
-        // LaunchAgent at its next login.
-        let started = call(transport, HelperRequest(
-            operation: .startWorker,
-            spaceID: accountID,
-            username: account.username,
-            mainUser: options.mainUser,
-            runtimeRoot: options.root,
-            uid: account.uid))
-        steps.append(Step(
-            name: "start worker",
-            outcome: started.ok ? .done : .skipped(started.error?.message ?? "the account has no active desktop session"),
-            detail: ""))
+        // LaunchAgent at its next login. A missing home is the one special case:
+        // there is no LaunchAgent yet, so starting it would only manufacture a
+        // second, misleading error in the provisioning overlay.
+        let started: HelperResponse
+        if installDeferred {
+            started = HelperResponse(id: accountID.uuidString, result: .obj(["deferred": .bool(true)]))
+            steps.append(Step(
+                name: "start worker",
+                outcome: .skipped("sign in to the account once, then refresh to finish worker setup"),
+                detail: ""))
+        } else {
+            started = call(transport, HelperRequest(
+                operation: .startWorker,
+                spaceID: accountID,
+                username: account.username,
+                mainUser: options.mainUser,
+                runtimeRoot: options.root,
+                uid: account.uid))
+            steps.append(Step(
+                name: "start worker",
+                outcome: started.ok ? .done : .skipped(started.error?.message ?? "the account has no active desktop session"),
+                detail: ""))
+        }
 
         var attached = AgentAccount(
             id: accountID,
@@ -184,11 +208,11 @@ public struct AccountAttachService {
             uid: account.uid,
             homeDirectory: account.homeDirectory,
             runtimeRoot: options.root,
-            state: started.ok ? .offline : .needsLogin,
+            state: installDeferred || !started.ok ? .needsLogin : .offline,
             workspace: confinedWorkspace,
             sharedFolders: sharedFolders,
             purpose: purpose)
-        if started.ok {
+        if started.ok && !installDeferred {
             let online = readiness?(attached) ?? waitUntilWorkerReady(attached)
             attached.state = online ? .ready : .offline
             steps.append(Step(
@@ -210,6 +234,78 @@ public struct AccountAttachService {
             return Outcome(account: nil, steps: steps, error: failure)
         }
         return Outcome(account: attached, steps: steps, error: nil)
+    }
+
+    /// Completes an attachment that was created before the macOS account had
+    /// its first GUI login. macOS creates `/Users/<username>` lazily, so the
+    /// initial attach can persist the runtime and registry record but cannot
+    /// write the account's LaunchAgent yet. Calling this after the first login
+    /// installs the worker, starts it when the Aqua session is available, and
+    /// keeps the account in `needsLogin` when it is still not ready.
+    public static func finishPendingSetup(
+        account: AgentAccount,
+        options: Options,
+        transport: @escaping Transport,
+        readiness: Readiness? = nil,
+        registry: SpaceRegistry = SpaceRegistry()
+    ) -> Outcome {
+        var steps: [Step] = []
+        let installed = call(transport, HelperRequest(
+            operation: .installWorker,
+            spaceID: account.id,
+            username: account.username,
+            mainUser: options.mainUser,
+            runtimeRoot: options.root,
+            uid: account.uid))
+        guard installed.ok else {
+            let error = installed.error ?? AgentSpaceError(
+                code: .helperRejected, message: "the helper did not install the worker")
+            steps.append(Step(name: "install worker", outcome: .failed(error.message), detail: ""))
+            return Outcome(account: account, steps: steps, error: error)
+        }
+
+        if installed.result?["deferred"]?.boolValue == true {
+            let reason = installed.result?["reason"]?.stringValue
+            let detail = installed.result?["homeDirectory"]?.stringValue ?? account.macOSHomeDirectory
+            steps.append(Step(
+                name: "install worker",
+                outcome: .skipped(reason == "homeDirectoryMissing"
+                    ? "the account still needs its first GUI login"
+                    : "the worker installation is still waiting"),
+                detail: detail))
+            var pending = account
+            pending.state = .needsLogin
+            return saveFinishedAccount(
+                pending, steps: steps, options: options, registry: registry)
+        }
+
+        steps.append(Step(name: "install worker", outcome: .done,
+                          detail: installed.result?["label"]?.stringValue ?? "installed"))
+        let started = call(transport, HelperRequest(
+            operation: .startWorker,
+            spaceID: account.id,
+            username: account.username,
+            mainUser: options.mainUser,
+            runtimeRoot: options.root,
+            uid: account.uid))
+        steps.append(Step(
+            name: "start worker",
+            outcome: started.ok ? .done : .skipped(
+                started.error?.message ?? "the account has no active desktop session"),
+            detail: ""))
+
+        var finished = account
+        finished.state = started.ok ? .offline : .needsLogin
+        if started.ok {
+            let online = readiness?(finished) ?? waitUntilWorkerReady(finished)
+            finished.state = online ? .ready : .offline
+            steps.append(Step(
+                name: "verify worker",
+                outcome: online ? .done : .skipped(
+                    "the worker is not answering yet; refresh after the account's desktop is ready"),
+                detail: ""))
+        }
+        return saveFinishedAccount(finished, steps: steps, options: options, registry: registry)
     }
 
     public static func detach(
@@ -279,6 +375,28 @@ public struct AccountAttachService {
             return HelperResponse(id: request.id, error: AgentSpaceError(
                 code: .helperUnavailable,
                 message: "the privileged helper could not be reached: \(error)"))
+        }
+    }
+
+    private static func saveFinishedAccount(
+        _ account: AgentAccount,
+        steps: [Step],
+        options: Options,
+        registry: SpaceRegistry
+    ) -> Outcome {
+        var steps = steps
+        do {
+            var updated = registry
+            updated.upsert(account)
+            try updated.save(root: options.registryRoot ?? options.root)
+            steps.append(Step(name: "save agent", outcome: .done, detail: account.name))
+            return Outcome(account: account, steps: steps, error: nil)
+        } catch {
+            let failure = AgentSpaceError(
+                code: .internalError,
+                message: "could not save the attached-account registry: \(error)")
+            steps.append(Step(name: "save agent", outcome: .failed(failure.message), detail: ""))
+            return Outcome(account: account, steps: steps, error: failure)
         }
     }
 

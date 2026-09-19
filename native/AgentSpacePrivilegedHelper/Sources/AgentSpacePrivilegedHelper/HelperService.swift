@@ -202,6 +202,24 @@ final class HelperService: NSObject, HelperXPCProtocol {
                 return HelperResponse(id: request.id, error: problem)
             }
 
+            // macOS does not create an account's home directory until that
+            // account completes its first GUI login. Attaching an existing
+            // account before that login is supported, so this is a successful
+            // deferred install rather than a malformed-path failure. The
+            // caller records `needsLogin`; after the user signs in once, it
+            // retries this same typed operation and the LaunchAgent is written
+            // into the now-real home directory. Never create `/Users/<name>`
+            // here: doing so would bypass macOS's home-directory lifecycle.
+            var homeInfo = stat()
+            if lstat(home, &homeInfo) != 0, errno == ENOENT {
+                return HelperResponse(id: request.id, result: .obj([
+                    "username": .string(username),
+                    "homeDirectory": .string(home),
+                    "deferred": .bool(true),
+                    "reason": .string("homeDirectoryMissing"),
+                ]))
+            }
+
             try prepareLaunchAgentsDirectory(home: home, uid: uid, gid: gid(of: username) ?? 20)
 
             // The executable is shared and root-owned. Only the small plist lives
@@ -277,6 +295,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
             let absent = stopped.standardError.localizedCaseInsensitiveContains("not found")
                 || stopped.standardError.localizedCaseInsensitiveContains("no such process")
                 || stopped.standardError.localizedCaseInsensitiveContains("could not find specified service")
+                || stopped.standardError.localizedCaseInsensitiveContains("could not find domain for user")
             guard stopped.ok || absent else {
                 throw NSError(domain: "AgentSpace.Helper", code: Int(stopped.exitCode), userInfo: [
                     NSLocalizedDescriptionKey: "could not stop \(label): \(stopped.standardError)",

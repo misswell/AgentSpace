@@ -348,7 +348,7 @@ public enum Doctor {
                     name: String(format: NSLocalizedString("Accessibility (%@)", comment: ""), space.name),
                     status: granted ? .pass : .fail,
                     detail: granted ? "granted to the worker." : "not granted to the worker.",
-                    fix: granted ? nil : "In the AgentSpace user's session, open System Settings → Privacy & Security → Accessibility and enable agentspace-worker. The AgentSpace Setup window appears once after the first login."))
+                    fix: granted ? nil : "In the connected account's session, open System Settings → Privacy & Security → Accessibility and enable agentspace-worker. Then switch back and click Finish setup in AgentSpace."))
                 let recording = body["screenRecording"]?.boolValue ?? false
                 results.append(Check(
                     name: String(format: NSLocalizedString("Screen Recording (%@)", comment: ""), space.name),

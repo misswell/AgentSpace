@@ -7879,3 +7879,32 @@ the MCP bundle reporting the new version.
 | 510 | The shipped patch passes all release layers after the wizard fix | pass | `scripts/check-all.sh`: Swift 359/359, MCP smoke, GUI 7/7 |
 | 511 | The release GUI no longer reports a disabled-button no-op as step 2 | pass | `scripts/gui-verify.sh`: `wizard: empty account state`, then dead-link check, 7 passed/0 failed |
 | 512 | MCP and package metadata are aligned to 0.1.2 | pass | Smoke output `agentspace 0.1.2`; `npm test` 23/23 |
+
+## 282. First-login attach, account refresh and viewer escape (2026-09-19)
+
+The real-machine report exposed a normal macOS lifecycle boundary: a manually
+created account can exist in Directory Service before its first GUI login, so
+`/Users/<username>` is still absent. The helper now returns a typed deferred
+install result instead of treating that absence as a symlink/ownership attack.
+Attach persists the runtime and registry record as `needsLogin`, skips the
+nonexistent LaunchAgent start, and gives the user a Finish setup retry after
+the first login. Teardown also treats a missing `gui/<uid>` domain as an
+idempotent absence, so rollback cannot create a second misleading error.
+
+The wizard's Refresh accounts action is always visible and reads the current
+registry before each discovery generation, preventing a delete/recreate in
+Users & Groups from leaving a stale picker. The connected account deliberately
+contains no second AgentSpace GUI app: only the background worker runs there,
+and the localized instructions point to that account's built-in System Settings
+for TCC grants. Desktop Viewer now has an explicit Close action even when a
+capture is refused.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 521 | An account with no first-login home is attachable without creating a home or starting a nonexistent worker | pass | `HelperService.installWorker` returns `deferred/homeDirectoryMissing`; `AccountAttachServiceTests.testAttachDefersWorkerUntilFirstLoginWhenHomeIsMissing` |
+| 522 | Finish setup retries installation after the home exists and persists the worker's resulting state | pass | `AccountAttachServiceTests.testFinishPendingSetupInstallsAndStartsAfterFirstLogin` |
+| 523 | Missing launchd GUI domains are idempotent during worker removal/rollback | pass | `HelperService.removeWorker` classifies `could not find domain for user` as absent |
+| 524 | Account discovery can be explicitly refreshed after Users & Groups changes, without stale concurrent results winning | pass | `NewAgentWizard` always renders `refreshAccountsButton`; `AppModel.discoverAccounts` generation guard and registry-backed attached set |
+| 525 | Permission remediation no longer sends GUI users to a terminal command, and explains that no second AgentSpace app is expected in the connected account | pass | `ErrorCodes`, `LoginInstructions`, `SpaceDetailView` and both localization tables |
+| 526 | Desktop Viewer can always be dismissed from its own content | pass | `DesktopViewerView` `closeDesktopViewer` button, cancel keyboard shortcut, and full Swift build |
+| 527 | The regression suite remains green after the deferred attach and onboarding changes | pass | `env PATH=/usr/bin:/bin:/usr/sbin:/sbin swift test`; `LocalizationTests` and `AccountAttachServiceTests` pass |

@@ -319,6 +319,9 @@ struct SpaceDetailView: View {
             Card(title: NSLocalizedString("Setup", comment: "")) {
                 Text(NSLocalizedString("An agent account needs one manual sign-in before it can run in the background.", comment: ""))
                     .font(.callout)
+                Text(NSLocalizedString("The connected account does not contain a second AgentSpace app. The background agentspace-worker runs there and uses that account's System Settings permissions.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 6) {
                     step(1, NSLocalizedString("Open Fast User Switching from the menu bar", comment: ""), done: true)
                     step(2, String(format: NSLocalizedString("Sign in as “%@”", comment: ""), snapshot.space.username), done: snapshot.workerOnline)
@@ -327,11 +330,27 @@ struct SpaceDetailView: View {
                     step(5, NSLocalizedString("Switch back to your own account", comment: ""), done: false)
                 }
                 .padding(.top, 2)
+                Text(NSLocalizedString("After the first login, switch back to your account and click Finish setup. The worker must start before macOS can show its privacy-permission prompts.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 HStack {
                     Button(NSLocalizedString("Open System Settings", comment: "")) {
                         NSWorkspace.shared.open(URL(
                             string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                     }
+                    Button {
+                        model.finishPendingSetup(snapshot.space)
+                    } label: {
+                        if model.finishingSetup == snapshot.space.id {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text(NSLocalizedString("Finishing setup…", comment: ""))
+                            }
+                        } else {
+                            Text(NSLocalizedString("Finish setup", comment: ""))
+                        }
+                    }
+                    .disabled(model.finishingSetup != nil)
                     Button(NSLocalizedString("Refresh", comment: "")) { model.reload() }
                 }
                 .controlSize(.small)

@@ -16,10 +16,15 @@ controller.
 2. Open AgentSpace and choose **New Agent**.
 3. Select an available existing macOS account and choose its display name and
    workspace.
-4. AgentSpace validates the account, prepares a private runtime, installs the
-   worker LaunchAgent, and starts it when the account has an Aqua session.
-5. Sign into that account with its existing password and grant Accessibility
-   plus Screen Recording to the worker.
+4. AgentSpace validates the account and prepares a private runtime. If macOS has
+   already created the account's home directory, it installs the worker
+   LaunchAgent and starts it when the account has an Aqua session. Otherwise the
+   attach is recorded as `needsLogin` and the GUI offers **Finish setup** after
+   the first login; AgentSpace never creates the home directory itself.
+5. Sign into that account with its existing password, return to AgentSpace and
+   finish setup, then grant Accessibility plus Screen Recording to the worker
+   from that account's own System Settings. The connected account does not need
+   a second AgentSpace app.
 6. Open and control the account's desktop from the main account.
 
 Disconnecting reverses only AgentSpace-owned state. The macOS account and its

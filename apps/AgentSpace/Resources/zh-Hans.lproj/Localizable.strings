@@ -423,4 +423,17 @@
 "Open Fast User Switching (Control Centre) and sign in to the connected account with its existing password." = "打开控制中心的快速用户切换，并使用该账号现有密码登录。";
 "Sign in as “%@”" = "登录账号“%@”";
 "launchd keeps a registered daemon's process running across app updates, so the version inside this app has never started. Connecting an account would run the old code." = "应用更新后 launchd 会继续运行已注册守护进程的旧进程，因此本应用内的新版本尚未启动。此时连接账号仍会运行旧代码。";
+"After the first login, switch back to your account and click Finish setup. The worker must start before macOS can show its privacy-permission prompts." = "首次登录后切回你的账号，点击 Agent 卡片上的「完成设置」。worker 启动后，macOS 才会显示隐私权限授权提示。";
+"Finish setup" = "完成设置";
+"Finishing setup…" = "正在完成设置…";
+"Close" = "关闭";
+"Open Fast User Switching (Control Centre) and sign in to the connected account with its existing password. This first login creates its macOS home directory." = "打开控制中心的快速用户切换，并使用该账号现有密码登录。这次首次登录会创建它的 macOS 家目录。";
+"Switch back to your own account and click Finish setup on the agent card. AgentSpace can install the worker only after that first login." = "切回你的账号，在 Agent 卡片上点击「完成设置」。只有首次登录后，AgentSpace 才能安装 worker。";
+"Sign in to the connected account again if needed, then grant Accessibility and Screen Recording to agentspace-worker in System Settings." = "如有需要，再次登录该账号，然后在系统设置中为 agentspace-worker 授予辅助功能和屏幕录制权限。";
+"The privacy prompts cannot appear before the worker starts. Until the first login and Finish setup are complete, the agent remains in Needs Login; AgentSpace never starts it in your account instead." = "worker 启动前不会出现隐私权限提示。在完成首次登录和「完成设置」前，Agent 会保持「需要登录」；AgentSpace 绝不会在你的主账号中启动它。";
+"The connected account does not contain a second AgentSpace app. That is intentional: only the background agentspace-worker runs there; use that account's built-in System Settings for its permissions." = "已连接的账号中不会有第二个 AgentSpace 应用，这是有意设计的：那里只运行后台 agentspace-worker；请在该账号自带的系统设置中授予权限。";
+"The connected account does not contain a second AgentSpace app. The background agentspace-worker runs there and uses that account's System Settings permissions." = "已连接的账号中不会有第二个 AgentSpace 应用。后台 agentspace-worker 会在那里运行，并使用该账号系统设置中的权限。";
 "Where accounts, runtime sockets and logs live. Empty means /Library/Application Support/AgentSpace. AGENTSPACE_ROOT is read at launch; restart to apply." = "账号、运行时 socket 和日志的存放位置。留空表示 /Library/Application Support/AgentSpace。AGENTSPACE_ROOT 在启动时读取，重启后生效。";
+"In the connected account's session, open System Settings → Privacy & Security → Accessibility and enable agentspace-worker. Then switch back to your account and click Finish setup or Refresh in AgentSpace." = "在已连接账号的会话中，打开「系统设置 → 隐私与安全性 → 辅助功能」，启用 agentspace-worker。然后切回你的账号，在 AgentSpace 中点击「完成设置」或「刷新」。";
+"In the connected account's session, open System Settings → Privacy & Security → Screen & System Audio Recording and enable agentspace-worker. Then switch back to your account and click Finish setup or Refresh in AgentSpace." = "在已连接账号的会话中，打开「系统设置 → 隐私与安全性 → 屏幕与系统声音录制」，启用 agentspace-worker。然后切回你的账号，在 AgentSpace 中点击「完成设置」或「刷新」。";
+"In the connected account's session, open System Settings → Privacy & Security → Accessibility and enable agentspace-worker. Then switch back and click Finish setup in AgentSpace." = "在已连接账号的会话中，打开「系统设置 → 隐私与安全性 → 辅助功能」，启用 agentspace-worker。然后切回你的账号，在 AgentSpace 中点击「完成设置」。";

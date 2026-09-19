@@ -29,7 +29,9 @@ Phase 1 (attach existing account) is implemented in this tree:
   excludes the current user and already attached usernames.
 - `AccountAttachService` validates, prepares workspace/runtime, installs the
   root-owned worker, attempts to start it when an Aqua session exists, and
-  saves the existing account as an `AgentAccount`.
+  saves the existing account as an `AgentAccount`. If macOS has not created the
+  account's home directory yet, attach succeeds in `needsLogin` and the GUI's
+  **Finish setup** action retries installation after the first GUI login.
 - Attach rollback removes a created worktree, installed worker and root-owned
   runtime when a later step fails.
 - Detach stops/removes the worker, removes its exact runtime through a typed
@@ -38,6 +40,13 @@ Phase 1 (attach existing account) is implemented in this tree:
   its home.
 - GUI account creation/deletion controls are now account selection,
   **Connect Account**, and **Disconnect Account**.
+- The New Agent picker always exposes **Refresh accounts**, so an account added
+  or removed in Users & Groups can be discovered without closing the wizard.
+- The connected account intentionally receives only the background worker, not
+  a second AgentSpace app. Its Accessibility and Screen Recording grants are
+  given in that account's own System Settings after the worker is installed.
+- Desktop Viewer has an explicit **Close** action (and ⌘W/ Escape cancellation)
+  even when the worker is offline or a permission is missing.
 - CLI primary verbs are `attach` and `detach`; legacy `create`/`delete`
   spellings remain aliases for compatibility but use V3 semantics.
 - Legacy helper wire cases `createUser` and `deleteUser` still decode at

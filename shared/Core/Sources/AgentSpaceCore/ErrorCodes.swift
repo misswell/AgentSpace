@@ -115,9 +115,9 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         case .workerIsRoot:
             return NSLocalizedString("The worker refuses to run as root. It must run as the AgentSpace user inside that user's Aqua session.", comment: "")
         case .accessibilityDenied:
-            return NSLocalizedString("In the AgentSpace session: System Settings → Privacy & Security → Accessibility → enable agentspace-worker. Then run `agentspace restart <space>`.", comment: "")
+            return NSLocalizedString("In the connected account's session, open System Settings → Privacy & Security → Accessibility and enable agentspace-worker. Then switch back to your account and click Finish setup or Refresh in AgentSpace.", comment: "")
         case .screenRecordingDenied:
-            return NSLocalizedString("In the AgentSpace session: System Settings → Privacy & Security → Screen & System Audio Recording → enable agentspace-worker. Then run `agentspace restart <space>`.", comment: "")
+            return NSLocalizedString("In the connected account's session, open System Settings → Privacy & Security → Screen & System Audio Recording and enable agentspace-worker. Then switch back to your account and click Finish setup or Refresh in AgentSpace.", comment: "")
         case .invalidCoordinate:
             return NSLocalizedString("Coordinates are display POINTS (x right, y down, origin top-left of the main display), not screenshot pixels. Divide a pixel by the reported `scale`.", comment: "")
         case .invalidAction:

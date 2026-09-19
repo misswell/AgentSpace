@@ -253,10 +253,14 @@ struct LoginInstructions: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Next, once — finish setup in the connected account")
                 .font(.callout.weight(.semibold))
-            instruction(1, NSLocalizedString("Open Fast User Switching (Control Centre) and sign in to the connected account with its existing password.", comment: ""))
-            instruction(2, NSLocalizedString("In that session, grant Accessibility and Screen Recording when the setup window asks.", comment: ""))
-            instruction(3, NSLocalizedString("Switch back to your own account. The agent keeps its desktop.", comment: ""))
-            Text("The agent shows Needs Login until step 4 is done. AgentSpace will not start an agent in your account instead — if the background session is not there, every call fails with SESSION_NOT_READY.")
+            instruction(1, NSLocalizedString("Open Fast User Switching (Control Centre) and sign in to the connected account with its existing password. This first login creates its macOS home directory.", comment: ""))
+            instruction(2, NSLocalizedString("Switch back to your own account and click Finish setup on the agent card. AgentSpace can install the worker only after that first login.", comment: ""))
+            instruction(3, NSLocalizedString("Sign in to the connected account again if needed, then grant Accessibility and Screen Recording to agentspace-worker in System Settings.", comment: ""))
+            instruction(4, NSLocalizedString("Switch back to your own account. The agent keeps its desktop.", comment: ""))
+            Text(NSLocalizedString("The connected account does not contain a second AgentSpace app. That is intentional: only the background agentspace-worker runs there; use that account's built-in System Settings for its permissions.", comment: ""))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(NSLocalizedString("The privacy prompts cannot appear before the worker starts. Until the first login and Finish setup are complete, the agent remains in Needs Login; AgentSpace never starts it in your account instead.", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

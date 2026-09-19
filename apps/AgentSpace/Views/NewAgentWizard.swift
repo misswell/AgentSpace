@@ -178,17 +178,6 @@ struct NewAgentWizard: View {
                     Text(NSLocalizedString("No unattached standard users were found. Add one in System Settings → Users & Groups, then return here.", comment: ""))
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
-                        Button(NSLocalizedString("Open Users & Groups", comment: "")) {
-                            openUsersAndGroups()
-                        }
-                        .accessibilityIdentifier("openUsersGroupsButton")
-                        Button(NSLocalizedString("Refresh accounts", comment: "")) {
-                            model.discoverAccounts()
-                        }
-                        .accessibilityIdentifier("refreshAccountsButton")
-                    }
-                    .controlSize(.small)
                 }
             } else {
                 Picker(NSLocalizedString("macOS User", comment: ""), selection: $selectedUsername) {
@@ -201,6 +190,20 @@ struct NewAgentWizard: View {
                 .pickerStyle(.radioGroup)
                 .accessibilityIdentifier("macOSUserPicker")
             }
+
+            HStack(spacing: 8) {
+                if model.availableAccounts.isEmpty {
+                    Button(NSLocalizedString("Open Users & Groups", comment: "")) {
+                        openUsersAndGroups()
+                    }
+                    .accessibilityIdentifier("openUsersGroupsButton")
+                }
+                Button(NSLocalizedString("Refresh accounts", comment: "")) {
+                    model.discoverAccounts()
+                }
+                .accessibilityIdentifier("refreshAccountsButton")
+            }
+            .controlSize(.small)
 
             Text(NSLocalizedString("Agent display name", comment: ""))
                 .font(.callout.weight(.medium))

@@ -41,6 +41,94 @@ final class AccountAttachServiceTests: XCTestCase {
         XCTAssertEqual(outcome.account?.username, "agentdev")
     }
 
+    func testAttachDefersWorkerUntilFirstLoginWhenHomeIsMissing() throws {
+        let root = "/tmp/attach-first-login-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let account = LocalAccount(
+            username: "_agentspace_a5b707",
+            uid: 503,
+            displayName: "AgentUse",
+            homeDirectory: "/Users/_agentspace_a5b707",
+            isAdministrator: false)
+        var calls: [HelperOperation] = []
+
+        let outcome = AccountAttachService.attach(
+            account: account,
+            displayName: "AgentUse",
+            workspace: .none,
+            sharedFolders: [],
+            options: .init(root: root, workspaceDirectory: root + "/Worktrees", mainUser: "guofeng"),
+            transport: { request in
+                calls.append(request.operation)
+                switch request.operation {
+                case .prepareRuntimeDirectory:
+                    let directory = root + "/Runtime/" + request.spaceID!.uuidString
+                    try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+                    return HelperResponse(id: request.id, result: .obj(["runtimeDirectory": .string(directory)]))
+                case .installWorker:
+                    return HelperResponse(id: request.id, result: .obj([
+                        "deferred": .bool(true),
+                        "reason": .string("homeDirectoryMissing"),
+                    ]))
+                default:
+                    XCTFail("the worker must not be started before the account's first login")
+                    return HelperResponse(id: request.id, error: AgentSpaceError(
+                        code: .helperRejected, message: "unexpected operation"))
+                }
+            })
+
+        XCTAssertTrue(outcome.ok, outcome.error?.message ?? "")
+        XCTAssertEqual(calls, [.prepareRuntimeDirectory, .installWorker])
+        XCTAssertEqual(outcome.account?.state, .needsLogin)
+        XCTAssertTrue(outcome.steps.contains { step in
+            guard step.name == "install worker" else { return false }
+            if case .skipped(let reason) = step.outcome {
+                return reason.contains("first GUI login")
+            }
+            return false
+        })
+        XCTAssertEqual(SpaceRegistry.load(root: root).spaces.first?.state, .needsLogin)
+    }
+
+    func testFinishPendingSetupInstallsAndStartsAfterFirstLogin() throws {
+        let root = "/tmp/attach-finish-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let account = AgentAccount(
+            name: "AgentUse",
+            username: "_agentspace_a5b707",
+            uid: 503,
+            homeDirectory: "/Users/_agentspace_a5b707",
+            runtimeRoot: root,
+            state: .needsLogin)
+        var registry = SpaceRegistry()
+        registry.upsert(account)
+        try registry.save(root: root)
+        var calls: [HelperOperation] = []
+
+        let outcome = AccountAttachService.finishPendingSetup(
+            account: account,
+            options: .init(root: root, workspaceDirectory: root + "/Worktrees", mainUser: "guofeng"),
+            transport: { request in
+                calls.append(request.operation)
+                switch request.operation {
+                case .installWorker:
+                    return HelperResponse(id: request.id, result: .obj(["label": .string("worker")]))
+                case .startWorker:
+                    return HelperResponse(id: request.id, result: .obj(["started": .bool(true)]))
+                default:
+                    return HelperResponse(id: request.id, error: AgentSpaceError(
+                        code: .helperRejected, message: "unexpected operation"))
+                }
+            },
+            readiness: { _ in true },
+            registry: registry)
+
+        XCTAssertTrue(outcome.ok, outcome.error?.message ?? "")
+        XCTAssertEqual(calls, [.installWorker, .startWorker])
+        XCTAssertEqual(outcome.account?.state, .ready)
+        XCTAssertEqual(SpaceRegistry.load(root: root).spaces.first?.state, .ready)
+    }
+
     func testDetachNeverDeletesOrLogsOutTheMacOSUser() throws {
         let root = "/tmp/detach-\(UUID().uuidString)"
         defer { try? FileManager.default.removeItem(atPath: root) }
