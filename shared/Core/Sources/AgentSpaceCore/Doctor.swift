@@ -20,12 +20,18 @@ public enum Doctor {
         public var status: Status
         public var detail: String
         public var fix: String?
+        /// Machine-readable name of the one in-app action that fixes this
+        /// check, so the GUI can offer a button instead of terminal advice.
+        /// The core names the action; the app supplies the behaviour.
+        public var actionHint: String?
 
-        public init(name: String, status: Status, detail: String, fix: String? = nil) {
+        public init(name: String, status: Status, detail: String, fix: String? = nil,
+                    actionHint: String? = nil) {
             self.name = name
             self.status = status
             self.detail = detail
             self.fix = fix
+            self.actionHint = actionHint
         }
 
         public var symbol: String {
@@ -91,7 +97,10 @@ public enum Doctor {
         }
     }
 
-    public static func run(root: String? = nil) -> Report {
+    /// `orphanedAccounts` is the set of AgentSpace-named macOS accounts that
+    /// have no Space record. `nil` means the caller could not ask the helper,
+    /// and the check is omitted rather than faked as a pass.
+    public static func run(root: String? = nil, orphanedAccounts: [String]? = nil) -> Report {
         var checks: [Check] = []
 
         // 1. Apple Silicon. Plan §3: v1 is arm64 only.
@@ -241,6 +250,31 @@ public enum Doctor {
             status: .pass,
             detail: "Accessibility = \(ownAX), Screen Recording = \(ownSR). TCC attributes grants to the responsible process, so for a CLI this reflects your terminal, not the worker.",
             fix: nil))
+
+        // 12. Orphaned accounts: AgentSpace-named macOS users with no Space
+        // record. Reality check: the first real create hit a macOS 26 removed
+        // tool, the helper's own cleanup reported success without removing the
+        // dslocal record, and the result was an account the app could neither
+        // list nor delete. This check makes that state visible, and the app
+        // turns it into a button.
+        if let orphans = orphanedAccounts {
+            if orphans.isEmpty {
+                checks.append(Check(
+                    name: NSLocalizedString("Orphaned accounts", comment: ""),
+                    status: .pass,
+                    detail: "Every AgentSpace-named account on this Mac belongs to a Space in the registry.",
+                    fix: nil))
+            } else {
+                checks.append(Check(
+                    name: NSLocalizedString("Orphaned accounts", comment: ""),
+                    status: .fail,
+                    detail: String(
+                        format: NSLocalizedString("AgentSpace-named accounts with no Space record, left behind by an interrupted creation: %@.", comment: ""),
+                        orphans.joined(separator: ", ")),
+                    fix: NSLocalizedString("Use Delete Orphaned Accounts — the helper removes the named accounts and their homes. Nothing else on this Mac is touched.", comment: ""),
+                    actionHint: "deleteOrphans"))
+            }
+        }
 
         return Report(checks: checks)
     }

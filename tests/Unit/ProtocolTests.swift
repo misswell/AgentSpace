@@ -200,6 +200,16 @@ final class RecoveryHintCodableTests: XCTestCase {
         // The core names the recovery; it cannot carry a closure across the
         // wire, so the enum's raw values are the whole contract.
         XCTAssertEqual(RecoveryHint.installCommandLineTools.rawValue, "installCommandLineTools")
+        XCTAssertEqual(RecoveryHint.removeOrphanedAccounts.rawValue, "removeOrphanedAccounts")
+    }
+
+    func testOrphanHintRoundTrips() throws {
+        let error = AgentSpaceError(
+            code: .helperRejected, message: "the partial account is still on this Mac",
+            recoveryHint: .removeOrphanedAccounts)
+        let data = try JSONEncoder().encode(error)
+        let decoded = try JSONDecoder().decode(AgentSpaceError.self, from: data)
+        XCTAssertEqual(decoded.recoveryHint, RecoveryHint.removeOrphanedAccounts)
     }
 }
 

@@ -720,7 +720,11 @@ case "diagnostics":
     }
 
 case "doctor":
-    let report = Doctor.run(root: rootOverride)
+    // The orphan-account check needs the helper, the only thing that can
+    // enumerate AgentSpace-named macOS accounts. A CLI the helper refuses —
+    // an unsigned dev build, say — yields nil here, and the check is omitted
+    // rather than reported as a pass it did not verify.
+    let report = Doctor.run(root: rootOverride, orphanedAccounts: HelperClient.agentSpaceAccounts())
     if emitter.json {
         print(emitter.pretty(report.json))
     } else {

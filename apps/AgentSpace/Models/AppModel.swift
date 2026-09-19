@@ -63,6 +63,11 @@ final class AppModel: ObservableObject {
     @Published var showingNewSpace = false
     @Published var showingDoctor = false
     @Published private(set) var doctorReport: Doctor.Report?
+    /// AgentSpace-named accounts with no Space record, as last computed by
+    /// `runDoctor`. Empty when the helper could not be reached, so the delete
+    /// button never appears for a list this app could not verify.
+    @Published private(set) var orphanedUsernames: [String] = []
+    @Published private(set) var isDeletingOrphans = false
 
     /// A failure phrased for a human, with the code kept for the detail line.
     /// When the core marks a one-button recovery (`actionTitle` non-nil), the
@@ -406,8 +411,71 @@ final class AppModel: ObservableObject {
 
     // MARK: - Doctor
 
+    /// Run the checks, including the orphan-account check.
+    ///
+    /// The helper is the only thing that can enumerate AgentSpace-named macOS
+    /// accounts, so the app asks it, subtracts the registry's usernames, and
+    /// hands Doctor the remainder. A helper that cannot be reached yields
+    /// `nil`, and Doctor omits the check rather than claiming a pass it did
+    /// not verify.
     func runDoctor() {
-        doctorReport = Doctor.run()
+        let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let accounts = HelperClient.agentSpaceAccounts()
+            let registered = Set(SpaceRegistry.load(root: root).spaces.map(\.username))
+            let orphans = accounts.map { names in
+                names.filter { !registered.contains($0) }.sorted()
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.orphanedUsernames = orphans ?? []
+                self.doctorReport = Doctor.run(root: root, orphanedAccounts: orphans)
+            }
+        }
+    }
+
+    /// Remove accounts an interrupted creation left behind. Each delete is a
+    /// typed helper operation (`deleteUser`), and the names are re-checked
+    /// against the §8 naming contract here as well as in the helper — an
+    /// account this app cannot prove it created is never offered for removal.
+    func deleteOrphanedAccounts() {
+        guard !isDeletingOrphans else { return }
+        let names = orphanedUsernames.filter { HelperValidation.isAgentSpaceAccount($0) }
+        guard !names.isEmpty else { return }
+        isDeletingOrphans = true
+        Task {
+            let failures: [(String, String)] = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    var failures: [(String, String)] = []
+                    for name in names {
+                        let request = HelperRequest(operation: .deleteUser, username: name, removeHome: true)
+                        do {
+                            let response = try HelperClient.call(request)
+                            if let error = response.error {
+                                failures.append((name, error.message))
+                            }
+                        } catch {
+                            failures.append((name, error.localizedDescription))
+                        }
+                    }
+                    continuation.resume(returning: failures)
+                }
+            }
+            self.isDeletingOrphans = false
+            if failures.isEmpty {
+                self.lastError = PresentedError(
+                    code: "ORPHANS_REMOVED",
+                    message: String(
+                        format: NSLocalizedString("Removed %d orphaned account(s).", comment: ""),
+                        names.count))
+            } else {
+                self.lastError = PresentedError(
+                    code: "HELPER_REJECTED",
+                    message: failures.map { "\($0.0): \($0.1)" }.joined(separator: "\n"),
+                    fix: NSLocalizedString("Some accounts could not be removed. The helper's log has the detail; Export Diagnostics collects it.", comment: ""))
+            }
+            self.runDoctor()
+        }
     }
 
     // MARK: - Space actions
@@ -424,6 +492,15 @@ final class AppModel: ObservableObject {
         case .installCommandLineTools:
             presented.actionTitle = NSLocalizedString("Install Command Line Tools…", comment: "")
             presented.action = { [weak self] in self?.installCommandLineTools() }
+        case .removeOrphanedAccounts:
+            // The failing operation already named the account; Doctor is where
+            // it becomes visible and removable, so the button opens Doctor and
+            // re-runs the checks rather than guessing at a name from the text.
+            presented.actionTitle = NSLocalizedString("Open Doctor…", comment: "")
+            presented.action = { [weak self] in
+                self?.showingDoctor = true
+                self?.runDoctor()
+            }
         case nil:
             break
         }

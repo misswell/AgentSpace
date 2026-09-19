@@ -297,3 +297,14 @@
 "The Xcode Command Line Tools are already installed. Try creating the Space again." = "Xcode 命令行工具已安装。请重新尝试创建 Agent Space。";
 "Could not start the Command Line Tools installer." = "无法启动命令行工具安装器。";
 "Install the Xcode Command Line Tools from Software Update settings, or choose a different workspace kind." = "请从“软件更新”设置安装 Xcode 命令行工具，或选择其它工作区类型。";
+
+"Orphaned accounts" = "孤立的账户";
+"Every AgentSpace-named account on this Mac belongs to a Space in the registry." = "这台 Mac 上所有以 AgentSpace 命名的账户都对应注册表中的一个 Space。";
+"AgentSpace-named accounts with no Space record, left behind by an interrupted creation: %@." = "以下以 AgentSpace 命名的账户没有对应的 Space 记录，是创建中断后遗留的：%@。";
+"Use Delete Orphaned Accounts — the helper removes the named accounts and their homes. Nothing else on this Mac is touched." = "请点击“删除孤立账户”——特权助手只会删除上述账户及其主目录，不会触碰这台 Mac 上的其它任何内容。";
+"Delete Orphaned Accounts…" = "删除孤立账户…";
+"Removing…" = "正在删除…";
+"Removed %d orphaned account(s)." = "已删除 %d 个孤立账户。";
+"Some accounts could not be removed. The helper's log has the detail; Export Diagnostics collects it." = "部分账户未能删除。详细原因见 helper 日志，可用“导出诊断信息”收集。";
+
+"Open Doctor…" = "打开 Doctor…";

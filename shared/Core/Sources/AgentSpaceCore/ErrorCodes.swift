@@ -166,6 +166,11 @@ public enum RecoveryHint: String, Codable, Sendable {
     /// `xcode-select --install` opens a GUI installer, so the app can launch
     /// it directly from a button — no terminal involved.
     case installCommandLineTools
+
+    /// An interrupted create left an AgentSpace-named account behind that the
+    /// helper could not remove itself. Doctor lists it and the app offers the
+    /// removal as a button, so the user never meets `sysadminctl`.
+    case removeOrphanedAccounts
 }
 
 /// The error object inside a failed RPC reply (plan §21).

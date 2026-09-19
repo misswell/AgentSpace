@@ -141,14 +141,25 @@ final class HelperService: NSObject, HelperXPCProtocol {
                 // A failed `sysadminctl` has usually created the account record
                 // already. Leaving a half-made account behind would make the next
                 // attempt fail with "already exists" and confuse the user, so the
-                // partial state is cleaned up before reporting failure — and a
-                // cleanup that itself failed must be logged, because an orphaned
-                // account with no registry entry and no stored password is
-                // otherwise invisible to the app and unexplainable to the user.
+                // partial state is cleaned up before reporting failure.
+                //
+                // Reality check, from the first real create on this machine: the
+                // old cleanup trusted sysadminctl's exit code, the tool returned
+                // 0, and the account record survived — an orphan with no Space
+                // record, no stored password and no way for the app to list it.
+                // So the cleanup now uses the same `-secure` form as the delete
+                // RPC and then verifies the account is actually gone, reporting
+                // it honestly when it is not (Doctor's orphan check will offer
+                // the removal as a button).
                 log.error("createUser failed, removing partial account: \(result.standardError)")
-                let undo = CommandRunner.run([HelperCommand.sysadminctl, "-deleteUser", username], timeout: 60)
-                if !undo.ok {
-                    log.error("partial-account cleanup failed (\(undo.exitCode)): \(undo.standardError) — \(username) is left behind and must be removed by hand")
+                let undo = CommandRunner.run(
+                    [HelperCommand.sysadminctl, "-deleteUser", username, "-secure"], timeout: 60)
+                if self.uid(of: username) != nil {
+                    log.error("partial-account cleanup left \(username) behind (delete exited \(undo.exitCode): \(undo.standardError)) — Doctor's orphan check can remove it")
+                    return HelperResponse(id: request.id, error: AgentSpaceError(
+                        code: .helperRejected,
+                        message: "could not create the account \(username): \(result.standardError.isEmpty ? "exit \(result.exitCode)" : result.standardError). The partial account \(username) is still on this Mac.",
+                        recoveryHint: .removeOrphanedAccounts))
                 }
                 return HelperResponse(id: request.id, error: AgentSpaceError(
                     code: .helperRejected,

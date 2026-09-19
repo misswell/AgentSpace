@@ -297,3 +297,14 @@
 "The Xcode Command Line Tools are already installed. Try creating the Space again." = "The Xcode Command Line Tools are already installed. Try creating the Space again.";
 "Could not start the Command Line Tools installer." = "Could not start the Command Line Tools installer.";
 "Install the Xcode Command Line Tools from Software Update settings, or choose a different workspace kind." = "Install the Xcode Command Line Tools from Software Update settings, or choose a different workspace kind.";
+
+"Orphaned accounts" = "Orphaned accounts";
+"Every AgentSpace-named account on this Mac belongs to a Space in the registry." = "Every AgentSpace-named account on this Mac belongs to a Space in the registry.";
+"AgentSpace-named accounts with no Space record, left behind by an interrupted creation: %@." = "AgentSpace-named accounts with no Space record, left behind by an interrupted creation: %@.";
+"Use Delete Orphaned Accounts — the helper removes the named accounts and their homes. Nothing else on this Mac is touched." = "Use Delete Orphaned Accounts — the helper removes the named accounts and their homes. Nothing else on this Mac is touched.";
+"Delete Orphaned Accounts…" = "Delete Orphaned Accounts…";
+"Removing…" = "Removing…";
+"Removed %d orphaned account(s)." = "Removed %d orphaned account(s).";
+"Some accounts could not be removed. The helper's log has the detail; Export Diagnostics collects it." = "Some accounts could not be removed. The helper's log has the detail; Export Diagnostics collects it.";
+
+"Open Doctor…" = "Open Doctor…";

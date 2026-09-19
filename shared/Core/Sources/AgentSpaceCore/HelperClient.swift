@@ -198,4 +198,22 @@ public enum HelperClient {
         }
         return response
     }
+
+    /// The AgentSpace-named accounts the helper can see, or `nil` when the
+    /// helper is unreachable. Used by Doctor's orphan check: names here that
+    /// have no Space record are accounts an interrupted creation left behind,
+    /// and they are otherwise invisible to the app.
+    public static func agentSpaceAccounts(timeout: TimeInterval = 10) -> [String]? {
+        let request = HelperRequest(operation: .helperStatus)
+        guard let response = try? call(request, timeout: timeout),
+              let result = response.result,
+              case .object(let fields) = result,
+              case .array(let values)? = fields["spaceAccounts"] else {
+            return nil
+        }
+        return values.compactMap { value in
+            if case .string(let name) = value { return name }
+            return nil
+        }
+    }
 }

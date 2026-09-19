@@ -55,8 +55,7 @@ struct DoctorView: View {
                         ForEach(Array(report.checks.enumerated()), id: \.offset) { _, check in
                             CheckRow(check: check)
                             Divider()
-                        }
-                    }
+                        }                    }
                 }
                 Divider()
                 HStack {
@@ -95,6 +94,7 @@ struct DoctorView: View {
 
 private struct CheckRow: View {
     var check: Doctor.Check
+    @EnvironmentObject private var model: AppModel
 
     private var symbol: String {
         switch check.status {
@@ -132,6 +132,28 @@ private struct CheckRow: View {
                             .font(.callout)
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
+                    }
+                    // A check can name the one in-app action that fixes it, so
+                    // the fix is a button here rather than advice to run
+                    // something in a terminal.
+                    if check.actionHint == "deleteOrphans" {
+                        HStack(spacing: 8) {
+                            Button {
+                                model.deleteOrphanedAccounts()
+                            } label: {
+                                if model.isDeletingOrphans {
+                                    HStack(spacing: 6) {
+                                        ProgressView().controlSize(.small)
+                                        Text(NSLocalizedString("Removing…", comment: ""))
+                                    }
+                                } else {
+                                    Text(NSLocalizedString("Delete Orphaned Accounts…", comment: ""))
+                                }
+                            }
+                            .disabled(model.isDeletingOrphans)
+                            .help(Text("The helper deletes only accounts named _agentspace_<6 hex>. Your own accounts are never candidates."))
+                        }
+                        .padding(.top, 2)
                     }
                 }
             }

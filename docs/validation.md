@@ -7238,3 +7238,70 @@ check-all three layers pass.
 | 427 | RecoveryHint round-trips and legacy hint-less errors decode nil | pass | §264 — tests/Unit/ProtocolTests.swift RecoveryHintCodableTests |
 | 428 | Helper diagnostics copy points to in-app Export Diagnostics / Doctor, not `log show` or `agentspace doctor` | pass | §264 — ErrorCodes.swift remediation, HelperInstallation.swift fix strings, en/zh-Hans tables |
 | 429 | All privileged/system operations reachable from app buttons only (Install Helper, Create/Stop/Logout/Delete, password reveal, CLT installer) | pass | §264 — DoctorView.swift:300–309, SpaceDetailView.swift:134/396/399/431, AppModel.swift |
+
+
+---
+
+## 265. The first real create: what it exposed, and the orphan-account path it produced
+
+The user ran the real flow on this machine — signed app, Install
+Helper, Create Space "AgentUse" — and it produced an orphan. The
+evidence, in order:
+
+- `_agentspace_a5b707` (RealName `AgentUse`, uid 503) exists as a
+  dslocal record, with **no home, no LaunchAgent, no runtime
+  directory, no Keychain password, and no registry entry**.
+- helper log 00:27:05: `createUser failed, removing partial account:
+  posix_spawn failed (2)` — ENOENT. The helper process (pid 11183)
+  started 00:26:57, i.e. this was a live create.
+- The command that did not exist is `/usr/bin/createhomedir`, which
+  Apple removed; `git log -S` dates the skip fix to **00:47**, twenty
+  minutes *after* the failure. So the installed helper was the older
+  binary, and the failure is the very one that fix was written for.
+- Cleanup then reported no failure, yet the account survived: the old
+  undo ran `sysadminctl -deleteUser` (no `-secure`) and trusted its
+  exit code.
+
+Three product gaps, all closed here:
+
+1. **Orphans were invisible.** `HelperService.status` already lists
+   AgentSpace-named accounts, but nothing compared them to the
+   registry. `Doctor.run` now takes `orphanedAccounts: [String]?`
+   (nil = helper unreachable → the check is omitted, never faked as a
+   pass), the app computes the set from the helper's `helperStatus`
+   reply minus the registry's usernames, and the CLI does the same.
+   A new `Doctor.Check.actionHint` names the one in-app action.
+2. **Orphans were unremovable in-app.** Doctor renders a
+   "Delete Orphaned Accounts…" button for that check; each name is
+   re-validated against the §8 contract in the app *and* in the
+   helper before a typed `deleteUser` call. No `sysadminctl` for the
+   user to type.
+3. **The source is fixed.** The helper's partial-account cleanup now
+   uses the same `-secure` form as the delete RPC and then
+   **verifies** the account is gone; if it is not, the failure is
+   logged and returned with `RecoveryHint.removeOrphanedAccounts`, so
+   the alert itself offers "Open Doctor…".
+
+Also fixed en route: `dist/` had been rebuilt outside the notarize
+flow, which the check-all dist guard caught (an unstapled app is not
+shippable). Re-notarized and stapled; the credential is the machine's
+`octoshrink-notary` profile that docs/security.md:379 records as
+verified. That guard doing its job is itself the evidence it works.
+
+New tests: orphan check in its three states (unknown/none/some), the
+"only the orphan check carries an action hint" inverse promise, and
+the new hint's round-trip. 369 Swift + 23 MCP green; check-all's three
+layers pass.
+
+What is *not* claimed: the orphan on this machine is still present —
+its removal needs the newly signed helper installed (the running one
+is the pre-fix binary), which is a user action in the app, not
+something this session can perform.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 430 | Doctor's orphan check distinguishes unknown / none / some, and only it carries an action hint | pass | §265 — tests/Unit/DoctorTests.swift (4 tests) |
+| 431 | The app offers orphan removal as a button, re-validating §8 names on both sides | pass | §265 — AppModel.swift runDoctor/deleteOrphanedAccounts, DoctorView.swift CheckRow |
+| 432 | The helper verifies its partial-account cleanup and reports an unremoved account instead of trusting an exit code | pass | §265 — HelperService.swift createUser failure path |
+| 433 | The orphan-producing failure is dateable to the pre-fix helper; the skip fix landed 20 minutes later | recorded | §265 — helper log 00:27:05, `git log -S` at 00:47 (c95b05d) |
+| 434 | dist rebuilt outside the notarize flow is caught by the check-all dist guard | pass | §265 — check-all message "dist/AgentSpace.app is NOT stapled" |
