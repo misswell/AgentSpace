@@ -5,7 +5,7 @@ through [`AGENTS.md`](../AGENTS.md) at the repo root — or `CLAUDE.md`, which
 points at the same file — because that is the file agent tooling loads
 automatically; this document is the content.) It is the map: what the
 product is, what is done, what is left, and the conventions a change must not
-break. The exhaustive evidence lives in `docs/validation.md` (272 numbered
+break. The exhaustive evidence lives in `docs/validation.md` (273 numbered
 sections, each with claims and the tests that pin them); the product plan for
 the account vocabulary lives in `docs/v2-plan.md`. This file is the summary
 those two assume you already found.
@@ -106,8 +106,9 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
 | V2 account vocabulary: `AgentAccount` record, 2-step create wizard (the purpose picker left in §271 — nothing reads the field yet), Finder-style account cards, menu bar, "Open Desktop" | ✅ merged | `docs/v2-plan.md` §1–§9, §14–§16; validation §266, §271; §272 — the word "Space" is gone from every user-facing string; "agent" is the only noun, while the registry's `"spaces"` key, wire methods and deep links keep their old spellings |
 | CLI: `accounts`/`open`/`create account` (new) beside `list`/`desktop`/`create` (kept) | ✅ | validation §266; CLI smoke |
 | MCP: `agent_list/status/open_desktop/screenshot/click/type/launch/exec` beside the 14 `agentspace_*` tools | ✅ | `packages/agentspace-mcp`; `scripts/mcp-smoke.sh` |
-| Localization: English + Simplified Chinese, English source text as the key | ✅ 369 keys per table | `tests/Unit/LocalizationTests.swift` enforces parity and coverage |
+| Localization: English + Simplified Chinese, English source text as the key | ✅ 370 keys per table | `tests/Unit/LocalizationTests.swift` enforces parity and coverage |
 | Release pipeline: bundle → sign → DMG → notarize → staple | ✅ working | `scripts/release.sh`, `scripts/notarize.sh`; validation §57 |
+| Version visibility: every bundle stamps `CFBundleVersion` from git and the sidebar footer shows `Build 0.1.0 (<n>)`, so a stale copy is recognizable on screen | ✅ | `scripts/bundle-app.sh`, `AppModel.displayVersion`; validation §273; gui-verify pins footer == plist |
 
 ## 4. What is next
 
@@ -129,12 +130,15 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
    answering" while launchd kept serving the pre-update binary
    (validation §270); and a create that the machine refused used to
    display the sign-in instructions for an account that was never made
-   (validation §272). On this Mac the endpoint-security gate refuses
-   `sysadminctl -addUser` silently (exit 0, no record), so the first
-   honest failure on screen is expected — the overlay's ✗ line and
-   refusal banner are the truth, not a bug. If the card says the helper
-   is an older build, press its "Reinstall Helper…" button once (one
-   password prompt), then create.
+   (validation §272). **That refusal is now proven on this Mac** (validation
+   §272 claim 469): pressing Create ends at ✓ plan workspace / ✗ create
+   account with the HELPER_REJECTED banner, because the endpoint-security
+   gate silently drops `sysadminctl -addUser` (exit 0, no record) and the
+   helper's uid re-probe catches it. So the first usable agent cannot be
+   created **on this machine** — run the same wizard on a Mac without that
+   gate, or get the helper's account creation allowlisted. If the card says
+   the helper is an older build, press its "Reinstall Helper…" button once
+   (one password prompt) before creating.
 3. **(Only when rebuilding dist)** the notarization credential:
    `scripts/notarize.sh` defaults to the keychain profile `octoshrink-notary`
    (verified live 2026-09-19), falling back to the `asc` API key. The current

@@ -29,6 +29,17 @@ struct SidebarView: View {
 
                     Spacer()
 
+                    // The build stamp, always on screen. Every bundle carries a
+                    // new one (scripts/bundle-app.sh), so a stale copy is
+                    // recognizable without opening the About panel.
+                    Text("Build \(AppModel.displayVersion)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("appBuildVersion")
+
+                    Spacer()
+
                     Button {
                         model.reload()
                     } label: {

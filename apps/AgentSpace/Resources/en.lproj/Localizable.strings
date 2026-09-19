@@ -375,3 +375,4 @@
 "Reinstall the helper below. macOS will ask for your password once: it stops the old daemon and registers the current one." = "Reinstall the helper below. macOS will ask for your password once: it stops the old daemon and registers the current one.";
 "apply workspace" = "apply workspace";
 "This did not finish" = "This did not finish";
+"Build %@" = "Build %@";

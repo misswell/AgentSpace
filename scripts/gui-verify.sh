@@ -6,6 +6,14 @@
 # pass/fail counting, non-zero exit on any failure — so a Settings refactor
 # can be regression-checked in one command instead of by memory.
 #
+# LANGUAGE RULE (§273): the app follows the system language and a test must
+# not change that. Every control is found by its AXIdentifier, by a
+# language-stable attribute (the ⌘, menu char, the toolbar index), or by a
+# string that is deliberately never translated (an error code, "960 px").
+# An earlier version forced `-AppleLanguages (en)` on the instance it
+# launched; the owner then found themselves clicking through a create flow in
+# an English window on a Chinese system. That forcing is banned here.
+#
 # Requirements: Accessibility permission for the calling terminal (System
 # Events drives the app), and the app built in dist/.
 set -u
@@ -20,11 +28,40 @@ check() { # check <name> <expected> <actual>
   else FAIL=$((FAIL+1)); note "FAIL $1: expected [$2] got [$3]"; fi
 }
 
+# The recursive finder, shared by every check. `entire contents` returns
+# nothing on SwiftUI windows, so descend explicitly through UI elements and
+# match on AXIdentifier — the one attribute no localization touches.
+cat > /tmp/gui-verify-lib.applescript <<'APPLESCRIPT'
+on findById(theWindow, wantedId, theClass, theDepth)
+	if theDepth > 8 then return missing value
+	tell application "System Events"
+		try
+			repeat with _e in (UI elements of theWindow)
+				try
+					if class of _e is theClass then
+						if ((value of attribute "AXIdentifier" of _e) as text) is wantedId then return _e
+					end if
+				end try
+			end repeat
+		end try
+		repeat with _e in (UI elements of theWindow)
+			set _found to my findById(_e, wantedId, theClass, theDepth + 1)
+			if _found is not missing value then return _found
+		end repeat
+	end tell
+	return missing value
+end findById
+APPLESCRIPT
+
+# The test replaces the running app; if it was open before, hand it back at
+# the end — as a normal launch, in the user's own system language.
+WAS_RUNNING=0
+pgrep -f "AgentSpace.app/Contents/MacOS/AgentSpace" >/dev/null 2>&1 && WAS_RUNNING=1
 pkill -f "AgentSpace.app/Contents/MacOS/AgentSpace" 2>/dev/null; sleep 1
 "$APP_BIN" >/dev/null 2>&1 &
 APP_PID=$!
 sleep 5
-trap 'kill $APP_PID 2>/dev/null' EXIT
+trap '{ kill $APP_PID 2>/dev/null; [ "$WAS_RUNNING" = 1 ] && open dist/AgentSpace.app; } 2>/dev/null' EXIT
 
 # --- Launch: exactly one window (§41's deep-link window bug) ----------------
 # A binary that predates onOpenURL never consumes queued agentspace:// open
@@ -34,68 +71,98 @@ trap 'kill $APP_PID 2>/dev/null' EXIT
 WINDOWS="$(osascript -e 'tell application "System Events" to tell process "AgentSpace" to return count of windows' 2>/dev/null)"
 check "launch opens exactly one window" "1" "${WINDOWS:-?}"
 
-# --- Settings: the polling floor lives in the control (§49) ----------------
-osascript <<'EOF' >/tmp/gui-verify-slider.txt 2>/dev/null
+# --- Version stamp: the sidebar shows what the bundle actually carries -------
+# The build number is stamped at bundle time (scripts/bundle-app.sh); if the
+# UI ever drifts from the plist, "am I on the new build?" becomes unanswerable
+# again, which is the failure this pins. The label around the number is
+# localized, so the check compares the "0.1.0 (284)" part, not the whole line.
+SHORT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/AgentSpace.app/Contents/Info.plist)"
+BUILDN="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' dist/AgentSpace.app/Contents/Info.plist)"
+# The sidebar footer is not in the AX tree the instant the window is; retries
+# cover the cold-start race, same as the tier check below.
+BUILD_TEXT=""
+for attempt in 1 2 3; do
+  BUILD_TEXT="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	tell process \"AgentSpace\"
+		set _t to \"\"
+		repeat with _w in windows
+			set _e to my findById(_w, \"appBuildVersion\", static text, 0)
+			if _e is not missing value then set _t to (value of _e) as text
+		end repeat
+		return _t
+	end tell
+end tell" 2>/dev/null)"
+  case "$BUILD_TEXT" in *"$SHORT ($BUILDN)"*) break;; esac
+  sleep 2
+done
+case "$BUILD_TEXT" in
+  *"$SHORT ($BUILDN)"*) check "sidebar build stamp matches the bundle" "found" "found";;
+  *) check "sidebar build stamp matches the bundle" "$SHORT ($BUILDN) in [$BUILD_TEXT]" "missing";;
+esac
+
+# --- Settings: open it the way every language names it: ⌘, ------------------
+osascript >/dev/null 2>&1 <<'EOF'
 tell application "System Events"
 	tell process "AgentSpace"
-		click menu item "Settings…" of menu 1 of menu bar item "AgentSpace" of menu bar 1
-		delay 2
-		-- the Settings window remembers its last tab; the slider is on General
-		if name of window 1 is "Advanced" then
-			click button "General" of toolbar 1 of window "Advanced"
-			delay 1.5
-		end if
-		-- the slider's AX name carries its value ("Status refresh: 3s" by
-		-- default) and it is not addressable by bare index, so use the
-		-- default-named path that §49 verified
-		set _s to slider "Status refresh: 3s" of group 1 of scroll area 1 of group 1 of window "General"
-		return (value of attribute "AXMinValue" of _s) & "|" & (value of attribute "AXMaxValue" of _s)
+		repeat with _mi in menu items of menu 1 of menu bar item "AgentSpace" of menu bar 1
+			try
+				if value of attribute "AXMenuItemCmdChar" of _mi is "," then
+					click _mi
+					exit repeat
+				end if
+			end try
+		end repeat
 	end tell
 end tell
 EOF
-# AppleScript concatenates the list with "& |" & as list items; strip both
-SLIDER="$(tr -d ' ,' </tmp/gui-verify-slider.txt 2>/dev/null)"
+sleep 2
+# The window remembers its last tab; the first toolbar button is General in
+# any language, and clicking it again when already there is a no-op.
+osascript -e 'tell application "System Events" to tell process "AgentSpace" to click button 1 of toolbar 1 of window 1' >/dev/null 2>&1
+sleep 1
+
+# --- Settings: the polling floor lives in the control (§49) -----------------
+SLIDER="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	tell process \"AgentSpace\"
+		set _s to my findById(window 1, \"statusRefreshSlider\", slider, 0)
+		if _s is missing value then return \"\"
+		return (value of attribute \"AXMinValue\" of _s) & \"|\" & (value of attribute \"AXMaxValue\" of _s)
+	end tell
+end tell" 2>/dev/null)"
+SLIDER="$(echo "$SLIDER" | tr -d ' ,')"
 check "refresh slider min=2.0"  "2.0" "${SLIDER%%|*}"
 check "refresh slider max=10.0" "10.0" "${SLIDER##*|}"
 
-# --- Settings: Preview width tiers (§53) ------------------------------------
-osascript <<'EOF' >/tmp/gui-verify-tiers.txt 2>/dev/null
-tell application "System Events"
-	tell process "AgentSpace"
-		set _g to group 2 of scroll area 1 of group 1 of window 1
-		set _p to pop up button 1 of _g
+# --- Settings: Preview width tiers (§53) -------------------------------------
+# The tier labels ("960 px" …) are deliberately untranslated, so the titles
+# compare equal in both languages.
+TIERS=""
+for attempt in 1 2; do
+  TIERS="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	tell process \"AgentSpace\"
+		set _p to my findById(window 1, \"previewWidthPicker\", pop up button, 0)
+		if _p is missing value then return \"\"
 		click _p
-		delay 0.8
-		set _out to ""
-		repeat with mi in menu items of menu 1 of _p
-			set _out to _out & (title of mi) & "|"
+		delay 1
+		set _out to \"\"
+		repeat with _mi in (menu items of menu 1 of _p)
+			set _out to _out & ((title of _mi) as text) & \"|\"
 		end repeat
 		return _out
 	end tell
-end tell
-EOF
-# the popup needs a beat after click before its menu is enumerable; one
-# retry covers the cold-start race observed between runs
-TIERS="$(sed 's/|$//; s/ //g' /tmp/gui-verify-tiers.txt 2>/dev/null)"
-if [ "$TIERS" != "960px|1280px|1600px|1920px" ]; then sleep 1.5; osascript -e 'key code 53' >/dev/null 2>&1; sleep 0.5
-  osascript <<'EOF2' >/tmp/gui-verify-tiers.txt 2>/dev/null
-tell application "System Events"
-	tell process "AgentSpace"
-		set _p to pop up button 1 of group 2 of scroll area 1 of group 1 of window "General"
-		click _p
-		delay 1.2
-		set _out to ""
-		repeat with mi in menu items of menu 1 of _p
-			set _out to _out & (title of mi) & "|"
-		end repeat
-		return _out
-	end tell
-end tell
-EOF2
-  TIERS="$(sed 's/|$//; s/ //g' /tmp/gui-verify-tiers.txt 2>/dev/null)"
-fi
+end tell" 2>/dev/null)"
+  TIERS="$(echo "$TIERS" | sed 's/|$//; s/ //g')"
+  [ "$TIERS" = "960px|1280px|1600px|1920px" ] && break
+  osascript -e 'key code 53' >/dev/null 2>&1; sleep 1
+done
 check "preview tiers" "960px|1280px|1600px|1920px" "$TIERS"
 osascript -e 'key code 53' >/dev/null 2>&1
+# close the Settings window so the deep-link phase below sees one window again
+osascript -e 'tell application "System Events" to tell process "AgentSpace" to keystroke "w" using command down' >/dev/null 2>&1
+sleep 1
 
 # --- Deep link: dead Space raises SPACE_NOT_FOUND (§46) ---------------------
 TMPROOT="$(mktemp -d /tmp/gui-verify.XXXXXX)"
@@ -108,11 +175,12 @@ sleep 4
 DEAD_ID="11111111-2222-4333-8444-555555555555"
 open "agentspace://space/$DEAD_ID"
 sleep 3
+# the alert's first static text is the error code, which is never localized
 ALERT="$(osascript -e 'tell application "System Events" to tell process "AgentSpace" to return value of static text 1 of sheet 1 of window 1' 2>/dev/null | head -c 16)"
 check "dead link alert" "SPACE_NOT_FOUND" "$ALERT"
 
 # --- report ------------------------------------------------------------------
-rm -rf "$TMPROOT" /tmp/gui-verify-slider.txt /tmp/gui-verify-tiers.txt
+rm -rf "$TMPROOT" /tmp/gui-verify-lib.applescript
 echo
 echo "gui-verify: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

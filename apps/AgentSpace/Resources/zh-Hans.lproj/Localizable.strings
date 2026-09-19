@@ -375,3 +375,4 @@
 "Reinstall the helper below. macOS will ask for your password once: it stops the old daemon and registers the current one." = "请在下方重新安装助手。macOS 只会询问一次密码：作用是停掉旧守护进程并注册当前版本。";
 "apply workspace" = "应用工作区";
 "This did not finish" = "这一步没有完成";
+"Build %@" = "构建 %@";

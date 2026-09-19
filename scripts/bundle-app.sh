@@ -56,6 +56,13 @@ cp "$BIN_DIR/AgentSpaceApp"     "$APP/Contents/MacOS/AgentSpace"
 cp "$BIN_DIR/agentspace-worker" "$APP/Contents/MacOS/agentspace-worker"
 cp "$BIN_DIR/agentspace"        "$APP/Contents/Helpers/agentspace"
 cp apps/AgentSpace/Resources/Info.plist "$APP/Contents/Info.plist"
+# Stamp the build number from git rather than editing the plist by hand:
+# every bundle produced since is distinguishable in the UI ("0.1.0 (412)"),
+# which is the guard against silently running an older copy. The repo plist
+# stays untouched so builds never dirty the tree.
+BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 0)"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$APP/Contents/Info.plist"
+echo "    version $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist") ($BUILD)"
 cp apps/AgentSpace/Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 # The helper and its LaunchDaemon. The helper goes in Contents/Library/LaunchDaemons

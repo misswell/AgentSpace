@@ -7564,6 +7564,7 @@ deep links, and legacy CLI verbs all keep their old spellings.
 | 466 | Provisioning errors are presented inside the overlay because alerts cannot cross an open sheet | pass | §272 — §269's rule applied to errors; AppModel.createSpace/deleteSpace route through `presented(for:)` |
 | 467 | The wizard's helper card pings on open, so "not answering" can only mean it was actually asked | pass | §272 — AppModel.refreshHelperState + NewAgentWizard.onAppear |
 | 468 | User-facing text says "agent" everywhere; wire/registry/CLI compatibility untouched | pass | §272 — sweep across GUI/core/helper/worker + both .lproj tables; LocalizationTests green |
+| 469 | On the owner's screen, a refused create shows ✓ plan-workspace, ✗ create-account and the refusal banner — and never the sign-in steps | pass | §272 — owner screenshot 19:01 (create "AgentUse"): overlay ends at ✗ 「创建账号」 + HELPER_REJECTED banner, no LoginInstructions; helper log 19:01:09 `sysadminctl -addUser … → exit 0` with `dscl` eDSRecordNotFound afterwards (the §272 lie, caught by the uid re-probe); no orphan left (`_agentspace_526183` absent; only the known `_agentspace_a5b707` remains) |
 
 Environment note, learned the hard way this round: `gui-verify.sh` (and any
 accessibility walk) reports **zero windows for every app** while the screen is
@@ -7574,3 +7575,60 @@ with an otherwise notarized, running build means *ask the session, not the
 code*: the pre-change build was rebuilt and control-tested and failed the
 same way. `scripts/check-all.sh` must therefore run against an unlocked
 session.
+
+The 19:01 run closed the loop on that note: with the session unlocked, the
+owner pressed Create in the shipped app and the overlay did exactly what §272
+promised — the ✗ line quoted the helper's own words ("created but has no uid,
+which should be impossible"), the banner titled 「这一步没有完成」 carried
+HELPER_REJECTED with the remediation, and no login instructions appeared for
+an account that was never made. On this machine that refusal is the correct,
+final outcome of Create; the working path for the leftover orphan stays the
+Doctor's 「Open Users & Groups…」 button.
+
+## 273. Every build says which build it is (owner's request, 2026-09-19)
+
+The owner's ask: "在我们软件上写上版本，每次更新都加版本，防止我用到旧版本."
+The concrete failure being guarded against is §270's: a rebuild lands, launchd
+keeps serving the old binary, and nothing on screen distinguishes the two.
+
+The version now has one source — the bundle's `Info.plist` — and one writer:
+`scripts/bundle-app.sh` stamps `CFBundleVersion` with `git rev-list --count HEAD`
+at bundle time, so every bundle produced is numbered and the number can never
+go backwards. The repository plist stays at `1` and is never hand-edited; a
+build therefore cannot dirty the tree or drift from git.
+
+The GUI reads the same keys rather than carrying its own string
+(`AppModel.displayVersion`), and the sidebar footer shows the build in the
+list's bottom bar — the one place that is on screen in every window state. The
+label around it is localized (`Build 0.1.0 (284)` / `构建 0.1.0 (284)`), so the
+check compares the `0.1.0 (284)` part and never the word in front of it. The
+standard About panel reads the same plist keys, so the two cannot disagree.
+
+`scripts/gui-verify.sh` gained a check that the footer matches the bundle's
+plist, which is what makes the claim mechanical rather than intended. Writing
+it surfaced a defect in the script that had nothing to do with versions:
+
+1. It addressed the UI by English AX names ("Settings…", "Status refresh: 3s").
+   On this machine the system language is Chinese, the app localizes its menus,
+   and every name-based query returned nothing — three pre-existing failures
+   that were the script's, not the app's.
+2. The first fix was wrong and cost the owner an hour. Forcing
+   `-AppleLanguages (en)` on the launched instance made the checks pass by
+   making the *test* monolingual, and the English window it left on screen was
+   the one the owner then clicked Create in — a test had changed the product's
+   behaviour for the only person who matters. Reverted.
+3. The script now launches the app exactly as the owner does and finds every
+   control by `AXIdentifier` (`statusRefreshSlider`, `previewWidthPicker`,
+   `appBuildVersion`), by the ⌘, menu-character attribute, or by strings that
+   are deliberately never translated (an error code, "960 px"). `entire
+   contents` returns nothing on a SwiftUI window, so the finder descends
+   `UI elements` explicitly. It also restores the app to the owner's own
+   language on exit, because it has to quit their instance to test.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 470 | Every bundle carries a build number derived from git, and no build can repeat or lower it | pass | §273 — bundle-app.sh stamps `CFBundleVersion` from `git rev-list --count HEAD`; the printed version line is the observable |
+| 471 | The running app states its own version on screen, in a place visible in every window state | pass | §273 — `AppModel.displayVersion` + the sidebar footer; gui-verify "sidebar build stamp matches the bundle" |
+| 472 | The GUI never carries a version string that could disagree with the bundle | pass | §273 — both read `Info.plist`; the repo plist is untouched by builds |
+| 473 | gui-verify is independent of the machine's UI language **without changing the language the owner sees** | pass | §273 — controls found by `AXIdentifier`, the ⌘, menu char and untranslated strings; the `-AppleLanguages (en)` shortcut that put an English window in front of the owner was tried, caught and reverted |
+| 474 | A test must not alter the behaviour it is measuring | recorded | §273 — forcing English made the checks pass and the product wrong; the owner's screenshot is the evidence |

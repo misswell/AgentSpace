@@ -22,6 +22,17 @@ import AgentSpaceCore
 @MainActor
 final class AppModel: ObservableObject {
 
+    /// "0.1.0 (412)" — marketing version plus the build number that
+    /// `scripts/bundle-app.sh` stamps from git at bundle time. Shown in the
+    /// sidebar so "am I looking at the copy I just built?" is answered on
+    /// screen; the About panel reads the same plist keys.
+    static let displayVersion: String = {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "dev"
+        let build = info?["CFBundleVersion"] as? String ?? "0"
+        return "\(short) (\(build))"
+    }()
+
     @Published private(set) var snapshots: [SpaceSnapshot] = []
     @Published var selection: UUID?
     /// Settable because SwiftUI's `alert(item:)` needs a two-way binding.

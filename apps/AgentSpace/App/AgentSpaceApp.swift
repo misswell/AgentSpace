@@ -171,6 +171,7 @@ struct SettingsView: View {
                     Slider(value: $statusRefreshSeconds, in: 2...10, step: 1) {
                         Text(String(format: NSLocalizedString("Status refresh: %lds", comment: ""), Int(statusRefreshSeconds)))
                     }
+                    .accessibilityIdentifier("statusRefreshSlider")
                     Text("Plan §53 sets a 2–5 s floor. Polling faster costs more than the app manages, so it is not offered.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -181,6 +182,7 @@ struct SettingsView: View {
                         Text("1600 px").tag(1600)
                         Text("1920 px").tag(1920)
                     }
+                    .accessibilityIdentifier("previewWidthPicker")
                     Text("The Desktop Viewer captures at 1 FPS while it is open, and never while it is closed. Click coordinates are unaffected by this: they are derived from the display's own size, not the image's.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
