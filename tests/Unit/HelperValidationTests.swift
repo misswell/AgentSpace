@@ -89,93 +89,69 @@ final class HelperValidationTests: XCTestCase {
         }
     }
 
-    // MARK: - logoutSession (§40)
+    // MARK: - worker teardown and legacy session operation
 
-    func testLogoutSessionRequiresASpaceAccountAndItsOwnUid() {
-        let good = HelperRequest(
+    func testWorkerOperationsAcceptAnExistingStandardAccountButNotTheCurrentUser() {
+        let attach = HelperRequest(
+            operation: .installWorker,
+            spaceID: UUID(),
+            username: "agentdev",
+            mainUser: "guofeng",
+            runtimeRoot: "/Users/Shared/.AgentSpace")
+        let current = HelperRequest(
+            operation: .installWorker,
+            spaceID: UUID(),
+            username: "guofeng",
+            mainUser: "guofeng",
+            runtimeRoot: "/Users/Shared/.AgentSpace")
+        let accounts = machine.union(["agentdev"])
+
+        XCTAssertNil(HelperValidation.validate(attach, existingAccounts: accounts))
+        XCTAssertNotNil(HelperValidation.validate(current, existingAccounts: accounts))
+    }
+
+    func testTeardownShapeSurvivesAnExternallyDeletedAccount() {
+        let request = HelperRequest(
+            operation: .removeRuntimeDirectory,
+            spaceID: UUID(),
+            username: "agentdev",
+            mainUser: "guofeng",
+            runtimeRoot: RuntimePaths.root,
+            uid: 502)
+        XCTAssertNil(HelperValidation.validate(request, existingAccounts: machine))
+
+        var unbound = request
+        unbound.uid = nil
+        XCTAssertNotNil(HelperValidation.validate(unbound, existingAccounts: machine))
+    }
+
+    func testLegacyLogoutSessionIsAlwaysRefusedInV3() {
+        let request = HelperRequest(
             operation: .logoutSession,
             username: "_agentspace_a1b2c3",
             uid: 502)
-        XCTAssertNil(HelperValidation.validate(good, existingAccounts: machine),
-                     "a valid request for an existing Space account is acceptable")
-
-        // The main user's name is refused — a logout that could target the
-        // human's own session would be a self-destruct button in a menu.
-        let mainUser = HelperRequest(operation: .logoutSession, username: "guofeng", uid: 501)
-        XCTAssertEqual(
-            HelperValidation.validate(mainUser, existingAccounts: machine)?.code,
-            .helperRejected)
-
-        // A uid that does not name the account is refused before the helper
-        // would ever compare it to the passwd entry.
-        let mismatched = HelperRequest(
-            operation: .logoutSession,
-            username: "_agentspace_a1b2c3",
-            uid: 0)
-        XCTAssertEqual(
-            HelperValidation.validate(mismatched, existingAccounts: machine)?.code,
-            .helperRejected)
-
-        let missingUid = HelperRequest(operation: .logoutSession, username: "_agentspace_a1b2c3")
-        XCTAssertEqual(
-            HelperValidation.validate(missingUid, existingAccounts: machine)?.code,
-            .helperRejected)
-    }
-
-    // MARK: - createUser
-
-    func testCreateUserAcceptsAWellFormedRequest() {
-        // A name that is NOT in `machine`, so this exercises the accept path
-        // rather than the already-exists path it was accidentally testing.
-        let request = HelperRequest(
-            operation: .createUser,
-            username: "_agentspace_9f8e7d",
-            displayName: "Space 1",
-            password: HelperValidation.generatePassword())
-        XCTAssertNil(HelperValidation.validate(request, existingAccounts: machine))
-    }
-
-    func testCreateUserRejectsAnAccountThatAlreadyExists() {
-        let request = HelperRequest(
-            operation: .createUser,
-            username: "_agentspace_a1b2c3",
-            displayName: "Space 1",
-            password: HelperValidation.generatePassword())
         XCTAssertEqual(
             HelperValidation.validate(request, existingAccounts: machine)?.code,
             .helperRejected)
     }
 
-    func testCreateUserRejectsANonSpaceName() {
-        // The helper must not be usable as a general "make me a user" service.
-        for name in ["guofeng", "backdoor", "_agentspace_bad!!", "admin"] {
-            let request = HelperRequest(
-                operation: .createUser, username: name,
-                displayName: "x", password: HelperValidation.generatePassword())
-            XCTAssertNotNil(
-                HelperValidation.validate(request, existingAccounts: machine),
-                "createUser accepted \(name)")
-        }
-    }
+    // MARK: - legacy account mutation operations
 
-    func testCreateUserRequiresAGeneratedPassword() {
-        let request = HelperRequest(operation: .createUser, username: "_agentspace_a1b2c3", displayName: "x")
-        XCTAssertNotNil(HelperValidation.validate(request, existingAccounts: machine))
-    }
+    func testV3AlwaysRefusesCreateAndDeleteUser() {
+        let create = HelperRequest(
+            operation: .createUser,
+            username: "_agentspace_9f8e7d",
+            displayName: "Space 1",
+            password: "legacy-wire-value")
+        let delete = HelperRequest(
+            operation: .deleteUser,
+            username: "_agentspace_a1b2c3",
+            removeHome: true)
 
-    func testPasswordRulesRejectAnythingThatCouldBeMisreadAsAFlag() {
-        XCTAssertNil(HelperValidation.validatePassword(HelperValidation.generatePassword()))
-        for bad in ["", "short", "-admin", "--help", "pass word", "pass\nword", String(repeating: "a", count: 31), String(repeating: "a", count: 33)] {
-            XCTAssertNotNil(HelperValidation.validatePassword(bad), "password \(bad.debugDescription) was accepted")
-        }
-    }
-
-    func testGeneratedPasswordsAreTheRightShape() {
-        for _ in 0..<200 {
-            let password = HelperValidation.generatePassword()
-            XCTAssertEqual(password.count, HelperValidation.passwordLength)
-            XCTAssertNil(HelperValidation.validatePassword(password))
-        }
+        XCTAssertEqual(HelperValidation.validate(create, existingAccounts: machine)?.code, .helperRejected)
+        XCTAssertEqual(HelperValidation.validate(delete, existingAccounts: machine)?.code, .helperRejected)
+        XCTAssertTrue(HelperValidation.validate(create, existingAccounts: machine)?.message.contains("never creates") == true)
+        XCTAssertTrue(HelperValidation.validate(delete, existingAccounts: machine)?.message.contains("never deletes") == true)
     }
 
     // MARK: - display names (the one free-text field)
@@ -234,88 +210,9 @@ final class HelperValidationTests: XCTestCase {
         XCTAssertNotNil(HelperValidation.validate(request, existingAccounts: machine))
     }
 
-    func testDeleteUserAcceptsItsOwnAccount() {
+    func testDeleteUserRefusesLegacyAgentSpaceAccounts() {
         let request = HelperRequest(operation: .deleteUser, username: "_agentspace_a1b2c3", removeHome: true)
-        XCTAssertNil(HelperValidation.validate(request, existingAccounts: machine))
-    }
-
-    func testDeleteHomeIsOptionalAndDefaultsToKeepingIt() {
-        // Removing a home directory is destructive and irreversible, so it must be
-        // opt-in. A request that omits it must not remove anything.
-        let keep = HelperRequest(operation: .deleteUser, username: "_agentspace_a1b2c3")
-        XCTAssertNil(HelperValidation.validate(keep, existingAccounts: machine))
-        XCTAssertEqual(HelperCommand.deleteUser(keep).filter { $0.first == "/bin/rm" }.count, 0,
-                       "a deleteUser without removeHome still ran rm")
-    }
-
-    // MARK: - command construction: the argv review
-
-    func testNoCommandEverInvokesAShell() {
-        // The structural claim behind the whole design. If this fails, every
-        // quoting argument in docs/security.md is void.
-        let shells: Set<String> = ["/bin/sh", "/bin/bash", "/bin/zsh", "/bin/csh", "/usr/bin/env", "sh", "bash", "zsh"]
-        let requests: [HelperRequest] = [
-            HelperRequest(operation: .createUser, username: "_agentspace_a1b2c3", displayName: "x", password: HelperValidation.generatePassword()),
-            HelperRequest(operation: .deleteUser, username: "_agentspace_a1b2c3", removeHome: true),
-            HelperRequest(operation: .deleteUser, username: "_agentspace_a1b2c3", removeHome: false),
-        ]
-        for request in requests {
-            let commands = request.operation == .createUser
-                ? HelperCommand.createUser(request)
-                : HelperCommand.deleteUser(request)
-            for command in commands {
-                XCTAssertFalse(command.isEmpty)
-                XCTAssertFalse(shells.contains(command[0]), "\(command) invokes a shell")
-                for argument in command {
-                    XCTAssertFalse(argument.contains(" -c"), "\(command) looks like a shell invocation")
-                    XCTAssertFalse(argument.contains("$(("), "arithmetic expansion in \(command)")
-                }
-            }
-        }
-    }
-
-    func testCreateUserIsNeverAnAdministrator() {
-        // Plan §8: a Space is a standard user. There is deliberately no parameter
-        // that could change this, and this test is what keeps it that way.
-        let request = HelperRequest(
-            operation: .createUser, username: "_agentspace_a1b2c3",
-            displayName: "x", password: HelperValidation.generatePassword())
-        for command in HelperCommand.createUser(request) {
-            XCTAssertFalse(command.contains("-admin"), "\(command) would make an administrator")
-            XCTAssertFalse(command.contains("-adminUser"))
-            XCTAssertFalse(command.contains("-secureToken"))
-        }
-    }
-
-    func testDeleteUserOnlyEverTargetsTheValidatedAccountsHome() {
-        // The path is built from the validated account name, never taken from the
-        // request, so there is no path field to aim at /Users/guofeng or at /.
-        let request = HelperRequest(operation: .deleteUser, username: "_agentspace_a1b2c3", removeHome: false)
-        for command in HelperCommand.deleteUser(request) {
-            // argv[0] is the tool being run, not a path it acts on.
-            for argument in command.dropFirst() where argument.hasPrefix("/") {
-                XCTAssertEqual(argument, "/Users/_agentspace_a1b2c3",
-                               "\(command) touches \(argument), which is not the Space's own home")
-            }
-        }
-        // And with the home removal on, the only rm target is the Space's home.
-        let withHome = HelperRequest(operation: .deleteUser, username: "_agentspace_a1b2c3", removeHome: true)
-        for command in HelperCommand.deleteUser(withHome) where command.first == "/bin/rm" {
-            XCTAssertEqual(command, ["/bin/rm", "-rf", "/Users/_agentspace_a1b2c3"])
-        }
-    }
-
-    func testCreateUserCreatesTheHomeItLaterDeletes() {
-        // A mismatch here would leave a home directory nobody can clean up.
-        let name = "_agentspace_a1b2c3"
-        let request = HelperRequest(
-            operation: .createUser, username: name, displayName: "x",
-            password: HelperValidation.generatePassword())
-        let homeFromCreate = HelperCommand.createUser(request)
-            .flatMap { $0 }
-            .first { $0.hasPrefix("/Users/") }
-        XCTAssertEqual(homeFromCreate, "/Users/\(name)")
-        XCTAssertEqual(homeFromCreate, "/Users/\(name)")
+        XCTAssertNotNil(HelperValidation.validate(request, existingAccounts: machine))
     }
 
     func testAWorkerLaunchAgentIsAquaOnlyAndRunsAsTheSpace() {
@@ -333,6 +230,15 @@ final class HelperValidationTests: XCTestCase {
         XCTAssertTrue(plist.contains("<key>UserName</key>"))
         XCTAssertTrue(plist.contains("<string>_agentspace_a1b2c3</string>"))
         XCTAssertTrue(plist.contains(spaceID.uuidString))
+    }
+
+    func testInstalledWorkerPathIsRootOwnedAndOutsideTheAgentHome() {
+        let path = HelperCommand.workerInstallPath(version: "0.1.0")
+
+        XCTAssertEqual(
+            path,
+            "/Library/Application Support/AgentSpace/Worker/versions/0.1.0/agentspace-worker")
+        XCTAssertFalse(path.hasPrefix("/Users/"))
     }
 
     func testTheWorkerLaunchAgentPlistIsValidXML() {
@@ -399,9 +305,10 @@ final class HelperValidationTests: XCTestCase {
     }
 
     func testRuntimeRootAcceptsTheDocumentedLocations() {
+        XCTAssertNil(HelperValidation.validateRuntimeRoot(RuntimePaths.root))
         XCTAssertNil(HelperValidation.validateRuntimeRoot("/Users/Shared/.AgentSpace"))
-        XCTAssertNil(HelperValidation.validateRuntimeRoot("/tmp/as-test"))
-        XCTAssertNil(HelperValidation.validateRuntimeRoot("/private/tmp/as-test"))
+        XCTAssertNotNil(HelperValidation.validateRuntimeRoot("/tmp/as-test"))
+        XCTAssertNotNil(HelperValidation.validateRuntimeRoot("/private/tmp/as-test"))
     }
 
     // MARK: - main user
@@ -507,9 +414,9 @@ final class HelperValidationTests: XCTestCase {
                                "operation \(operation.rawValue) has a '\(word)' component, which suggests a generic escape hatch")
             }
         }
-        // logoutSession is the tenth: a typed, uid-checked session teardown — not a
-        // generic escape hatch, which is the property this count pins.
-        XCTAssertEqual(HelperOperation.allCases.count, 10)
+        // The compatibility logout verb remains decodable but is refused; the
+        // active V3 surface is worker/runtime management only.
+        XCTAssertEqual(HelperOperation.allCases.count, 11)
     }
 
     func testNoRequestFieldCanCarryAnArbitraryCommand() {

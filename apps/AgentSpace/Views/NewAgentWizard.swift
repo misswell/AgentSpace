@@ -1,30 +1,15 @@
 import SwiftUI
 import AgentSpaceCore
 
-/// The create flow restated in V2 vocabulary — plan(v2) §5.
-///
-/// Two steps a human can follow without ever learning what a "Space" was:
-/// 1. name the agent,
-/// 2. see exactly what will be created — and what will NOT change — before
-///    anything touches the machine.
-///
-/// The purpose picker that used to sit between them is gone: nothing reads
-/// `purpose` yet (the runtime manager, plan(v2) §10/§11, will when it
-/// exists), and a question with no consequence is time the user spends
-/// judging us rather than working. The field stays on the record, written
-/// only when set.
-///
-/// The workspace controls from the old single-page wizard live inside the
-/// review step: they are an advanced answer, not the first question. The
-/// one manual first login (plan §28) is not part of this sheet either; it
-/// is `LoginInstructions`, shown by `ProvisioningView` once the machine
-/// work is done.
+/// V3 attach flow: select an existing standard macOS user, choose a label and
+/// workspace, then install only AgentSpace's runtime and worker.
 struct NewAgentWizard: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var step = 1
     @State private var name = ""
+    @State private var selectedUsername: String?
     @State private var workspaceKind = 0
     @State private var repositoryPath = ""
     @State private var branch = "agentspace/"
@@ -39,7 +24,7 @@ struct NewAgentWizard: View {
         case 1, 2:
             let expanded = (repositoryPath as NSString).expandingTildeInPath
             if workspaceKind == 1, !expanded.isEmpty {
-                // The path is filled in by SpaceProvisioner once the account has
+                // The path is filled in by the attach service once the account has
                 // an id, so the preview below shows the parent it will live
                 // under rather than pretending to know the final path.
                 return .gitWorktree(
@@ -61,6 +46,9 @@ struct NewAgentWizard: View {
     }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
+    private var selectedAccount: LocalAccount? {
+        model.availableAccounts.first { $0.username == selectedUsername }
+    }
 
     /// Why the Create button is or is not armed — the stale-helper case needs
     /// its own sentence because "installed and answering" would be a lie: the
@@ -72,7 +60,7 @@ struct NewAgentWizard: View {
         if model.helperState.isStaleBinary {
             return NSLocalizedString("The running helper is an older build; reinstall it in the card below before creating.", comment: "")
         }
-        return NSLocalizedString("Create the agent's macOS user, runtime and worker.", comment: "")
+        return NSLocalizedString("Connect the existing macOS account and install its AgentSpace worker.", comment: "")
     }
 
     var body: some View {
@@ -110,12 +98,14 @@ struct NewAgentWizard: View {
                         step += 1
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(trimmedName.isEmpty)
+                    .disabled(trimmedName.isEmpty || selectedAccount == nil)
                     .accessibilityIdentifier("wizardContinue")
                 } else {
-                    Button(NSLocalizedString("Create Agent", comment: "")) {
-                        model.createSpace(
-                            name: trimmedName,
+                    Button(NSLocalizedString("Connect Account", comment: "")) {
+                        guard let selectedAccount else { return }
+                        model.attachAccount(
+                            selectedAccount,
+                            displayName: trimmedName,
                             workspace: workspace,
                             sharedFolders: sharedFolders)
                     }
@@ -123,6 +113,7 @@ struct NewAgentWizard: View {
                     .disabled(!model.helperState.isReachable
                               || model.helperState.isStaleBinary
                               || trimmedName.isEmpty
+                              || selectedAccount == nil
                               || model.provisioning != nil)
                     .help(Text(createButtonHelp))
                     // The one button in the app that makes a macOS user. Its
@@ -140,7 +131,10 @@ struct NewAgentWizard: View {
         // refresh never pings it (a timeout per refresh with no helper installed),
         // so without this the wizard could refuse Create against a helper that
         // answers, or green-light one launchd has since evicted.
-        .onAppear { model.refreshHelperState() }
+        .onAppear {
+            model.refreshHelperState()
+            model.discoverAccounts()
+        }
         // Provisioning lives *inside* the wizard, not in a second sheet. A
         // window presents one sheet at a time: while the wizard held it, the
         // RootView-level provisioning sheet never appeared, so a failed create
@@ -157,14 +151,28 @@ struct NewAgentWizard: View {
         }
     }
 
-    // MARK: - Step 1: name
+    // MARK: - Step 1: account
 
     private var nameStep: some View {
-        Card(title: NSLocalizedString("Agent Name", comment: "")) {
+        Card(title: NSLocalizedString("Available macOS Accounts", comment: "")) {
+            if model.availableAccounts.isEmpty {
+                Text(NSLocalizedString("No unattached standard users were found. Add one in System Settings → Users & Groups, then return here.", comment: ""))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                Picker(NSLocalizedString("macOS User", comment: ""), selection: $selectedUsername) {
+                    Text(NSLocalizedString("Choose an account", comment: "")).tag(String?.none)
+                    ForEach(model.availableAccounts) { account in
+                        Text("\(account.displayName) — \(account.username) (uid \(account.uid))")
+                            .tag(Optional(account.username))
+                    }
+                }
+                .pickerStyle(.radioGroup)
+            }
             TextField("Coding Agent", text: $name)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("agentNameField")
-            Text("A macOS user named _agentspace_<random> is created for this agent. The display name is only a label.")
+            Text("AgentSpace connects to this existing standard user. It never creates or deletes a macOS account.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -173,7 +181,7 @@ struct NewAgentWizard: View {
 
     private var reviewStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Card(title: NSLocalizedString("AgentSpace will create a dedicated macOS user for this agent.", comment: "")) {
+            Card(title: NSLocalizedString("AgentSpace will connect to this existing macOS account.", comment: "")) {
                 VStack(alignment: .leading, spacing: 5) {
                     checkmark(NSLocalizedString("Separate files", comment: ""))
                     checkmark(NSLocalizedString("Separate browser data", comment: ""))
@@ -218,7 +226,7 @@ struct NewAgentWizard: View {
 
             HelperCard()
 
-            Text("There is deliberately no way to create an account from the CLI or from MCP. Those change the machine and require an administrator, so they stay here, behind a confirmation.")
+            Text("Disconnecting later removes only the AgentSpace worker and runtime. The macOS account and its home directory are always kept.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -264,7 +272,7 @@ struct HelperCard: View {
                 RefusalBanner(
                     title: NSLocalizedString("The helper that answers is an older build than this app", comment: ""),
                     code: "HELPER_OUTDATED",
-                    message: NSLocalizedString("launchd keeps a registered daemon's process running across app updates, so the version inside this app has never started. Creating an account would run the old code and fail the way it always has.", comment: ""),
+                    message: NSLocalizedString("launchd keeps a registered daemon's process running across app updates, so the version inside this app has never started. Connecting an account would run the old code.", comment: ""),
                     fix: NSLocalizedString("Reinstall the helper below. macOS will ask for your password once: it stops the old daemon and registers the current one.", comment: ""))
 
                 Button {
@@ -279,14 +287,14 @@ struct HelperCard: View {
                 .disabled(model.isInstallingHelper)
                 .accessibilityIdentifier("reinstallHelperButton")
             } else if model.helperState.isReachable {
-                Text("The helper is installed and answering. Creating an agent account will make a standard (never administrator) macOS user named _agentspace_<6 hex>, a runtime directory, and a LaunchAgent for its worker.")
+                Text("The helper is installed and answering. It installs a root-owned worker and an account-specific runtime; it never creates or deletes macOS users.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 RefusalBanner(
-                    title: NSLocalizedString("Creating an agent account needs the privileged helper", comment: ""),
+                    title: NSLocalizedString("Connecting an account needs the privileged helper", comment: ""),
                     code: "HELPER_UNAVAILABLE",
-                    message: NSLocalizedString("An agent account is a real macOS user, so creating one is an administrator operation. AgentSpace does it through a root helper that exposes a closed list of typed operations — it never runs a shell, and it will only ever create or delete users named _agentspace_<6 hex>.", comment: ""),
+                    message: NSLocalizedString("AgentSpace uses a root helper only to install its worker and prepare the shared runtime. The helper exposes a closed list of typed operations and never runs a shell or changes macOS user accounts.", comment: ""),
                     fix: model.helperState.fix ?? NSLocalizedString("Open the AgentSpace app and choose Install Helper.", comment: ""))
 
                 HStack {

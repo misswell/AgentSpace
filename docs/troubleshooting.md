@@ -42,7 +42,7 @@ The socket file may not exist, or may be stale from a crashed worker.
 
 ```bash
 agentspace status <space>
-ls -la /Users/Shared/.AgentSpace/Runtime/<space-uuid>/
+ls -la /Library/Application Support/AgentSpace/Runtime/<space-uuid>/
 ```
 
 **Most common cause: the AgentSpace user has never been logged in through the
@@ -189,7 +189,7 @@ than implying a confinement that is not in effect.
 The session token is missing or wrong.
 
 ```bash
-ls -la /Users/Shared/.AgentSpace/Runtime/<space-uuid>/token
+ls -la /Library/Application Support/AgentSpace/Runtime/<space-uuid>/token
 ```
 
 The CLI reads it automatically. If it is missing, the worker was started by hand
@@ -244,15 +244,10 @@ budget. The default layout uses 83 of 103 bytes.
 
 ## `agentspace doctor` says the helper is not installed
 
-Expected before phase 3. Creating and deleting Spaces needs the helper, because
-it creates a macOS user. **Driving an existing Space does not** — the worker is
-unprivileged, so everything except create/delete and the GUI's Space list works
-without it.
-
-The CLI deliberately cannot create a Space and does not try: `agentspace create`
-explains that it would make a macOS user and points at the app. There is no
-`sudo` path in the CLI, and adding one would undo the boundary the whole design
-rests on.
+Connecting and disconnecting accounts needs the helper because the worker and
+runtime live under root-owned Application Support. The helper never creates or
+deletes a macOS user. Existing worker RPC remains unprivileged, and the CLI never
+runs `sudo` or falls back to the current user's session.
 
 ---
 
@@ -317,65 +312,42 @@ and full screenshots. Check the file before attaching it anyway — redaction is
 best-effort, and a secret you pasted into a window title is still a secret.
 
 ---
+## Connecting or disconnecting an account fails
 
-## Creating or deleting a Space fails
+### `HELPER_UNAVAILABLE` / `agentspace attach` exits 69
 
-### `HELPER_UNAVAILABLE` / `agentspace create` exits 69
+The root LaunchDaemon did not answer. AgentSpace cannot install its root-owned
+worker or create the protected runtime without that fixed helper API, so it stops;
+it never runs `sudo` and never falls back to the current user's session.
 
-```
-the privileged helper did not answer: the connection was invalidated before a reply arrived
-→ The privileged helper is not installed. … Open the AgentSpace app and choose Install Helper.
-```
-
-The helper is a root LaunchDaemon inside the app bundle, and it is the only thing
-that can make a macOS user. There is no unprivileged alternative, so AgentSpace
-stops rather than trying one — in particular it never runs `sudo`, and it never
-falls back to your own account.
-
-Fix: open the AgentSpace app, and press **Install Helper**. macOS will ask for an
-administrator password, because only an administrator can add a LaunchDaemon. Then
-`agentspace helper` should exit 0.
+Fix: open AgentSpace, press **Install Helper**, approve macOS's administrator
+prompt, then run `agentspace helper`.
 
 ### `HELPER_REJECTED`
 
-The helper is installed and answered, and refused. The message says why. The usual
-causes:
+The helper answered and refused. Common reasons:
 
-- **The account name is already taken.** Space accounts match
-  `_agentspace_<6 hex>`; a leftover from a failed creation blocks a new one with
-  the same name. `agentspace doctor` lists any accounts matching the pattern, so
-  you can see the orphan and remove it.
-- **The runtime root is not `/Users/Shared` or `/tmp`.** The helper only ever
-  writes into a root it recognises; `--root` pointing somewhere else is refused by
-  design.
-- **The bundle or helper signature does not match.** The helper verifies the calling
-  process's code signature against a fixed requirement (team `U8U443D7ZL`,
-  identifier `com.agentspace.AgentSpace`). A rebuilt or re-signed app whose
-  signature changed is refused — that is the check working, not a bug.
+- The selected username is the current user, an administrator, hidden/system
+  account, missing, or has a nonstandard home.
+- The account is already attached.
+- The runtime root is neither the exact production Application Support path nor
+  a supported explicit test root.
+- The app/helper signature does not satisfy the fixed caller requirement.
 
-### "creation did not finish" and the Space shows **Error**
+Legacy `createUser` and `deleteUser` requests are also deliberately rejected:
+V3 never changes macOS account lifecycle.
 
-A step failed *and* its cleanup also failed, so something is on the machine that
-AgentSpace could not remove — usually an `_agentspace_…` account. The Space is kept
-in the list with state **Error** precisely so this is not invisible. Run
-`agentspace doctor` to see the account, then delete the Space again, or remove the
-account in System Settings → Users & Groups.
+### Attach did not finish
 
-Do not simply re-run create: the account already exists, and the helper will refuse
-the duplicate name.
+Read the provisioning step list. AgentSpace rolls back any runtime, worktree and
+worker it created after the failing step. It does not need to undo a macOS user
+because it never created or changed one.
 
-### Deleting says the account still exists
+### Disconnect did not finish
 
-```
-the account _agentspace_a1b2c3 still exists: … It is no longer in the Space list,
-so remove it with `agentspace doctor` or System Settings → Users & Groups.
-```
-
-The worker and runtime were removed and the Space was dropped from the registry,
-but the account itself could not be deleted — most often because it is still logged
-in. Log out of the Space (Fast User Switching → the Space → Log Out), then delete it
-in System Settings, or run `agentspace delete` again after logging out.
-
+A runtime-removal failure keeps the registry record so disconnect can be retried.
+The existing macOS user and home were not touched. Fix the reported helper or
+filesystem problem, then choose **Disconnect Account** again.
 ### The worktree was not removed
 
 Deleting a Space removes its worktree but **keeps the branch**, and never touches

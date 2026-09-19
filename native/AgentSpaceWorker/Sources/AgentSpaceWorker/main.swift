@@ -339,7 +339,13 @@ final class SocketServer {
         // socket too, so a 0660 that happens to exclude them cannot lock the GUI
         // out of its own Space.
         if let mainUser = context.mainUser {
-            _ = ACLRunner.apply("user:\(mainUser) allow read,write", to: socketPath)
+            let status = ACLRunner.apply("user:\(mainUser) allow read,write", to: socketPath)
+            guard status == 0 else {
+                let message = "could not grant \(mainUser) access to the worker socket (chmod exited \(status))"
+                close(fd)
+                unlink(socketPath)
+                throw BindError.chmodFailed(message)
+            }
         }
     }
 
@@ -463,6 +469,24 @@ case .success(let arguments):
         Log.session.error(message)
         FileHandle.standardError.write(Data(("agentspace-worker: " + message + "\n").utf8))
         exit(69)
+    }
+
+    // Verify the root-prepared runtime before reading or minting any token in
+    // it. A permissive or attacker-controlled directory must never receive a
+    // live credential, even transiently.
+    let recordPath = paths.directory + "/space.json"
+    let runtimeRecord = FileManager.default.contents(atPath: recordPath).flatMap {
+        try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+    }
+    if let mainUser = runtimeRecord?["mainUser"] as? String,
+       let pw = getpwuid(getuid()), let name = pw.pointee.pw_name,
+       let problem = RuntimePermissionVerifier.verifyDirectory(
+           paths.directory,
+           expectedOwner: getuid(),
+           mainUser: mainUser,
+           agentUser: String(cString: name)) {
+        FileHandle.standardError.write(Data(("agentspace-worker: " + problem.message + "\n").utf8))
+        exit(78)
     }
 
     // Resolve the session token.

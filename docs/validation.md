@@ -7763,3 +7763,57 @@ up the overlay and the wizard first, then runs the action.
 | 486 | A create that never reached the account step does not go looking for an account | pass | §275 — `testACreateThatNeverReachedTheAccountStepHasNoNameToVerify` |
 | 487 | "Open Doctor…" pressed from the create overlay opens Doctor | fixed, not exercised | §275 — the branch needs a helper that reports a *surviving* partial account, which this machine's gate never produces; the sheet-ordering rule is §269's |
 | 488 | The helper reinstall button works on a machine where launchd was serving the previous build | pass | owner's own press at 21:01:57: `agentspace-helper` restarted (pid 14330), Create became armed, and the create then failed at the account step rather than at the app |
+
+## 276. V3 connects existing accounts and removes account lifecycle authority (2026-09-19)
+
+The V3 decision is a security and product-boundary change: a person owns the
+macOS account lifecycle; AgentSpace owns only its worker, runtime, workspace and
+registry attachment. The old provisioner and its tests were removed rather than
+left as a second hidden path.
+
+The app and CLI now share `AccountAttachService`. Attach validates an
+`AccountDiscovery` result, prepares runtime/workspace, installs the root-owned
+worker, attempts startup when an Aqua session exists, and persists the record.
+Every failure after runtime creation executes compensating removal. Detach calls
+only stop/remove worker and exact runtime removal before deleting the registry
+record; no logout, directory-service delete or home removal occurs.
+
+The runtime moved to `/Library/Application Support/AgentSpace`. Shared parents
+are root-owned 0755 so both named principals can traverse them, while each UUID
+runtime is 0700 plus inherited ACL entries for the controller and attached
+account. The worker verifies owner, mode and both entries before binding. The
+worker executable lives at `Worker/versions/<version>/agentspace-worker`, owned
+by root rather than an attached user.
+
+Protocol version remains 1. Legacy `createUser` and `deleteUser` enum values
+still decode but are unconditional refusals in validation and dispatch; their
+`sysadminctl`/delete implementations and command builders no longer exist.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 489 | Candidate discovery excludes the current user, system/hidden users, administrators, non-`/Users` homes and uid values below 500 | pass | `AccountDiscoveryTests`; `AccountDiscovery.candidates` |
+| 490 | Attach performs no macOS user creation and persists the selected existing username/uid/home | pass | `AccountAttachServiceTests.testAttachOnlyPreparesRuntimeAndInstallsWorker`; optional `AgentAccount.homeDirectory` |
+| 491 | An attach failure after runtime preparation invokes typed runtime rollback | pass | `testFailedWorkerInstallRollsBackThePreparedRuntime` |
+| 492 | Detach never logs out or deletes the macOS user/home | pass | `testDetachNeverDeletesOrLogsOutTheMacOSUser`; operation sequence is stop worker, remove worker, remove runtime |
+| 493 | Old account-mutation wire requests remain decodable but can never execute | pass | `testV3AlwaysRefusesCreateAndDeleteUser`; `HelperService.legacyAccountMutation`; no helper create/delete implementation remains |
+| 494 | Production worker code is root-owned and versioned outside every user home | pass | `testInstalledWorkerPathIsRootOwnedAndOutsideTheAgentHome`; `Worker/versions/<version>` |
+| 495 | Runtime ACL entries inherit and the worker refuses an incomplete/wrong runtime boundary | pass | `SecurityTests` runtime permission cases; `RuntimePermissionVerifier` |
+| 496 | V2 registry data remains readable after the root move | pass | `SpaceRegistry.load` reads `RuntimePaths.legacyRoot` only when the default V3 registry is absent; writes target V3 |
+| 497 | GUI and CLI expose connect/disconnect semantics and retain compatibility aliases | pass | `NewAgentWizard`, `SpaceDetailView`, CLI `attach`/`detach` plus normalized `create`/`delete` aliases |
+| 498 | English and Simplified Chinese remain complete after the V3 UI rewrite | pass | `LocalizationTests` (all five checks) |
+| 499 | The full Swift suite passes with the V3 root, protocol addition and model compatibility | pass | `env PATH=/usr/bin:/bin:/usr/sbin:/sbin swift test`, 2026-09-19 |
+
+## 277. Final V3 release gate (2026-09-19)
+
+The release candidate was rebuilt after the V3 changes, the MCP bundle was
+rebuilt from source, and the exact versioned DMG was notarized and stapled.
+The full gate was then run from a system-only PATH so the result does not
+depend on developer tooling being accidentally selected.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 500 | The Swift, MCP and GUI layers pass together under the release gate | pass | `scripts/check-all.sh`, 2026-09-19: 359 Swift tests, MCP smoke checks, and GUI verify 7/7 |
+| 501 | The MCP server reports the current 0.1.1 release and its complete tool surface | pass | `npm test` 23/23; `scripts/mcp-smoke.sh` reports `agentspace 0.1.1` and 22 tools |
+| 502 | GUI verification reaches the wizard, validates the build stamp and catches dead links | pass | `scripts/gui-verify.sh`: 7 passed, 0 failed |
+| 503 | The shipped app and exact versioned DMG are notarized, stapled and Gatekeeper-clean | pass | `scripts/notarize.sh`: `dist/AgentSpace.app` and `dist/AgentSpace-0.1.1.dmg`; `spctl` accepted both |
+| 504 | CLI workspace preparation remains deterministic when PATH is restricted | pass | `WorkspacePreparer.resolveGitExecutable` selects `/usr/bin/git`; the system-PATH Swift run passed all 359 tests |

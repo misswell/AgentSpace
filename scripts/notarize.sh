@@ -25,8 +25,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 APP="dist/AgentSpace.app"
-DMG="$(ls dist/AgentSpace-*.dmg | head -1)"
 VERSION="$(sed -n 's/.*cliVersion = "\(.*\)".*/\1/p' native/AgentSpaceCLI/Sources/AgentSpaceCLI/main.swift | head -1)"
+DMG="dist/AgentSpace-${VERSION}.dmg"
+if [[ ! -f "$DMG" ]]; then
+  echo "missing release DMG for version $VERSION: $DMG" >&2
+  exit 1
+fi
 PROFILE="${NOTARY_PROFILE:-octoshrink-notary}"
 
 echo "== 0. verify the credential live (a name proves nothing) =="

@@ -144,20 +144,15 @@ struct SpaceDetailView: View {
                 }
                 .disabled(model.selected?.display == nil)
 
-                // §40: three different endings for a Space, deliberately not
-                // collapsed into one "stop". Stop keeps the session; Logout
-                // ends the session but keeps the account; Delete removes
-                // everything and asks about the home.
+                // Stop keeps the session; Disconnect removes only
+                // AgentSpace-owned setup.
                 Menu {
                     Button("Stop Agent") {
                         if let space = model.selected?.space { model.stopWorker(space) }
                     }
                     .disabled(model.selected?.workerOnline != true)
-                    Button("Logout Desktop…") {
-                        showingLogout = true
-                    }
                     Divider()
-                    Button(NSLocalizedString("Delete Agent…", comment: ""), role: .destructive) {
+                    Button(NSLocalizedString("Disconnect Account…", comment: ""), role: .destructive) {
                         showingDelete = true
                     }
                     .disabled(model.selected == nil)
@@ -326,16 +321,13 @@ struct SpaceDetailView: View {
                     .font(.callout)
                 VStack(alignment: .leading, spacing: 6) {
                     step(1, NSLocalizedString("Open Fast User Switching from the menu bar", comment: ""), done: true)
-                    step(2, String(format: NSLocalizedString("Sign in as “AgentSpace – %@”", comment: ""), snapshot.space.name), done: snapshot.workerOnline)
+                    step(2, String(format: NSLocalizedString("Sign in as “%@”", comment: ""), snapshot.space.username), done: snapshot.workerOnline)
                     step(3, NSLocalizedString("Grant Accessibility to agentspace-worker in System Settings", comment: ""), done: snapshot.accessibility)
                     step(4, NSLocalizedString("Grant Screen & System Audio Recording", comment: ""), done: snapshot.screenRecording)
                     step(5, NSLocalizedString("Switch back to your own account", comment: ""), done: false)
                 }
                 .padding(.top, 2)
                 HStack {
-                    Button(NSLocalizedString("Show Login Password", comment: "")) {
-                        model.revealPassword(for: snapshot.space)
-                    }
                     Button(NSLocalizedString("Open System Settings", comment: "")) {
                         NSWorkspace.shared.open(URL(
                             string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
@@ -391,35 +383,28 @@ struct SpaceDetailView: View {
 
 
             HStack(spacing: 8) {
-                Button(NSLocalizedString("Show Login Password", comment: "")) { model.revealPassword(for: space) }
-                    .help(Text("Needed once, to sign in to this agent's macOS account for the first time."))
-                Button(NSLocalizedString("Delete Agent…", comment: ""), role: .destructive) { showingDelete = true }
+                Button(NSLocalizedString("Disconnect Account…", comment: ""), role: .destructive) { showingDelete = true }
                     .disabled(model.provisioning != nil)
             }
             .controlSize(.small)
 
-            Text(NSLocalizedString("Deleting removes this agent's macOS user, its runtime directory and its worker. A git worktree is removed but its branch is kept, and your own repository is never touched.", comment: ""))
+            Text(NSLocalizedString("Disconnecting removes the AgentSpace worker and runtime. The existing macOS account and its home are always kept.", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
         }
         .confirmationDialog(
-            String(format: NSLocalizedString("Delete %@?", comment: ""), space.name),
+            String(format: NSLocalizedString("Disconnect %@?", comment: ""), space.name),
             isPresented: $showingDelete,
             titleVisibility: .visible
         ) {
-            // The home directory is a separate question because it is the one
-            // irreversible step, and it holds the agent's own files — which the
-            // user may want to look at after the agent is gone.
-            Button(NSLocalizedString("Delete Agent, keep its home directory", comment: "")) {
-                model.deleteSpace(space, removeHome: false)
-            }
-            Button(NSLocalizedString("Delete Agent and its home directory", comment: ""), role: .destructive) {
-                model.deleteSpace(space, removeHome: true)
+            // Detach only removes AgentSpace-owned runtime state.
+            Button(NSLocalizedString("Disconnect Account", comment: ""), role: .destructive) {
+                model.deleteSpace(space)
             }
             Button(NSLocalizedString("Cancel", comment: ""), role: .cancel) { }
         } message: {
-            Text(String(format: NSLocalizedString("The macOS user %@ will be removed, and it will no longer be able to run anything. The agent's files in its home directory are not affected unless you ask for them to be.", comment: ""), space.macOSUsername))
+            Text(String(format: NSLocalizedString("The existing macOS user %@ and its home directory will not be deleted.", comment: ""), space.macOSUsername))
         }
         // A second dialog on the same view: SwiftUI allows several, each gated by
         // its own `isPresented`.
@@ -437,26 +422,9 @@ struct SpaceDetailView: View {
             // the user's explicit yes, and says exactly what will change.
             Text(String(format: NSLocalizedString("AgentSpace will add itself as an MCP server in %@. Nothing else in the file changes, and the previous contents are saved next to it.", comment: ""), integrationTarget?.configPath ?? ""))
         }
-        // The "…" on Logout Desktop… promises this dialog. Logout is reversible
-        // but not free: the agent worker dies with the session, and coming back
-        // needs one manual fast-user-switch login — so the cost is said here,
-        // where it can still be declined.
-        .confirmationDialog(
-            String(format: NSLocalizedString("Log out the desktop for %@?", comment: ""), model.selected?.space.name ?? NSLocalizedString("this agent", comment: "")),
-            isPresented: $showingLogout,
-            titleVisibility: .visible
-        ) {
-            Button(NSLocalizedString("Log Out Desktop", comment: "")) {
-                if let space = model.selected?.space { model.logoutDesktop(space) }
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text(NSLocalizedString("The agent worker stops with the session. To run agents again, sign in to this agent's desktop once more.", comment: ""))
-        }
     }
 
     @State private var showingDelete = false
-    @State private var showingLogout = false
     @State private var integrationTarget: Integrations.Target?
     @State private var showingIntegrationConfirm = false
 

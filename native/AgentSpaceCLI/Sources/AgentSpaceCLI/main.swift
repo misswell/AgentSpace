@@ -11,7 +11,7 @@ import AgentSpaceCore
 // print why and stop. There is no code path here that runs a GUI command
 // locally "because the background session was unavailable".
 
-let cliVersion = "0.1.0"
+let cliVersion = "0.1.1"
 
 // MARK: - Argument parsing
 
@@ -45,7 +45,7 @@ let valueFlags: Set<String> = [
     "root", "out", "max-width", "display", "cwd", "timeout", "env",
     "file", "pid", "role", "title", "identifier", "action", "reason",
     "max-depth", "max-nodes",
-    // `create` / `delete` (plan §31). Declared here or the parser refuses them as
+    // Attach workspace flags. Declared here or the parser refuses them as
     // unknown before the command ever sees them.
     "repo", "branch", "share", "share-rw", "config",
 ]
@@ -189,7 +189,7 @@ func resolveSpace(_ reference: String?, root: String?, emitter: Emitter) -> (Age
         guard let first = registry.first() else {
             emitter.failure(AgentSpaceError(
                 code: .sessionNotReady,
-                message: "no agent accounts exist yet, and no name was given. Create one in the AgentSpace app first."))
+                message: "no agent accounts are connected yet, and no name was given. Connect an existing standard macOS account in the AgentSpace app first."))
         }
         space = first
     }
@@ -262,10 +262,9 @@ func usage() -> String {
       integrate <target>              Print MCP config for claude|codex|opencode
                                       [--install writes it, backing up first]
                                       agentspace integrate rules       Agent safety rules (§35)
-      create [account] <name>         Create an agent account: macOS user,
-                                      runtime, worker
-      delete <account>                Delete an agent account (--remove-home to
-                                      also remove its home directory)
+      attach <username>               Connect an existing standard macOS user
+      detach <account>                Remove AgentSpace worker/runtime only;
+                                      keep the macOS user and home
 
     OBSERVE
       screenshot <account>            Capture the agent's desktop
@@ -300,9 +299,9 @@ func usage() -> String {
       --root PATH                     Use an alternate AgentSpace root
       --version, --help
 
-    Creating and deleting an agent account makes or removes a macOS user, so it
-    always goes through the privileged helper and the GUI. The CLI never runs
-    sudo.
+    AgentSpace never creates or deletes macOS users. Attach/detach only manage
+    the worker and runtime through the typed privileged helper. The CLI never
+    runs sudo.
     """
 }
 
@@ -351,16 +350,16 @@ let rootOverride = parsed.flag("root")
 
 let emitter = Emitter(json: parsed.bool("json"))
 
-// V2 verb aliases (plan(v2) §16). The new names are the primary spelling and
-// the pre-V2 verbs keep working unchanged: "create account NAME" is
-// "create NAME" with the noun made explicit, "open" is "desktop", and
-// "accounts" is "list". One normalization here means every case below stays
-// single-sourced.
+// Compatibility aliases. V3's primary account-lifecycle words are attach and
+// detach; old create/delete spellings intentionally resolve to the same safe
+// existing-account operations and never regain directory-service semantics.
 var command = parsed.positionals[0]
 var rest = Array(parsed.positionals.dropFirst())
-if command == "create", rest.first == "account", rest.count > 1 {
-    rest.removeFirst()
+if command == "create" {
+    if rest.first == "account" { rest.removeFirst() }
+    command = "attach"
 }
+if command == "delete" { command = "detach" }
 if command == "open" { command = "desktop" }
 if command == "accounts" { command = "list" }
 
@@ -372,16 +371,13 @@ case "version":
         "protocol": .int(agentSpaceProtocolVersion),
     ]), human: "agentspace \(cliVersion) (protocol \(agentSpaceProtocolVersion))")
 
-case "create":
-    // Management command (plan §31). It changes the machine, so it goes through
-    // the privileged helper and never through a shell of our own: there is no
-    // `sudo` here, and no fallback if the helper is missing.
-    //
-    // Deliberately NOT exposed over MCP (plan §33): creating a macOS account is
-    // something a human does, in the GUI, having read what it means.
-    let name = rest.first ?? ""
-    guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
-        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace create [account] <name> [--repo PATH] [--branch agentspace/x] [--share PATH] [--share-rw PATH]"), exitCode: 64)
+case "attach":
+    let username = rest.first ?? ""
+    guard !username.isEmpty else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace attach <existing-username> [--repo PATH] [--branch agentspace/x] [--share PATH] [--share-rw PATH]"), exitCode: 64)
+    }
+    guard let local = AccountDiscovery.find(username: username) else {
+        emitter.failure(AgentSpaceError(code: .helperRejected, message: "\(username) is not an unattached standard local user (the current user and administrators are excluded)"), exitCode: 66)
     }
 
     var workspace: Workspace = .none
@@ -390,13 +386,11 @@ case "create":
         guard let repository = parsed.flag("repo") else {
             emitter.failure(AgentSpaceError(code: .badRequest, message: "a git workspace needs --repo PATH"), exitCode: 64)
         }
-        let branch = parsed.flag("branch") ?? "agentspace/\(name.lowercased().replacingOccurrences(of: " ", with: "-"))"
-        // The worktree lives under the shared runtime root rather than inside the
-        // Space's home: the main user has to be able to read it to show a diff, and
-        // a path under /Users/Shared is one the plan can validate before anything is
-        // created.
+        let branch = parsed.flag("branch") ?? "agentspace/\(username.lowercased())"
+        // The worktree lives under the controller-managed runtime root rather than
+        // inside the attached account's home, so the main user can review it.
         //
-        // The path is left empty on purpose. `SpaceProvisioner` fills it in once it
+        // The path is left empty on purpose. The attach service fills it in once it
         // has a Space id, which is the only thing that makes it unique — a path
         // derived from the name collides for two Spaces called `Test` and `test`.
         workspace = .gitWorktree(
@@ -411,20 +405,25 @@ case "create":
         sharedFolders.append(SharedFolder(path: (path as NSString).expandingTildeInPath, access: .readWrite))
     }
 
-    let provisionerOptions = SpaceProvisioner.Options(
-        root: RuntimePaths.root,
-        workspaceDirectory: "\(RuntimePaths.root)/Worktrees",
+    let resolvedRoot = rootOverride ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+    let attachOptions = AccountAttachService.Options(
+        root: resolvedRoot,
+        workspaceDirectory: "\(resolvedRoot)/Worktrees",
         mainUser: NSUserName())
 
-    let outcome = SpaceProvisioner.create(
-        name: name, workspace: workspace, sharedFolders: sharedFolders,
-        options: provisionerOptions,
-        transport: { try HelperClient.call($0) })
+    let outcome = AccountAttachService.attach(
+        account: local,
+        displayName: local.displayName,
+        workspace: workspace,
+        sharedFolders: sharedFolders,
+        options: attachOptions,
+        transport: { try HelperClient.call($0) },
+        registry: SpaceRegistry.load(root: resolvedRoot))
 
     if emitter.json {
         print(emitter.pretty(.obj([
             "ok": .bool(outcome.ok),
-            "space": outcome.space.map { space in
+            "space": outcome.account.map { space in
                 .obj([
                     "id": .string(space.id.uuidString),
                     "name": .string(space.name),
@@ -469,16 +468,10 @@ case "create":
                 print("      \(reason)")
             }
         }
-        if let space = outcome.space {
+        if let space = outcome.account {
             print("")
-            print("Created agent account \(space.name) (macOS user \(space.username), uid \(space.uid)).")
-            print("")
-            print("Next, once — this is the only step that needs you:")
-            print("  1. Open Fast User Switching and sign in as \"\(space.name)\"")
-            print("     The password is in the AgentSpace app: My Agent Accounts → Show Login Password.")
-            print("  2. In that session, grant Accessibility and Screen Recording to")
-            print("     agentspace-worker when the setup window asks.")
-            print("  3. Switch back to your own account. The agent keeps its desktop.")
+            print("Connected \(space.name) (macOS user \(space.username), uid \(space.uid)).")
+            print("Sign in to that account once and grant Accessibility and Screen Recording to agentspace-worker.")
         }
     }
     if let error = outcome.error {
@@ -487,10 +480,10 @@ case "create":
     }
     exit(0)
 
-case "delete":
+case "detach":
     let registry = SpaceRegistry.load(root: rootOverride)
     guard let target = rest.first else {
-        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace delete <space> [--remove-home]"), exitCode: 64)
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace detach <account>"), exitCode: 64)
     }
     let space: AgentAccount
     switch registry.resolve(target) {
@@ -498,12 +491,12 @@ case "delete":
     case .failure(let error):
         emitter.failure(error, exitCode: 66)
     }
-    let removeHome = parsed.bool("remove-home")
-    let outcome = SpaceProvisioner.delete(
-        space: space, removeHome: removeHome,
-        options: SpaceProvisioner.Options(
-            root: RuntimePaths.root,
-            workspaceDirectory: "\(RuntimePaths.root)/Worktrees",
+    let outcome = AccountAttachService.detach(
+        account: space,
+        options: AccountAttachService.Options(
+            root: rootOverride ?? AgentSpaceEnvironment.rootOverride ?? space.runtimeRoot ?? RuntimePaths.root,
+            registryRoot: rootOverride ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root,
+            workspaceDirectory: "\(rootOverride ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root)/Worktrees",
             mainUser: NSUserName()),
         transport: { try HelperClient.call($0) },
         registry: registry)
@@ -519,7 +512,7 @@ case "delete":
         var payload: [String: JSONValue] = [
             "ok": .bool(outcome.error == nil),
             "space": .string(space.name),
-            "removedHome": .bool(removeHome),
+            "keptMacOSUser": .bool(true),
             "steps": .array(stepValues),
         ]
         if let error = outcome.error {

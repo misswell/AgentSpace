@@ -167,9 +167,8 @@ public enum RecoveryHint: String, Codable, Sendable {
     /// it directly from a button — no terminal involved.
     case installCommandLineTools
 
-    /// An interrupted create left an AgentSpace-named account behind that the
-    /// helper could not remove itself. Doctor lists it and the app offers the
-    /// removal as a button, so the user never meets `sysadminctl`.
+    /// A legacy V1/V2 installation left an AgentSpace-named account behind.
+    /// V3 reports it for manual review and never mutates the macOS user.
     case removeOrphanedAccounts
 }
 

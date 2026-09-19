@@ -273,16 +273,13 @@ final class CLIIntegrationTests: XCTestCase {
         XCTAssertTrue(result.output.contains("BBB"), "the error must name the space: \(result.output)")
     }
 
-    func testCreateWithoutTheHelperFailsClosedAtTheProcessBoundary() throws {
+    func testAttachRefusesAnUnknownAccountBeforeCallingTheHelper() throws {
         let cli = try harness()
-        let result = cli.run(["create", "No Helper", "--json"])
-        XCTAssertEqual(result.exitCode, 69, "§31: no helper means exit 69, got: \(result.output)")
-        XCTAssertTrue(result.output.contains("HELPER"), result.output)
-        // Fail closed also means nothing was created: the registry must still be
-        // empty, because a management path that half-runs is worse than one that
-        // refuses.
+        let result = cli.run(["attach", "definitely-not-a-local-account", "--json"])
+        XCTAssertEqual(result.exitCode, 66, "unknown local account must be refused, got: \(result.output)")
+        XCTAssertTrue(result.output.contains("not an unattached standard local user"), result.output)
         let registry = SpaceRegistry.load(root: cli.root)
-        XCTAssertTrue(registry.spaces.isEmpty, "create must not leave a partial registry entry: \(registry.spaces)")
+        XCTAssertTrue(registry.spaces.isEmpty, "attach must not leave a partial registry entry: \(registry.spaces)")
     }
 
     func testDoctorReportsEveryCheckWithAStatus() throws {

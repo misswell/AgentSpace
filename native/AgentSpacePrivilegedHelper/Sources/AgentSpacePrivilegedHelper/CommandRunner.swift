@@ -111,7 +111,7 @@ enum CommandRunner {
             }
         }
 
-        // Bounded wait: a helper that blocks forever on a hung `sysadminctl` is a
+        // Bounded wait: a helper that blocks forever on a system utility is a
         // helper that stops answering, and root operations must not be able to
         // wedge the app.
         let deadline = Date().addingTimeInterval(timeout)
@@ -177,5 +177,13 @@ enum AccountDirectory {
             .split(separator: ":", maxSplits: 1)
             .last?
             .trimmingCharacters(in: .whitespaces)
+    }
+
+    static func isAdministrator(_ username: String) -> Bool? {
+        let result = CommandRunner.run(["/usr/bin/id", "-Gn", username], timeout: 30)
+        guard result.ok else { return nil }
+        return result.standardOutput
+            .split(whereSeparator: { $0.isWhitespace })
+            .contains("admin")
     }
 }

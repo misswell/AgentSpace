@@ -247,6 +247,13 @@ public struct AgentAccount: Codable, Equatable, Sendable, Identifiable {
     /// The platform account this account drives, e.g. `_agentspace_a37f91`.
     public var username: String
     public var uid: uid_t
+    /// Home reported by directory services when the existing account was attached.
+    /// Optional so every V1/V2 registry record still decodes unchanged.
+    public var homeDirectory: String?
+    /// Runtime root used by this record. V3 stores new accounts under
+    /// `/Library/Application Support/AgentSpace`; migrated V1/V2 records keep
+    /// pointing at their legacy root until they are explicitly reattached.
+    public var runtimeRoot: String?
     public var state: SpaceState
     public var createdAt: Date
     public var lastStartedAt: Date?
@@ -263,6 +270,8 @@ public struct AgentAccount: Codable, Equatable, Sendable, Identifiable {
         name: String,
         username: String,
         uid: uid_t,
+        homeDirectory: String? = nil,
+        runtimeRoot: String? = nil,
         state: SpaceState = .created,
         createdAt: Date = Date(),
         lastStartedAt: Date? = nil,
@@ -276,6 +285,8 @@ public struct AgentAccount: Codable, Equatable, Sendable, Identifiable {
         self.name = name
         self.username = username
         self.uid = uid
+        self.homeDirectory = homeDirectory
+        self.runtimeRoot = runtimeRoot
         self.state = state
         self.createdAt = createdAt
         self.lastStartedAt = lastStartedAt
@@ -292,6 +303,7 @@ public struct AgentAccount: Codable, Equatable, Sendable, Identifiable {
     public var displayName: String { name }
     /// The dedicated macOS user behind the account.
     public var macOSUsername: String { username }
+    public var macOSHomeDirectory: String { homeDirectory ?? "/Users/\(username)" }
     /// V2 spelling of `state`.
     public var status: SpaceState { state }
 }
@@ -302,7 +314,7 @@ extension AgentAccount {
     /// compatibility rule).
     public init(from decoder: Decoder) throws {
         enum Keys: String, CodingKey {
-            case id, name, username, uid, state, createdAt, lastStartedAt
+            case id, name, username, uid, homeDirectory, runtimeRoot, state, createdAt, lastStartedAt
             case workspace, sharedFolders, permissions, autoStartWorker, purpose
         }
         let c = try decoder.container(keyedBy: Keys.self)
@@ -310,6 +322,8 @@ extension AgentAccount {
         self.name = try c.decode(String.self, forKey: .name)
         self.username = try c.decode(String.self, forKey: .username)
         self.uid = try c.decode(uid_t.self, forKey: .uid)
+        self.homeDirectory = try c.decodeIfPresent(String.self, forKey: .homeDirectory)
+        self.runtimeRoot = try c.decodeIfPresent(String.self, forKey: .runtimeRoot)
         self.state = try c.decode(SpaceState.self, forKey: .state)
         self.createdAt = try c.decode(Date.self, forKey: .createdAt)
         self.lastStartedAt = try c.decodeIfPresent(Date.self, forKey: .lastStartedAt)

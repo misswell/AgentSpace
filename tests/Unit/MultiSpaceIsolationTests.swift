@@ -98,22 +98,13 @@ final class MultiSpaceIsolationTests: XCTestCase {
         // `test` resolved to one directory — and on a case-insensitive filesystem
         // those are the same directory, so both agents would edit one checkout. That
         // is precisely what the worktree exists to prevent.
-        let options = SpaceProvisioner.Options(
+        let options = AccountAttachService.Options(
             root: "/Users/Shared/.AgentSpace",
             workspaceDirectory: "/Users/Shared/.AgentSpace/Worktrees/test",
             mainUser: "guofeng")
 
-        let first = SpaceProvisioner.confined(
-            .gitWorktree(repository: "/Users/me/Code/MyApp", branch: "agentspace/a", path: "/ignored"),
-            spaceID: ids[0], options: options)
-        let second = SpaceProvisioner.confined(
-            .gitWorktree(repository: "/Users/me/Code/MyApp", branch: "agentspace/b", path: "/ignored"),
-            spaceID: ids[1], options: options)
-
-        guard case .gitWorktree(_, _, let firstPath) = first,
-              case .gitWorktree(_, _, let secondPath) = second else {
-            return XCTFail("confining a git worktree changed its kind")
-        }
+        let firstPath = options.worktreePath(accountID: ids[0], repository: "/Users/me/Code/MyApp")
+        let secondPath = options.worktreePath(accountID: ids[1], repository: "/Users/me/Code/MyApp")
         XCTAssertNotEqual(firstPath, secondPath, "two Spaces were given the same working tree")
         XCTAssertTrue(firstPath.contains(ids[0].uuidString), firstPath)
         XCTAssertTrue(secondPath.contains(ids[1].uuidString), secondPath)
@@ -122,18 +113,9 @@ final class MultiSpaceIsolationTests: XCTestCase {
         XCTAssertFalse(firstPath.contains("/ignored"))
     }
 
-    func testConfiningLeavesSharedFoldersAndNoWorkspaceAlone() throws {
-        // A shared folder is a path the user chose. Rewriting it would silently
-        // point the agent somewhere the user did not pick.
-        let options = SpaceProvisioner.Options(root: "/r", workspaceDirectory: "/w", mainUser: "u")
-        XCTAssertEqual(SpaceProvisioner.confined(.sharedFolders, spaceID: ids[0], options: options), .sharedFolders)
-        XCTAssertEqual(SpaceProvisioner.confined(.none, spaceID: ids[0], options: options), .none)
-    }
-
-    func testCreatingTwoSpacesWithTheSameNameBothSucceed() throws {
-        // End to end through the provisioner, with the helper doubled: the same
-        // name twice must produce two usable, separate Spaces rather than the
-        // second failing on a directory the first one made.
+    func testAttachingTwoAccountsWithTheSameDisplayNameBothSucceed() throws {
+        // End to end through the attach service, with the helper doubled: display
+        // names are presentation only and must not determine account identity.
         let root = "/tmp/multi-\(UUID().uuidString.prefix(8))"
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: root) }
@@ -151,18 +133,12 @@ final class MultiSpaceIsolationTests: XCTestCase {
         XCTAssertEqual(WorkspacePreparer.run(["/usr/bin/git", "-C", repository, "add", "-A"]).exitCode, 0)
         XCTAssertEqual(WorkspacePreparer.run(["/usr/bin/git", "-C", repository, "commit", "-q", "-m", "i"]).exitCode, 0)
 
-        let keychain = KeychainStore(service: "com.agentspace.AgentSpace.tests.multi.\(UUID().uuidString.prefix(8))")
-        defer { for id in keychain.storedSpaceIDs() { try? keychain.delete(for: id) } }
-
         var registry = SpaceRegistry()
-        let options = SpaceProvisioner.Options(
+        let options = AccountAttachService.Options(
             root: root, workspaceDirectory: root + "/Worktrees", mainUser: "guofeng")
 
         func transport(_ request: HelperRequest) throws -> HelperResponse {
             switch request.operation {
-            case .createUser:
-                return HelperResponse(id: request.id, result: .obj([
-                    "username": .string(request.username ?? ""), "uid": .int(800)]))
             case .prepareRuntimeDirectory:
                 let directory = "\(request.runtimeRoot ?? root)/Runtime/\(request.spaceID?.uuidString ?? "x")"
                 try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
@@ -176,18 +152,24 @@ final class MultiSpaceIsolationTests: XCTestCase {
 
         var created: [AgentAccount] = []
         var paths: [String] = []
-        // "Test" and "test" — the case that used to collide.
-        for (index, name) in ["Test", "test"].enumerated() {
-            let outcome = SpaceProvisioner.create(
-                name: name,
+        for (index, username) in ["agentone", "agenttwo"].enumerated() {
+            let localAccount = LocalAccount(
+                username: username,
+                uid: uid_t(800 + index),
+                displayName: "Test",
+                homeDirectory: "/Users/\(username)",
+                isAdministrator: false)
+            let outcome = AccountAttachService.attach(
+                account: localAccount,
+                displayName: "Test",
                 workspace: .gitWorktree(
                     repository: repository,
                     branch: "agentspace/\(index)",
-                    path: root + "/ignored/\(name)"),
+                    path: root + "/ignored/\(username)"),
                 sharedFolders: [], options: options,
-                transport: transport, registry: registry, keychain: keychain)
-            XCTAssertTrue(outcome.ok, "\(name): \(outcome.error?.message ?? "")")
-            let space = try XCTUnwrap(outcome.space)
+                transport: transport, registry: registry)
+            XCTAssertTrue(outcome.ok, "\(username): \(outcome.error?.message ?? "")")
+            let space = try XCTUnwrap(outcome.account)
             created.append(space)
             registry.upsert(space)
 

@@ -38,14 +38,15 @@ if arguments.contains("--help") || arguments.contains("-h") {
 
     The helper answers these operations over XPC, and nothing else:
 
-      createUser                create a standard (never admin) agent account
-      deleteUser                delete an agent account the helper itself created
-      installWorker             install the worker LaunchAgent into a Space
+      installWorker             install the worker LaunchAgent into an account
       removeWorker              remove it again
-      prepareRuntimeDirectory   create and permission the Space's runtime dir
-      startWorker / stopWorker  start or stop the Space's worker
-      sessionInfo               is there a GUI session for a Space?
-      helperStatus              version, whether it is root, which accounts exist
+      prepareRuntimeDirectory   create and permission an account runtime
+      removeRuntimeDirectory    remove that exact account runtime
+      startWorker / stopWorker  start or stop an account worker
+      sessionInfo               is there a GUI session for the account?
+      helperStatus              version and helper status
+
+    Legacy createUser/deleteUser requests remain decodable but are always refused.
     """)
     exit(0)
 }

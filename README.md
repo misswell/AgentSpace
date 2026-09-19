@@ -4,8 +4,8 @@
 
 AgentSpace manages agent accounts: each one is a real macOS user with its own
 desktop session, so agents can browse, code, test and operate GUI apps without
-taking over your keyboard, mouse or screen. Product plan and status per
-section: `docs/v2-plan.md`.
+taking over your keyboard, mouse or screen. The current product plan is
+[`docs/v3-plan.md`](docs/v3-plan.md).
 
 **No VM. No second macOS installation. No remote Mac.**
 
@@ -39,9 +39,9 @@ support, which is what fast user switching is built on.
                                 └───────────────────────────┘
 ```
 
-A Space is created once, logged into once by hand, and then lives in the
-background. Agents drive it over a unix socket; you never see it unless you open
-**View Desktop**.
+An existing standard account is connected once, logged into by its owner, and
+then lives in the background. Agents drive it over a unix socket; you never see
+it unless you open **Open Desktop**.
 
 ## Why not the obvious alternatives
 
@@ -77,11 +77,10 @@ list before promising anything.
 - `AgentSpace.app` — the SwiftUI app: agent-account home with status cards, a
   three-step New Agent wizard, the Desktop Viewer with click-to-input, the menu
   bar, and diagnostics. English and Simplified Chinese.
-- Creating an agent end to end: the privileged helper makes a real (never
-  administrator) macOS user, a runtime directory and a LaunchAgent; the app
-  walks through the one manual first login.
-- Orphan-account recovery: if a create is interrupted, Doctor lists the
-  leftover `_agentspace_…` account and the app removes it with a button.
+- Connecting an existing standard macOS account: discovery, validation,
+  root-owned runtime/worker installation, LaunchAgent start and rollback.
+- Disconnecting removes only AgentSpace-owned state; the macOS user and its
+  home are always retained.
 - `agentspace-worker` — the per-account daemon: unix socket RPC, fail-closed console
   guard, session-tap input, screenshot, app lifecycle, `exec`, accessibility tree
 - `agentspace` — the CLI, with `--json` on everything, plus `agentspace doctor`
@@ -126,7 +125,7 @@ session.
 
 ## Install
 
-If you have the DMG (`dist/AgentSpace-0.1.0.dmg`, produced by
+If you have the DMG (`dist/AgentSpace-0.1.1.dmg`, produced by
 `scripts/release.sh` and notarized by `scripts/notarize.sh` — run both, in that
 order; `check-all.sh`'s dist guard fails on an unstapled app):
 
@@ -134,8 +133,9 @@ order; `check-all.sh`'s dist guard fails on an unstapled app):
 2. Open the app. It is Developer ID signed, notarized, and stapled, so
    Gatekeeper opens it directly — no right-click, no "allow anyway".
 3. Press **Install Helper** and confirm with your administrator password.
-   Only the helper (a root LaunchDaemon) can create the macOS accounts the
-   Spaces run in; nothing in AgentSpace runs `sudo`.
+   The helper (a root LaunchDaemon) installs the root-owned worker and prepares
+   private runtimes; it never creates or deletes macOS users, and nothing in
+   AgentSpace runs `sudo`.
 
 From source instead: see **Build** below.
 
@@ -330,30 +330,25 @@ tests/Unit tests/Safety tests/Integration tests/probes
 docs/ scripts/
 ```
 
-### Creating an agent account
+### Connecting an agent account
 
-The normal way is the app: **New Agent…** → name → purpose → create. Creating
-an account makes a real macOS user, so it needs the privileged helper (open the
-app → **Install Helper**). Nothing else in the CLI does.
+First create a standard secondary user in System Settings → Users & Groups.
+Then use **New Agent…** in the app to select and connect that existing account.
+The helper installs only AgentSpace's root-owned worker and private runtime; it
+never creates or deletes macOS users.
 
 ```bash
-agentspace create "Frontend Test"          # the V2 spelling is `create account`
-agentspace create "API Test" --repo ~/Code/Api --branch agentspace/api
-agentspace delete "Frontend Test"          # keeps its home directory
-agentspace delete "Frontend Test" --remove-home
+agentspace attach AgentDev
+agentspace attach AgentDev --repo ~/Code/Api --branch agentspace/api
+agentspace detach AgentDev                  # always keeps the user and home
 ```
-
-If a create is ever interrupted after the macOS user exists, the account is an
-orphan: it has no record, no password, and the app cannot see it. Doctor does —
-⌘⇧D lists it under **Orphaned accounts**, with a button that removes it.
 
 The CLI never runs `sudo`. If the helper is not installed it exits **69** and says
 so — it does not fall back to your own account.
 
-After creating a Space you sign in to it **once**, through Fast User Switching, and
-grant Accessibility and Screen Recording. That is the only manual step, and the app
-walks you through it. Its login password is in the Keychain, shown on request in
-the Space's page.
+Sign in to the connected account through Fast User Switching with its existing
+password and grant Accessibility and Screen Recording to the worker. AgentSpace
+does not know or store that password.
 
 ## Requirements
 

@@ -85,7 +85,7 @@ public enum Diagnostics {
         let release = withUnsafeBytes(of: &system.release) { bytes in
             String(cString: bytes.baseAddress!.assumingMemoryBound(to: CChar.self))
         }
-        lines.append("system: \(machine) macOS(\(release)) agentspace-core 0.1.0")
+        lines.append("system: \(machine) macOS(\(release)) agentspace-core 0.1.1")
 
         // Doctor — its checks are about states and binaries; no secrets by
         // construction, but it goes through the redactor with everything else.
@@ -102,7 +102,9 @@ public enum Diagnostics {
         lines.append("")
         lines.append("spaces (\(registry.spaces.count)):")
         for space in registry.spaces {
-            let runtime = RuntimePaths(spaceID: space.id, root: root ?? RuntimePaths.root)
+            let runtime = RuntimePaths(
+                spaceID: space.id,
+                root: root ?? AgentSpaceEnvironment.rootOverride ?? space.runtimeRoot ?? RuntimePaths.root)
             let socket = FileManager.default.fileExists(atPath: runtime.socketPath)
             let tokenFile = FileManager.default.fileExists(atPath: runtime.tokenPath)
             lines.append(

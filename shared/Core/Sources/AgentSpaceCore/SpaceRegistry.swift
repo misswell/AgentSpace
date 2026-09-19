@@ -19,6 +19,13 @@ public enum AgentSpaceEnvironment {
     public static func paths(spaceID: UUID, socketPath: String? = nil) -> RuntimePaths {
         RuntimePaths(spaceID: spaceID, root: rootOverride ?? RuntimePaths.root, socketPath: socketPath)
     }
+
+    public static func paths(for space: AgentAccount, socketPath: String? = nil) -> RuntimePaths {
+        RuntimePaths(
+            spaceID: space.id,
+            root: rootOverride ?? space.runtimeRoot ?? RuntimePaths.root,
+            socketPath: socketPath)
+    }
 }
 
 /// The set of Spaces this machine knows about. Plan §26/§29.
@@ -83,12 +90,22 @@ public struct SpaceRegistry: Codable, Sendable {
     public static func load(root: String? = nil) -> SpaceRegistry {
         let resolvedRoot = root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
         let path = SpaceRegistry.path(root: resolvedRoot)
-        guard let data = FileManager.default.contents(atPath: path) else {
+        var sourcePath = path
+        var data = FileManager.default.contents(atPath: sourcePath)
+        // V3 moved the root-owned runtime into Application Support. Preserve the
+        // V2 registry as an upgrade source, but never write back to the old tree.
+        if data == nil,
+           AgentSpaceEnvironment.rootOverride == nil,
+           root == nil || root == RuntimePaths.root {
+            sourcePath = SpaceRegistry.path(root: RuntimePaths.legacyRoot)
+            data = FileManager.default.contents(atPath: sourcePath)
+        }
+        guard let data else {
             return SpaceRegistry()
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        guard let registry = try? decoder.decode(SpaceRegistry.self, from: data) else {
+        guard var registry = try? decoder.decode(SpaceRegistry.self, from: data) else {
             // An undecodable registry must not be *silently* treated as "no
             // Spaces" — that would make every Agent look deleted, and the next
             // save would overwrite the only evidence of what existed. So the
@@ -96,8 +113,13 @@ public struct SpaceRegistry: Codable, Sendable {
             // still returned (the app must keep working), but the original
             // bytes survive under a name that says what happened, and
             // `corruptRegistryFiles` lets doctor surface it.
-            Self.quarantine(path: path, data: data)
+            Self.quarantine(path: sourcePath, data: data)
             return SpaceRegistry(spaces: [])
+        }
+        let sourceRoot = (sourcePath as NSString).deletingLastPathComponent
+        let inferredRoot = (sourceRoot as NSString).deletingLastPathComponent
+        for index in registry.spaces.indices where registry.spaces[index].runtimeRoot == nil {
+            registry.spaces[index].runtimeRoot = inferredRoot
         }
         return registry
     }
@@ -138,7 +160,7 @@ public struct SpaceRegistry: Codable, Sendable {
         if spaces.isEmpty {
             return .failure(AgentSpaceError(
                 code: .sessionNotReady,
-                message: "no agent accounts exist yet. Create one in the AgentSpace app, or run `agentspace doctor` to see what this machine still needs."))
+                message: "no agent accounts are connected yet. Connect an existing standard macOS account in the AgentSpace app, or run `agentspace doctor` to see what this machine still needs."))
         }
         return .failure(AgentSpaceError(
             code: .sessionNotReady,

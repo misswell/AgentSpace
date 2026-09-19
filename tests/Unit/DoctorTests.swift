@@ -39,16 +39,15 @@ final class DoctorTests: XCTestCase {
             XCTAssertTrue(check.detail.contains(name), "\(name) missing from: \(check.detail)")
         }
         XCTAssertNotNil(check.fix)
-        XCTAssertEqual(check.actionHint, "deleteOrphans",
-            "the app keys the delete button off this hint")
+        XCTAssertNil(check.actionHint, "V3 never offers to delete a macOS user")
     }
 
     /// The inverse promise: only checks whose action the app actually
-    /// implements may carry a hint, or the GUI would offer buttons the core
-    /// never defined behaviour for. The implemented set is exactly these two.
+    /// implements may carry a hint. V3 retains only helper reinstall; legacy
+    /// account records are reviewed in System Settings and never deleted here.
     func testOnlyChecksWithImplementedActionsCarryAnActionHint() {
         let report = Doctor.run(orphanedAccounts: ["_agentspace_a5b707"])
         let hinted = Set(report.checks.compactMap(\.actionHint))
-        XCTAssertEqual(hinted, ["deleteOrphans", "reinstallHelper"])
+        XCTAssertEqual(hinted, ["reinstallHelper"])
     }
 }

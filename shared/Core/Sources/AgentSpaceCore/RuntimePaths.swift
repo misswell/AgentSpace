@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Layout:
 /// ```
-/// /Users/Shared/.AgentSpace/
+/// /Library/Application Support/AgentSpace/
 ///   Runtime/
 ///     <space-uuid>/
 ///       worker.sock     the unix socket the worker listens on
@@ -25,9 +25,11 @@ import Foundation
 /// reached from off the machine, and its directory ACL is the second lock
 /// behind the token.
 public struct RuntimePaths: Sendable {
-    /// `/Users/Shared` rather than `/tmp`: it survives a reboot, which is
-    /// exactly when a stale socket would otherwise be mistaken for a live one.
-    public static let root = "/Users/Shared/.AgentSpace"
+    /// Root-owned installation state. The helper creates it; only the per-account
+    /// runtime receives a two-user ACL for the controller and attached account.
+    public static let root = "/Library/Application Support/AgentSpace"
+    /// V2 location, read only as an upgrade source by `SpaceRegistry`.
+    public static let legacyRoot = "/Users/Shared/.AgentSpace"
 
     public let spaceID: UUID
     /// The `<...>/.AgentSpace` root this instance resolves against.
@@ -115,8 +117,8 @@ public struct RuntimePaths: Sendable {
     /// has already validated against the directory service.
     public func applyACL(mainUser: String, agentUser: String) -> AgentSpaceError? {
         let entries = [
-            "user:\(mainUser) allow read,write,execute,delete,list,search",
-            "user:\(agentUser) allow read,write,execute,delete,list,search",
+            "user:\(mainUser) allow read,write,execute,delete,append,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit",
+            "user:\(agentUser) allow read,write,execute,delete,append,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit",
         ]
         for entry in entries {
             let status = ACLRunner.apply(entry, to: directory)

@@ -11,7 +11,7 @@ cannot be reached from off the machine, and its directory ACL is a second lock
 behind the session token.
 
 ```
-/Users/Shared/.AgentSpace/
+/Library/Application Support/AgentSpace/
   Runtime/
     <space-uuid>/
       worker.sock        the socket
@@ -129,7 +129,7 @@ Params: `maxWidth` (positive int), `display` (1-based; 1 is the main display),
 
 ```json
 {
-  "path": "/Users/Shared/.AgentSpace/Runtime/…/screenshots/shot-1789712260381.png",
+  "path": "/Library/Application Support/AgentSpace/Runtime/…/screenshots/shot-1789712260381.png",
   "width": 640, "height": 360,
   "pixelWidth": 3840, "pixelHeight": 2160,
   "scale": 2
@@ -357,11 +357,11 @@ first-class and typed, so no caller can catch it and be tempted to fall back.
 ## Hand-testing with `nc`
 
 ```bash
-sock=/Users/Shared/.AgentSpace/Runtime/<uuid>/worker.sock
+sock=/Library/Application Support/AgentSpace/Runtime/<uuid>/worker.sock
 
 printf '{"protocol":1,"requestId":"1","method":"hello"}\n' | nc -U "$sock"
 
-token=$(cat /Users/Shared/.AgentSpace/Runtime/<uuid>/token)
+token=$(cat /Library/Application Support/AgentSpace/Runtime/<uuid>/token)
 printf '{"protocol":1,"requestId":"2","token":"%s","method":"status","params":{}}\n' "$token" | nc -U "$sock"
 
 printf '{"protocol":1,"requestId":"3","token":"%s","method":"screenshot","params":{"maxWidth":640}}\n' "$token" | nc -U "$sock"

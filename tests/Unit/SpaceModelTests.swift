@@ -167,7 +167,7 @@ final class SpaceModelTests: XCTestCase {
         guard case .failure(let error) = SpaceRegistry().resolve("anything") else {
             return XCTFail("should not resolve")
         }
-        XCTAssertTrue(error.message.contains("no agent accounts exist yet"), error.message)
+        XCTAssertTrue(error.message.contains("no agent accounts are connected yet"), error.message)
     }
 
     func testUpsertReplacesRatherThanDuplicates() {

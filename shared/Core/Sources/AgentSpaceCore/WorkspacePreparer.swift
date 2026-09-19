@@ -78,7 +78,7 @@ public enum WorkspacePreparer {
         homeDirectory: String = NSHomeDirectory(),
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
         isGitRepository: (String) -> Bool = { isGitRepository(at: $0) },
-        resolve: (String) -> String? = { resolveExecutable($0) }
+        resolve: (String) -> String? = { resolveGitExecutable($0) }
     ) -> Result<Plan, AgentSpaceError> {
 
         var directories: [String] = [workspaceDirectory]
@@ -340,6 +340,17 @@ public enum WorkspacePreparer {
             if FileManager.default.isExecutableFile(atPath: fallback) { return fallback }
         }
         return nil
+    }
+
+    /// Git is a system tool on macOS. Keep the planned argv stable even when a
+    /// developer's PATH happens to put Homebrew Git first; this makes previews,
+    /// tests and persisted workspace plans reproducible across shells.
+    public static func resolveGitExecutable(_ name: String) -> String? {
+        guard name == "git" else { return resolveExecutable(name) }
+        if FileManager.default.isExecutableFile(atPath: "/usr/bin/git") {
+            return "/usr/bin/git"
+        }
+        return resolveExecutable(name)
     }
 
     public static func run(_ arguments: [String]) -> (exitCode: Int32, output: String) {

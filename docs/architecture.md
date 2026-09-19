@@ -43,7 +43,7 @@ Everything below follows from that sentence.
 | Process | Runs as | May do | May **not** do |
 |---|---|---|---|
 | `AgentSpace.app` | your user | UI, Space management, status, screenshot preview, CLI/MCP request forwarding, log display | Create users, modify accounts, run a root shell |
-| `AgentSpacePrivilegedHelper` | root, via `SMAppService` LaunchDaemon | A **closed set of typed operations**: create/delete the AgentSpace user, query uid, install/remove the worker LaunchAgent, prepare the runtime directory and its ACL, start/stop a named LaunchAgent, read session state | Anything generic. There is no `runShell(command)` and no `executeAnything(command)` — see below |
+| `AgentSpacePrivilegedHelper` | root, via `SMAppService` LaunchDaemon | A **closed set of typed operations**: install/remove the worker LaunchAgent, prepare/remove an exact runtime directory and ACL, start/stop a named LaunchAgent, read session state | Create/delete users or do anything generic. There is no `runShell(command)` and no `executeAnything(command)` — see below |
 | `agentspace-worker` | the AgentSpace user | Screenshot, input, app lifecycle, exec, accessibility, serve the socket | Run as root, touch your session, reach the machine outside its workspace |
 
 ### Why the helper has no generic command
@@ -52,9 +52,9 @@ The helper is the only root component, so its XPC interface is a list of
 *intents*, not a shell:
 
 ```swift
-createUser(name:fullName:password:)   deleteUser(username:removeHome:)
 installWorker(spaceID:username:)      removeWorker(spaceID:username:)
-prepareRuntimeDirectory(spaceID:…)    startWorker(spaceID:) / stopWorker(spaceID:)
+prepareRuntimeDirectory(spaceID:…)    removeRuntimeDirectory(spaceID:…)
+startWorker(spaceID:) / stopWorker(spaceID:)
 sessionInfo(spaceID:)
 ```
 
@@ -74,7 +74,7 @@ agentspace click dev 500 300
   │
   ├─ resolve Space "dev" → UUID, uid, socket path, token     (registry + runtime dir)
   │
-  ├─ connect /Users/Shared/.AgentSpace/Runtime/<uuid>/worker.sock
+  ├─ connect /Library/Application Support/AgentSpace/Runtime/<uuid>/worker.sock
   │
   ├─ {"protocol":1,"requestId":…,"token":…,"method":"input",
   │   "params":{"actions":[{"type":"click","x":500,"y":300}]}}
@@ -112,10 +112,10 @@ shared/Core/Sources/AgentSpaceCore/       the contract everything shares
   Security.swift        session token, token storage, log redaction
   SpaceRegistry.swift   the Space index, resolution by name/UUID
   WorkerClient.swift    the socket client (used by CLI, tests, GUI, MCP)
-  SpaceProvisioner.swift  creating and deleting a Space — §28, §41 (via the helper)
+  AccountDiscovery.swift      eligible existing local-account discovery
+  AccountAttachService.swift attach/detach transaction and rollback
   WorkspacePreparer.swift workspace settings → files on disk and access rights (§51)
   ExecGuard.swift       the §36 exec refusal list — a product guard, not a sandbox
-  KeychainStore.swift   where a Space's login password lives (§9)
   HelperProtocol.swift  the privileged helper's typed XPC interface (§6)
   HelperClient.swift    helper mach-service name and the client side of it
   HelperInstallation.swift  where the helper is and whether it answers (§38)
@@ -188,23 +188,21 @@ question in (4) is the reason, and the plan's §43 is the reason for the rest.
 
 ## Lifecycle
 
-### Creating a Space (plan §28)
+### Connecting an existing account (V3)
 
 ```
-Name → Workspace → Create
-  → Privileged helper: create the standard (non-admin) user
-  → generate a 32-byte password, store it in the Keychain
-  → install the worker LaunchAgent into the agent user's ~/Library/LaunchAgents
-  → prepare the runtime directory and its ACL
-  → prompt: switch to AgentSpace – <name>, sign in once
+Discover standard local users → choose account → workspace → Connect
+  → prepare the root-owned runtime directory and its two-user ACL
+  → install the root-owned worker and that user's LaunchAgent
+  → save the AgentAccount record
+  → prompt: switch to the existing account and sign in with its own password
   → in that session: grant Accessibility and Screen Recording
   → switch back
   → the app sees the worker come online and flips to Ready
 ```
 
-The first login is manual on purpose. Doing it automatically means either a
-stored auto-login credential or private APIs, and the plan (§10) explicitly
-refuses to trade a large private-API surface for a one-time click.
+The session login is manual on purpose. AgentSpace never knows the account's
+password and does not trade that clean boundary for auto-login or private APIs.
 
 ### After a reboot
 
@@ -219,9 +217,9 @@ non-goals — plan §39.)
 |---|---|
 | **Stop Agent** | Stops the worker, keeps the GUI session |
 | **Logout Desktop** | Ends the whole session, freeing more RAM |
-| **Delete Space** | Stop worker → logout → remove LaunchAgent → remove runtime → delete the user → *then ask* about the home directory |
+| **Disconnect Account** | Stop worker → remove LaunchAgent → remove runtime and AgentSpace worktree/record; keep the macOS user and home |
 
-For a git-worktree workspace, deletion keeps the branch and removes the worktree.
+For a git-worktree workspace, disconnect keeps the branch and removes the worktree.
 Your original project is never touched.
 
 ---

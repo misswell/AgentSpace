@@ -22,7 +22,7 @@ import AgentSpaceCore
 @MainActor
 final class AppModel: ObservableObject {
 
-    /// "0.1.0 (412)" — marketing version plus the build number that
+    /// "0.1.1 (412)" — marketing version plus the build number that
     /// `scripts/bundle-app.sh` stamps from git at bundle time. Shown in the
     /// sidebar so "am I looking at the copy I just built?" is answered on
     /// screen; the About panel reads the same plist keys.
@@ -45,50 +45,28 @@ final class AppModel: ObservableObject {
     /// so the UI never offers a button that cannot work.
     @Published var helperState: HelperInstallation.State = HelperInstallation.inspect(ping: false)
     @Published var isInstallingHelper = false
-    /// A create or delete in flight, with its steps, so the UI can show exactly
+    /// An attach or detach in flight, with its steps, so the UI can show exactly
     /// what is happening to the machine rather than a spinner.
     @Published var provisioning: Provisioning?
-    /// The password for one Space, revealed on request and then dismissed. Held
-    /// only while the sheet is open — never persisted by the app.
-    @Published var revealedPassword: RevealedPassword?
     /// The Agent whose disk is currently being measured, so the button can show
     /// progress instead of being pressed twice.
     @Published var measuringDisk: UUID?
     /// Set when something was copied, so the UI can confirm without an alert.
     @Published var copiedMessage: String?
+    @Published private(set) var availableAccounts: [LocalAccount] = []
 
     struct Provisioning: Equatable, Identifiable {
         var id = UUID()
         var operation: String
         var steps: [String] = []
         var finished = false
-        /// A create that ended with a usable agent account. The sign-in
-        /// instructions are shown only for this — never for "it stopped with an
-        /// error", which used to read as success (§272), and never for a delete.
+        /// An attach that ended with a usable account. The sign-in instructions
+        /// are shown only for this — never for a failed attach or a detach.
         var offersLoginInstructions = false
         /// The failure, phrased for a human, rendered inside the overlay itself:
         /// while the wizard sheet is open no alert can present over it (§269),
         /// so an error routed only to `lastError` was swallowed.
         var error: PresentedError?
-        /// What a failed create left on the machine, checked afterwards rather
-        /// than inferred from the error text. The failure names an
-        /// `_agentspace_…` account, and a name on screen reads like something
-        /// that exists and needs cleaning up — on a machine that blocks account
-        /// creation it never does (validation §275).
-        var aftermath: Aftermath?
-
-        enum Aftermath: Equatable {
-            case nothingLeft(String)
-            case left(String)
-            case unchecked(String)
-        }
-    }
-
-    struct RevealedPassword: Identifiable, Equatable {
-        var id: UUID { spaceID }
-        var spaceID: UUID
-        var spaceName: String
-        var password: String
     }
     @Published private(set) var isLoading = false
     @Published var showingNewSpace = false
@@ -97,8 +75,6 @@ final class AppModel: ObservableObject {
     /// AgentSpace-named accounts with no agent record, as last computed by
     /// `runDoctor`. Empty when the helper could not be reached, so the delete
     /// button never appears for a list this app could not verify.
-    @Published private(set) var orphanedUsernames: [String] = []
-    @Published private(set) var isDeletingOrphans = false
 
     /// A failure phrased for a human, with the code kept for the detail line.
     /// When the core marks a one-button recovery (`actionTitle` non-nil), the
@@ -233,35 +209,32 @@ final class AppModel: ObservableObject {
         }
     }
 
-    // MARK: - Create / delete (plan §28, §41)
+    // MARK: - Attach / detach (V3)
 
-    /// Create a Space. The machine changes happen inside `SpaceProvisioner`, which
-    /// is where the rollback lives; this only reports progress.
+    /// Connect an existing standard macOS account and install its runtime.
     ///
     /// Everything runs off the main actor: creating an account and installing a
     /// launchd job takes seconds, and blocking the main thread would freeze the
     /// window with no explanation.
-    func createSpace(name: String, purpose: AgentPurpose? = nil, workspace: Workspace, sharedFolders: [SharedFolder]) {
+    func attachAccount(_ account: LocalAccount, displayName: String, workspace: Workspace, sharedFolders: [SharedFolder]) {
         guard provisioning == nil else { return }
-        // `root` is nil only when the service was built without one, which in this
-        // app never happens; falling back to the computed default keeps create
-        // working rather than silently doing nothing.
         let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
-        provisioning = Provisioning(operation: String(format: NSLocalizedString("Creating %@", comment: ""), name))
+        provisioning = Provisioning(operation: String(format: NSLocalizedString("Connecting %@", comment: ""), displayName))
         let directory = Self.worktreesDirectory
 
         Task {
-            let keychain = KeychainStore()
             let registry = SpaceRegistry.load(root: root)
             let outcome = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
-                    continuation.resume(returning: SpaceProvisioner.create(
-                        name: name, purpose: purpose, workspace: workspace, sharedFolders: sharedFolders,
-                        options: SpaceProvisioner.Options(
+                    continuation.resume(returning: AccountAttachService.attach(
+                        account: account,
+                        displayName: displayName,
+                        workspace: workspace,
+                        sharedFolders: sharedFolders,
+                        options: AccountAttachService.Options(
                             root: root, workspaceDirectory: directory, mainUser: NSUserName()),
                         transport: { try HelperClient.call($0) },
-                        registry: registry,
-                        keychain: keychain))
+                        registry: registry))
                 }
             }
 
@@ -277,31 +250,22 @@ final class AppModel: ObservableObject {
             // said "sign in now" was the lie §272 records.
             if let error = outcome.error {
                 self.provisioning?.error = self.presented(for: error, space: nil)
-                // The error names an account, which leaves one question open: is
-                // there something to clean up? The machine is asked again rather
-                // than the message being read, because on this Mac the named
-                // account was never created at all (§275).
-                if let username = outcome.attemptedUsername {
-                    let remaining: [String]? = await withCheckedContinuation { continuation in
-                        DispatchQueue.global(qos: .userInitiated).async {
-                            continuation.resume(returning: HelperClient.agentSpaceAccounts())
-                        }
-                    }
-                    let aftermath: Provisioning.Aftermath
-                    switch remaining {
-                    case .none:
-                        aftermath = .unchecked(username)
-                    case .some(let names):
-                        aftermath = names.contains(username)
-                            ? .left(username) : .nothingLeft(username)
-                    }
-                    self.provisioning?.aftermath = aftermath
-                }
             }
             self.reload()
+            self.discoverAccounts()
             // Ask the helper again: if it refused mid-run, the card behind the
             // overlay should say so when the overlay closes.
             self.refreshHelperState()
+        }
+    }
+
+    func discoverAccounts() {
+        let attached = Set(snapshots.map { $0.space.username })
+        Task {
+            let accounts = await Task.detached(priority: .userInitiated) {
+                AccountDiscovery.discover().filter { !attached.contains($0.username) }
+            }.value
+            self.availableAccounts = accounts
         }
     }
 
@@ -312,33 +276,26 @@ final class AppModel: ObservableObject {
         if selected?.space.id == space.id { reload() }
     }
 
-    /// §40's Logout Desktop: helper-typed; a missing helper surfaces as the
-    /// typed error with its fix, which is the fail-closed behavior.
-    func logoutDesktop(_ space: AgentAccount) {
-        if case .failure(let error) = service.logoutDesktop(for: space) {
-            lastError = PresentedError(code: error.code.rawValue, message: error.message, fix: error.code.remediation)
-        }
-        if selected?.space.id == space.id { reload() }
-    }
-
-    func deleteSpace(_ space: AgentAccount, removeHome: Bool) {
+    func deleteSpace(_ space: AgentAccount, removeHome: Bool = false) {
         guard provisioning == nil else { return }
-        provisioning = Provisioning(operation: String(format: NSLocalizedString("Deleting %@", comment: ""), space.name))
+        _ = removeHome
+        provisioning = Provisioning(operation: String(format: NSLocalizedString("Disconnecting %@", comment: ""), space.name))
 
         let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+        let accountRoot = space.runtimeRoot ?? root
         let directory = Self.worktreesDirectory
         Task {
             let outcome = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
-                    continuation.resume(returning: SpaceProvisioner.delete(
-                        space: space, removeHome: removeHome,
-                        options: SpaceProvisioner.Options(
-                            root: root,
+                    continuation.resume(returning: AccountAttachService.detach(
+                        account: space,
+                        options: AccountAttachService.Options(
+                            root: accountRoot,
+                            registryRoot: root,
                             workspaceDirectory: directory,
                             mainUser: NSUserName()),
                         transport: { try HelperClient.call($0) },
-                        registry: SpaceRegistry.load(root: root),
-                        keychain: KeychainStore()))
+                        registry: SpaceRegistry.load(root: root)))
                 }
             }
             self.provisioning?.steps = outcome.steps.map(Self.describe)
@@ -347,6 +304,7 @@ final class AppModel: ObservableObject {
                 self.provisioning?.error = self.presented(for: error, space: space)
             }
             self.reload()
+            self.discoverAccounts()
         }
     }
 
@@ -386,32 +344,8 @@ final class AppModel: ObservableObject {
         provisioning = nil
     }
 
-    /// Reveal a Space's login password, for the one manual sign-in.
-    ///
-    /// Read from the Keychain on demand and held only in the sheet that shows it.
-    /// The app never caches it, never logs it, and never puts it on the clipboard
-    /// without the user asking.
-    func revealPassword(for space: AgentAccount) {
-        do {
-            if let password = try KeychainStore().password(for: space.id) {
-                revealedPassword = RevealedPassword(
-                    spaceID: space.id, spaceName: space.name, password: password)
-            } else {
-                lastError = PresentedError(
-                    code: "NO_STORED_PASSWORD",
-                    message: String(format: NSLocalizedString("There is no stored password for %@", comment: ""), space.name),
-                    fix: NSLocalizedString("This agent was created before the password was stored, or its Keychain item was removed. Re-creating the agent generates a new one; the current password cannot be recovered.", comment: ""))
-            }
-        } catch {
-            lastError = PresentedError(
-                code: "KEYCHAIN_DENIED",
-                message: "\(error)",
-                fix: NSLocalizedString("Unlock your login keychain (Keychain Access) and try again.", comment: ""))
-        }
-    }
-
     /// The parent directory for git worktrees. Deliberately independent of the
-    /// Space's name: `SpaceProvisioner` adds the agent's id underneath, which is
+    /// account's display name: the attach service adds the id underneath, which is
     /// what makes the path unique. Two Spaces named `Test` and `test` are one
     /// directory on a case-insensitive filesystem, and two agents in one working
     /// tree is the bug the worktree exists to prevent (plan §24).
@@ -420,7 +354,7 @@ final class AppModel: ObservableObject {
         return "\(root)/Worktrees"
     }
 
-    private static func describe(_ step: SpaceProvisioner.Step) -> String {
+    private static func describe(_ step: AccountAttachService.Step) -> String {
         let mark: String
         switch step.outcome {
         case .done: mark = "✓"
@@ -519,65 +453,8 @@ final class AppModel: ObservableObject {
             }
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.orphanedUsernames = orphans ?? []
                 self.doctorReport = Doctor.run(root: root, orphanedAccounts: orphans)
             }
-        }
-    }
-
-    /// Remove accounts an interrupted creation left behind. Each delete is a
-    /// typed helper operation (`deleteUser`), and the names are re-checked
-    /// against the §8 naming contract here as well as in the helper — an
-    /// account this app cannot prove it created is never offered for removal.
-    func deleteOrphanedAccounts() {
-        guard !isDeletingOrphans else { return }
-        let names = orphanedUsernames.filter { HelperValidation.isAgentSpaceAccount($0) }
-        guard !names.isEmpty else { return }
-        isDeletingOrphans = true
-        Task {
-            let failures: [(String, String)] = await withCheckedContinuation { continuation in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    var failures: [(String, String)] = []
-                    for name in names {
-                        let request = HelperRequest(operation: .deleteUser, username: name, removeHome: true)
-                        do {
-                            let response = try HelperClient.call(request)
-                            if let error = response.error {
-                                failures.append((name, error.message))
-                            }
-                        } catch {
-                            failures.append((name, error.localizedDescription))
-                        }
-                    }
-                    continuation.resume(returning: failures)
-                }
-            }
-            self.isDeletingOrphans = false
-            if failures.isEmpty {
-                self.lastError = PresentedError(
-                    code: "ORPHANS_REMOVED",
-                    message: String(
-                        format: NSLocalizedString("Removed %d orphaned account(s).", comment: ""),
-                        names.count))
-            } else {
-                // The helper verified that the account survived every removal
-                // command — on this machine the directory service itself refuses
-                // the delete even to root. That is not something this app can
-                // out-argue, so the dialog says so and opens the one surface
-                // that may still be allowed: Apple's own Users & Groups pane.
-                var presented = PresentedError(
-                    code: "HELPER_REJECTED",
-                    message: failures.map { "\($0.0): \($0.1)" }.joined(separator: "\n"),
-                    fix: NSLocalizedString("This machine's directory service refused the deletion, even to the helper running as root. System Settings → Users & Groups uses Apple's own path, which is usually allowed where a third-party helper is refused.", comment: ""))
-                presented.actionTitle = NSLocalizedString("Open Users & Groups…", comment: "")
-                presented.action = {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.users") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                self.lastError = presented
-            }
-            self.runDoctor()
         }
     }
 

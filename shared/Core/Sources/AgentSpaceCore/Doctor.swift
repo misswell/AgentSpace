@@ -206,14 +206,16 @@ public enum Doctor {
                 name: NSLocalizedString("AgentSpaces", comment: ""),
                 status: .warn,
                 detail: "no agents are registered yet.",
-                fix: "Create one with the AgentSpace app. Creating an agent needs the privileged helper, because it makes a macOS user."))
+                fix: "Connect an existing standard macOS account with the AgentSpace app. The helper installs only AgentSpace runtime components; it never creates the account."))
         } else {
             checks.append(Check(
                 name: NSLocalizedString("AgentSpaces", comment: ""),
                 status: .pass,
                 detail: "\(registry.spaces.count) registered: \(registry.spaces.map(\.name).joined(separator: ", "))"))
             for space in registry.spaces {
-                checks.append(contentsOf: workerChecks(for: space, root: resolvedRoot))
+                checks.append(contentsOf: workerChecks(
+                    for: space,
+                    root: root ?? AgentSpaceEnvironment.rootOverride ?? space.runtimeRoot ?? resolvedRoot))
             }
         }
 
@@ -271,8 +273,7 @@ public enum Doctor {
                     detail: String(
                         format: NSLocalizedString("AgentSpace-named accounts with no agent record, left behind by an interrupted creation: %@.", comment: ""),
                         orphans.joined(separator: ", ")),
-                    fix: NSLocalizedString("Use Delete Orphaned Accounts — the helper removes the named accounts and their homes. Nothing else on this Mac is touched.", comment: ""),
-                    actionHint: "deleteOrphans"))
+                    fix: NSLocalizedString("AgentSpace V3 never deletes macOS users. Review these legacy accounts in System Settings → Users & Groups.", comment: "")))
             }
         }
 

@@ -16,6 +16,8 @@
 # --iterations 1000 before any actual release).
 set -u
 cd "$(dirname "$0")/.."
+VERSION="$(sed -n 's/.*cliVersion = "\(.*\)".*/\1/p' native/AgentSpaceCLI/Sources/AgentSpaceCLI/main.swift | head -1)"
+DMG="dist/AgentSpace-${VERSION}.dmg"
 
 # --- dist integrity guard (the §59 poisoning) --------------------------------
 # dist/ is the distribution directory; §59 recorded an unnotarized rebuild
@@ -29,9 +31,9 @@ if [ -d dist/AgentSpace.app ]; then
     echo "  the notarize flow. Restore from the stapled DMG or re-run notarize.sh." >&2
     exit 1
   fi
-  if [ -f dist/AgentSpace-0.1.0.dmg ]; then
+  if [ -f "$DMG" ]; then
     MNT="$(mktemp -d)"
-    if hdiutil attach dist/AgentSpace-0.1.0.dmg -mountpoint "$MNT" -quiet -nobrowse 2>/dev/null; then
+    if hdiutil attach "$DMG" -mountpoint "$MNT" -quiet -nobrowse 2>/dev/null; then
       INNER="$(codesign -dvvv "$MNT/AgentSpace.app" 2>&1 | grep -m1 'CDHash=' | awk -F'=' '{print $2}')"
       OUTER="$(codesign -dvvv dist/AgentSpace.app 2>&1 | grep -m1 'CDHash=' | awk -F'=' '{print $2}')"
       hdiutil detach "$MNT" -quiet
@@ -43,7 +45,7 @@ if [ -d dist/AgentSpace.app ]; then
       fi
       echo "==> dist guard: stapled app matches the stapled DMG ($INNER)"
     else
-      echo "check-all: could not mount dist/AgentSpace-0.1.0.dmg to compare" >&2
+      echo "check-all: could not mount $DMG to compare" >&2
       exit 1
     fi
   fi

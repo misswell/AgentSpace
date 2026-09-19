@@ -75,7 +75,7 @@ check "launch opens exactly one window" "1" "${WINDOWS:-?}"
 # The build number is stamped at bundle time (scripts/bundle-app.sh); if the
 # UI ever drifts from the plist, "am I on the new build?" becomes unanswerable
 # again, which is the failure this pins. The label around the number is
-# localized, so the check compares the "0.1.0 (284)" part, not the whole line.
+# localized, so the check compares the "0.1.1 (284)" part, not the whole line.
 SHORT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/AgentSpace.app/Contents/Info.plist)"
 BUILDN="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' dist/AgentSpace.app/Contents/Info.plist)"
 # The sidebar footer is not in the AX tree the instant the window is; retries

@@ -136,25 +136,6 @@ private struct CheckRow: View {
                     // A check can name the one in-app action that fixes it, so
                     // the fix is a button here rather than advice to run
                     // something in a terminal.
-                    if check.actionHint == "deleteOrphans" {
-                        HStack(spacing: 8) {
-                            Button {
-                                model.deleteOrphanedAccounts()
-                            } label: {
-                                if model.isDeletingOrphans {
-                                    HStack(spacing: 6) {
-                                        ProgressView().controlSize(.small)
-                                        Text(NSLocalizedString("Removing…", comment: ""))
-                                    }
-                                } else {
-                                    Text(NSLocalizedString("Delete Orphaned Accounts…", comment: ""))
-                                }
-                            }
-                            .disabled(model.isDeletingOrphans)
-                            .help(Text("The helper deletes only accounts named _agentspace_<6 hex>. Your own accounts are never candidates."))
-                        }
-                        .padding(.top, 2)
-                    }
                     if check.actionHint == "reinstallHelper" {
                         HStack(spacing: 8) {
                             Button {
@@ -248,17 +229,6 @@ struct ProvisioningView: View {
                             }
                         }
                     }
-                    if let aftermath = provisioning.aftermath {
-                        // The error text names an account and cannot say whether it
-                        // is real. This line is the machine's answer, re-read after
-                        // the failure — the question the name on screen provokes
-                        // (validation §275).
-                        Text(aftermath.line)
-                            .font(.callout)
-                            .foregroundStyle(aftermath.isClean ? Color.primary : Color.orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("createAftermath")
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
@@ -274,49 +244,18 @@ struct ProvisioningView: View {
     }
 }
 
-private extension AppModel.Provisioning.Aftermath {
-    /// Phrased as a fact about the machine, because the question this answers is
-    /// "do I have to clean something up?" — not "what error code came back?".
-    var line: String {
-        switch self {
-        case .nothingLeft(let username):
-            return String(format: NSLocalizedString(
-                "Checked afterwards: %@ is not an account on this Mac, so there is nothing to clean up.",
-                comment: ""), username)
-        case .left(let username):
-            return String(format: NSLocalizedString(
-                "Checked afterwards: %@ IS an account on this Mac. Open Doctor and use “Delete Orphaned Accounts…” to remove it.",
-                comment: ""), username)
-        case .unchecked(let username):
-            return String(format: NSLocalizedString(
-                "Whether %@ was left behind could not be checked, because the helper stopped answering. Doctor will list it if it exists.",
-                comment: ""), username)
-        }
-    }
-
-    var isClean: Bool {
-        if case .nothingLeft = self { return true }
-        return false
-    }
-}
-
-/// The one step that needs a human — plan §28.
-///
-/// AgentSpace cannot create an Aqua session for a user who has never logged in;
-/// that is a macOS property, not a limitation to work around with a private API.
-/// So the flow says so plainly, in order, and the app detects the result
-/// afterwards rather than asking the user to report back.
+/// The one step that needs a human: enter the existing account's desktop and
+/// grant the worker the macOS privacy permissions it needs.
 struct LoginInstructions: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Next, once — this is the only step that needs you")
+            Text("Next, once — finish setup in the connected account")
                 .font(.callout.weight(.semibold))
-            instruction(1, NSLocalizedString("Open Fast User Switching (Control Centre) and sign in as the new agent.", comment: ""))
-            instruction(2, NSLocalizedString("Its password is on the agent's page: Show Login Password.", comment: ""))
-            instruction(3, NSLocalizedString("In that session, grant Accessibility and Screen Recording when the setup window asks.", comment: ""))
-            instruction(4, NSLocalizedString("Switch back to your own account. The agent keeps its desktop.", comment: ""))
+            instruction(1, NSLocalizedString("Open Fast User Switching (Control Centre) and sign in to the connected account with its existing password.", comment: ""))
+            instruction(2, NSLocalizedString("In that session, grant Accessibility and Screen Recording when the setup window asks.", comment: ""))
+            instruction(3, NSLocalizedString("Switch back to your own account. The agent keeps its desktop.", comment: ""))
             Text("The agent shows Needs Login until step 4 is done. AgentSpace will not start an agent in your account instead — if the background session is not there, every call fails with SESSION_NOT_READY.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -328,46 +267,5 @@ struct LoginInstructions: View {
             Text("\(number).").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
             Text(text).font(.callout).fixedSize(horizontal: false, vertical: true)
         }
-    }
-}
-
-/// Show the login password, briefly, for the one manual sign-in.
-///
-/// Deliberately not copy-on-appear and deliberately not stored anywhere by the
-/// app: the password lives in the Keychain, is read on demand, and is discarded
-/// when this sheet closes.
-struct LoginPasswordView: View {
-    let revealed: AppModel.RevealedPassword
-    let dismiss: () -> Void
-    @State private var copied = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(String(format: NSLocalizedString("Login password for %@", comment: ""), revealed.spaceName)).font(.headline)
-
-            Text(revealed.password)
-                .font(.system(.title3, design: .monospaced))
-                .textSelection(.enabled)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-
-            Text("Use this once, at the fast-user-switching login window. It is stored in your login Keychain, not in a file, and nothing logs it.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                Button(copied ? NSLocalizedString("Copied", comment: "") : NSLocalizedString("Copy", comment: "")) {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(revealed.password, forType: .string)
-                    copied = true
-                }
-                Spacer()
-                Button("Done") { dismiss() }
-                    .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(18)
-        .frame(width: 460)
     }
 }

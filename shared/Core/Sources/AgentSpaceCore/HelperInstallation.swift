@@ -129,7 +129,7 @@ public enum HelperInstallation {
 
     /// Everything known about the helper, in one value, so the app, the CLI and
     /// `doctor` cannot disagree about whether it is installed.
-    public struct State {
+    public struct State: @unchecked Sendable {
         public var plistInBundle: URL?
         public var binaryInBundle: URL?
         public var isThisProcessTheApp: Bool

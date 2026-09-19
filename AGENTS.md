@@ -9,8 +9,9 @@ Space — those are `agentspace integrate rules` and are a different audience.)
 
 ## The product, in one breath
 
-AgentSpace gives every AI agent its own macOS account and desktop — a real
-macOS user with its own Aqua session, driven over a unix socket. Not a VM,
+AgentSpace connects every AI agent to an existing standard macOS account and
+desktop — a real user with its own Aqua session, driven over a unix socket. It
+never creates or deletes macOS users. Not a VM,
 never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
 `native/AgentSpaceWorker` (per-account daemon), `native/AgentSpaceCLI`,
 `native/AgentSpacePrivilegedHelper` (root, closed op list),
@@ -34,7 +35,9 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
    that refusal is the product. New privileged operations go through the
    helper's closed list of typed operations (`HelperProtocol.swift`), never
    through a shell, and never through `sudo` in the CLI.
-4. **Compatibility rules** (full list in [`docs/v2-plan.md`](docs/v2-plan.md)):
+   **Never add macOS account lifecycle back:** attach/detach may change only
+   AgentSpace-owned worker, runtime, workspace and registry state.
+4. **Compatibility rules** (current direction in [`docs/v3-plan.md`](docs/v3-plan.md)):
    registry JSON keys and the `"spaces"` top-level key never change; old
    records must decode unchanged (`purpose` is written only when set); wire
    methods are never renamed and `protocolVersion` stays 1 for compatible
@@ -53,6 +56,7 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
 | Old | New |
 |---|---|
 | Space | agent account (`AgentAccount`) |
+| Create/delete account | Connect/disconnect existing account |
 | "Create Agent Space" wizard | "New Agent" wizard |
 | View Desktop | Open Desktop |
 | `agentspace desktop <space>` | `agentspace open <account>` |
@@ -74,9 +78,7 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
   (the original plan) or `plan(v2) §N` (`docs/v2-plan.md`).
 - Commit style: no prefixes. `validation §N: <finding>`, `<scope>: <behaviour>`,
   or `<Feature>: <what and why> (plan §N)`.
-- macOS facts already paid for (do not relearn): `/usr/bin/createhomedir` was
-  removed by Apple — the helper skips it and macOS creates the home at first
-  GUI login; `kCGSSessionManagerNameKey` is inert — `SessionGetInfo` is the
-  working probe; an interrupted create can leave an orphan `_agentspace_…`
-  account — the helper verifies its own cleanup and Doctor surfaces what it
-  missed.
+- macOS facts already paid for (do not relearn): `kCGSSessionManagerNameKey` is
+  inert — `SessionGetInfo` is the working session probe. Runtime parents must be
+  traversable before a named ACL on a child can help; the V3 parent is 0755 and
+  each account runtime is 0700 plus its two-user inherited ACL.

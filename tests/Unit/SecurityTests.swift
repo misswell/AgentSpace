@@ -206,6 +206,8 @@ final class SecurityTests: XCTestCase {
         XCTAssertEqual(recorded.count, 2)
         XCTAssertTrue(recorded[0].0.contains("user:guofeng"))
         XCTAssertTrue(recorded[1].0.contains("user:_agentspace_a37f91"))
+        XCTAssertTrue(recorded.allSatisfy { $0.0.contains("file_inherit") })
+        XCTAssertTrue(recorded.allSatisfy { $0.0.contains("directory_inherit") })
     }
 
     func testACLFailureIsReported() {
@@ -215,5 +217,102 @@ final class SecurityTests: XCTestCase {
         let error = RuntimePaths(spaceID: UUID()).applyACL(mainUser: "a", agentUser: "b")
         XCTAssertNotNil(error)
         XCTAssertTrue(error!.message.contains("exited 1"), error!.message)
+    }
+
+    func testRuntimePermissionVerifierAcceptsTheTwoPrincipalACL() throws {
+        let directory = "/tmp/runtime-permissions-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(
+            atPath: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(atPath: directory) }
+
+        let original = RuntimePermissionVerifier.aclReader
+        defer { RuntimePermissionVerifier.aclReader = original }
+        RuntimePermissionVerifier.aclReader = { _ in
+            """
+            0: user:guofeng allow read,write,execute,file_inherit,directory_inherit
+            1: user:_agentspace_a37f91 allow read,write,execute,file_inherit,directory_inherit
+            """
+        }
+
+        let error = RuntimePermissionVerifier.verifyDirectory(
+            directory,
+            expectedOwner: getuid(),
+            mainUser: "guofeng",
+            agentUser: "_agentspace_a37f91")
+
+        XCTAssertNil(error, error?.message ?? "")
+    }
+
+    func testRuntimePermissionVerifierRefusesAMissingMainUserACL() throws {
+        let directory = "/tmp/runtime-permissions-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(
+            atPath: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(atPath: directory) }
+
+        let original = RuntimePermissionVerifier.aclReader
+        defer { RuntimePermissionVerifier.aclReader = original }
+        RuntimePermissionVerifier.aclReader = { _ in
+            "0: user:_agentspace_a37f91 allow read,write,execute,file_inherit,directory_inherit"
+        }
+
+        let error = RuntimePermissionVerifier.verifyDirectory(
+            directory,
+            expectedOwner: getuid(),
+            mainUser: "guofeng",
+            agentUser: "_agentspace_a37f91")
+
+        XCTAssertEqual(error?.code, .helperRejected)
+        XCTAssertTrue(error?.message.contains("guofeng") == true)
+    }
+
+    func testRuntimePermissionVerifierRequiresInheritanceOnEachPrincipalEntry() throws {
+        let directory = "/tmp/runtime-permissions-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(
+            atPath: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(atPath: directory) }
+
+        let original = RuntimePermissionVerifier.aclReader
+        defer { RuntimePermissionVerifier.aclReader = original }
+        RuntimePermissionVerifier.aclReader = { _ in
+            """
+            0: user:guofeng allow read,write,execute
+            1: user:agentdev allow read,write,execute,file_inherit,directory_inherit
+            """
+        }
+
+        let error = RuntimePermissionVerifier.verifyDirectory(
+            directory,
+            expectedOwner: getuid(),
+            mainUser: "guofeng",
+            agentUser: "agentdev")
+
+        XCTAssertEqual(error?.code, .helperRejected)
+        XCTAssertTrue(error?.message.contains("guofeng") == true)
+    }
+
+    func testRuntimePermissionVerifierRefusesAnExtraNamedUser() throws {
+        let directory = "/tmp/runtime-permissions-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(atPath: directory) }
+        let original = RuntimePermissionVerifier.aclReader
+        defer { RuntimePermissionVerifier.aclReader = original }
+        RuntimePermissionVerifier.aclReader = { _ in
+            """
+            0: user:guofeng allow read,write,execute,file_inherit,directory_inherit
+            1: user:agentdev allow read,write,execute,file_inherit,directory_inherit
+            2: user:mallory allow read,write,execute,file_inherit,directory_inherit
+            """
+        }
+        let error = RuntimePermissionVerifier.verifyDirectory(
+            directory, expectedOwner: getuid(), mainUser: "guofeng", agentUser: "agentdev")
+        XCTAssertEqual(error?.code, .helperRejected)
+        XCTAssertTrue(error?.message.contains("mallory") == true)
     }
 }

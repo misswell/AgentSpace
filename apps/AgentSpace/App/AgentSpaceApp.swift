@@ -22,9 +22,6 @@ struct RootView: View {
             ProvisioningView(provisioning: provisioning) { model.dismissProvisioning() }
                 .environmentObject(model)
         }
-        .sheet(item: $model.revealedPassword) { revealed in
-            LoginPasswordView(revealed: revealed) { model.revealedPassword = nil }
-        }
         .sheet(isPresented: $model.showingDoctor) {
             DoctorView().environmentObject(model)
         }
@@ -195,7 +192,7 @@ struct SettingsView: View {
                 Section {
                     TextField("AgentSpace root", text: $advancedRoot)
                         .textFieldStyle(.roundedBorder)
-                    Text("Where agents, their runtime sockets and their logs live. Empty means /Users/Shared/.AgentSpace. This is read from AGENTSPACE_ROOT at launch; restart to apply.")
+                    Text("Where accounts, runtime sockets and logs live. Empty means /Library/Application Support/AgentSpace. AGENTSPACE_ROOT is read at launch; restart to apply.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section {

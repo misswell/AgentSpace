@@ -78,7 +78,7 @@ final class SpaceService {
     }
 
     func paths(for space: AgentAccount) -> RuntimePaths {
-        AgentSpaceEnvironment.paths(spaceID: space.id)
+        AgentSpaceEnvironment.paths(for: space)
     }
 
     /// Full status for one Space: worker liveness, session verdict, permissions,
@@ -189,7 +189,7 @@ final class SpaceService {
     /// Returns the worker's typed error untouched on failure. In particular this
     /// never falls back to capturing *this* session's screen, which would hand the
     /// user a picture of their own desktop and call it the agent's.
-    // MARK: - Stop / Logout (§40)
+    // MARK: - Stop worker
 
     /// **Stop Agent** — stop the worker, keep the GUI session. The worker
     /// exits 0, and the LaunchAgent's `KeepAlive.SuccessfulExit = false` means
@@ -209,23 +209,6 @@ final class SpaceService {
         } catch {
             // A worker that is already gone is not a failed stop.
             return .success(true)
-        }
-    }
-
-    /// **Logout Desktop** — end the Space's whole GUI session, keeping the
-    /// account and home. This is root-only (`launchctl bootout gui/<uid>`), so
-    /// it goes through the privileged helper as a typed RPC and fails typed
-    /// when the helper is not installed — never by trying to `sudo` anything.
-    func logoutDesktop(for space: AgentAccount) -> Result<Bool, AgentSpaceError> {
-        do {
-            let response = try HelperClient.call(
-                HelperRequest(operation: .logoutSession, username: space.username, uid: space.uid))
-            if let error = response.error { return .failure(error) }
-            return .success(true)
-        } catch {
-            return .failure(AgentSpaceError(
-                code: .helperUnavailable,
-                message: "could not reach the privileged helper: \(error)"))
         }
     }
 

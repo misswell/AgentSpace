@@ -31,6 +31,22 @@ final class SpaceRegistryTests: XCTestCase {
         XCTAssertEqual(loaded.spaces.map(\.name), ["Alpha", "Beta"])
     }
 
+    func testLegacyRecordInfersTheRootItWasLoadedFrom() throws {
+        let space = makeSpace("Legacy")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var object = try JSONSerialization.jsonObject(with: encoder.encode(SpaceRegistry(spaces: [space]))) as! [String: Any]
+        var records = object["spaces"] as! [[String: Any]]
+        records[0].removeValue(forKey: "runtimeRoot")
+        object["spaces"] = records
+        let data = try JSONSerialization.data(withJSONObject: object)
+        try data.write(to: URL(fileURLWithPath: spacesDirectory + "/index.json"))
+
+        let loaded = SpaceRegistry.load(root: root)
+        XCTAssertEqual(loaded.spaces.first?.runtimeRoot, root)
+        XCTAssertEqual(SpaceConnection(space: loaded.spaces[0]).paths.root, root)
+    }
+
     // MARK: - Corruption is quarantined, not discarded
 
     /// A registry that cannot be decoded is returned empty — the app must keep

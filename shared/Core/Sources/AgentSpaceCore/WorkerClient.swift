@@ -140,7 +140,7 @@ public struct SpaceConnection {
 
     public init(space: AgentAccount, socketPath: String? = nil) {
         self.space = space
-        self.paths = AgentSpaceEnvironment.paths(spaceID: space.id, socketPath: socketPath)
+        self.paths = AgentSpaceEnvironment.paths(for: space, socketPath: socketPath)
         self.token = TokenStore.read(from: self.paths.tokenPath)?.hex
     }
 

@@ -78,7 +78,7 @@ constructed.
 ### The unix socket, the token, and the ACL
 
 ```
-/Users/Shared/.AgentSpace/Runtime/<space-uuid>/
+/Library/Application Support/AgentSpace/Runtime/<space-uuid>/
     worker.sock    mode 0660, group staff
     token          mode 0600, 256 bits, CSPRNG
 ```
@@ -89,7 +89,9 @@ Three layers:
    machine, so there is no network attack surface at all.
 2. **A directory ACL limited to the main user, the agent user and root.** Applied
    with `chmod +a`, with the two account names validated by the helper before use.
-   Only those principals can traverse into the directory.
+   The entries inherit to the token, socket and status files; the worker refuses
+   to bind if the directory owner, mode or either principal's inherited ACL is
+   missing. Only those principals can traverse into the directory.
 3. **A 256-bit session token**, required on every method except `hello`, compared
    with `timingsafe_bcmp`.
 
@@ -149,8 +151,8 @@ looking at — a dialog that can never be answered, appearing forever.
 
 ### Secrets
 
-- The account password is 32 random bytes, stored in the **Keychain**, viewable
-  on demand for the first login. Never in `config.json`, `UserDefaults` or a log.
+- The existing account's password never enters AgentSpace. It is typed only into
+  the macOS login window.
 - The session token lives in its `0600` file, never in the registry.
 - `Redaction` scrubs both key-named secrets and any bare 64-hex-character string
   that appears inside a message, because the likeliest leak is a token
@@ -226,7 +228,7 @@ a desktop" to "can create and delete accounts" does not exist.
 
 ### 1. The interface is a closed list, and that is the primary control
 
-Nine operations, enumerated in `HelperOperation`, each a value type with named,
+Eleven compatibility operations, enumerated in `HelperOperation`, each a value type with named,
 typed fields. There is no `runShell`, no `writeFile`, no `chmod`, no
 `executeAtPath`.
 
@@ -239,46 +241,30 @@ an operation whose name has a `run`, `exec`, `write` or `path` component, and
 a field, so both changes require deliberately editing a test that says "confirm
 this cannot carry a command".
 
-### 2. No shell, anywhere
+### 2. No shell and no account mutation
 
-Every privileged command is an `argv` array spawned with `posix_spawn`
-(`CommandRunner.run`). There is no `/bin/sh -c` in the helper, and
-`testNoCommandEverInvokesAShell` asserts it.
+Every privileged system utility is an argv array spawned with `posix_spawn`.
+There is no `/bin/sh -c`, generic command, caller-supplied worker path, or
+caller-supplied arbitrary filesystem path.
 
-The consequence is worth stating plainly, because it is the reason the display
-name does not need to be sanitised for shell purposes: **there is no quoting
-layer**. A display name containing `; rm -rf /` is one `argv` element that
-`sysadminctl` receives as a literal display name. The attack that this
-traditionally enables does not have a representation in this design.
+V3 additionally removes directory-service mutation from the helper. The
+`createUser` and `deleteUser` enum values remain only so protocol-version-1
+requests decode; validation and dispatch always return `HELPER_REJECTED`.
+There is no `sysadminctl` command construction or user/home deletion
+implementation behind them.
 
-### 3. Accounts are `_agentspace_` plus six hex characters, and only those are reachable
+### 3. Existing-account targeting is verified twice
 
-`HelperValidation.isAgentSpaceAccount` is a single rule with three parts: a fixed
-prefix, a fixed length, and a closed character set. One rule, obviously complete,
-rather than five that each handle a case somebody thought of. It simultaneously
-excludes:
+The app offers only discovered standard local users: uid >= 500, home under
+`/Users`, not the current user, not a hidden account and not an administrator.
+The helper does not trust that UI decision. Immediately before worker/runtime
+operations it resolves the username again, verifies its uid and home, and checks
+admin-group membership. Unknown state refuses.
 
-| Attack | Why it fails |
-|---|---|
-| Delete the user's own account | `guofeng` has no `_agentspace_` prefix |
-| Delete `root`, `_mbsetupuser` | same, plus an explicit protected list |
-| Traverse with `..` | `.` is not in the alphabet |
-| Inject a second argument | space is not in the alphabet |
-| Be read as a flag by `dscl` | `-` is not in the alphabet |
-| Shell metacharacters | none are in the alphabet |
-| Non-ASCII lookalikes | all are outside the alphabet |
-
-`isAgentSpaceAccount` is checked *again* inside `HelperService.deleteUser`,
-against the account as it exists on the machine, and the home path is built from
-the validated name rather than taken from the request — so there is no path field
-to aim at `/Users/guofeng`, and `removeHome` can only ever remove the Space's own
-home.
-
-`testASpaceCanNeverBeGrantedAccessToAnotherSpace` covers the subtler version of
-the same problem: granting an AgentSpace account access to a sibling's runtime
-directory would hand over a socket carrying a live session token, so the main user
-must be a human account.
-
+The helper derives the LaunchAgent path from the verified account's directory
+record and derives the runtime path from a UUID beneath the fixed validated
+runtime root. Detach can remove only that exact runtime and the matching
+LaunchAgent; there is no API that accepts a home-directory deletion target.
 ### 4. Caller verification, and one honest limitation
 
 The helper checks the connecting process's code signature against
@@ -318,52 +304,39 @@ macOS 26-only APIs while targeting 26+, so the right shape is
 
 ### 5. The helper refuses to be useful by accident
 
-- It exits **77** if `geteuid() != 0`, matching the worker's wrong-privilege code.
-  A helper that cannot be privileged does not half-perform an operation.
-- `handle` re-checks root before dispatching.
-- `createUser` cleans up a half-created account if `sysadminctl` fails, so the
-  next attempt does not hit a confusing "already exists".
-- `deleteUser` **verifies** the account is gone rather than assuming, because the
-  app removes the Space from its registry immediately afterwards and an orphan
-  account would be unreachable.
-- `UserID` below 500 is refused on delete: a `_agentspace_`-named account can
-  never legitimately be a system account.
-- There is no `KeepAlive` in the LaunchDaemon plist, deliberately: restarting a
-  crashing root daemon in a loop would hide from review the bug that made it
-  crash. `testTheLaunchDaemonPlistIsValidAndMatchesTheMachServiceName` asserts it
-  is absent.
+- It refuses every operation unless it is root and the caller still satisfies
+  the signing requirement.
+- Its mutation list is limited to installing/removing the bundled worker,
+  preparing/removing an exact account runtime, and controlling/inspecting that
+  account's worker session.
+- Worker code is copied only from the signed helper bundle to a root-owned,
+  versioned path.
+- Runtime removal requires the same UUID, verified attached username, main user
+  and validated root used for preparation.
+- There is no `KeepAlive` loop for a crashing root daemon.
 
-### 6. Things that are *not* in the helper, and cannot be
+### 6. Runtime and worker integrity
 
-- **No `-admin`.** `HelperCommand.createUser` never passes it, there is no
-  parameter that could, and `testCreateUserIsNeverAnAdministrator` asserts the
-  generated command lacks `-admin`, `-adminUser` and `-secureToken`. Plan §8: a
-  Space is a standard user.
-- **No worker path from the caller.** The helper installs its own bundled
-  `agentspace-worker`, never a path the app supplies. A caller-controlled path
-  here would be arbitrary code execution as a launchd job.
-- **No `TCC.db` writes anywhere in the project.**
-- **No arbitrary-file operations.** Even `prepareRuntimeDirectory` accepts only a
-  space ID, an account, a main user and a runtime root, and the runtime root must
-  be under `/Users/Shared` or `/tmp` — so the chmod/chown it performs cannot be
-  aimed at a system directory.
+The production root is exactly
+`/Library/Application Support/AgentSpace`; only explicit test roots below
+`/tmp` or the legacy shared location are accepted. Shared parents are
+root-owned and traversable. Each runtime directory is 0700 and widened with
+inheritable ACL entries for exactly the controller and attached users.
+
+Before binding, the worker verifies the directory exists, is a directory, has
+the expected owner and restrictive mode, and carries both named inherited ACL
+entries. A socket ACL failure is fatal. The worker executable is root-owned mode
+0755 beneath `Worker/versions/<version>`, outside every attached user's home.
 
 ### 7. What a reviewer should check first
 
-In order of how much damage a mistake would do:
-
-1. `HelperValidation.isAgentSpaceAccount` — the whole of §3 rests on it, and it is
-   one small function.
-2. `HelperCommand` — every command the helper can run, in one file, as arrays.
-3. `HelperValidation.validate` — the per-operation rules, especially that
-   `deleteUser` requires `isAgentSpaceAccount`.
-4. `CodeSigningRequirement` — and the limitation in §4 above.
-5. The absence of `-c` in any `posix_spawn` call.
-
-`agentspace-helper --self-check` reports what a *particular installed* helper will
-enforce, which is what a reviewer should run on the machine rather than reading
-the source and assuming.
-
+1. `HelperValidation.validateAttachedUser` and the service's live uid/home/admin
+   re-check.
+2. `HelperOperation`: the list must remain typed and closed.
+3. `HelperCommand`: worker paths and launchctl argv only; no account mutation.
+4. `RuntimePermissionVerifier` and the inherited ACL applied by the helper.
+5. `CodeSigningRequirement`, including the documented pid-reuse limitation.
+6. The permanent refusal behavior for legacy `createUser`/`deleteUser`.
 ## Release checklist (plan §56) — reviewed, with the pins named
 
 Every item is a control documented above and a property pinned by a named test,
@@ -373,7 +346,7 @@ this development environment lacks are marked honestly rather than checked.
 
 | Item | Control | Pinned by | Status |
 |---|---|---|---|
-| Unix socket ACL | dir 0700 + ACL for exactly main user & agent user; socket 0660 | `testACLFailureIsReported`, `testEverySpaceGetsItsOwnSocketTokenAndRuntimeDirectory` | verified in tests; the ACL *application* runs in the root helper — live run blocked |
+| Unix socket ACL | dir 0700 + inheritable ACL for exactly main user & agent user; socket 0660; worker verifies before bind | `testACLFailureIsReported`, `testRuntimePermissionVerifierAcceptsTheTwoPrincipalACL`, `testRuntimePermissionVerifierRefusesAMissingMainUserACL`, `testEverySpaceGetsItsOwnSocketTokenAndRuntimeDirectory` | verified in tests; the ACL *application* runs in the root helper — live run blocked |
 | Token | 256-bit CSPRNG, `0600`, constant-time compare, required on every non-`hello` method | `testGeneratedTokenIs256BitsOfHex`, `testGeneratedTokensDiffer`, `testDifferentSpacesHaveDifferentTokens`, `testCorruptTokenFileReadsNil`, `testHelloIsTokenExemptButLeaksNothing` | verified |
 | XPC authentication | helper verifies the caller's code-signing requirement | helper validation suite (closed interface, account shape, main-user checks) | verified at the validation layer; live XPC round-trip blocked (needs the root helper) |
 | Code signing | Developer ID, hardened runtime, secure timestamp, notarized, stapled; `SMAppService` registration | `codesign --verify --strict` + `stapler validate` + `spctl --assess` on the app and DMG; the whole chain was executed live | **cleared end-to-end.** Developer ID (Guofeng Liu, U8U443D7ZL) + hardened runtime + timestamps; the DMG was submitted to Apple's notary service and **Accepted**, both app and DMG stapled, and `spctl` now accepts the app — a user can download, drag-install, and open with no right-click workaround. The credential that made it work is the machine's shared Apple-ID notarytool profile (`octoshrink-notary`, verified live in-session per this machine's global rule), not the ASC API key the asc CLI had stored |
@@ -439,43 +412,15 @@ parameter, this section must grow a threat model first.
 
 ---
 
-## The login password (§9)
+## Account credentials
 
-Each Space gets a 32-byte random password, generated by
-`HelperValidation.generatePassword()` and stored with `KeychainStore` as a
-`kSecClassGenericPassword` item whose account is the Space's UUID.
+AgentSpace never asks for, generates, stores, reveals, changes or transmits the
+attached macOS account's login password. The user enters the account's existing
+password only at the macOS login window. This removes account credentials from
+the app/helper trust boundary entirely.
 
-Four decisions worth stating, because each rules out a shortcut:
-
-**Not in a file.** A password in `config.json`, `NSUserDefaults` or a log is
-readable by every process running as the main user, and survives in backups and
-crash reports. The Keychain is readable by the same set of processes *while
-unlocked* and by nobody when the machine is locked — which is the correct
-availability for a credential that is only needed while the user is present.
-
-**`kSecAttrAccessibleWhenUnlocked`, not `…Always`.** The password is typed into a
-login window by a human sitting at the machine. There is no scenario in which it
-must be readable from a locked Mac, so it is not.
-
-**Nothing logs it.** All log lines pass through `Redaction.scrubString`, and the
-password is never passed to the logger in the first place. `agentspace create`
-prints the account name, the uid and the next steps — never the password; the CLI
-has no flag to reveal it, and the reveal lives in the GUI where a human is
-present. `--json` output contains the same fields as the human output, so it cannot
-leak what the human output withholds.
-
-**The app holds it only while the sheet is open.** `AppModel.revealPassword` reads
-it from the Keychain on demand into `revealedPassword`, which is cleared when the
-sheet closes. It is not cached, not written to the pasteboard unless the user
-presses Copy, and not recoverable after the Keychain item is gone — a Space whose
-password is lost must be re-created, and saying so is better than inventing a
-recovery path.
-
-`KeychainStoreTests` runs against the **real** Keychain, each test in its own
-service namespace so a test can never read or delete a real Space's password.
-A mock would prove nothing here: the point of the type is that it uses the system
-Keychain correctly.
-
+The runtime session token below is not a login password and cannot authenticate a
+macOS login; it authorizes requests to one worker socket.
 ## The session token (§20) — what it is, and what it is not
 
 Each Space's worker speaks only to clients that present the 256-bit
@@ -500,55 +445,30 @@ hand-rolled socket clients that would need the raw value.
 
 ---
 
-## Creating and deleting a Space — fail-closed on the management path
+## Attaching and detaching — fail closed on the management path
 
-§2 is written about input: never inject into the user's session. The same rule
-applies to management, and `SpaceProvisioner` enforces it in the same way.
+Attach accepts an already existing standard account; it does not alter directory
+services or account credentials. The transaction creates only AgentSpace-owned
+state. If writing the runtime record, applying the workspace, installing the
+worker, or saving the registry fails, it rolls back the worktree, worker and
+runtime it created.
 
-There is **no unprivileged path** to creating a macOS account. If the helper is
-missing the operation stops and reports `HELPER_UNAVAILABLE` (CLI exit **69**) with
-the fix, rather than attempting a `sudo` of its own, a `dscl` call, or anything
-else that might work on a machine configured differently. `agentspace create` never
-runs `sudo`; §31 forbids it and the code has no shell at all.
+Detach is intentionally narrower than macOS user management:
 
-### Rollback, and why the orphan is made visible
+- stop the account worker;
+- remove its AgentSpace LaunchAgent;
+- remove an AgentSpace-created git worktree while keeping its branch;
+- remove the exact UUID runtime through the helper;
+- remove the registry record.
 
-Creation is a sequence — account, runtime directory, worker, Keychain, registry —
-and each completed step registers an undo. A failure undoes them in reverse order.
+A runtime-removal failure keeps the registry record so the operation can be
+retried. Detach never logs out the account, deletes it, changes its password, or
+removes its home. Legacy helper requests that ask for either account creation or
+account deletion are rejected before dispatch.
 
-The interesting case is when an undo *also* fails. Then the machine has an
-`_agentspace_…` account the user did not ask for. Two responses are possible and
-only one of them is honest:
-
-- report a clean failure, and leave the account invisible; or
-- report `leftPartialState`, write the Space into the registry with
-  `state: .error`, and tell the user the account exists.
-
-The second is what the code does. An account that exists but is not in the Space
-list is one the user cannot see and therefore cannot remove through AgentSpace —
-the worst of the available outcomes. The state is also surfaced by
-`agentspace doctor`, which is where a user looks when something is wrong.
-
-### What deleting must never do
-
-- **Never the user's repository.** Only the worktree path is passed to
-  `git worktree remove`. The test compares the user's `README.md` byte for byte
-  afterwards, and lists the branches to confirm the agent's branch survived. The
-  branch is kept deliberately: it is where the agent's commits live, and deleting a
-  Space is not a request to discard work.
-- **Never block on a worktree problem.** If git refuses, the deletion warns and
-  continues. An account that cannot be removed is a much worse outcome than a
-  directory the user can delete by hand.
-- **Never the home directory unless asked.** It is a separate question in the
-  confirmation dialog, because it is the one irreversible step and it holds the
-  agent's own files.
-
-### Still unverified
-
-The helper's own behaviour below the XPC boundary — the `dscl` and `sysadminctl`
-invocations, their exit codes, and whether the daemon starts at all — has not been
-executed, because it needs root. §56 calls for a separate review of the helper; this
-is why. Everything above the boundary is tested, including every rollback path.
+The remaining real-machine verification is positive-path acceptance with a
+manually created second standard account and its Aqua/TCC session; no
+directory-service mutation is part of that test.
 
 ---
 
@@ -567,19 +487,11 @@ checked is how an unsigned artifact ships.
 | Workspace escape | ✓ unit tests | `testWorkspaceCannotEscapeAllowedPath`: traversal, absolute, symlink-out |
 | Command injection | partial by design | `ExecGuard` is an evadable guardrail, documented as such; the real boundary is the Standard User uid |
 | Symlink attack | partial | disk walk does not follow symlinks out; runtime dirs are 0700 |
-| Log secret leakage | ✓ by construction | passwords never logged; `agentspace create` prints the account, never the secret; §9 |
-| Notarization | ✗ needs credentials | `notarytool store-credentials` has not been run on this machine (verified read-only) |
+| Log secret leakage | ✓ by construction | account passwords never enter the product; runtime tokens are redacted |
+| Notarization | ✓ release pipeline | `scripts/notarize.sh` uses the verified `octoshrink-notary` profile with API-key fallback |
 
-The last item is the only blocker between the current artifact and a distributable
-DMG, and it is not solvable in this repository: it needs an App Store Connect
-API key or app-specific password, stored once with
-
-    xcrun notarytool store-credentials AGENTSPACE_NOTARY \
-      --apple-id <email> --team-id U8U443D7ZL --password <app-specific-password>
-
-after which `NOTARY_PROFILE=AGENTSPACE_NOTARY scripts/release.sh --notarize`
-submits, staples both the app and the DMG, and re-runs Gatekeeper to prove the
-result. Per §57, notarized releases should also carry a signed-off helper review.
+Official builds still run release, notarization, stapling and Gatekeeper checks
+in that order; no credential is stored in the repository.
 
 ---
 

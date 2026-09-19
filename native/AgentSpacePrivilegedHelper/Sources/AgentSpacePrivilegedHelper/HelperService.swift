@@ -1,13 +1,22 @@
 import Foundation
 import AgentSpaceCore
 
-/// The privileged helper's eight operations, implemented.
+/// The privileged helper's typed operations, implemented. V3 actively uses
+/// worker/runtime management; legacy account and session verbs remain decoded
+/// only so an older client receives a typed refusal.
 ///
 /// Everything here is (1) re-validated, then (2) performed with argv arrays. The
 /// re-validation is not redundant with the client's: the client is the process
 /// that might be compromised, so the check that matters is the one on this side
 /// of the boundary.
 final class HelperService: NSObject, HelperXPCProtocol {
+
+    private struct AttachmentRecord: Codable {
+        let spaceID: UUID
+        let username: String
+        let uid: uid_t
+        let homeDirectory: String
+    }
 
     private let log = HelperLog()
 
@@ -91,19 +100,38 @@ final class HelperService: NSObject, HelperXPCProtocol {
             log.error("refusing \(request.operation.rawValue): \(problem.message)")
             return HelperResponse(id: request.id, error: problem)
         }
+        let teardown = request.operation == .stopWorker
+            || request.operation == .removeWorker
+            || request.operation == .removeRuntimeDirectory
+        if let username = request.username,
+           !HelperValidation.isAgentSpaceAccount(username),
+           request.operation != .createUser,
+           request.operation != .deleteUser {
+            let liveAccountIsAttachable = uid(of: username).map { $0 >= 500 } == true
+                && AccountDirectory.homeDirectory(of: username)?.hasPrefix("/Users/") == true
+                && AccountDirectory.isAdministrator(username) == false
+            let recordMatches = teardown && attachmentRecord(for: request).map {
+                $0.username == username && $0.uid == request.uid
+            } == true
+            guard liveAccountIsAttachable || recordMatches else {
+                return HelperResponse(id: request.id, error: AgentSpaceError(
+                    code: .helperRejected,
+                    message: "\(username) is not a verified standard local user"))
+            }
+        }
 
         log.info("performing \(request.operation.rawValue) for \(request.username ?? request.spaceID?.uuidString ?? "-")")
 
         switch request.operation {
         case .helperStatus:           return status(request)
-        case .createUser:             return createUser(request)
-        case .deleteUser:             return deleteUser(request)
+        case .createUser, .deleteUser: return legacyAccountMutation(request)
         case .installWorker:          return installWorker(request, accounts: accounts)
         case .removeWorker:           return removeWorker(request, accounts: accounts)
         case .prepareRuntimeDirectory: return prepareRuntimeDirectory(request)
+        case .removeRuntimeDirectory: return removeRuntimeDirectory(request)
         case .startWorker:            return workerControl(request, start: true)
         case .stopWorker:             return workerControl(request, start: false)
-        case .logoutSession:          return logoutSession(request)
+        case .logoutSession:          return legacySessionMutation(request)
         case .sessionInfo:            return sessionInfo(request)
         }
     }
@@ -123,159 +151,22 @@ final class HelperService: NSObject, HelperXPCProtocol {
         ]))
     }
 
-    private func createUser(_ request: HelperRequest) -> HelperResponse {
-        // Both fields must be present. The password is not bound here because the
-        // argv is built by `HelperCommand`, which reads it from the request; this
-        // guard is about refusing an incomplete request, not about handling the
-        // secret — and a second binding of it is a second place it could leak.
-        guard let username = request.username, request.password != nil else {
-            return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "missing username or password"))
-        }
-
-        for command in HelperCommand.createUser(request) {
-            // `/usr/bin/createhomedir` was a Python script Apple removed in
-            // macOS 26; spawning it there fails with ENOENT and turned every
-            // create into a rollback. Where the tool is gone, macOS creates the
-            // home at the first GUI login — which plan §28's manual sign-in
-            // provides anyway — so the step is skipped rather than fatal.
-            if command.first == HelperCommand.createhomedir,
-               !FileManager.default.isExecutableFile(atPath: HelperCommand.createhomedir) {
-                log.warning("createhomedir is not present on this OS; skipping (the home is created at first login)")
-                continue
-            }
-            let result = CommandRunner.run(command, timeout: 120)
-            log.info("\(result.displayCommand) → exit \(result.exitCode)")
-            if !result.ok {
-                // A failed `sysadminctl` has usually created the account record
-                // already. Leaving a half-made account behind would make the next
-                // attempt fail with "already exists" and confuse the user, so the
-                // partial state is cleaned up before reporting failure.
-                //
-                // Reality check, from the first real create on this machine: the
-                // old cleanup trusted sysadminctl's exit code, the tool returned
-                // 0, and the account record survived — an orphan with no Space
-                // record, no stored password and no way for the app to list it.
-                // So the cleanup now uses the same `-secure` form as the delete
-                // RPC and then verifies the account is actually gone, reporting
-                // it honestly when it is not (Doctor's orphan check will offer
-                // the removal as a button).
-                log.error("createUser failed, removing partial account: \(result.standardError)")
-                let undo = CommandRunner.run(
-                    [HelperCommand.sysadminctl, "-deleteUser", username, "-secure"], timeout: 60)
-                if self.uid(of: username) != nil {
-                    log.error("partial-account cleanup left \(username) behind (delete exited \(undo.exitCode): \(undo.standardError)) — Doctor's orphan check can remove it")
-                    return HelperResponse(id: request.id, error: AgentSpaceError(
-                        code: .helperRejected,
-                        message: "could not create the account \(username): \(result.standardError.isEmpty ? "exit \(result.exitCode)" : result.standardError). The partial account \(username) is still on this Mac.",
-                        recoveryHint: .removeOrphanedAccounts))
-                }
-                return HelperResponse(id: request.id, error: AgentSpaceError(
-                    code: .helperRejected,
-                    message: "could not create the account \(username): \(result.standardError.isEmpty ? "exit \(result.exitCode)" : result.standardError)"))
-            }
-        }
-
-        guard let uid = self.uid(of: username) else {
-            // This machine has demonstrated the case: `sysadminctl -addUser`
-            // exits 0 and creates no directory-service record at all, so the
-            // per-command exit check above passes and the uid lookup is the
-            // only thing that can catch it. Without this log the failure was
-            // silent end to end.
-            log.error("createUser: \(username) has no uid after every command exited 0 — the account was never really created (validation §272)")
-            return HelperResponse(id: request.id, error: AgentSpaceError(
-                code: .helperRejected,
-                message: "the account \(username) was reported as created but has no uid, which should be impossible"))
-        }
-
-        if !FileManager.default.fileExists(atPath: "/Users/\(username)") {
-            // Not fatal: a missing home is created by macOS at the account's
-            // first GUI login. Logged because the honest place for this fact is
-            // the helper's record, not a surprise at sign-in.
-            log.warning("the home directory /Users/\(username) does not exist yet; macOS will create it at first login")
-        }
-
-        return HelperResponse(id: request.id, result: .obj([
-            "username": .string(username),
-            "uid": .int(Int(uid)),
-            "home": .string(AccountDirectory.homeDirectory(of: username) ?? "/Users/\(username)"),
-            // Stated explicitly so a caller never has to infer it: AgentAccount
-            // accounts are never administrators. Plan §8.
-            "isAdmin": .bool(false),
-        ]))
+    private func legacyAccountMutation(_ request: HelperRequest) -> HelperResponse {
+        HelperResponse(id: request.id, error: AgentSpaceError(
+            code: .helperRejected,
+            message: "\(request.operation.rawValue) is unavailable: AgentSpace connects existing macOS accounts and never creates or deletes users"))
     }
 
-    private func deleteUser(_ request: HelperRequest) -> HelperResponse {
-        guard let username = request.username else {
-            return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "missing username"))
-        }
-
-        // Confirm, from the machine rather than from the request, that this is an
-        // AgentSpace account before removing anything. The validation step already
-        // checked the *name*; this checks the *account*, so a renamed or manually
-        // created account that happens to match the pattern but is not ours is
-        // still refused if it is not in our registry's expected shape.
-        guard let uid = uid(of: username) else {
-            return HelperResponse(id: request.id, error: AgentSpaceError(
-                code: .helperRejected,
-                message: "there is no account named \(username)"))
-        }
-        // uid below 500 is a system account. A `_agentspace_`-named account can
-        // never legitimately be one, so this only fires if something is very wrong.
-        guard uid >= 500 else {
-            return HelperResponse(id: request.id, error: AgentSpaceError(
-                code: .helperRejected,
-                message: "refusing to delete \(username): uid \(uid) is a system account"))
-        }
-
-        var warnings: [String] = []
-        var refusalDetails: [String] = []
-        for command in HelperCommand.deleteUser(request) {
-            let result = CommandRunner.run(command, timeout: 120)
-            log.info("\(result.displayCommand) → exit \(result.exitCode)")
-            // sysadminctl's exit code is not trustworthy here: on the first real
-            // orphan removal it logged `Error:-14120` from its own record delete
-            // and still exited 0. Collect what the tools actually said so the
-            // verification below can report the refusal with its real reason.
-            if !result.standardError.isEmpty {
-                refusalDetails.append("\(result.displayCommand): \(result.standardError.trimmingCharacters(in: .whitespacesAndNewlines))")
-            }
-            if !result.ok, command.first == HelperCommand.sysadminctl {
-                return HelperResponse(id: request.id, error: AgentSpaceError(
-                    code: .helperRejected,
-                    message: "could not delete the account \(username): \(result.standardError.isEmpty ? "exit \(result.exitCode)" : result.standardError)"))
-            }
-            if !result.ok {
-                warnings.append("\(command.first ?? "?"): \(result.standardError.isEmpty ? "exit \(result.exitCode)" : result.standardError)")
-            }
-        }
-
-        // Verify rather than assume: the app is about to remove the agent from its
-        // registry, and doing that while the account still exists would leave an
-        // orphan nothing can clean up. This machine proved why the verification is
-        // the verdict, not an afterthought — every command exited "cleanly" while
-        // opendirectoryd refused the delete (`disallowed by sandbox`, even as
-        // root). A surviving account is a failure, and saying so is what lets the
-        // app show the honest guidance instead of a fake success.
-        let stillThere = AccountDirectory.existingAccounts().contains(username)
-        guard !stillThere else {
-            let detail = refusalDetails.isEmpty ? "every removal command reported success, yet the record survived" : refusalDetails.joined(separator: "; ")
-            log.error("deleteUser left \(username) behind: \(detail)")
-            return HelperResponse(id: request.id, error: AgentSpaceError(
-                code: .helperRejected,
-                message: "the account \(username) still exists: \(detail)"))
-        }
-        return HelperResponse(id: request.id, result: .obj([
-            "username": .string(username),
-            "removed": .bool(true),
-            "homeRemoved": .bool(request.removeHome == true),
-            "warnings": .array(warnings.map { .string($0) }),
-        ]))
+    private func legacySessionMutation(_ request: HelperRequest) -> HelperResponse {
+        HelperResponse(id: request.id, error: AgentSpaceError(
+            code: .helperRejected,
+            message: "logoutSession is unavailable in V3: AgentSpace does not manage macOS login sessions"))
     }
 
     private func installWorker(_ request: HelperRequest, accounts: Set<String>) -> HelperResponse {
         guard let username = request.username, let spaceID = request.spaceID,
-              let runtimeRoot = request.runtimeRoot else {
-            return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "installWorker needs a username, a space ID and a runtime root"))
+              let runtimeRoot = request.runtimeRoot, let mainUser = request.mainUser else {
+            return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "installWorker needs a username, a space ID, the main user and a runtime root"))
         }
         _ = accounts
 
@@ -296,26 +187,52 @@ final class HelperService: NSObject, HelperXPCProtocol {
         let fileManager = FileManager.default
         let home = AccountDirectory.homeDirectory(of: username) ?? "/Users/\(username)"
         let launchAgents = "\(home)/Library/LaunchAgents"
-        let installedWorker = "\(launchAgents)/agentspace-worker"
+        let installedWorker = HelperCommand.workerInstallPath(version: helperVersion)
+        let workerVersionDirectory = (installedWorker as NSString).deletingLastPathComponent
 
         do {
-            // Create the runtime log directory first: launchd opens the log files
-            // at spawn time and will fail the job if the directory is missing.
             let runtimeDirectory = "\(runtimeRoot)/Runtime/\(spaceID.uuidString)"
-            try fileManager.createDirectory(atPath: runtimeDirectory, withIntermediateDirectories: true,
-                                            attributes: [.posixPermissions: 0o700, .ownerAccountID: uid, .groupOwnerAccountID: gid(of: username) ?? 20])
+            // Installation is allowed only after the helper completed runtime
+            // preparation. Never recreate the directory here without its ACL.
+            if let problem = RuntimePermissionVerifier.verifyDirectory(
+                runtimeDirectory,
+                expectedOwner: uid,
+                mainUser: mainUser,
+                agentUser: username) {
+                return HelperResponse(id: request.id, error: problem)
+            }
 
-            try fileManager.createDirectory(atPath: launchAgents, withIntermediateDirectories: true,
-                                            attributes: [.posixPermissions: 0o755, .ownerAccountID: uid, .groupOwnerAccountID: gid(of: username) ?? 20])
+            try prepareLaunchAgentsDirectory(home: home, uid: uid, gid: gid(of: username) ?? 20)
+
+            // The executable is shared and root-owned. Only the small plist lives
+            // in the agent's home, so the agent cannot replace the code launchd
+            // executes on its next login.
+            for directory in [HelperCommand.workerInstallRoot, workerVersionDirectory] {
+                var isDirectory: ObjCBool = false
+                if fileManager.fileExists(atPath: directory, isDirectory: &isDirectory) {
+                    let attributes = try fileManager.attributesOfItem(atPath: directory)
+                    guard isDirectory.boolValue, attributes[.type] as? FileAttributeType != .typeSymbolicLink else {
+                        throw NSError(domain: "AgentSpace.Helper", code: 1, userInfo: [
+                            NSLocalizedDescriptionKey: "refusing a non-directory or symlinked worker path at \(directory)",
+                        ])
+                    }
+                } else {
+                    try fileManager.createDirectory(atPath: directory, withIntermediateDirectories: true)
+                }
+                try fileManager.setAttributes(
+                    [.posixPermissions: 0o755, .ownerAccountID: 0, .groupOwnerAccountID: 0],
+                    ofItemAtPath: directory)
+            }
 
             if fileManager.fileExists(atPath: installedWorker) {
                 try fileManager.removeItem(atPath: installedWorker)
             }
             try fileManager.copyItem(atPath: workerSource, toPath: installedWorker)
-            try fileManager.setAttributes([.posixPermissions: 0o755, .ownerAccountID: uid, .groupOwnerAccountID: gid(of: username) ?? 20],
+            try fileManager.setAttributes([.posixPermissions: 0o755, .ownerAccountID: 0, .groupOwnerAccountID: 0],
                                           ofItemAtPath: installedWorker)
 
             let plistURL = URL(fileURLWithPath: "\(launchAgents)/\(HelperCommand.workerLabel(spaceID: spaceID)).plist")
+            try refuseSymbolicLink(at: plistURL.path)
             let plist = HelperCommand.workerLaunchAgent(
                 spaceID: spaceID, username: username, workerPath: installedWorker, runtimeRoot: runtimeRoot)
             try plist.write(to: plistURL, atomically: true, encoding: .utf8)
@@ -343,28 +260,95 @@ final class HelperService: NSObject, HelperXPCProtocol {
         }
         _ = accounts
 
-        let home = AccountDirectory.homeDirectory(of: username) ?? "/Users/\(username)"
+        let record = attachmentRecord(for: request)
+        guard let uidValue = uid(of: username) ?? record?.uid ?? request.uid else {
+            return HelperResponse(id: request.id, error: AgentSpaceError(
+                code: .helperRejected, message: "there is no account named \(username)"))
+        }
+        let home = AccountDirectory.homeDirectory(of: username)
+            ?? record?.homeDirectory
+            ?? "/Users/\(username)"
         let launchAgents = "\(home)/Library/LaunchAgents"
         let label = HelperCommand.workerLabel(spaceID: spaceID)
 
-        // Stop it first: removing the plist of a running job leaves it running
-        // until the next boot, which is exactly the kind of stale state that makes
-        // "delete the agent" appear not to work.
-        let uidValue = uid(of: username) ?? 0
-        _ = CommandRunner.run([HelperCommand.launchctl, "bootout", "gui/\(uidValue)/\(label)"], timeout: 30)
-
-        var removed: [String] = []
-        for path in ["\(launchAgents)/\(label).plist", "\(launchAgents)/agentspace-worker"] {
-            if FileManager.default.fileExists(atPath: path) {
-                try? FileManager.default.removeItem(atPath: path)
-                removed.append(path)
+        do {
+            let stopped = CommandRunner.run(
+                [HelperCommand.launchctl, "bootout", "gui/\(uidValue)/\(label)"], timeout: 30)
+            let absent = stopped.standardError.localizedCaseInsensitiveContains("not found")
+                || stopped.standardError.localizedCaseInsensitiveContains("no such process")
+                || stopped.standardError.localizedCaseInsensitiveContains("could not find specified service")
+            guard stopped.ok || absent else {
+                throw NSError(domain: "AgentSpace.Helper", code: Int(stopped.exitCode), userInfo: [
+                    NSLocalizedDescriptionKey: "could not stop \(label): \(stopped.standardError)",
+                ])
             }
+            guard FileManager.default.fileExists(atPath: home) else {
+                return HelperResponse(id: request.id, result: .obj([
+                    "username": .string(username),
+                    "removed": .array([]),
+                ]))
+            }
+            try prepareLaunchAgentsDirectory(home: home, uid: uidValue,
+                                             gid: gid(of: username) ?? 20, create: false)
+            var removed: [String] = []
+            for path in ["\(launchAgents)/\(label).plist", "\(launchAgents)/agentspace-worker"] {
+                try refuseSymbolicLink(at: path)
+                if FileManager.default.fileExists(atPath: path) {
+                    try FileManager.default.removeItem(atPath: path)
+                    removed.append(path)
+                }
+            }
+            log.info("removed worker artifacts for \(username): \(removed.joined(separator: ", "))")
+            return HelperResponse(id: request.id, result: .obj([
+                "username": .string(username),
+                "removed": .array(removed.map { .string($0) }),
+            ]))
+        } catch {
+            return HelperResponse(id: request.id, error: AgentSpaceError(
+                code: .internalError,
+                message: "could not remove the worker for \(username): \(error.localizedDescription)"))
         }
-        log.info("removed worker artifacts for \(username): \(removed.joined(separator: ", "))")
-        return HelperResponse(id: request.id, result: .obj([
-            "username": .string(username),
-            "removed": .array(removed.map { .string($0) }),
-        ]))
+    }
+
+    private func prepareLaunchAgentsDirectory(
+        home: String,
+        uid: uid_t,
+        gid: gid_t,
+        create: Bool = true
+    ) throws {
+        let fileManager = FileManager.default
+        try requireRealDirectory(home, owner: uid)
+        for path in ["\(home)/Library", "\(home)/Library/LaunchAgents"] {
+            if !fileManager.fileExists(atPath: path) {
+                guard create else { return }
+                try fileManager.createDirectory(atPath: path, withIntermediateDirectories: false,
+                                                attributes: [.posixPermissions: 0o755,
+                                                             .ownerAccountID: uid,
+                                                             .groupOwnerAccountID: gid])
+            }
+            try requireRealDirectory(path, owner: uid)
+        }
+    }
+
+    private func requireRealDirectory(_ path: String, owner uid: uid_t) throws {
+        var info = stat()
+        guard lstat(path, &info) == 0,
+              info.st_mode & S_IFMT == S_IFDIR,
+              info.st_uid == uid else {
+            throw NSError(domain: "AgentSpace.Helper", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "refusing a missing, symlinked, non-directory or wrongly owned path at \(path)",
+            ])
+        }
+    }
+
+    private func refuseSymbolicLink(at path: String) throws {
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return }
+        guard info.st_mode & S_IFMT != S_IFLNK else {
+            throw NSError(domain: "AgentSpace.Helper", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "refusing a symbolic link at \(path)",
+            ])
+        }
     }
 
     private func prepareRuntimeDirectory(_ request: HelperRequest) -> HelperResponse {
@@ -385,31 +369,60 @@ final class HelperService: NSObject, HelperXPCProtocol {
             "\(root)/Runtime/\(spaceID.uuidString)/screenshots",
             "\(root)/Spaces",
             "\(root)/Logs",
+            "\(root)/Worktrees",
+            "\(root)/Attachments",
         ]
 
         do {
+            func runRequired(_ arguments: [String]) throws {
+                let result = CommandRunner.run(arguments, timeout: 30)
+                guard result.ok else {
+                    throw NSError(domain: "AgentSpace.Helper", code: Int(result.exitCode), userInfo: [
+                        NSLocalizedDescriptionKey: "\(result.displayCommand) failed: \(result.standardError.isEmpty ? "exit \(result.exitCode)" : result.standardError)",
+                    ])
+                }
+            }
+
             for path in paths {
                 try fileManager.createDirectory(atPath: path, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o755, .ownerAccountID: 0, .groupOwnerAccountID: 0])
             }
-            // 1770 on the shared root: the sticky bit stops one Agent from
-            // deleting another's runtime directory, and the group-execute bit lets
-            // members traverse. The runtime dir itself is 0700 to the agent's own
-            // uid — the socket there carries a live session token, so nobody else
-            // gets to open it, including the main user.
-            _ = CommandRunner.run([HelperCommand.chmod, "1770", root])
+            // Shared parents are traversable but root-owned. Actual runtime data
+            // stays in a 0700 account directory widened only by its two-user ACL.
+            try runRequired([HelperCommand.chmod, "755", root])
+            try runRequired([HelperCommand.chmod, "755", "\(root)/Runtime"])
             let runtimeDirectory = "\(root)/Runtime/\(spaceID.uuidString)"
-            _ = CommandRunner.run([HelperCommand.chmod, "700", runtimeDirectory])
-            _ = CommandRunner.run([HelperCommand.chown, "\(spaceUID):\(gid(of: username) ?? 20)", runtimeDirectory])
+            try runRequired([HelperCommand.chmod, "700", runtimeDirectory])
+            try runRequired([HelperCommand.chown, "\(spaceUID):\(gid(of: username) ?? 20)", runtimeDirectory])
+            try runRequired([HelperCommand.chmod, "-N", runtimeDirectory])
+            if let problem = RuntimePaths(spaceID: spaceID, root: root)
+                .applyACL(mainUser: mainUser, agentUser: username) {
+                throw NSError(domain: "AgentSpace.Helper", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: problem.message,
+                ])
+            }
             // The screenshots subdirectory is the one thing the main user needs to
             // read, because the app shows the preview in the main user's session.
             let screenshots = "\(runtimeDirectory)/screenshots"
-            _ = CommandRunner.run([HelperCommand.chmod, "750", screenshots])
-            _ = CommandRunner.run([HelperCommand.chown, "\(spaceUID):\(gid(of: username) ?? 20)", screenshots])
-            // Spaces/index.json and Logs belong to the main user.
-            for path in ["\(root)/Spaces", "\(root)/Logs"] {
-                _ = CommandRunner.run([HelperCommand.chown, "\(mainUID):20", path])
+            try runRequired([HelperCommand.chmod, "750", screenshots])
+            try runRequired([HelperCommand.chown, "\(spaceUID):\(gid(of: username) ?? 20)", screenshots])
+            // Registry, logs and worktrees are maintained by the controller.
+            for path in ["\(root)/Spaces", "\(root)/Logs", "\(root)/Worktrees"] {
+                try runRequired([HelperCommand.chown, "\(mainUID):20", path])
+                try runRequired([HelperCommand.chmod, "700", path])
             }
+            try runRequired([HelperCommand.chown, "0:0", "\(root)/Attachments"])
+            try runRequired([HelperCommand.chmod, "700", "\(root)/Attachments"])
+            let attachment = AttachmentRecord(
+                spaceID: spaceID,
+                username: username,
+                uid: spaceUID,
+                homeDirectory: AccountDirectory.homeDirectory(of: username) ?? "/Users/\(username)")
+            let attachmentURL = URL(fileURLWithPath: attachmentPath(root: root, spaceID: spaceID))
+            try JSONEncoder().encode(attachment).write(to: attachmentURL, options: .atomic)
+            try fileManager.setAttributes(
+                [.posixPermissions: 0o600, .ownerAccountID: 0, .groupOwnerAccountID: 0],
+                ofItemAtPath: attachmentURL.path)
 
             log.info("prepared runtime directory for \(spaceID.uuidString)")
             return HelperResponse(id: request.id, result: .obj([
@@ -425,60 +438,102 @@ final class HelperService: NSObject, HelperXPCProtocol {
         }
     }
 
-    /// §40: end the agent's whole GUI session while keeping the account and
-    /// its home. `launchctl bootout gui/<uid>` is the mechanism — the same
-    /// domain teardown launchd itself performs at logout — and it is a
-    /// root-only operation, which is exactly why it lives here as a *typed*
-    /// RPC rather than as a shell escape hatch (§6).
-    ///
-    /// The uid is cross-checked against the username's real passwd entry:
-    /// accepting a mismatched pair would let a confused (or hostile) request
-    /// boot out a session this agent does not own.
-    private func logoutSession(_ request: HelperRequest) -> HelperResponse {
-        guard let username = request.username, let uid = request.uid, uid > 0 else {
-            return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "logoutSession needs the agent's username and uid"))
-        }
-        guard let real = self.uid(of: username), real == uid else {
+    private func removeRuntimeDirectory(_ request: HelperRequest) -> HelperResponse {
+        guard let spaceID = request.spaceID, let root = request.runtimeRoot,
+              let username = request.username,
+              let expectedUID = uid(of: username) ?? attachmentRecord(for: request)?.uid ?? request.uid else {
             return HelperResponse(id: request.id, error: AgentSpaceError(
                 code: .helperRejected,
-                message: "the uid \(uid) does not belong to \(username); refusing to tear down a session on a mismatched pair"))
+                message: "removeRuntimeDirectory needs a space ID, attached account and runtime root"))
         }
-        let result = CommandRunner.run([HelperCommand.launchctl, "bootout", "gui/\(uid)"], timeout: 60)
-        log.info("\(result.displayCommand) → exit \(result.exitCode)")
-        guard result.ok else {
-            // Booting out an already-absent session is not an error — §39 says
-            // a logged-out Agent is a normal state, not a fault.
-            let absent = result.standardError.contains("Could not find") || result.standardError.contains("No such process")
-            guard absent else {
-                return HelperResponse(id: request.id, error: AgentSpaceError(
-                    code: .helperRejected,
-                    message: "logout failed: \(result.standardError.isEmpty ? "exit \(result.exitCode)" : result.standardError)"))
+        let directory = RuntimePaths(spaceID: spaceID, root: root).directory
+        guard FileManager.default.fileExists(atPath: directory) else {
+            let marker = attachmentPath(root: root, spaceID: spaceID)
+            if FileManager.default.fileExists(atPath: marker) {
+                do { try FileManager.default.removeItem(atPath: marker) }
+                catch {
+                    return HelperResponse(id: request.id, error: AgentSpaceError(
+                        code: .internalError,
+                        message: "could not remove the attachment record: \(error.localizedDescription)"))
+                }
             }
             return HelperResponse(id: request.id, result: .obj([
-                "loggedOut": .bool(false), "username": .string(username), "uid": .int(Int(uid)),
+                "runtimeDirectory": .string(directory),
+                "removed": .bool(false),
             ]))
         }
-        return HelperResponse(id: request.id, result: .obj([
-            "loggedOut": .bool(true), "username": .string(username), "uid": .int(Int(uid)),
-        ]))
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: directory)
+            guard attributes[.type] as? FileAttributeType == .typeDirectory,
+                  (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == expectedUID else {
+                return HelperResponse(id: request.id, error: AgentSpaceError(
+                    code: .helperRejected,
+                    message: "refusing to remove a runtime not owned by \(username)"))
+            }
+            try FileManager.default.removeItem(atPath: directory)
+            let marker = attachmentPath(root: root, spaceID: spaceID)
+            if FileManager.default.fileExists(atPath: marker) {
+                try FileManager.default.removeItem(atPath: marker)
+            }
+            return HelperResponse(id: request.id, result: .obj([
+                "runtimeDirectory": .string(directory),
+                "removed": .bool(true),
+            ]))
+        } catch {
+            return HelperResponse(id: request.id, error: AgentSpaceError(
+                code: .internalError,
+                message: "could not remove the runtime directory: \(error.localizedDescription)"))
+        }
     }
 
     private func workerControl(_ request: HelperRequest, start: Bool) -> HelperResponse {
         guard let username = request.username, let spaceID = request.spaceID else {
             return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "this operation needs a username and a space ID"))
         }
-        let uidValue = uid(of: username) ?? 0
+        guard let uidValue = uid(of: username) ?? attachmentRecord(for: request)?.uid ?? request.uid else {
+            return HelperResponse(id: request.id, error: AgentSpaceError(
+                code: .helperRejected, message: "could not resolve the attached account uid"))
+        }
         let label = HelperCommand.workerLabel(spaceID: spaceID)
         let domain = "gui/\(uidValue)/\(label)"
 
-        // `kickstart -k` rather than `bootstrap`: the job is already bootstrapped
-        // by launchd at login, and kickstarting is what restarts it without
-        // requiring an interactive session.
         let command = start
             ? [HelperCommand.launchctl, "kickstart", "-k", domain]
             : [HelperCommand.launchctl, "bootout", domain]
-        let result = CommandRunner.run(command, timeout: 60)
+        var result = CommandRunner.run(command, timeout: 60)
         log.info("\(result.displayCommand) → exit \(result.exitCode)")
+
+        // A plist installed after the user logged in has not been discovered by
+        // launchd yet. Bootstrap that exact, verified plist once, then kickstart
+        // it. If there is no gui/<uid> domain, bootstrap fails normally and the
+        // caller records needsLogin instead of pretending the worker is online.
+        if start, !result.ok {
+            let home = AccountDirectory.homeDirectory(of: username) ?? "/Users/\(username)"
+            let plist = "\(home)/Library/LaunchAgents/\(label).plist"
+            do {
+                try prepareLaunchAgentsDirectory(
+                    home: home, uid: uidValue, gid: gid(of: username) ?? 20, create: false)
+                try refuseSymbolicLink(at: plist)
+                guard FileManager.default.fileExists(atPath: plist) else {
+                    throw NSError(domain: "AgentSpace.Helper", code: 1, userInfo: [
+                        NSLocalizedDescriptionKey: "the worker LaunchAgent is not installed at \(plist)",
+                    ])
+                }
+                let bootstrapped = CommandRunner.run(
+                    [HelperCommand.launchctl, "bootstrap", "gui/\(uidValue)", plist], timeout: 60)
+                log.info("\(bootstrapped.displayCommand) → exit \(bootstrapped.exitCode)")
+                if bootstrapped.ok {
+                    result = CommandRunner.run(command, timeout: 60)
+                    log.info("\(result.displayCommand) → exit \(result.exitCode)")
+                } else {
+                    result = bootstrapped
+                }
+            } catch {
+                return HelperResponse(id: request.id, error: AgentSpaceError(
+                    code: .helperRejected,
+                    message: "start failed: \(error.localizedDescription)"))
+            }
+        }
 
         guard result.ok else {
             return HelperResponse(id: request.id, error: AgentSpaceError(
@@ -513,6 +568,25 @@ final class HelperService: NSObject, HelperXPCProtocol {
             "hasGraphicalSession": .bool(hasGraphicalSession),
             "detail": .string(result.ok ? "gui/\(uid) exists" : "no gui/\(uid) domain"),
         ]))
+    }
+
+    private func attachmentPath(root: String, spaceID: UUID) -> String {
+        "\(root)/Attachments/\(spaceID.uuidString).json"
+    }
+
+    private func attachmentRecord(for request: HelperRequest) -> AttachmentRecord? {
+        guard let root = request.runtimeRoot, let spaceID = request.spaceID,
+              HelperValidation.validateRuntimeRoot(root) == nil else { return nil }
+        let path = attachmentPath(root: root, spaceID: spaceID)
+        var info = stat()
+        guard lstat(path, &info) == 0,
+              info.st_mode & S_IFMT == S_IFREG,
+              info.st_uid == 0,
+              info.st_mode & 0o077 == 0,
+              let data = FileManager.default.contents(atPath: path),
+              let record = try? JSONDecoder().decode(AttachmentRecord.self, from: data),
+              record.spaceID == spaceID else { return nil }
+        return record
     }
 
     // MARK: - Helpers

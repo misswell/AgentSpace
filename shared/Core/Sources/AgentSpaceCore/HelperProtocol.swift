@@ -18,6 +18,7 @@ public enum HelperOperation: String, Codable, Sendable, CaseIterable {
     case installWorker
     case removeWorker
     case prepareRuntimeDirectory
+    case removeRuntimeDirectory
     case startWorker
     case stopWorker
     case logoutSession
@@ -42,8 +43,8 @@ public struct HelperRequest: Codable, Equatable, Sendable {
     public var mainUser: String?
     /// For `installWorker`: the space's runtime root.
     public var runtimeRoot: String?
-    /// For `logoutSession`: the agent account's uid, cross-checked against the
-    /// username's real passwd entry before anything is torn down.
+    /// For teardown: the attached account's recorded uid. It lets V3 clean up
+    /// an attachment even if that account was later removed externally.
     public var uid: uid_t?
 
     public init(
@@ -115,13 +116,13 @@ extension HelperResponse {
 /// already checked it — the client is the part that might be compromised.
 public enum HelperValidation {
 
-    /// AgentAgent accounts are `_agentspace_` plus six lowercase hex characters.
+    /// Legacy V1/V2 accounts are `_agentspace_` plus six lowercase hex characters.
     ///
     /// A *fixed* prefix and a *closed* character set is the whole defence here.
     /// It means an attacker cannot ask for an existing account (`root`,
     /// `_mbsetupuser`, the human's own), cannot smuggle a shell metacharacter,
     /// cannot traverse with `..`, cannot inject a second argv element, and cannot
-    /// use a leading `-` to be read as a flag by `dscl` or `sysadminctl`. All of
+    /// use a leading `-` to be read as a flag by a system utility. All of
     /// those are the same rule, which is the point: one rule that is obviously
     /// complete rather than five that each cover a case somebody thought of.
     public static let accountPrefix = "_agentspace_"
@@ -144,7 +145,8 @@ public enum HelperValidation {
         return accountPrefix + String((0..<suffixLength).map { _ in alphabet.randomElement()! })
     }
 
-    /// Is this a name the helper created, and therefore may modify or delete?
+    /// Is this a legacy AgentSpace-generated name? Used only for compatibility;
+    /// V3 never creates, modifies or deletes the account.
     public static func isAgentSpaceAccount(_ username: String) -> Bool {
         guard username.hasPrefix(accountPrefix) else { return false }
         let suffix = username.dropFirst(accountPrefix.count)
@@ -153,12 +155,10 @@ public enum HelperValidation {
         return !protectedAccounts.contains(username)
     }
 
-    /// A display name is a label shown in the login window. It is the one free-text
-    /// field in the protocol, so it gets the tight treatment: bounded length, no
+    /// A display name is a label shown in AgentSpace. It is free text, so it gets
+    /// the tight treatment: bounded length, no
     /// newlines (which would let it forge a log line), no control characters, and
-    /// — importantly — it is *never* passed as an argv element to a command whose
-    /// meaning depends on it. It only ever reaches `sysadminctl -fullName`, and
-    /// `HelperCommand` passes it as a single argv element with no shell involved.
+    /// — importantly — it is never passed to a privileged system command.
     public static func validateDisplayName(_ name: String) -> AgentSpaceError? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -187,37 +187,6 @@ public enum HelperValidation {
         return nil
     }
 
-    /// A password AgentSpace generated. Rejected if it contains anything that
-    /// would be awkward in a command line or a log: the helper passes it to
-    /// `sysadminctl` as an argv element, and although that is not a shell, keeping
-    /// the character set closed means a password can never be misread as a flag.
-    public static let passwordLength = 32
-
-    public static func validatePassword(_ password: String) -> AgentSpaceError? {
-        guard password.count == passwordLength else {
-            return AgentSpaceError(
-                code: .helperRejected,
-                message: "the generated password must be exactly \(passwordLength) characters")
-        }
-        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-        guard password.allSatisfy({ allowed.contains($0) }) else {
-            return AgentSpaceError(
-                code: .helperRejected,
-                message: "the generated password must be alphanumeric so it can never be read as a command-line flag")
-        }
-        return nil
-    }
-
-    public static func generatePassword() -> String {
-        let alphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-        // Rejection-free: 62 does not divide 256, so this is very slightly biased
-        // toward the first 8 characters. That is irrelevant for a per-Space login
-        // password that is stored in the Keychain and never typed by a human, and
-        // it is cheaper than the alternative. The *session token* — the thing that
-        // actually guards the socket — uses SecRandomCopyBytes and is unbiased.
-        return String((0..<passwordLength).map { _ in alphabet.randomElement()! })
-    }
-
     /// Is this a path that could be a Space's runtime root?
     public static func validateRuntimeRoot(_ root: String) -> AgentSpaceError? {
         guard root.hasPrefix("/") else {
@@ -226,10 +195,10 @@ public enum HelperValidation {
         guard !root.contains("..") else {
             return AgentSpaceError(code: .helperRejected, message: "the runtime root must not contain '..'")
         }
-        guard root.hasPrefix("/Users/Shared/") || root.hasPrefix("/tmp/") || root.hasPrefix("/private/tmp/") else {
+        guard root == RuntimePaths.root || root == RuntimePaths.legacyRoot else {
             return AgentSpaceError(
                 code: .helperRejected,
-                message: "the runtime root must live under /Users/Shared or /tmp, not \(root), so that an agent cannot be pointed at a system directory")
+                message: "the runtime root must be an exact AgentSpace runtime root, not \(root)")
         }
         return nil
     }
@@ -261,6 +230,60 @@ public enum HelperValidation {
         return nil
     }
 
+    /// Validate an existing account selected for attachment. Legacy
+    /// `_agentspace_<hex>` users remain accepted so existing registries continue
+    /// to work, while new attachments must be ordinary, non-current users.
+    public static func validateAttachedUser(
+        _ username: String,
+        mainUser: String?,
+        existingAccounts: Set<String>
+    ) -> AgentSpaceError? {
+        guard existingAccounts.contains(username) else {
+            return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")
+        }
+        if isAgentSpaceAccount(username) { return nil }
+        guard !username.isEmpty,
+              !username.hasPrefix("_"),
+              !username.hasPrefix("-"),
+              !username.contains("/"),
+              !username.contains(".."),
+              !protectedAccounts.contains(username) else {
+            return AgentSpaceError(code: .helperRejected, message: "\(username) is not an attachable local account")
+        }
+        guard let mainUser else {
+            return AgentSpaceError(code: .helperRejected, message: "attaching an existing account requires the current main user")
+        }
+        guard username != mainUser else {
+            return AgentSpaceError(code: .helperRejected, message: "refusing to attach the current user's own account")
+        }
+        return validateMainUser(mainUser, existingAccounts: existingAccounts)
+    }
+
+    /// Teardown must remain possible after the user was deleted or promoted in
+    /// System Settings. In that case the helper additionally verifies its
+    /// root-owned attachment record before touching anything; this layer only
+    /// validates the closed request shape.
+    private static func validateTeardownUser(
+        _ request: HelperRequest,
+        existingAccounts: Set<String>
+    ) -> AgentSpaceError? {
+        guard let username = request.username else {
+            return AgentSpaceError(code: .helperRejected, message: "teardown requires the attached account")
+        }
+        if existingAccounts.contains(username) {
+            return validateAttachedUser(username, mainUser: request.mainUser, existingAccounts: existingAccounts)
+        }
+        guard !username.isEmpty, !username.hasPrefix("-"), !username.contains("/"),
+              !username.contains(".."), !protectedAccounts.contains(username),
+              let uid = request.uid, uid >= 500 else {
+            return AgentSpaceError(code: .helperRejected, message: "the detached account identity is invalid")
+        }
+        guard let mainUser = request.mainUser else {
+            return AgentSpaceError(code: .helperRejected, message: "teardown requires the main user")
+        }
+        return validateMainUser(mainUser, existingAccounts: existingAccounts)
+    }
+
     /// A complete check of one request, with no side effects.
     ///
     /// Returns the first problem found. `existingAccounts` is injected so this can
@@ -279,124 +302,92 @@ public enum HelperValidation {
             return nil
 
         case .createUser:
-            guard let username = request.username else {
-                return AgentSpaceError(code: .helperRejected, message: "createUser requires a username")
-            }
-            guard isAgentSpaceAccount(username) else {
-                return AgentSpaceError(
-                    code: .helperRejected,
-                    message: "\(username) is not an AgentSpace account name; the helper only creates accounts matching \(accountPrefix)<6 hex>")
-            }
-            guard !existingAccounts.contains(username) else {
-                return AgentSpaceError(
-                    code: .helperRejected,
-                    message: "an account named \(username) already exists")
-            }
-            if let displayName = request.displayName, let problem = validateDisplayName(displayName) {
-                return problem
-            }
-            guard let password = request.password else {
-                return AgentSpaceError(code: .helperRejected, message: "createUser requires a generated password")
-            }
-            if let problem = validatePassword(password) { return problem }
-            return nil
+            return AgentSpaceError(
+                code: .helperRejected,
+                message: "createUser is unavailable: AgentSpace connects existing macOS accounts and never creates users")
 
         case .deleteUser:
-            guard let username = request.username else {
-                return AgentSpaceError(code: .helperRejected, message: "deleteUser requires a username")
-            }
-            // The single most important check in this file. Everything else being
-            // right does not matter if this one is wrong.
-            guard isAgentSpaceAccount(username) else {
-                return AgentSpaceError(
-                    code: .helperRejected,
-                    message: "refusing to delete \(username): the helper only ever deletes accounts it created, matching \(accountPrefix)<6 hex>. A human account, an Apple account or root can never be removed from here.")
-            }
-            guard existingAccounts.contains(username) else {
-                return AgentSpaceError(
-                    code: .helperRejected,
-                    message: "there is no account named \(username) to delete")
-            }
-            return nil
+            return AgentSpaceError(
+                code: .helperRejected,
+                message: "deleteUser is unavailable: disconnecting AgentSpace never deletes a macOS account or home directory")
 
-        case .installWorker, .removeWorker:
+        case .installWorker:
             guard let username = request.username else {
                 return AgentSpaceError(code: .helperRejected, message: "\(request.operation.rawValue) requires a username")
             }
-            guard isAgentSpaceAccount(username) else {
-                return AgentSpaceError(
-                    code: .helperRejected,
-                    message: "\(username) is not an AgentSpace account; the worker LaunchAgent is only ever installed into an AgentSpace account's home")
+            if let problem = validateAttachedUser(username, mainUser: request.mainUser, existingAccounts: existingAccounts) { return problem }
+            guard let root = request.runtimeRoot else {
+                return AgentSpaceError(code: .helperRejected, message: "installWorker requires the runtime root")
             }
-            guard existingAccounts.contains(username) else {
-                return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")
-            }
-            if request.operation == .installWorker, let root = request.runtimeRoot,
-               let problem = validateRuntimeRoot(root) {
-                return problem
-            }
+            if let problem = validateRuntimeRoot(root) { return problem }
             return nil
+
+        case .removeWorker:
+            if let problem = validateTeardownUser(request, existingAccounts: existingAccounts) { return problem }
+            guard let root = request.runtimeRoot else {
+                return AgentSpaceError(code: .helperRejected, message: "removeWorker requires the runtime root")
+            }
+            return validateRuntimeRoot(root)
 
         case .prepareRuntimeDirectory:
             guard let spaceID = request.spaceID else {
-                return AgentSpaceError(code: .helperRejected, message: "prepareRuntimeDirectory requires a space ID")
+                return AgentSpaceError(code: .helperRejected, message: "\(request.operation.rawValue) requires a space ID")
             }
             _ = spaceID  // A UUID is validated by being one; there is nothing to escape.
-            guard let username = request.username, isAgentSpaceAccount(username) else {
-                return AgentSpaceError(
-                    code: .helperRejected,
-                    message: "prepareRuntimeDirectory requires the agent's AgentSpace account")
+            guard let username = request.username else {
+                return AgentSpaceError(code: .helperRejected, message: "\(request.operation.rawValue) requires the attached account")
             }
-            guard existingAccounts.contains(username) else {
-                return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")
-            }
+            if let problem = validateAttachedUser(username, mainUser: request.mainUser, existingAccounts: existingAccounts) { return problem }
             guard let mainUser = request.mainUser else {
-                return AgentSpaceError(code: .helperRejected, message: "prepareRuntimeDirectory requires the main user, so it knows who to grant access to")
+                return AgentSpaceError(code: .helperRejected, message: "\(request.operation.rawValue) requires the main user")
             }
-            return validateMainUser(mainUser, existingAccounts: existingAccounts)
+            if let problem = validateMainUser(mainUser, existingAccounts: existingAccounts) { return problem }
+            if let root = request.runtimeRoot, let problem = validateRuntimeRoot(root) { return problem }
+            return nil
 
-        case .startWorker, .stopWorker:
+
+        case .removeRuntimeDirectory:
+            guard request.spaceID != nil else {
+                return AgentSpaceError(code: .helperRejected, message: "removeRuntimeDirectory requires a space ID")
+            }
+            if let problem = validateTeardownUser(request, existingAccounts: existingAccounts) { return problem }
+            guard let root = request.runtimeRoot else {
+                return AgentSpaceError(code: .helperRejected, message: "removeRuntimeDirectory requires the runtime root")
+            }
+            return validateRuntimeRoot(root)
+
+        case .startWorker:
             guard let spaceID = request.spaceID else {
                 return AgentSpaceError(code: .helperRejected, message: "\(request.operation.rawValue) requires a space ID")
             }
             _ = spaceID
-            guard let username = request.username, isAgentSpaceAccount(username) else {
-                return AgentSpaceError(
-                    code: .helperRejected,
-                    message: "\(request.operation.rawValue) requires the agent's AgentSpace account, so that only that agent's LaunchAgent can be started or stopped")
+            guard let username = request.username else {
+                return AgentSpaceError(code: .helperRejected, message: "\(request.operation.rawValue) requires the attached account")
             }
-            guard existingAccounts.contains(username) else {
-                return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")
-            }
+            if let problem = validateAttachedUser(username, mainUser: request.mainUser, existingAccounts: existingAccounts) { return problem }
             return nil
+
+
+        case .stopWorker:
+            guard request.spaceID != nil else {
+                return AgentSpaceError(code: .helperRejected, message: "stopWorker requires a space ID")
+            }
+            if let problem = validateTeardownUser(request, existingAccounts: existingAccounts) { return problem }
+            guard let root = request.runtimeRoot else {
+                return AgentSpaceError(code: .helperRejected, message: "stopWorker requires the runtime root")
+            }
+            return validateRuntimeRoot(root)
 
         case .logoutSession:
-            // §40: Logout ends the agent's whole GUI session (releasing its
-            // WindowServer, frames and RAM) while keeping the account and its
-            // home. It is `launchctl bootout gui/<uid>` — a root-only op, so
-            // it belongs here and nowhere else. The uid must name an AgentSpace
-            // account: a logout that could target the *main* user's session
-            // would be a self-destruct button wearing a feature's clothes.
-            guard let uid = request.uid, uid > 0 else {
-                return AgentSpaceError(code: .helperRejected, message: "logoutSession requires the agent's uid")
-            }
-            guard let username = request.username, isAgentSpaceAccount(username) else {
-                return AgentSpaceError(
-                    code: .helperRejected,
-                    message: "logoutSession is only answered for AgentAgent accounts")
-            }
-            guard existingAccounts.contains(username) else {
-                return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")
-            }
-            return nil
+            return AgentSpaceError(
+                code: .helperRejected,
+                message: "logoutSession is unavailable in V3: AgentSpace manages its worker and runtime, not the macOS login session")
 
         case .sessionInfo:
-            guard let username = request.username, isAgentSpaceAccount(username) else {
-                return AgentSpaceError(
-                    code: .helperRejected,
-                    message: "sessionInfo is only answered for AgentAgent accounts")
+            guard let username = request.username else {
+                return AgentSpaceError(code: .helperRejected, message: "sessionInfo requires the attached account")
             }
-            return nil
+            return validateAttachedUser(username, mainUser: request.mainUser, existingAccounts: existingAccounts)
         }
     }
 }
@@ -416,60 +407,23 @@ public enum HelperValidation {
 /// from one file, and checkable by a test that runs everywhere.
 public enum HelperCommand {
 
-    public static let sysadminctl = "/usr/sbin/sysadminctl"
     public static let dscl = "/usr/bin/dscl"
     public static let launchctl = "/bin/launchctl"
-    public static let createhomedir = "/usr/bin/createhomedir"
     public static let chmod = "/bin/chmod"
     public static let chown = "/usr/sbin/chown"
     public static let mkdir = "/bin/mkdir"
+    public static let workerInstallRoot = "/Library/Application Support/AgentSpace/Worker/versions"
 
-    public static func createUser(_ request: HelperRequest) -> [[String]] {
-        guard let username = request.username, let password = request.password else { return [] }
-        let fullName = request.displayName ?? "AgentSpace \(username)"
-        var commands: [[String]] = []
-        // `sysadminctl` is the supported way to make a user with a password
-        // non-interactively. The account is a *standard* user: no `-admin`, ever.
-        // That single omission is what stops a compromised agent from becoming an
-        // administrator, and it is deliberately not a parameter.
-        commands.append([
-            sysadminctl,
-            "-addUser", username,
-            "-fullName", fullName,
-            "-password", password,
-            "-home", "/Users/\(username)",
-            "-shell", "/bin/zsh",
-        ])
-        // sysadminctl does not always create the home directory, and on macOS 26+
-        // the `createhomedir` tool no longer exists at all (HelperService skips
-        // it there). A missing home is not fatal: macOS creates it at the
-        // account's first GUI login, which the flow requires anyway.
-        commands.append([createhomedir, "-c", "-u", username])
-        return commands
+    /// Root-owned, versioned worker location. The version is a build constant,
+    /// never request data; keeping it in the path lets an updated helper install
+    /// atomically without a user-writable `current` symlink.
+    public static func workerInstallPath(version: String) -> String {
+        precondition(!version.isEmpty && version.allSatisfy {
+            $0.isLetter || $0.isNumber || $0 == "." || $0 == "-"
+        })
+        return "\(workerInstallRoot)/\(version)/agentspace-worker"
     }
 
-    public static func deleteUser(_ request: HelperRequest) -> [[String]] {
-        guard let username = request.username else { return [] }
-        var commands: [[String]] = []
-        if request.removeHome == true {
-            // Only ever /Users/<the account we just validated>. Built from the
-            // account name rather than taken from the request, so there is no
-            // path field for an attacker to aim somewhere else.
-            commands.append([sysadminctl, "-deleteUser", username, "-secure"])
-            commands.append(["/bin/rm", "-rf", "/Users/\(username)"])
-        } else {
-            commands.append([sysadminctl, "-deleteUser", username])
-        }
-        commands.append([dscl, ".", "-delete", "/Users/\(username)"])
-        return commands
-    }
-
-    /// The worker's LaunchAgent, as a property list.
-    ///
-    /// `LimitLoadToSessionType: Aqua` is the load-bearing line: it is why the
-    /// worker starts inside the AgentSpace user's *GUI* session — the only place
-    /// input and screenshots mean anything — and never in a background or ssh
-    /// context, where it would refuse to run anyway (exit 69).
     public static func workerLaunchAgent(
         spaceID: UUID,
         username: String,
