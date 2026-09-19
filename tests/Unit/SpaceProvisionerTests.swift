@@ -371,6 +371,37 @@ final class SpaceProvisionerTests: XCTestCase {
         XCTAssertTrue(registry.spaces.isEmpty, "a phantom agent was written for an account that is not there")
     }
 
+    func testAFailedCreateNamesTheAccountForTheUICanVerify() throws {
+        // The failure text the user sees contains an `_agentspace_…` name, and a
+        // name on screen reads like an account that exists and needs cleaning up.
+        // On this machine it never does (validation §275), so the app re-reads the
+        // machine — which needs the name as a *value*, not as prose to parse.
+        let helper = FakeHelper()
+        helper.failures[.createUser] = "the account was reported as created but has no uid"
+
+        let outcome = create(helper: helper)
+        XCTAssertFalse(outcome.ok)
+        let attempted = try XCTUnwrap(outcome.attemptedUsername)
+        XCTAssertTrue(HelperValidation.isAgentSpaceAccount(attempted), attempted)
+        XCTAssertEqual(helper.calls.first { $0.operation == .createUser }?.username, attempted,
+                       "the name the app verifies is not the name the helper was asked for")
+    }
+
+    func testACreateThatNeverReachedTheAccountStepHasNoNameToVerify() throws {
+        // A workspace that cannot be prepared fails before any account name is
+        // chosen. Inventing one there would have the app go and check the machine
+        // for a user that was never asked for.
+        let helper = FakeHelper()
+        let outcome = create(helper: helper, workspace: .gitWorktree(
+            repository: root.appendingPathComponent("nowhere").path,
+            branch: "agentspace/a",
+            path: root.appendingPathComponent("wt").path))
+
+        XCTAssertFalse(outcome.ok)
+        XCTAssertNil(outcome.attemptedUsername)
+        XCTAssertFalse(helper.calls.contains { $0.operation == .createUser })
+    }
+
     func testAnUnreachableHelperIsReportedAsUnavailableRatherThanRetried() throws {
         // There is no unprivileged path to creating a macOS account, so a transport
         // failure must say HELPER_UNAVAILABLE rather than looking like a refusal.

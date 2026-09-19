@@ -20,6 +20,7 @@ struct RootView: View {
         // see which one — and whether it was undone.
         .sheet(item: $model.provisioning) { provisioning in
             ProvisioningView(provisioning: provisioning) { model.dismissProvisioning() }
+                .environmentObject(model)
         }
         .sheet(item: $model.revealedPassword) { revealed in
             LoginPasswordView(revealed: revealed) { model.revealedPassword = nil }

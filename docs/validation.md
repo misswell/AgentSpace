@@ -7716,3 +7716,50 @@ every run, and a sentinel compared after whitespace stripping must be one word.
 | 481 | The helper's refusal strings remain untranslated on purpose, as evidence under a localized label | recorded | §274 — a root daemon has no UI language; the step name above it is localized |
 | 482 | "Create is armed exactly when the helper is current" is a gate check, not something observed by hand | pass | §274 — `gui-verify` 7/7 on build 287: `Create is refused while the helper is stale`, with this machine's older installed helper still live |
 | 483 | A gui-verify phase that cannot reach its control says how far it got, instead of reporting a healthy wizard | pass | §274 — the same phase first "passed" with `notfound` because its library was missing; `wizard: <word>` now prints on every run |
+
+## 275. A failure that names an account has to say whether the account exists (owner's screenshot, 2026-09-19)
+
+The owner's third screenshot of a failed create asked, for the third time, how
+the account was going to be dealt with. The screen read:
+
+```
+✗ 创建账号
+    the account _agentspace_0185a9 was reported as created but has no uid,
+    which should be impossible
+🖐 这一步没有完成   HELPER_REJECTED
+```
+
+and that is the whole problem: it names an account, in the past tense, as
+"reported as created". Nothing on the screen says whether that account exists,
+so the only reading available is "there is an account, and this app cannot get
+rid of it".
+
+**There was no account.** Verified on this machine immediately after the
+screenshot: `dscl . -read /Users/_agentspace_0185a9` → `-14136
+(eDSRecordNotFound)`, no `/Users/_agentspace_0185a9`, and `agentspace doctor`
+reports no registered agents. §272's mechanism did its job — `sysadminctl
+-addUser` exited 0 and created nothing, the helper's uid re-probe caught it, and
+the ✗ is the honest report of a create that never happened. What was missing was
+the *conclusion*: nothing to clean up.
+
+**So the app now re-reads the machine after the failure.** `Outcome` carries
+`attemptedUsername` — the name as a value, not something the UI has to parse out
+of an error string — and `AppModel.createSpace` asks `helperStatus` again once
+the run is over. The overlay then states the verified after-state: not on this
+Mac / **is** on this Mac (with Doctor's removal path named) / could not be
+checked because the helper stopped answering. The distinction is the one the
+owner keeps being asked to make by themselves from a hex name on screen.
+
+**The button next to it was dead, for the reason §269 already recorded.** The
+「打开诊断…」 action the core attaches to `removeOrphanedAccounts` set
+`showingDoctor = true` while the wizard sheet still held the main window, and a
+window presents one sheet at a time — the press did nothing at all. It now gives
+up the overlay and the wizard first, then runs the action.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 484 | A failed create states whether the account it named is on this Mac | pass | §275 — `AppModel.Provisioning.Aftermath`, computed from a second `helperStatus` read; this machine's `_agentspace_0185a9`: eDSRecordNotFound, no home, no agent record |
+| 485 | The name verified is the name the helper was asked for, carried as a value rather than parsed from prose | pass | §275 — `Outcome.attemptedUsername`; `testAFailedCreateNamesTheAccountForTheUICanVerify` |
+| 486 | A create that never reached the account step does not go looking for an account | pass | §275 — `testACreateThatNeverReachedTheAccountStepHasNoNameToVerify` |
+| 487 | "Open Doctor…" pressed from the create overlay opens Doctor | fixed, not exercised | §275 — the branch needs a helper that reports a *surviving* partial account, which this machine's gate never produces; the sheet-ordering rule is §269's |
+| 488 | The helper reinstall button works on a machine where launchd was serving the previous build | pass | owner's own press at 21:01:57: `agentspace-helper` restarted (pid 14330), Create became armed, and the create then failed at the account step rather than at the app |

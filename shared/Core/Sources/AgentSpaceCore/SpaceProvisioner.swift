@@ -78,6 +78,12 @@ public struct SpaceProvisioner {
         public var space: AgentAccount?
         public var steps: [Step]
         public var error: AgentSpaceError?
+        /// The `_agentspace_…` name a create had committed to before it failed,
+        /// or nil when it never got that far. The UI verifies this against the
+        /// machine instead of reading a name out of an error string: a name on
+        /// screen reads like a thing that exists, and on a machine that blocks
+        /// account creation it never does (validation §275).
+        public var attemptedUsername: String? = nil
 
         public var ok: Bool { error == nil && space != nil }
         /// A run that changed the machine and then failed. Distinguished from a
@@ -121,6 +127,7 @@ public struct SpaceProvisioner {
 
         var steps: [Step] = []
         var cleanup: [() -> Step] = []
+        var attemptedUsername: String?
         let spaceID = UUID()
 
         func bail(_ step: String, _ error: AgentSpaceError) -> Outcome {
@@ -156,7 +163,8 @@ public struct SpaceProvisioner {
                 updated.upsert(broken)
                 try? updated.save(root: options.root)
             }
-            return Outcome(space: nil, steps: steps, error: error)
+            return Outcome(space: nil, steps: steps, error: error,
+                           attemptedUsername: attemptedUsername)
         }
 
         // 0. Validate what can be validated before touching the machine. Doing this
@@ -177,6 +185,7 @@ public struct SpaceProvisioner {
 
             // 1. The account.
             let username = HelperValidation.generateAccountName()
+            attemptedUsername = username
             let password = SpacePassword()
             let created = call(transport, HelperRequest(
                 operation: .createUser, username: username,

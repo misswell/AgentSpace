@@ -70,6 +70,18 @@ final class AppModel: ObservableObject {
         /// while the wizard sheet is open no alert can present over it (§269),
         /// so an error routed only to `lastError` was swallowed.
         var error: PresentedError?
+        /// What a failed create left on the machine, checked afterwards rather
+        /// than inferred from the error text. The failure names an
+        /// `_agentspace_…` account, and a name on screen reads like something
+        /// that exists and needs cleaning up — on a machine that blocks account
+        /// creation it never does (validation §275).
+        var aftermath: Aftermath?
+
+        enum Aftermath: Equatable {
+            case nothingLeft(String)
+            case left(String)
+            case unchecked(String)
+        }
     }
 
     struct RevealedPassword: Identifiable, Equatable {
@@ -265,6 +277,26 @@ final class AppModel: ObservableObject {
             // said "sign in now" was the lie §272 records.
             if let error = outcome.error {
                 self.provisioning?.error = self.presented(for: error, space: nil)
+                // The error names an account, which leaves one question open: is
+                // there something to clean up? The machine is asked again rather
+                // than the message being read, because on this Mac the named
+                // account was never created at all (§275).
+                if let username = outcome.attemptedUsername {
+                    let remaining: [String]? = await withCheckedContinuation { continuation in
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            continuation.resume(returning: HelperClient.agentSpaceAccounts())
+                        }
+                    }
+                    let aftermath: Provisioning.Aftermath
+                    switch remaining {
+                    case .none:
+                        aftermath = .unchecked(username)
+                    case .some(let names):
+                        aftermath = names.contains(username)
+                            ? .left(username) : .nothingLeft(username)
+                    }
+                    self.provisioning?.aftermath = aftermath
+                }
             }
             self.reload()
             // Ask the helper again: if it refused mid-run, the card behind the

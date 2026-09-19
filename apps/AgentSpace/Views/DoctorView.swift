@@ -191,6 +191,7 @@ private struct CheckRow: View {
 /// that they will have to remove themselves. The step list is the record of what
 /// the machine actually did.
 struct ProvisioningView: View {
+    @EnvironmentObject private var model: AppModel
     let provisioning: AppModel.Provisioning
     let dismiss: () -> Void
 
@@ -235,8 +236,28 @@ struct ProvisioningView: View {
                             message: error.message,
                             fix: error.fix)
                         if let actionTitle = error.actionTitle, let action = error.action {
-                            Button(actionTitle) { action() }
+                            Button(actionTitle) {
+                                // A window presents one sheet at a time (§269).
+                                // This overlay and the wizard both sit on the main
+                                // window, so an action that opens Doctor has to
+                                // give them up first — otherwise the press is
+                                // swallowed and the button is dead.
+                                dismiss()
+                                model.showingNewSpace = false
+                                DispatchQueue.main.async { action() }
+                            }
                         }
+                    }
+                    if let aftermath = provisioning.aftermath {
+                        // The error text names an account and cannot say whether it
+                        // is real. This line is the machine's answer, re-read after
+                        // the failure — the question the name on screen provokes
+                        // (validation §275).
+                        Text(aftermath.line)
+                            .font(.callout)
+                            .foregroundStyle(aftermath.isClean ? Color.primary : Color.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("createAftermath")
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -250,6 +271,32 @@ struct ProvisioningView: View {
             }
         }
         .frame(width: 560, height: 460)
+    }
+}
+
+private extension AppModel.Provisioning.Aftermath {
+    /// Phrased as a fact about the machine, because the question this answers is
+    /// "do I have to clean something up?" — not "what error code came back?".
+    var line: String {
+        switch self {
+        case .nothingLeft(let username):
+            return String(format: NSLocalizedString(
+                "Checked afterwards: %@ is not an account on this Mac, so there is nothing to clean up.",
+                comment: ""), username)
+        case .left(let username):
+            return String(format: NSLocalizedString(
+                "Checked afterwards: %@ IS an account on this Mac. Open Doctor and use “Delete Orphaned Accounts…” to remove it.",
+                comment: ""), username)
+        case .unchecked(let username):
+            return String(format: NSLocalizedString(
+                "Whether %@ was left behind could not be checked, because the helper stopped answering. Doctor will list it if it exists.",
+                comment: ""), username)
+        }
+    }
+
+    var isClean: Bool {
+        if case .nothingLeft = self { return true }
+        return false
     }
 }
 
