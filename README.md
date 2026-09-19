@@ -59,20 +59,28 @@ session.
 
 ## Status
 
-Phase 0/1 of the plan. The core works and is tested; the GUI and the privileged
-helper are not built yet. `docs/validation.md` records exactly what is verified
-and what is not, with the measurements.
+**Handing this project to someone (or something) new? Read
+[`docs/status.md`](docs/status.md) first** — it is the map: state, next work,
+and the conventions a change must not break. `docs/validation.md` records
+exactly what is verified and what is not, with the measurements.
 
 **Working today**
 
-- `AgentSpace.app` — the SwiftUI app: Space list, live status, Desktop Viewer with
-  click-to-input, diagnostics
-- `agentspace-worker` — the per-Space daemon: unix socket RPC, fail-closed console
+- `AgentSpace.app` — the SwiftUI app: agent-account home with status cards, a
+  three-step New Agent wizard, the Desktop Viewer with click-to-input, the menu
+  bar, and diagnostics. English and Simplified Chinese.
+- Creating an agent end to end: the privileged helper makes a real (never
+  administrator) macOS user, a runtime directory and a LaunchAgent; the app
+  walks through the one manual first login.
+- Orphan-account recovery: if a create is interrupted, Doctor lists the
+  leftover `_agentspace_…` account and the app removes it with a button.
+- `agentspace-worker` — the per-account daemon: unix socket RPC, fail-closed console
   guard, session-tap input, screenshot, app lifecycle, `exec`, accessibility tree
 - `agentspace` — the CLI, with `--json` on everything, plus `agentspace doctor`
-- `@agentspace/mcp` — the MCP server: 14 tools over stdio, bridged to the same CLI
+- `@agentspace/mcp` — the MCP server: 22 tools over stdio (`agent_*` and the
+  original `agentspace_*` names), bridged to the same CLI
 - `AgentSpaceCore` — the shared protocol, models and safety logic
-- `agentspace-helper` — the root LaunchDaemon: a closed list of nine typed
+- `agentspace-helper` — the root LaunchDaemon: a closed list of typed
   operations, no shell, and a code-signing check on its caller.
 - Git-worktree workspaces: the agent gets its own checkout on an `agentspace/…`
   branch, so it can never edit the tree you have open.
@@ -83,10 +91,10 @@ and what is not, with the measurements.
 
 **Not built yet**
 
-- Wiring the create wizard to the helper. The helper itself is built, bundled and
-  self-checked; the last step — calling it from the app to make the macOS user — is
-  next. Everything that *drives* an existing Space works today.
-- ScreenCaptureKit live preview (phase 8; today the viewer is 1 FPS screenshots)
+- The runtime manager: launching the agent's own tools (Terminal, Chrome,
+  VS Code) inside its session and running its command there. The plan and the
+  groundwork — see `docs/status.md` §4b.
+- Preview tuning beyond the current 5 FPS stream (target 15).
 
 **Verified on this machine** — macOS 27.0, Apple Silicon:
 
@@ -106,7 +114,8 @@ session.
 ## Install
 
 If you have the DMG (`dist/AgentSpace-0.1.0.dmg`, produced by
-`scripts/release.sh` and notarized by `scripts/notarize.sh`):
+`scripts/release.sh` and notarized by `scripts/notarize.sh` — run both, in that
+order; `check-all.sh`'s dist guard fails on an unstapled app):
 
 1. Open the DMG and drag **AgentSpace** into Applications.
 2. Open the app. It is Developer ID signed, notarized, and stapled, so
@@ -216,10 +225,11 @@ agentspace status dev --json
 }
 ```
 
-### `agentspace desktop <space>`
+### `agentspace open <account>` (alias: `desktop`)
 
-Opens that Space's Desktop Viewer in the AgentSpace app — the same §52 stream
-the app shows, raised through the `agentspace://space/<uuid>` deep link. The
+Opens that account's desktop in the AgentSpace app — the same §52 stream
+the app shows, raised through the `agentspace://agent/<uuid>` deep link (the
+pre-rename `space` host still resolves). The
 worker does not need to be online; the viewer reports the offline state
 honestly rather than pretending.
 
@@ -230,11 +240,11 @@ cd packages/agentspace-mcp && npm install && npm run build
 ```
 
 Point your MCP client at `node packages/agentspace-mcp/dist/index.js`, or set
-`AGENTSPACE_BIN` if the CLI is not in one of the standard locations. 14 tools:
-`agentspace_status`, `agentspace_screenshot`, `agentspace_input`,
-`agentspace_click`, `agentspace_type`, `agentspace_key`, `agentspace_scroll`,
-`agentspace_drag`, `agentspace_launch`, `agentspace_quit`, `agentspace_apps`,
-`agentspace_exec`, `agentspace_ax_snapshot`, `agentspace_list`.
+`AGENTSPACE_BIN` if the CLI is not in one of the standard locations. 22 tools.
+The current names: `agent_list`, `agent_status`, `agent_open_desktop`,
+`agent_screenshot`, `agent_click`, `agent_type`, `agent_launch`, `agent_exec`.
+The original 14 `agentspace_*` tools remain registered with identical
+behaviour, so existing client configurations keep working.
 
 **There is deliberately no tool that creates or deletes a Space, and none that
 grants a permission.** Those change the machine and require a human in the GUI.
@@ -286,6 +296,8 @@ coordinate ends up off by a factor of two. This was measured, not assumed —
 
 | | |
 |---|---|
+| [`docs/status.md`](docs/status.md) | **The handoff map** — state, next work, conventions |
+| [`docs/v2-plan.md`](docs/v2-plan.md) | The agent-account product plan, section by section |
 | [`docs/architecture.md`](docs/architecture.md) | Process boundaries, invariants, lifecycle |
 | [`docs/protocol.md`](docs/protocol.md) | The wire contract, method by method |
 | [`docs/security.md`](docs/security.md) | Threat model and controls — and what is *not* a control |
@@ -305,17 +317,22 @@ tests/Unit tests/Safety tests/Integration tests/probes
 docs/ scripts/
 ```
 
-### Creating a Space
+### Creating an agent account
 
-Creating a Space makes a real macOS account, so it needs the privileged helper
-(open the app → **Install Helper**). Nothing else in the CLI does.
+The normal way is the app: **New Agent…** → name → purpose → create. Creating
+an account makes a real macOS user, so it needs the privileged helper (open the
+app → **Install Helper**). Nothing else in the CLI does.
 
 ```bash
-agentspace create "Frontend Test"
+agentspace create "Frontend Test"          # the V2 spelling is `create account`
 agentspace create "API Test" --repo ~/Code/Api --branch agentspace/api
 agentspace delete "Frontend Test"          # keeps its home directory
 agentspace delete "Frontend Test" --remove-home
 ```
+
+If a create is ever interrupted after the macOS user exists, the account is an
+orphan: it has no record, no password, and the app cannot see it. Doctor does —
+⌘⇧D lists it under **Orphaned accounts**, with a button that removes it.
 
 The CLI never runs `sudo`. If the helper is not installed it exits **69** and says
 so — it does not fall back to your own account.

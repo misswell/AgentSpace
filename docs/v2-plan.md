@@ -5,6 +5,10 @@
 > **done** — 本轮（v2-agent-account）已落地；**next** — 下一轮；
 > **kept** — 既有设计，保持不变；**never** — 永久不做。
 
+**Landed on `master`** (merge commit `6732a62`); this file and
+`docs/status.md` are the record. Sections marked *next* are the remaining
+work.
+
 V2 redefines the product: **AgentSpace is a macOS-native multi-user agent
 desktop manager**. Not a VM, not a remote machine — one Mac, several AI-agent
 users, each with its own hidden desktop.

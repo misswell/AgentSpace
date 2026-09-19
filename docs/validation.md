@@ -7330,3 +7330,27 @@ WorkspacePreparerTests, unchanged from before this round.
 | 439 | MCP agent_* tools bridge the same builders as agentspace_* | ✓ | npm test + mcp-smoke |
 | 440 | GUI renders the V2 vocabulary (cards, wizard, menu bar) in zh-Hans | ✓ | screenshots taken from the bundled app |
 | 441 | Every new user-facing key is in both localization tables | ✓ | LocalizationTests |
+
+---
+
+## 267. The V2 branch lands on master; the handoff document exists
+
+The V2 branch was merged into master (four topic commits plus a merge that
+resolved four conflicts: AppModel's `present()` keeping both the new button
+machinery and the renamed parameter type, the two append-only localization
+tables, and validation numbering — the merged round's sections became
+§264–§266). The temporary worktree (`../AgentSpace-v2`) and both copies of the
+branch were removed: the repository is one branch, one folder. `docs/status.md`
+now carries the handoff map a new agent needs — state, next work, and the
+conventions — and README's Status section was corrected: the create flow, the
+orphan-account path and the SCK preview are all shipped, not "not built yet".
+The merged tree ran 373 Swift tests and 23 MCP tests green; dist was rebuilt
+from the merged tree and notarized (stapler validation is the dist guard's
+first check).
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 442 | The merged master is one branch and one worktree; V2 lives in its history, not a second checkout | ✓ | `git branch -a`, `git worktree list` — only master |
+| 443 | Merged tree: 373 Swift + 23 MCP green | ✓ | swift test / npm test after the merge commit |
+| 444 | dist rebuilt from the merged tree, notarized and stapled | ✓ | `stapler validate dist/AgentSpace.app` |
+| 445 | A handoff document states what is next for a new agent | ✓ | docs/status.md §4 |
