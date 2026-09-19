@@ -43,12 +43,12 @@ final class DoctorTests: XCTestCase {
             "the app keys the delete button off this hint")
     }
 
-    /// The inverse promise: no other check may carry an action hint, or the
-    /// GUI would offer buttons the core never defined behaviour for.
-    func testOnlyTheOrphanCheckCarriesAnActionHint() {
+    /// The inverse promise: only checks whose action the app actually
+    /// implements may carry a hint, or the GUI would offer buttons the core
+    /// never defined behaviour for. The implemented set is exactly these two.
+    func testOnlyChecksWithImplementedActionsCarryAnActionHint() {
         let report = Doctor.run(orphanedAccounts: ["_agentspace_a5b707"])
-        let hinted = report.checks.filter { $0.actionHint != nil }
-        XCTAssertEqual(hinted.count, 1)
-        XCTAssertEqual(hinted.first?.actionHint, "deleteOrphans")
+        let hinted = Set(report.checks.compactMap(\.actionHint))
+        XCTAssertEqual(hinted, ["deleteOrphans", "reinstallHelper"])
     }
 }

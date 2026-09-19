@@ -7379,3 +7379,70 @@ product.
 | 447 | The §24 end-to-end story (create a Coding Agent; its tools run in its session) is unproven | ✗ not verified | no test or run composes create → runtime → agent command |
 | 448 | Docs state the gap before the achievements | ✓ | docs/status.md §0; README Status lead |
 | 449 | dist is notarized and stapled; DMG matches dist (CDHash 9ca0cb68…) | ✓ | `stapler validate` app+dmg; diskutil mount comparison |
+
+---
+
+## 269. The delete that never happened, the helper that never left, and the button that could not be pressed
+
+One user session produced three distinct failures, each hiding behind the
+previous one's apparent success. All three are now fixed; the chain, in the
+order it was uncovered:
+
+1. **`deleteUser` reported success while the account survived.** Three
+   layers of lying: `sysadminctl -deleteUser` writes `Error:-14120` to
+   stderr and still exits 0; `dscl` fails with exit 40 —
+   `eDSPermissionError`, not the "record already gone" the old comment
+   claimed; and opendirectoryd logs `disallowed by sandbox`. The helper
+   trusted the exit code. `HelperService.deleteUser` now collects every
+   command's stderr, then **verifies** against
+   `AccountDirectory.existingAccounts()` and returns an error carrying the
+   real refusal when the record survives. The machine itself is the outer
+   cause: even a freshly created test record could not be deleted by root
+   (endpoint-security kauth hooks are present — tbguard, aTrust), so on
+   this Mac the removal may only succeed through Apple's own path. Per
+   §264 the app's answer is a button, not a terminal: the failure dialog
+   carries "Open Users & Groups…", which opens
+   `x-apple.systempreferences:com.apple.preference.users`.
+2. **The running helper was the pre-fix binary even though the app had
+   been rebuilt.** launchd keeps a registered daemon's process alive
+   across app updates: the create of `_agentspace_1869f4` failed with
+   `posix_spawn failed (2)` — the exact §265 createhomedir signature —
+   from pid 11183, started hours before the new dist was built. Doctor's
+   helper check said "reachable" and stopped there. `helperCheck` now
+   carries `actionHint: "reinstallHelper"` on both branches,
+   `DoctorView` renders "Reinstall Helper…", and `AppModel.reinstallHelper`
+   unregisters, re-registers and re-runs Doctor — the swap is one button.
+   (The user's own path back: the wizard's "安装助手…" re-registered the
+   daemon, and the helper answered 0.1.0 healthy.) The failed create left
+   a second orphan, `_agentspace_1869f4`, via the old rollback's lying
+   `sysadminctl` — expected, and now visible to the orphan check.
+3. **The Create button was dead with everything green.** `RootView`
+   attached both the wizard and the provisioning progress as `.sheet`
+   modifiers on the same view; a window presents one sheet at a time, so
+   while the wizard was open the provisioning sheet could never appear.
+   Its Done button was the *only* caller of `dismissProvisioning()`, so a
+   failed create left `model.provisioning` non-nil forever, and the
+   Create button's `provisioning != nil` disable condition killed it with
+   no explanation. `NewAgentWizard` now shows `ProvisioningView` as an
+   overlay inside itself: progress, the ✗ step list and Done are all on
+   screen, and a stale finished provisioning is dismissed by the same
+   overlay the next time the wizard opens.
+
+Gate: 373 Swift + 23 MCP green; check-all's dist guard, test layer and MCP
+smoke pass; gui-verify's three Settings-window checks still fail
+environmentally (the script execs the binary directly and the settings
+scene never opens) — unchanged, not a regression. dist was rebuilt from
+this tree and re-notarized (app + DMG stapled, Gatekeeper accepts).
+
+What is *not* claimed: the two orphans are still on this machine — their
+removal (and the first successful create through the new helper) needs the
+user in the app's UI, which is exactly the surface this section fixed.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 450 | deleteUser verifies the record is gone and surfaces the directory service's real refusal instead of an exit code | pass | §269 — HelperService.swift deleteUser; refusal detail = `Error:-14120` / dscl 40 / opendirectoryd "disallowed by sandbox" |
+| 451 | On this machine even root cannot delete local user records (machine-level gate, not an AgentSpace bug) | recorded | §269 — a freshly created throwaway record survived `-deleteUser … -secure`; tbguard/aTrust kauth hooks present |
+| 452 | The deletion-failure dialog offers the System Settings Users & Groups path as a button | pass | §269 — AppModel deleteOrphanedAccounts failure branch, actionTitle "Open Users & Groups…" |
+| 453 | launchd keeps the old helper across an app rebuild; Doctor now offers the swap as a button | pass | §269 — pid 11183 pre-fix helper failing a create hours after the fix; Doctor.swift reinstallHelper hint, DoctorView + AppModel.reinstallHelper |
+| 454 | The wizard no longer dead-locks the Create button behind an un-presentable sheet | pass | §269 — NewAgentWizard overlay; repro: failed create → reopen wizard → helper green, button unclickable |
+| 455 | Second orphan `_agentspace_1869f4` produced by the pre-fix helper's lying rollback | recorded | §269 — HELPER_REJECTED screenshot of the failed create; old undo path per §265 |

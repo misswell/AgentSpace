@@ -116,6 +116,20 @@ struct NewAgentWizard: View {
             .padding(14)
         }
         .frame(width: 620, height: 620)
+        // Provisioning lives *inside* the wizard, not in a second sheet. A
+        // window presents one sheet at a time: while the wizard held it, the
+        // RootView-level provisioning sheet never appeared, so a failed create
+        // left `provisioning` set with no visible way to dismiss it — and the
+        // Create button, disabled on `provisioning != nil`, was dead on every
+        // later attempt with no explanation. As an overlay the step list, the
+        // failure and the Done button are all on screen.
+        .overlay {
+            if let provisioning = model.provisioning {
+                ProvisioningView(provisioning: provisioning) { model.dismissProvisioning() }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.background)
+            }
+        }
     }
 
     // MARK: - Step 1: name

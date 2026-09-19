@@ -305,7 +305,10 @@
 "Delete Orphaned Accounts…" = "删除孤立账户…";
 "Removing…" = "正在删除…";
 "Removed %d orphaned account(s)." = "已删除 %d 个孤立账户。";
-"Some accounts could not be removed. The helper's log has the detail; Export Diagnostics collects it." = "部分账户未能删除。详细原因见 helper 日志，可用“导出诊断信息”收集。";
+"This machine's directory service refused the deletion, even to the helper running as root. System Settings → Users & Groups uses Apple's own path, which is usually allowed where a third-party helper is refused." = "这台 Mac 的目录服务拒绝了删除操作，即使助手以 root 身份运行也是如此。系统设置 → 用户与群组 走的是 Apple 自己的路径，在第三方助手被拒绝的场景下通常是被允许的。";
+"Open Users & Groups…" = "打开「用户与群组」…";
+"Reinstall Helper…" = "重新安装助手…";
+"Reinstalling…" = "正在重装…";
 
 "Open Doctor…" = "打开 Doctor…";
 

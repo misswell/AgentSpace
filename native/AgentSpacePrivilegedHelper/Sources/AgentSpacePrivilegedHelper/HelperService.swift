@@ -214,11 +214,17 @@ final class HelperService: NSObject, HelperXPCProtocol {
         }
 
         var warnings: [String] = []
+        var refusalDetails: [String] = []
         for command in HelperCommand.deleteUser(request) {
             let result = CommandRunner.run(command, timeout: 120)
             log.info("\(result.displayCommand) → exit \(result.exitCode)")
-            // `dscl . -delete` returns non-zero when the record is already gone,
-            // which is the outcome we wanted. Only `sysadminctl` failure is fatal.
+            // sysadminctl's exit code is not trustworthy here: on the first real
+            // orphan removal it logged `Error:-14120` from its own record delete
+            // and still exited 0. Collect what the tools actually said so the
+            // verification below can report the refusal with its real reason.
+            if !result.standardError.isEmpty {
+                refusalDetails.append("\(result.displayCommand): \(result.standardError.trimmingCharacters(in: .whitespacesAndNewlines))")
+            }
             if !result.ok, command.first == HelperCommand.sysadminctl {
                 return HelperResponse(id: request.id, error: AgentSpaceError(
                     code: .helperRejected,
@@ -231,11 +237,22 @@ final class HelperService: NSObject, HelperXPCProtocol {
 
         // Verify rather than assume: the app is about to remove the Space from its
         // registry, and doing that while the account still exists would leave an
-        // orphan nothing can clean up.
+        // orphan nothing can clean up. This machine proved why the verification is
+        // the verdict, not an afterthought — every command exited "cleanly" while
+        // opendirectoryd refused the delete (`disallowed by sandbox`, even as
+        // root). A surviving account is a failure, and saying so is what lets the
+        // app show the honest guidance instead of a fake success.
         let stillThere = AccountDirectory.existingAccounts().contains(username)
+        guard !stillThere else {
+            let detail = refusalDetails.isEmpty ? "every removal command reported success, yet the record survived" : refusalDetails.joined(separator: "; ")
+            log.error("deleteUser left \(username) behind: \(detail)")
+            return HelperResponse(id: request.id, error: AgentSpaceError(
+                code: .helperRejected,
+                message: "the account \(username) still exists: \(detail)"))
+        }
         return HelperResponse(id: request.id, result: .obj([
             "username": .string(username),
-            "removed": .bool(!stillThere),
+            "removed": .bool(true),
             "homeRemoved": .bool(request.removeHome == true),
             "warnings": .array(warnings.map { .string($0) }),
         ]))

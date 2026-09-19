@@ -387,13 +387,19 @@ public enum Doctor {
                 name: NSLocalizedString("Privileged helper", comment: ""),
                 status: .pass,
                 detail: "installed, registered and answering (\(state.summary)).",
-                fix: nil)
+                fix: nil,
+                // Reachable is not the same as current: launchd keeps the
+                // previously registered daemon running across an app rebuild,
+                // so a passing check can still be an old binary. Reinstalling
+                // is the UI path that swaps it — never a terminal command.
+                actionHint: "reinstallHelper")
         }
         return Check(
             name: NSLocalizedString("Privileged helper", comment: ""),
             status: .warn,
             detail: "not available: \(state.summary). Creating and deleting Spaces needs it; driving an existing Space does not.",
-            fix: state.fix)
+            fix: state.fix,
+            actionHint: "reinstallHelper")
     }
 
     private static func fastUserSwitchingCheck() -> Check {

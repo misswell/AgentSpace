@@ -155,6 +155,25 @@ private struct CheckRow: View {
                         }
                         .padding(.top, 2)
                     }
+                    if check.actionHint == "reinstallHelper" {
+                        HStack(spacing: 8) {
+                            Button {
+                                model.reinstallHelper()
+                            } label: {
+                                if model.isInstallingHelper {
+                                    HStack(spacing: 6) {
+                                        ProgressView().controlSize(.small)
+                                        Text(NSLocalizedString("Reinstalling…", comment: ""))
+                                    }
+                                } else {
+                                    Text(NSLocalizedString("Reinstall Helper…", comment: ""))
+                                }
+                            }
+                            .disabled(model.isInstallingHelper)
+                            .help(Text("macOS keeps the old helper running after an app update; this swaps it for the one in this app. macOS will ask for your password."))
+                        }
+                        .padding(.top, 2)
+                    }
                 }
             }
             Spacer(minLength: 0)

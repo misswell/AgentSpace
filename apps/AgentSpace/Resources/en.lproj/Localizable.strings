@@ -305,7 +305,10 @@
 "Delete Orphaned Accounts…" = "Delete Orphaned Accounts…";
 "Removing…" = "Removing…";
 "Removed %d orphaned account(s)." = "Removed %d orphaned account(s).";
-"Some accounts could not be removed. The helper's log has the detail; Export Diagnostics collects it." = "Some accounts could not be removed. The helper's log has the detail; Export Diagnostics collects it.";
+"This machine's directory service refused the deletion, even to the helper running as root. System Settings → Users & Groups uses Apple's own path, which is usually allowed where a third-party helper is refused." = "This machine's directory service refused the deletion, even to the helper running as root. System Settings → Users & Groups uses Apple's own path, which is usually allowed where a third-party helper is refused.";
+"Open Users & Groups…" = "Open Users & Groups…";
+"Reinstall Helper…" = "Reinstall Helper…";
+"Reinstalling…" = "Reinstalling…";
 
 "Open Doctor…" = "Open Doctor…";
 

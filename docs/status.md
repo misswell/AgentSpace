@@ -5,12 +5,12 @@ through [`AGENTS.md`](../AGENTS.md) at the repo root — or `CLAUDE.md`, which
 points at the same file — because that is the file agent tooling loads
 automatically; this document is the content.) It is the map: what the
 product is, what is done, what is left, and the conventions a change must not
-break. The exhaustive evidence lives in `docs/validation.md` (266 numbered
+break. The exhaustive evidence lives in `docs/validation.md` (269 numbered
 sections, each with claims and the tests that pin them); the product plan for
 the account vocabulary lives in `docs/v2-plan.md`. This file is the summary
 those two assume you already found.
 
-Last updated: 2026-09-19, at `master` (commit `4457251`), pushed to `origin`.
+Last updated: 2026-09-19, at `master` (commit `d1651fe`), pushed to `origin`.
 
 ## 0. Honest completion state — read this before the tables below
 
@@ -98,8 +98,8 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
 
 | Area | State | Evidence |
 |---|---|---|
-| Create flow end-to-end: helper makes the macOS user, runtime dir, LaunchAgent | ✅ works | validation §265 ("the first real create"); fixed the macOS 27 `createhomedir` removal — the helper now skips the missing tool (`HelperService.createUser`) |
-| Orphan-account recovery: interrupted creates leave `_agentspace_…` accounts the UI could not see | ✅ Doctor lists them and the app removes them with a button (`Delete Orphaned Accounts…`) — the user never meets `sysadminctl` | validation §265; `runDoctor`/`deleteOrphanedAccounts` in `AppModel`, helper ops in `HelperService` |
+| Create flow end-to-end: helper makes the macOS user, runtime dir, LaunchAgent | ✅ works | validation §265 ("the first real create"); fixed the macOS 27 `createhomedir` removal — the helper now skips the missing tool (`HelperService.createUser`); §269 — provisioning shows inside the wizard, so a failed create can no longer dead-lock the Create button behind an un-presentable sheet |
+| Orphan-account recovery: interrupted creates leave `_agentspace_…` accounts the UI could not see | ✅ Doctor lists them and the app removes them with a button (`Delete Orphaned Accounts…`) — the user never meets `sysadminctl`; when the machine's directory service refuses even to root, the dialog says so honestly and offers "Open Users & Groups…" | validation §265 + §269; `runDoctor`/`deleteOrphanedAccounts` in `AppModel`, verify-after-delete in `HelperService.deleteUser` |
 | First login flow (the one manual step: fetch password → Fast User Switching → grant Accessibility + Screen Recording → switch back) | ✅ app walks through it | `LoginInstructions`/`LoginPasswordView`; validation §28-era sections |
 | Desktop Viewer: ScreenCaptureKit stream at 5 FPS, 1 FPS screenshot fallback, click-to-input with correct point/pixel mapping | ✅ | validation §52; `DesktopViewerView`, `PreviewController`, `ScreenCaptureKitSource` |
 | Fail-closed safety: input refused when the agent desktop is on the physical console; exec guard; no fallback to the human's session ever | ✅ | `SessionGuard`/`ExecGuard`; validation §12/§48; safety suite over a live socket |
@@ -113,12 +113,21 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
 
 ### 4a. For the human (only a person can do these)
 
-1. **Remove the leftover orphan account** `_agentspace_a5b707` (from a create
-   that failed before the `createhomedir` fix). Open the app → ⌘⇧D (Doctor) →
-   the red "Orphaned accounts" row → **Delete Orphaned Accounts…**.
-2. **Create the first usable agent** and complete its one manual first login
-   (password → Fast User Switching → grant the two permissions → switch back).
-   The wizard and the Space page walk through it.
+1. **Remove the leftover orphan accounts** `_agentspace_a5b707` and
+   `_agentspace_1869f4` (both from creates that failed before the
+   `createhomedir` fix landed in the *running* helper). Open the app →
+   ⌘⇧D (Doctor) → the red "Orphaned accounts" row → **Delete Orphaned
+   Accounts…**. On this machine the directory service refuses user
+   deletion even to root (validation §269), so the honest outcome may be
+   the refusal dialog — its "Open Users & Groups…" button goes to Apple's
+   own removal path, the one route the endpoint-security hooks allow.
+2. **Create the first usable agent** and complete its one manual first
+   login (password → Fast User Switching → grant the two permissions →
+   switch back). The wizard and the Space page walk through it. Note:
+   a failed create used to leave the Create button permanently disabled
+   (validation §269); the running dist build carries the fix — if an
+   older app instance is still open, quit it and reopen
+   `dist/AgentSpace.app`.
 3. **(Only when rebuilding dist)** the notarization credential:
    `scripts/notarize.sh` defaults to the keychain profile `octoshrink-notary`
    (verified live 2026-09-19), falling back to the `asc` API key. The current

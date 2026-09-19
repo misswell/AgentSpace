@@ -166,6 +166,30 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Swap the running helper for the one in this app bundle.
+    ///
+    /// launchd keeps a registered daemon running across an app rebuild, so a
+    /// passing Doctor check can still be an old binary answering. Unregister
+    /// stops the process; register loads the current one (with macOS's own
+    /// admin prompt, because that is what a LaunchDaemon costs). This is the
+    /// in-app path — the alternative was a terminal, and the terminal is not
+    /// offered.
+    func reinstallHelper() {
+        guard !isInstallingHelper else { return }
+        isInstallingHelper = true
+        Task {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    _ = try? SMAppService.daemon(plistName: BundleIdentifiers.helperPlist).unregister()
+                    continuation.resume()
+                }
+            }
+            self.isInstallingHelper = false
+            self.installHelper()
+            self.runDoctor()
+        }
+    }
+
     // MARK: - Create / delete (plan §28, §41)
 
     /// Create a Space. The machine changes happen inside `SpaceProvisioner`, which
@@ -469,10 +493,22 @@ final class AppModel: ObservableObject {
                         format: NSLocalizedString("Removed %d orphaned account(s).", comment: ""),
                         names.count))
             } else {
-                self.lastError = PresentedError(
+                // The helper verified that the account survived every removal
+                // command — on this machine the directory service itself refuses
+                // the delete even to root. That is not something this app can
+                // out-argue, so the dialog says so and opens the one surface
+                // that may still be allowed: Apple's own Users & Groups pane.
+                var presented = PresentedError(
                     code: "HELPER_REJECTED",
                     message: failures.map { "\($0.0): \($0.1)" }.joined(separator: "\n"),
-                    fix: NSLocalizedString("Some accounts could not be removed. The helper's log has the detail; Export Diagnostics collects it.", comment: ""))
+                    fix: NSLocalizedString("This machine's directory service refused the deletion, even to the helper running as root. System Settings → Users & Groups uses Apple's own path, which is usually allowed where a third-party helper is refused.", comment: ""))
+                presented.actionTitle = NSLocalizedString("Open Users & Groups…", comment: "")
+                presented.action = {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.users") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                self.lastError = presented
             }
             self.runDoctor()
         }
