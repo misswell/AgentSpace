@@ -174,7 +174,7 @@ struct Operations {
         // polling every 2-5s to be nearly free.
         if let resources = params["resources"]?.stringValue, resources == "full" || resources == "disk" {
             // Disk is a separate request from CPU/memory: it costs a directory walk
-            // over the Space's whole home, and the app's 2–5 s status poll must not
+            // over the agent's whole home, and the app's 2–5 s status poll must not
             // pay for that (§53).
             object["resources"] = Resources.sample(
                 uid: context.uid,
@@ -424,7 +424,7 @@ struct Operations {
         var cwd: String?
         if let raw = params["cwd"]?.stringValue, !raw.isEmpty {
             let resolved = WorkspaceGuard.resolve(raw)
-            // Confinement is only enforced when the Space declared roots. When it
+            // Confinement is only enforced when the agent declared roots. When it
             // has none, `status.workspace.confined` is false and this is a
             // documented gap until phase 7 rather than a silent one.
             if !context.allowedRoots.isEmpty {
@@ -619,7 +619,7 @@ struct Operations {
             // Distinguish "never started" from "started but idle-stopped": both
             // are PREVIEW_NOT_RUNNING, and the fix text covers the timeout.
             if !preview.isRunning {
-                throw AgentSpaceError(code: .previewNotRunning, message: "no preview stream is running for this Space.")
+                throw AgentSpaceError(code: .previewNotRunning, message: "no preview stream is running for this agent.")
             }
             throw AgentSpaceError(code: .previewNotRunning, message: "the preview stream went idle and stopped itself; call preview.start again.")
         }
@@ -646,14 +646,14 @@ struct Operations {
 
 /// Actual resource usage for a uid, aggregated from the process table.
 ///
-/// Deliberately not "allocated" numbers: a Space is not a VM, so the honest
+/// Deliberately not "allocated" numbers: an agent is not a VM, so the honest
 /// figure is what its processes are really using (plan §30).
 enum Resources {
     struct Sample {
         var cpuPercent: Double
         var memoryBytes: UInt64
         var processCount: Int
-        /// Allocated bytes under the Space's home, or `nil` when it was not
+        /// Allocated bytes under the agent's home, or `nil` when it was not
         /// measured. `nil` rather than `0`, because "we did not look" and "it is
         /// empty" are different claims and only one of them is honest (plan §30
         /// asks for Disk, but a zero would be read as a measured zero).

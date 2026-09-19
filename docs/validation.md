@@ -7513,3 +7513,64 @@ away. It comes back with the feature that makes it mean something.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 462 | The wizard asks only what the product acts on today | pass | §271 — NewAgentWizard steps 3→2; 377 Swift green |
+
+---
+
+## 272. A failed create must not say "sign in now" — and the machine lied first
+
+The first real create through the reinstalled helper (`_agentspace_79a857`,
+12:00:31) produced the ugliest screen yet: the wizard's provisioning overlay
+showed only "✓ plan workspace" and then the full sign-in instructions — for an
+account that does not exist. Three defects stacked:
+
+1. **The machine lied.** `/usr/sbin/sysadminctl -addUser` exits 0 as root and
+   creates *no* directory-service record (`dscl . -read …` →
+   eDSRecordNotFound; `opendirectoryd` answers "record not found" ever since).
+   Same class as §269's deletion refusal — this Mac's endpoint-security gate
+   intercepts account writes. The helper's post-command uid lookup *does*
+   catch it, but that path logged nothing, so the lie was invisible in the
+   helper's own record. It logs now.
+2. **The step record dropped the failure.** Every `bail` in
+   `SpaceProvisioner.create/delete` returned the error without appending a
+   failed step — and `ProvisioningView` decided "success" by looking for a ✗
+   in the step list. So the sign-in instructions rendered over a silence.
+   Every bail now appends its ✗ step (unit-tested per failure point), and the
+   overlay shows the error itself in a `RefusalBanner` with its one-button
+   recovery; `LoginInstructions` is gated on an actually-successful create
+   (`offersLoginInstructions`), never on the absence of evidence.
+3. **The alert could not speak.** The error was routed only to `lastError`,
+   and an alert cannot present over the open wizard sheet (§269). Fixed the
+   same way §269 fixed the sheet: the message lives inside the overlay.
+
+Also fixed while reading the real screen (an accessibility walk, not a
+screenshot — this machine denies screen recording): the helper card behind the
+overlay said "registered but not answering" *while the helper was answering
+create calls*, because `reload()` deliberately never pings and nothing else
+ever did. The wizard now pings once on open (`refreshHelperState`) and again
+when a create or delete finishes.
+
+And the owner's question — "什么叫做 Space，什么又叫做新 Agent" — is answered
+in the UI itself: every user-facing string (GUI views, core errors and
+remediations, Doctor details, helper/worker messages, both localization
+tables) now uses the one noun, **agent**. Wire compatibility is untouched:
+the registry's `"spaces"` JSON key, protocol method names, `agentspace://`
+deep links, and legacy CLI verbs all keep their old spellings.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 463 | sysadminctl -addUser exits 0 as root and creates no account on this Mac | recorded | §272 — helper log 12:00:31.794 exit 0; `dscl` eDSRecordNotFound; registry `{"spaces": []}` |
+| 464 | The helper logs the "reported created but has no uid" catch instead of failing silently | pass | §272 — HelperService.createUser guard now logs at error level |
+| 465 | Every create/delete bail records a ✗ step; the overlay shows the error and never the sign-in steps | pass | §272 — SpaceProvisionerTests.testEveryCreateFailureMarksAStepFailedInTheRecord; ProvisioningView `offersLoginInstructions` + RefusalBanner; 378 Swift green |
+| 466 | Provisioning errors are presented inside the overlay because alerts cannot cross an open sheet | pass | §272 — §269's rule applied to errors; AppModel.createSpace/deleteSpace route through `presented(for:)` |
+| 467 | The wizard's helper card pings on open, so "not answering" can only mean it was actually asked | pass | §272 — AppModel.refreshHelperState + NewAgentWizard.onAppear |
+| 468 | User-facing text says "agent" everywhere; wire/registry/CLI compatibility untouched | pass | §272 — sweep across GUI/core/helper/worker + both .lproj tables; LocalizationTests green |
+
+Environment note, learned the hard way this round: `gui-verify.sh` (and any
+accessibility walk) reports **zero windows for every app** while the screen is
+locked — `CGSSessionScreenIsLocked=1` in the current session dictionary,
+`frontmost` resolves to no process, yet `CGWindowListCopyWindowInfo` still
+shows the restored window on-screen. A check-all failure at `gui-verify.sh`
+with an otherwise notarized, running build means *ask the session, not the
+code*: the pre-change build was rebuilt and control-tested and failed the
+same way. `scripts/check-all.sh` must therefore run against an unlocked
+session.

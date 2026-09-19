@@ -152,7 +152,7 @@ struct DesktopViewerView: View {
                         .foregroundStyle(.tertiary)
                 }
             } else {
-                Text("No Space selected").font(.headline)
+                Text("No agent selected").font(.headline)
             }
             Spacer()
             if let result {
@@ -239,7 +239,7 @@ struct DesktopViewerView: View {
                 .font(.headline)
             Text(snapshot.effectiveState == .console
                  ? NSLocalizedString("Clicks are disabled: they would land on your own screen. Fast-user-switch back and they resume automatically.", comment: "")
-                 : (snapshot.problem?.message ?? NSLocalizedString("The worker has not permitted input for this Space.", comment: "")))
+                 : (snapshot.problem?.message ?? NSLocalizedString("The worker has not permitted input for this agent.", comment: "")))
                 .font(.callout)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
@@ -369,7 +369,7 @@ struct DesktopViewerView: View {
                 captureError = AppModel.PresentedError(
                     code: "INTERNAL_ERROR",
                     message: String(format: NSLocalizedString("the worker wrote a capture to %@ but it could not be read", comment: ""), shot.path),
-                    fix: NSLocalizedString("Check the Space's runtime directory permissions.", comment: ""),
+                    fix: NSLocalizedString("Check the agent's runtime directory permissions.", comment: ""),
                     spaceName: snapshot.space.name)
                 stopPreview()
             }

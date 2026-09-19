@@ -50,8 +50,8 @@ func usage() -> String {
       agentspace-worker --space-id <uuid> [options]
 
     OPTIONS:
-      --space-id <uuid>     Space this worker serves (required unless --check)
-      --name <name>         Human-readable Space name
+      --space-id <uuid>     Agent this worker serves (required unless --check)
+      --name <name>         Human-readable Agent name
       --runtime-dir <dir>   Override the runtime root (default \(RuntimePaths.defaultRuntimeRoot))
       --socket <path>       Override the socket path
       --token <hex>         Session token (64 hex chars). Prefer --token-file.
@@ -140,7 +140,7 @@ func parseArguments(_ argv: [String]) -> Result<Arguments, ArgumentError> {
 /// immediately — never continue and hope.
 ///
 /// Note what this does **not** do: it does not refuse to *start* when the
-/// session is on the console. A worker whose Space is currently on the console
+/// session is on the console. A worker whose agent is currently on the console
 /// is still a perfectly good worker; it just refuses input (see
 /// `Operations.input`). Refusing to start would take the diagnostic surface away
 /// exactly when the user needs it to understand why input stopped.
@@ -286,7 +286,7 @@ final class SocketServer {
         // holds the lock for the lifetime of this worker.
         // A stale socket from a crashed worker would make `bind` fail with
         // EADDRINUSE forever, so it is removed first. Safe because the
-        // directory is ACL'd to this Space, and the flock above guarantees
+        // directory is ACL'd to this agent, and the flock above guarantees
         // no other live worker owns this endpoint.
         unlink(socketPath)
 
@@ -519,7 +519,7 @@ case .success(let arguments):
     do {
         try server.bind()
     } catch SocketServer.BindError.alreadyRunning {
-        let message = "another worker is already serving this Space"
+        let message = "another worker is already serving this agent"
         Log.worker.error(message)
         FileHandle.standardError.write(Data(("agentspace-worker: " + message + "\n").utf8))
         exit(78) // EX_CONFIG: the environment already has a worker here

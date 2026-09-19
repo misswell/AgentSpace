@@ -256,6 +256,41 @@ final class SpaceProvisionerTests: XCTestCase {
         }
     }
 
+    /// A create that failed must say so *in the step list*.
+    ///
+    /// The provisioning overlay renders the steps and shows the sign-in
+    /// instructions when nothing in them failed; the bail paths used to return
+    /// the error without marking the step, so a create that never made an
+    /// account displayed "log in as your new agent" — the lie recorded as
+    /// validation §272, observed on a machine where `sysadminctl -addUser`
+    /// exits 0 and creates nothing.
+    func testEveryCreateFailureMarksAStepFailedInTheRecord() throws {
+        for operation in [HelperOperation.createUser, .prepareRuntimeDirectory, .installWorker] {
+            let helper = FakeHelper()
+            helper.failures[operation] = "scripted refusal"
+            let outcome = create(helper: helper)
+
+            XCTAssertFalse(outcome.ok, "\(operation)")
+            let failed = outcome.steps.filter { $0.isFailure }
+            XCTAssertEqual(failed.count, 1,
+                           "\(operation) failed but left \(failed.count) failed step(s); the overlay would render this as success")
+            XCTAssertEqual(failed.first?.outcome, .failed("scripted refusal"))
+        }
+
+        // The pre-helper refusal too: nothing reached the machine, and the
+        // record must still say which step stopped.
+        let helper = FakeHelper()
+        let planned = SpaceProvisioner.create(
+            name: "Test",
+            workspace: .gitWorktree(
+                repository: root.appendingPathComponent("nope").path,
+                branch: "agentspace/x",
+                path: root.appendingPathComponent("space/Workspace/App").path),
+            sharedFolders: [], options: options(),
+            transport: helper.transport, registry: SpaceRegistry(), keychain: keychain)
+        XCTAssertTrue(planned.steps.contains { $0.isFailure })
+    }
+
     func testTheKeychainIsCleanedUpWhenCreationFails() throws {
         let helper = FakeHelper()
         helper.failures[.installWorker] = "no"

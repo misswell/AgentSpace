@@ -1,7 +1,7 @@
 import SwiftUI
 import AgentSpaceCore
 
-/// The Space list — plan §27.
+/// The agent list — plan §27.
 struct SidebarView: View {
     @EnvironmentObject private var model: AppModel
 
@@ -25,7 +25,7 @@ struct SidebarView: View {
                         Image(systemName: "plus")
                     }
                     .buttonStyle(.borderless)
-                    .help(Text("Create an Agent Space"))
+                    .help(Text("New agent"))
 
                     Spacer()
 
@@ -67,7 +67,7 @@ private struct SidebarRow: View {
     }
 }
 
-/// One Space in full: plan §27's card, §30's real resource numbers, §38's
+/// One Agent in full: plan §27's card, §30's real resource numbers, §38's
 /// readiness, and — most importantly — the reason input is or is not available.
 struct SpaceDetailView: View {
     @EnvironmentObject private var model: AppModel
@@ -184,11 +184,11 @@ struct SpaceDetailView: View {
 
     private func refusalTitle(for error: AgentSpaceError) -> String {
         switch error.code {
-        case .sessionIsConsole: return NSLocalizedString("This Space is on your physical display", comment: "")
+        case .sessionIsConsole: return NSLocalizedString("This agent is on your physical display", comment: "")
         case .workerOffline: return NSLocalizedString("No worker is running", comment: "")
         case .accessibilityDenied: return NSLocalizedString("Accessibility permission is missing", comment: "")
         case .screenRecordingDenied: return NSLocalizedString("Screen Recording permission is missing", comment: "")
-        case .noWindowServer: return NSLocalizedString("This Space has no desktop session", comment: "")
+        case .noWindowServer: return NSLocalizedString("This agent has no desktop session", comment: "")
         default: return NSLocalizedString("Unavailable", comment: "")
         }
     }
@@ -243,7 +243,7 @@ struct SpaceDetailView: View {
             Field(label: NSLocalizedString("Processes", comment: ""), value: "\(resources.processCount)", monospaced: true)
 
             // Disk is a separate, explicitly-requested measurement, because it
-            // walks the Space's whole home — tens of thousands of files for a
+            // walks the agent's whole home — tens of thousands of files for a
             // browser profile plus an IDE's caches. Measuring it on the 2–5 s
             // status poll would put the app permanently on the CPU, which §53
             // forbids. So it is a button, and it says what it costs.
@@ -259,12 +259,12 @@ struct SpaceDetailView: View {
                 } else {
                     Button(NSLocalizedString("Measure Disk Usage", comment: "")) { onMeasureDisk() }
                         .controlSize(.small)
-                        .help(Text("Walks every file in the Space's home. Takes a moment; not measured continuously."))
+                        .help(Text("Walks every file in the agent's home. Takes a moment; not measured continuously."))
                 }
             }
 
-            Text(NSLocalizedString("Measured from this Space's own processes, aggregated by uid. A Space is not a VM, so there is no allocation to show.", comment: ""))
-            Text("CPU is the sum across those processes, so it can exceed 100% on a multi-core Mac. If the worker is running as your own account rather than a dedicated Space user, these numbers describe your whole login session — which is what the uid aggregation is honestly reporting, not a leak from somewhere else.")
+            Text(NSLocalizedString("Measured from this agent's own processes, aggregated by uid. An agent is not a VM, so there is no allocation to show.", comment: ""))
+            Text("CPU is the sum across those processes, so it can exceed 100% on a multi-core Mac. If the worker is running as your own account rather than a dedicated agent account, these numbers describe your whole login session — which is what the uid aggregation is honestly reporting, not a leak from somewhere else.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .font(.caption)
@@ -280,7 +280,7 @@ struct SpaceDetailView: View {
                               message: appsError.message,
                               fix: appsError.fix)
             } else if apps.isEmpty {
-                Text(NSLocalizedString("Nothing is running in this Space.", comment: ""))
+                Text(NSLocalizedString("Nothing is running in this agent.", comment: ""))
                     .font(.callout).foregroundStyle(.secondary)
             } else {
                 ForEach(apps) { app in
@@ -304,7 +304,7 @@ struct SpaceDetailView: View {
         }
     }
 
-    /// The first-login checklist from plan §28. Shown while the Space cannot yet
+    /// The first-login checklist from plan §28. Shown while the agent cannot yet
     /// accept input, because it is precisely then that the user needs to know what
     /// to do in the other session.
     @ViewBuilder
@@ -381,7 +381,7 @@ struct SpaceDetailView: View {
 
             HStack(spacing: 8) {
                 Button(NSLocalizedString("Show Login Password", comment: "")) { model.revealPassword(for: space) }
-                    .help(Text("Needed once, to sign in to this Space's macOS account for the first time."))
+                    .help(Text("Needed once, to sign in to this agent's macOS account for the first time."))
                 Button(NSLocalizedString("Delete Agent…", comment: ""), role: .destructive) { showingDelete = true }
                     .disabled(model.provisioning != nil)
             }
@@ -399,7 +399,7 @@ struct SpaceDetailView: View {
         ) {
             // The home directory is a separate question because it is the one
             // irreversible step, and it holds the agent's own files — which the
-            // user may want to look at after the Space is gone.
+            // user may want to look at after the agent is gone.
             Button(NSLocalizedString("Delete Agent, keep its home directory", comment: "")) {
                 model.deleteSpace(space, removeHome: false)
             }
@@ -431,7 +431,7 @@ struct SpaceDetailView: View {
         // needs one manual fast-user-switch login — so the cost is said here,
         // where it can still be declined.
         .confirmationDialog(
-            String(format: NSLocalizedString("Log out the desktop for %@?", comment: ""), model.selected?.space.name ?? NSLocalizedString("this Space", comment: "")),
+            String(format: NSLocalizedString("Log out the desktop for %@?", comment: ""), model.selected?.space.name ?? NSLocalizedString("this agent", comment: "")),
             isPresented: $showingLogout,
             titleVisibility: .visible
         ) {
@@ -440,7 +440,7 @@ struct SpaceDetailView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text(NSLocalizedString("The agent worker stops with the session. To run agents again, sign in to this Space's desktop once more.", comment: ""))
+            Text(NSLocalizedString("The agent worker stops with the session. To run agents again, sign in to this agent's desktop once more.", comment: ""))
         }
     }
 

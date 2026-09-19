@@ -90,7 +90,7 @@ public struct SpaceRegistry: Codable, Sendable {
         decoder.dateDecodingStrategy = .iso8601
         guard let registry = try? decoder.decode(SpaceRegistry.self, from: data) else {
             // An undecodable registry must not be *silently* treated as "no
-            // Spaces" — that would make every Space look deleted, and the next
+            // Spaces" — that would make every Agent look deleted, and the next
             // save would overwrite the only evidence of what existed. So the
             // corrupt file is quarantined beside itself: the empty registry is
             // still returned (the app must keep working), but the original
@@ -133,7 +133,7 @@ public struct SpaceRegistry: Codable, Sendable {
         if insensitive.count > 1 {
             return .failure(AgentSpaceError(
                 code: .badRequest,
-                message: "'\(reference)' matches \(insensitive.count) Spaces. Use the Space UUID instead: \(insensitive.map { $0.id.uuidString }.joined(separator: ", "))"))
+                message: "'\(reference)' matches \(insensitive.count) agents. Use the agent UUID instead: \(insensitive.map { $0.id.uuidString }.joined(separator: ", "))"))
         }
         if spaces.isEmpty {
             return .failure(AgentSpaceError(
@@ -142,7 +142,7 @@ public struct SpaceRegistry: Codable, Sendable {
         }
         return .failure(AgentSpaceError(
             code: .sessionNotReady,
-            message: "no AgentSpace named '\(reference)'. Known Spaces: \(spaces.map(\.name).joined(separator: ", "))"))
+            message: "no AgentSpace named '\(reference)'. Known agents: \(spaces.map(\.name).joined(separator: ", "))"))
     }
 
     public func first() -> AgentAccount? { spaces.first }

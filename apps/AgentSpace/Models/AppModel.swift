@@ -18,7 +18,7 @@ import AgentSpaceCore
 ///
 /// **Input is gated on `acceptsInput`.** The buttons that drive the agent's
 /// desktop are disabled unless the worker itself said input is permitted. The GUI
-/// does not decide whether a Space is usable; it asks, and it believes the answer.
+/// does not decide whether an agent is usable; it asks, and it believes the answer.
 @MainActor
 final class AppModel: ObservableObject {
 
@@ -40,7 +40,7 @@ final class AppModel: ObservableObject {
     /// The password for one Space, revealed on request and then dismissed. Held
     /// only while the sheet is open — never persisted by the app.
     @Published var revealedPassword: RevealedPassword?
-    /// The Space whose disk is currently being measured, so the button can show
+    /// The Agent whose disk is currently being measured, so the button can show
     /// progress instead of being pressed twice.
     @Published var measuringDisk: UUID?
     /// Set when something was copied, so the UI can confirm without an alert.
@@ -51,6 +51,14 @@ final class AppModel: ObservableObject {
         var operation: String
         var steps: [String] = []
         var finished = false
+        /// A create that ended with a usable agent account. The sign-in
+        /// instructions are shown only for this — never for "it stopped with an
+        /// error", which used to read as success (§272), and never for a delete.
+        var offersLoginInstructions = false
+        /// The failure, phrased for a human, rendered inside the overlay itself:
+        /// while the wizard sheet is open no alert can present over it (§269),
+        /// so an error routed only to `lastError` was swallowed.
+        var error: PresentedError?
     }
 
     struct RevealedPassword: Identifiable, Equatable {
@@ -63,7 +71,7 @@ final class AppModel: ObservableObject {
     @Published var showingNewSpace = false
     @Published var showingDoctor = false
     @Published private(set) var doctorReport: Doctor.Report?
-    /// AgentSpace-named accounts with no Space record, as last computed by
+    /// AgentSpace-named accounts with no agent record, as last computed by
     /// `runDoctor`. Empty when the helper could not be reached, so the delete
     /// button never appears for a list this app could not verify.
     @Published private(set) var orphanedUsernames: [String] = []
@@ -143,6 +151,18 @@ final class AppModel: ObservableObject {
                     message: NSLocalizedString("The helper was registered with launchd but is not answering yet.", comment: ""),
                     fix: self.helperState.fix ?? NSLocalizedString("Try again in a moment, or look for com.agentspace.app in Console.", comment: ""))
             }
+        }
+    }
+
+    /// Ask the helper directly, once, off the main thread, and publish what it
+    /// said. `reload()` deliberately does not ping — it runs on every refresh,
+    /// and a missing helper would cost a connection timeout each time — so
+    /// without this the wizard's helper card reads "registered but not
+    /// answering" forever even while the helper answers create calls.
+    func refreshHelperState() {
+        Task.detached(priority: .userInitiated) {
+            let state = HelperInstallation.inspect()
+            await MainActor.run { self.helperState = state }
         }
     }
 
@@ -227,14 +247,18 @@ final class AppModel: ObservableObject {
             // what the user needs if something went wrong.
             self.provisioning?.steps = outcome.steps.map(Self.describe)
             self.provisioning?.finished = true
+            self.provisioning?.offersLoginInstructions = outcome.ok
 
+            // The error goes into the overlay, not `lastError`: the wizard sheet
+            // absorbs alerts (§269), and a create that failed while the overlay
+            // said "sign in now" was the lie §272 records.
             if let error = outcome.error {
-                self.lastError = PresentedError(
-                    code: error.code.rawValue,
-                    message: error.message,
-                    fix: error.code.remediation)
+                self.provisioning?.error = self.presented(for: error, space: nil)
             }
             self.reload()
+            // Ask the helper again: if it refused mid-run, the card behind the
+            // overlay should say so when the overlay closes.
+            self.refreshHelperState()
         }
     }
 
@@ -277,7 +301,7 @@ final class AppModel: ObservableObject {
             self.provisioning?.steps = outcome.steps.map(Self.describe)
             self.provisioning?.finished = true
             if let error = outcome.error {
-                self.lastError = PresentedError(code: error.code.rawValue, message: error.message, fix: error.code.remediation)
+                self.provisioning?.error = self.presented(for: error, space: space)
             }
             self.reload()
         }
@@ -285,7 +309,7 @@ final class AppModel: ObservableObject {
 
     /// Measure one Space's home directory, on request.
     ///
-    /// Kept out of `reload()` deliberately: it walks every file in the Space's
+    /// Kept out of `reload()` deliberately: it walks every file in the agent's
     /// home, which for a browser profile plus an IDE's caches is tens of thousands
     /// of them. Doing that on the 2–5 s status poll would pin the CPU, which §53
     /// forbids. The result is merged into the existing snapshot so the rest of the
@@ -333,7 +357,7 @@ final class AppModel: ObservableObject {
                 lastError = PresentedError(
                     code: "NO_STORED_PASSWORD",
                     message: String(format: NSLocalizedString("There is no stored password for %@", comment: ""), space.name),
-                    fix: NSLocalizedString("This Space was created before the password was stored, or its Keychain item was removed. Re-creating the Space generates a new one; the current password cannot be recovered.", comment: ""))
+                    fix: NSLocalizedString("This agent was created before the password was stored, or its Keychain item was removed. Re-creating the agent generates a new one; the current password cannot be recovered.", comment: ""))
             }
         } catch {
             lastError = PresentedError(
@@ -344,7 +368,7 @@ final class AppModel: ObservableObject {
     }
 
     /// The parent directory for git worktrees. Deliberately independent of the
-    /// Space's name: `SpaceProvisioner` adds the Space's id underneath, which is
+    /// Space's name: `SpaceProvisioner` adds the agent's id underneath, which is
     /// what makes the path unique. Two Spaces named `Test` and `test` are one
     /// directory on a case-insensitive filesystem, and two agents in one working
     /// tree is the bug the worktree exists to prevent (plan §24).
@@ -372,7 +396,7 @@ final class AppModel: ObservableObject {
     }
 
     /// `agentspace://space/<uuid>` from the CLI's `desktop` command (§31):
-    /// select that Space and raise its Desktop Viewer. A link for a Space that
+    /// select that agent and raise its Desktop Viewer. A link for an agent that
     /// does not exist is reported here — the poster may be long gone, so this
     /// is the only place the failure can be seen.
     func handleDeepLink(_ url: URL) {
@@ -386,7 +410,7 @@ final class AppModel: ObservableObject {
         guard snapshots.contains(where: { $0.space.id == id }) else {
             lastError = PresentedError(
                 code: "SPACE_NOT_FOUND",
-                message: String(format: NSLocalizedString("the link points at a Space that no longer exists (%@). It was probably deleted after the link was made.", comment: ""), id.uuidString))
+                message: String(format: NSLocalizedString("the link points at an agent that no longer exists (%@). It was probably deleted after the link was made.", comment: ""), id.uuidString))
             return
         }
         selection = id
@@ -405,8 +429,8 @@ final class AppModel: ObservableObject {
             selection = spaces.first?.id
         }
 
-        // Resources are fetched only for the Space on screen: one `ps` fork per
-        // Space per refresh would be exactly the overhead §53 forbids.
+        // Resources are fetched only for the agent on screen: one `ps` fork per
+        // Agent per refresh would be exactly the overhead §53 forbids.
         snapshots = spaces.map { space in
             service.snapshot(for: space, includeResources: space.id == selection)
         }
@@ -419,7 +443,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Refresh the resource numbers for whichever Space is selected.
+    /// Refresh the resource numbers for whichever agent is selected.
     /// Measure the selected Space's home directory (plan §30).
     func measureDisk(for space: AgentAccount) { measureDiskUsage(for: space) }
 
@@ -514,9 +538,17 @@ final class AppModel: ObservableObject {
         }
     }
 
-    // MARK: - Space actions
+    // MARK: - Agent actions
 
     func present(_ error: AgentSpaceError, space: AgentAccount?) {
+        lastError = presented(for: error, space: space)
+    }
+
+    /// Phrase a core error for a human, including the one-button recovery the
+    /// core asked for. Split out of `present` because the provisioning overlay
+    /// shows errors inline — an alert cannot present over the wizard sheet
+    /// (§269) — and the inline version needs the same button.
+    private func presented(for error: AgentSpaceError, space: AgentAccount?) -> PresentedError {
         var presented = PresentedError(
             code: error.code.rawValue,
             message: error.message,
@@ -540,7 +572,7 @@ final class AppModel: ObservableObject {
         case nil:
             break
         }
-        lastError = presented
+        return presented
     }
 
     /// Run `xcode-select --install`, which opens macOS's own GUI installer —
@@ -572,11 +604,11 @@ final class AppModel: ObservableObject {
                 if process.terminationStatus == 0 {
                     self?.lastError = PresentedError(
                         code: "CLT_INSTALLER_OPEN",
-                        message: NSLocalizedString("The Command Line Tools installer window is open. When it finishes, try creating the Space again.", comment: ""))
+                        message: NSLocalizedString("The Command Line Tools installer window is open. When it finishes, try creating the agent again.", comment: ""))
                 } else if stderr.contains("already installed") {
                     self?.lastError = PresentedError(
                         code: "CLT_ALREADY_INSTALLED",
-                        message: NSLocalizedString("The Xcode Command Line Tools are already installed. Try creating the Space again.", comment: ""))
+                        message: NSLocalizedString("The Xcode Command Line Tools are already installed. Try creating the agent again.", comment: ""))
                 } else {
                     self?.lastError = PresentedError(
                         code: "WORKSPACE_INVALID",
@@ -589,10 +621,10 @@ final class AppModel: ObservableObject {
 
     func dismissError() { lastError = nil }
 
-    /// Write the Space's screenshot to a file the user asked for.
+    /// Write the agent's screenshot to a file the user asked for.
     ///
     /// Note this asks the *worker* for the capture; it never grabs this session's
-    /// screen. If the Space is unavailable the user gets the refusal, not a
+    /// screen. If the agent is unavailable the user gets the refusal, not a
     /// picture of their own desktop labelled as the agent's.
     func captureScreenshot(maxWidth: Int = 1600) -> ScreenshotResult? {
         guard let snapshot = selected else { return nil }
@@ -605,7 +637,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Reveal the Space's runtime directory, the honest place to look when the
+    /// Reveal the agent's runtime directory, the honest place to look when the
     /// worker is not answering.
     func revealRuntimeDirectory() {
         guard let snapshot = selected else { return }

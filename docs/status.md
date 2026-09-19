@@ -5,7 +5,7 @@ through [`AGENTS.md`](../AGENTS.md) at the repo root — or `CLAUDE.md`, which
 points at the same file — because that is the file agent tooling loads
 automatically; this document is the content.) It is the map: what the
 product is, what is done, what is left, and the conventions a change must not
-break. The exhaustive evidence lives in `docs/validation.md` (271 numbered
+break. The exhaustive evidence lives in `docs/validation.md` (272 numbered
 sections, each with claims and the tests that pin them); the product plan for
 the account vocabulary lives in `docs/v2-plan.md`. This file is the summary
 those two assume you already found.
@@ -98,24 +98,24 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
 
 | Area | State | Evidence |
 |---|---|---|
-| Create flow end-to-end: helper makes the macOS user, runtime dir, LaunchAgent | ✅ works | validation §265 ("the first real create"); fixed the macOS 27 `createhomedir` removal — the helper now skips the missing tool (`HelperService.createUser`); §269 — provisioning shows inside the wizard, so a failed create can no longer dead-lock the Create button behind an un-presentable sheet; §270 — the wizard detects a stale helper by running-image CDHash instead of lying green |
+| Create flow end-to-end: helper makes the macOS user, runtime dir, LaunchAgent | ✅ works | validation §265 ("the first real create"); fixed the macOS 27 `createhomedir` removal — the helper now skips the missing tool (`HelperService.createUser`); §269 — provisioning shows inside the wizard, so a failed create can no longer dead-lock the Create button behind an un-presentable sheet; §270 — the wizard detects a stale helper by running-image CDHash instead of lying green; §272 — this machine's `sysadminctl -addUser` exits 0 and creates nothing, and the UI now says so honestly: every failed step is a ✗ in the provisioning record, the error renders inside the overlay, and the sign-in instructions appear only after a create that actually succeeded |
 | Orphan-account recovery: interrupted creates leave `_agentspace_…` accounts the UI could not see | ✅ Doctor lists them and the app removes them with a button (`Delete Orphaned Accounts…`) — the user never meets `sysadminctl`; when the machine's directory service refuses even to root, the dialog says so honestly and offers "Open Users & Groups…" | validation §265 + §269; `runDoctor`/`deleteOrphanedAccounts` in `AppModel`, verify-after-delete in `HelperService.deleteUser` |
 | First login flow (the one manual step: fetch password → Fast User Switching → grant Accessibility + Screen Recording → switch back) | ✅ app walks through it | `LoginInstructions`/`LoginPasswordView`; validation §28-era sections |
 | Desktop Viewer: ScreenCaptureKit stream at 5 FPS, 1 FPS screenshot fallback, click-to-input with correct point/pixel mapping | ✅ | validation §52; `DesktopViewerView`, `PreviewController`, `ScreenCaptureKitSource` |
 | Fail-closed safety: input refused when the agent desktop is on the physical console; exec guard; no fallback to the human's session ever | ✅ | `SessionGuard`/`ExecGuard`; validation §12/§48; safety suite over a live socket |
-| V2 account vocabulary: `AgentAccount` record, 2-step create wizard (the purpose picker left in §271 — nothing reads the field yet), Finder-style account cards, menu bar, "Open Desktop" | ✅ merged | `docs/v2-plan.md` §1–§9, §14–§16; validation §266, §271 |
+| V2 account vocabulary: `AgentAccount` record, 2-step create wizard (the purpose picker left in §271 — nothing reads the field yet), Finder-style account cards, menu bar, "Open Desktop" | ✅ merged | `docs/v2-plan.md` §1–§9, §14–§16; validation §266, §271; §272 — the word "Space" is gone from every user-facing string; "agent" is the only noun, while the registry's `"spaces"` key, wire methods and deep links keep their old spellings |
 | CLI: `accounts`/`open`/`create account` (new) beside `list`/`desktop`/`create` (kept) | ✅ | validation §266; CLI smoke |
 | MCP: `agent_list/status/open_desktop/screenshot/click/type/launch/exec` beside the 14 `agentspace_*` tools | ✅ | `packages/agentspace-mcp`; `scripts/mcp-smoke.sh` |
-| Localization: English + Simplified Chinese, English source text as the key | ✅ 364 keys per table | `tests/Unit/LocalizationTests.swift` enforces parity and coverage |
+| Localization: English + Simplified Chinese, English source text as the key | ✅ 369 keys per table | `tests/Unit/LocalizationTests.swift` enforces parity and coverage |
 | Release pipeline: bundle → sign → DMG → notarize → staple | ✅ working | `scripts/release.sh`, `scripts/notarize.sh`; validation §57 |
 
 ## 4. What is next
 
 ### 4a. For the human (only a person can do these)
 
-1. **Remove the leftover orphan accounts** `_agentspace_a5b707` and
-   `_agentspace_1869f4` (both from creates that failed before the
-   `createhomedir` fix landed in the *running* helper). Open the app →
+1. **Remove the leftover orphan account** `_agentspace_a5b707` (from a
+   create that failed before the `createhomedir` fix landed in the *running*
+   helper; `dscl` confirms it is the only one left). Open the app →
    ⌘⇧D (Doctor) → the red "Orphaned accounts" row → **Delete Orphaned
    Accounts…**. On this machine the directory service refuses user
    deletion even to root (validation §269), so the honest outcome may be
@@ -123,13 +123,18 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
    own removal path, the one route the endpoint-security hooks allow.
 2. **Create the first usable agent** and complete its one manual first
    login (password → Fast User Switching → grant the two permissions →
-   switch back). The wizard and the Space page walk through it. Notes:
+   switch back). The wizard and the agent page walk through it. Notes:
    a failed create used to leave the Create button permanently disabled
-   (validation §269), and the helper card used to read "installed and
+   (validation §269); the helper card used to read "installed and
    answering" while launchd kept serving the pre-update binary
-   (validation §270). The running dist build fixes both — if the card
-   says the helper is an older build, press its "Reinstall Helper…"
-   button once (one password prompt), then create.
+   (validation §270); and a create that the machine refused used to
+   display the sign-in instructions for an account that was never made
+   (validation §272). On this Mac the endpoint-security gate refuses
+   `sysadminctl -addUser` silently (exit 0, no record), so the first
+   honest failure on screen is expected — the overlay's ✗ line and
+   refusal banner are the truth, not a bug. If the card says the helper
+   is an older build, press its "Reinstall Helper…" button once (one
+   password prompt), then create.
 3. **(Only when rebuilding dist)** the notarization credential:
    `scripts/notarize.sh` defaults to the keychain profile `octoshrink-notary`
    (verified live 2026-09-19), falling back to the `asc` API key. The current

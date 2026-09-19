@@ -21,7 +21,7 @@ public enum ExecGuard {
     /// Substring rules, matched case-insensitively against the command line.
     public static let rules: [Rule] = [
         Rule(pattern: "sudo", reason: "privilege escalation is out of scope for an agent session"),
-        Rule(pattern: "installer", reason: "installing system packages modifies the machine, not the Space"),
+        Rule(pattern: "installer", reason: "installing system packages modifies the machine, not the agent"),
         Rule(pattern: "diskutil erase", reason: "erases a volume"),
         Rule(pattern: "diskutil erasevolume", reason: "erases a volume"),
         Rule(pattern: "diskutil reformat", reason: "erases a volume"),
@@ -75,7 +75,7 @@ public enum ExecGuard {
         for rule in rules where collapsed.contains(rule.pattern) {
             return AgentSpaceError(
                 code: .execDenied,
-                message: "refused: this command matches the AgentSpace refusal rule '\(rule.pattern)' (\(rule.reason)). AgentSpace's exec runs as the Space's standard user and does not perform machine-level changes.")
+                message: "refused: this command matches the AgentSpace refusal rule '\(rule.pattern)' (\(rule.reason)). AgentSpace's exec runs as the agent's standard user and does not perform machine-level changes.")
         }
 
         // First word of the command, allowing for a path prefix.
@@ -121,7 +121,7 @@ public enum WorkspaceGuard {
         guard !allowedRoots.isEmpty else {
             return AgentSpaceError(
                 code: .workspaceDenied,
-                message: "this Space has no workspace or shared folders configured, so there is no path it may touch. Add one in the Space's settings.")
+                message: "this agent has no workspace or shared folders configured, so there is no path it may touch. Add one in the agent's settings.")
         }
         let resolved = resolve(path)
         guard let match = allowedRoots
@@ -131,7 +131,7 @@ public enum WorkspaceGuard {
         else {
             return AgentSpaceError(
                 code: .workspaceDenied,
-                message: "path '\(path)' (resolved: \(resolved)) is outside this Space's allowed roots: \(allowedRoots.joined(separator: ", "))")
+                message: "path '\(path)' (resolved: \(resolved)) is outside this agent's allowed roots: \(allowedRoots.joined(separator: ", "))")
         }
         if requireWrite {
             let writable = writableRoots.map { resolve($0) }
@@ -139,7 +139,7 @@ public enum WorkspaceGuard {
             if !ok {
                 return AgentSpaceError(
                     code: .workspaceDenied,
-                    message: "path '\(path)' is inside '\(match.root)', which this Space has read-only access to. Enable Read & Write for that folder to write here.")
+                    message: "path '\(path)' is inside '\(match.root)', which this agent has read-only access to. Enable Read & Write for that folder to write here.")
             }
         }
         return nil

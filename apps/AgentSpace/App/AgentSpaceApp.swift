@@ -115,7 +115,7 @@ struct AgentSpaceApp: App {
                     .keyboardShortcut("n", modifiers: .command)
             }
             CommandGroup(after: .toolbar) {
-                Button("Refresh Spaces") { model.reload() }
+                Button("Refresh agents") { model.reload() }
                     .keyboardShortcut("r", modifiers: .command)
                 Divider()
                 Button("Run Diagnostics…") { model.showingDoctor = true }
@@ -192,7 +192,7 @@ struct SettingsView: View {
                 Section {
                     TextField("AgentSpace root", text: $advancedRoot)
                         .textFieldStyle(.roundedBorder)
-                    Text("Where Spaces, their runtime sockets and their logs live. Empty means /Users/Shared/.AgentSpace. This is read from AGENTSPACE_ROOT at launch; restart to apply.")
+                    Text("Where agents, their runtime sockets and their logs live. Empty means /Users/Shared/.AgentSpace. This is read from AGENTSPACE_ROOT at launch; restart to apply.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section {

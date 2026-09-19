@@ -98,7 +98,7 @@ public enum Doctor {
     }
 
     /// `orphanedAccounts` is the set of AgentSpace-named macOS accounts that
-    /// have no Space record. `nil` means the caller could not ask the helper,
+    /// have no agent record. `nil` means the caller could not ask the helper,
     /// and the check is omitted rather than faked as a pass.
     public static func run(root: String? = nil, orphanedAccounts: [String]? = nil) -> Report {
         var checks: [Check] = []
@@ -189,7 +189,7 @@ public enum Doctor {
         let registry = SpaceRegistry.load(root: resolvedRoot)
 
         // A quarantined registry means the index failed to decode at some
-        // point: every Space "disappeared" once, and the evidence of what was
+        // point: every Agent "disappeared" once, and the evidence of what was
         // there sits in a quarantine file. Diagnosed here, not discovered by a
         // user asking where their Spaces went.
         let corrupt = SpaceRegistry.corruptRegistryFiles(root: resolvedRoot)
@@ -197,16 +197,16 @@ public enum Doctor {
             checks.append(Check(
                 name: NSLocalizedString("Registry integrity", comment: ""),
                 status: .fail,
-                detail: "the Space registry failed to decode \(corrupt.count) time(s); it was quarantined, not discarded: \(corrupt.map { ($0 as NSString).lastPathComponent }.joined(separator: ", "))",
-                fix: "Inspect the quarantined file(s) under \(resolvedRoot)/Spaces/ — they hold the pre-corruption bytes. Recover Spaces by hand into a fresh index.json or recreate them; delete the quarantine files when done."))
+                detail: "the agent registry failed to decode \(corrupt.count) time(s); it was quarantined, not discarded: \(corrupt.map { ($0 as NSString).lastPathComponent }.joined(separator: ", "))",
+                fix: "Inspect the quarantined file(s) under \(resolvedRoot)/Spaces/ — they hold the pre-corruption bytes. Recover agents by hand into a fresh index.json or recreate them; delete the quarantine files when done."))
         }
 
         if registry.spaces.isEmpty {
             checks.append(Check(
                 name: NSLocalizedString("AgentSpaces", comment: ""),
                 status: .warn,
-                detail: "no Spaces are registered yet.",
-                fix: "Create one with the AgentSpace app. Creating a Space needs the privileged helper, because it makes a macOS user."))
+                detail: "no agents are registered yet.",
+                fix: "Create one with the AgentSpace app. Creating an agent needs the privileged helper, because it makes a macOS user."))
         } else {
             checks.append(Check(
                 name: NSLocalizedString("AgentSpaces", comment: ""),
@@ -262,14 +262,14 @@ public enum Doctor {
                 checks.append(Check(
                     name: NSLocalizedString("Orphaned accounts", comment: ""),
                     status: .pass,
-                    detail: "Every AgentSpace-named account on this Mac belongs to a Space in the registry.",
+                    detail: "Every AgentSpace-named account on this Mac belongs to an agent in the registry.",
                     fix: nil))
             } else {
                 checks.append(Check(
                     name: NSLocalizedString("Orphaned accounts", comment: ""),
                     status: .fail,
                     detail: String(
-                        format: NSLocalizedString("AgentSpace-named accounts with no Space record, left behind by an interrupted creation: %@.", comment: ""),
+                        format: NSLocalizedString("AgentSpace-named accounts with no agent record, left behind by an interrupted creation: %@.", comment: ""),
                         orphans.joined(separator: ", ")),
                     fix: NSLocalizedString("Use Delete Orphaned Accounts — the helper removes the named accounts and their homes. Nothing else on this Mac is touched.", comment: ""),
                     actionHint: "deleteOrphans"))
@@ -295,8 +295,8 @@ public enum Doctor {
                 return [Check(
                     name: String(format: NSLocalizedString("Worker (%@)", comment: ""), space.name),
                     status: .warn,
-                    detail: "the runtime directory \(paths.directory) does not exist — the Space was never provisioned on this machine.",
-                    fix: "Create the Space again, or run the helper's prepareRuntimeDirectory for it.")]
+                    detail: "the runtime directory \(paths.directory) does not exist — the agent was never provisioned on this machine.",
+                    fix: "Create the agent again, or run the helper's prepareRuntimeDirectory for it.")]
             }
             if !FileManager.default.fileExists(atPath: paths.tokenPath) {
                 return [Check(
@@ -409,7 +409,7 @@ public enum Doctor {
         return Check(
             name: NSLocalizedString("Privileged helper", comment: ""),
             status: .warn,
-            detail: "not available: \(state.summary). Creating and deleting Spaces needs it; driving an existing Space does not.",
+            detail: "not available: \(state.summary). Creating and deleting agents needs it; driving an existing agent does not.",
             fix: state.fix,
             actionHint: "reinstallHelper")
     }

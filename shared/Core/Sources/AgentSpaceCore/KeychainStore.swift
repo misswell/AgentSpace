@@ -7,7 +7,7 @@ import Security
 /// value, and is stored in the **macOS Keychain**. Explicitly not in a
 /// `config.json`, not in `NSUserDefaults`, and not in a log. The user can reveal
 /// it once, in the app, to type it at the fast-user-switching login window; after
-/// that it is only ever needed again if the Space is re-created.
+/// that it is only ever needed again if the agent is re-created.
 ///
 /// This matters more than it looks. The password is the only credential that
 /// grants an interactive login to a Space's account. Anything that writes it to
@@ -25,7 +25,7 @@ import Security
 public struct KeychainStore: Sendable {
 
     /// The Keychain service name. Configurable so tests can use a separate
-    /// namespace and never touch, or be confused by, real Space passwords.
+    /// namespace and never touch, or be confused by, real Agent passwords.
     public var service: String
 
     public init(service: String = BundleIdentifiers.app) {
@@ -68,7 +68,7 @@ public struct KeychainStore: Sendable {
         query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
         // A comment so a human browsing Keychain Access can tell what this is and
         // why it exists, rather than finding an opaque item and deleting it.
-        query[kSecAttrComment as String] = "AgentSpace login password. Needed once to sign in to this Space's macOS account."
+        query[kSecAttrComment as String] = "AgentSpace login password. Needed once to sign in to this agent's macOS account."
 
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else {
@@ -91,11 +91,11 @@ public struct KeychainStore: Sendable {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Forget a Space's password. Deleting a Space must leave nothing behind.
+    /// Forget an agent's password. Deleting an agent must leave nothing behind.
     public func delete(for spaceID: UUID) throws {
         let status = SecItemDelete(baseQuery(for: spaceID) as CFDictionary)
         // "Not found" is the desired end state, not a failure. Treating it as one
-        // would make "delete an already-deleted Space" fail confusingly.
+        // would make "delete an already-deleted Agent" fail confusingly.
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw Failure.keychain(status, "delete")
         }
@@ -105,7 +105,7 @@ public struct KeychainStore: Sendable {
         (try? password(for: spaceID)) ?? nil != nil
     }
 
-    /// Every Space password this app has stored.
+    /// Every Agent password this app has stored.
     ///
     /// Used by the orphan sweep: if the registry and the machine ever disagree —
     /// a crash between creating the account and saving the record — this is how the

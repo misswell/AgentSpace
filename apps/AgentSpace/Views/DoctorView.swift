@@ -194,10 +194,6 @@ struct ProvisioningView: View {
     let provisioning: AppModel.Provisioning
     let dismiss: () -> Void
 
-    private var hasFailure: Bool {
-        provisioning.steps.contains { $0.hasPrefix("✗") }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -228,12 +224,26 @@ struct ProvisioningView: View {
                             Text("Working…").foregroundStyle(.secondary)
                         }
                     }
+                    if provisioning.finished, let error = provisioning.error {
+                        // The failure is rendered here, in the sheet the user is
+                        // already looking at, because nothing can alert over an
+                        // open sheet (§269) — and "Finished" with a silent error
+                        // underneath the sign-in steps is the lie §272 records.
+                        RefusalBanner(
+                            title: NSLocalizedString("This did not finish", comment: ""),
+                            code: error.code,
+                            message: error.message,
+                            fix: error.fix)
+                        if let actionTitle = error.actionTitle, let action = error.action {
+                            Button(actionTitle) { action() }
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
             }
 
-            if provisioning.finished && !hasFailure {
+            if provisioning.finished && provisioning.offersLoginInstructions {
                 Divider()
                 LoginInstructions()
                     .padding(14)
@@ -256,11 +266,11 @@ struct LoginInstructions: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Next, once — this is the only step that needs you")
                 .font(.callout.weight(.semibold))
-            instruction(1, NSLocalizedString("Open Fast User Switching (Control Centre) and sign in as the new Space.", comment: ""))
-            instruction(2, NSLocalizedString("Its password is in the Space's page: Show Login Password.", comment: ""))
+            instruction(1, NSLocalizedString("Open Fast User Switching (Control Centre) and sign in as the new agent.", comment: ""))
+            instruction(2, NSLocalizedString("Its password is on the agent's page: Show Login Password.", comment: ""))
             instruction(3, NSLocalizedString("In that session, grant Accessibility and Screen Recording when the setup window asks.", comment: ""))
             instruction(4, NSLocalizedString("Switch back to your own account. The agent keeps its desktop.", comment: ""))
-            Text("The Space shows Needs Login until step 4 is done. AgentSpace will not start an agent in your account instead — if the background session is not there, every call fails with SESSION_NOT_READY.")
+            Text("The agent shows Needs Login until step 4 is done. AgentSpace will not start an agent in your account instead — if the background session is not there, every call fails with SESSION_NOT_READY.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

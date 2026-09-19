@@ -42,7 +42,7 @@ public struct HelperRequest: Codable, Equatable, Sendable {
     public var mainUser: String?
     /// For `installWorker`: the space's runtime root.
     public var runtimeRoot: String?
-    /// For `logoutSession`: the Space account's uid, cross-checked against the
+    /// For `logoutSession`: the agent account's uid, cross-checked against the
     /// username's real passwd entry before anything is torn down.
     public var uid: uid_t?
 
@@ -100,7 +100,7 @@ public struct HelperResponse: Codable, Equatable, Sendable {
 /// already checked it — the client is the part that might be compromised.
 public enum HelperValidation {
 
-    /// AgentSpace accounts are `_agentspace_` plus six lowercase hex characters.
+    /// AgentAgent accounts are `_agentspace_` plus six lowercase hex characters.
     ///
     /// A *fixed* prefix and a *closed* character set is the whole defence here.
     /// It means an attacker cannot ask for an existing account (`root`,
@@ -214,7 +214,7 @@ public enum HelperValidation {
         guard root.hasPrefix("/Users/Shared/") || root.hasPrefix("/tmp/") || root.hasPrefix("/private/tmp/") else {
             return AgentSpaceError(
                 code: .helperRejected,
-                message: "the runtime root must live under /Users/Shared or /tmp, not \(root), so that a Space cannot be pointed at a system directory")
+                message: "the runtime root must live under /Users/Shared or /tmp, not \(root), so that an agent cannot be pointed at a system directory")
         }
         return nil
     }
@@ -223,7 +223,7 @@ public enum HelperValidation {
     ///
     /// Must be a real, non-system, non-AgentSpace account: granting the wrong
     /// principal access to a socket that carries a live session token would hand
-    /// over the Space.
+    /// over the agent.
     public static func validateMainUser(_ user: String, existingAccounts: Set<String>) -> AgentSpaceError? {
         guard !user.isEmpty, !user.hasPrefix("_"), user != "root" else {
             return AgentSpaceError(
@@ -330,7 +330,7 @@ public enum HelperValidation {
             guard let username = request.username, isAgentSpaceAccount(username) else {
                 return AgentSpaceError(
                     code: .helperRejected,
-                    message: "prepareRuntimeDirectory requires the Space's AgentSpace account")
+                    message: "prepareRuntimeDirectory requires the agent's AgentSpace account")
             }
             guard existingAccounts.contains(username) else {
                 return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")
@@ -348,7 +348,7 @@ public enum HelperValidation {
             guard let username = request.username, isAgentSpaceAccount(username) else {
                 return AgentSpaceError(
                     code: .helperRejected,
-                    message: "\(request.operation.rawValue) requires the Space's AgentSpace account, so that only that Space's LaunchAgent can be started or stopped")
+                    message: "\(request.operation.rawValue) requires the agent's AgentSpace account, so that only that agent's LaunchAgent can be started or stopped")
             }
             guard existingAccounts.contains(username) else {
                 return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")
@@ -356,19 +356,19 @@ public enum HelperValidation {
             return nil
 
         case .logoutSession:
-            // §40: Logout ends the Space's whole GUI session (releasing its
+            // §40: Logout ends the agent's whole GUI session (releasing its
             // WindowServer, frames and RAM) while keeping the account and its
             // home. It is `launchctl bootout gui/<uid>` — a root-only op, so
             // it belongs here and nowhere else. The uid must name an AgentSpace
             // account: a logout that could target the *main* user's session
             // would be a self-destruct button wearing a feature's clothes.
             guard let uid = request.uid, uid > 0 else {
-                return AgentSpaceError(code: .helperRejected, message: "logoutSession requires the Space's uid")
+                return AgentSpaceError(code: .helperRejected, message: "logoutSession requires the agent's uid")
             }
             guard let username = request.username, isAgentSpaceAccount(username) else {
                 return AgentSpaceError(
                     code: .helperRejected,
-                    message: "logoutSession is only answered for AgentSpace accounts")
+                    message: "logoutSession is only answered for AgentAgent accounts")
             }
             guard existingAccounts.contains(username) else {
                 return AgentSpaceError(code: .helperRejected, message: "there is no account named \(username)")
@@ -379,7 +379,7 @@ public enum HelperValidation {
             guard let username = request.username, isAgentSpaceAccount(username) else {
                 return AgentSpaceError(
                     code: .helperRejected,
-                    message: "sessionInfo is only answered for AgentSpace accounts")
+                    message: "sessionInfo is only answered for AgentAgent accounts")
             }
             return nil
         }

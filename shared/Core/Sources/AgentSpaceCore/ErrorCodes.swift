@@ -12,13 +12,13 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     case previewNotRunning = "PREVIEW_NOT_RUNNING"
 
     // --- Session / liveness -------------------------------------------------
-    /// The Space has no usable background Aqua session. Terminal for this call.
+    /// The Agent has no usable background Aqua session. Terminal for this call.
     case sessionNotReady = "SESSION_NOT_READY"
     /// The Space's session is currently the physical console. Input refused.
     case sessionIsConsole = "SESSION_IS_CONSOLE"
     /// No WindowServer connection in this session: no GUI can be driven.
     case noWindowServer = "NO_WINDOW_SERVER"
-    /// Nothing is listening on the Space's socket.
+    /// Nothing is listening on the agent's socket.
     case workerOffline = "WORKER_OFFLINE"
     /// The worker was asked to run as root and refused.
     case workerIsRoot = "WORKER_IS_ROOT"
@@ -30,7 +30,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     // --- Input --------------------------------------------------------------
     case invalidCoordinate = "INVALID_COORDINATE"
     case invalidAction = "INVALID_ACTION"
-    /// There is no frontmost application in the Space to deliver input to, so
+    /// There is no frontmost application in the agent to deliver input to, so
     /// an event would be posted into nothing and the caller would believe it
     /// landed. Refused instead of silently no-op'd.
     case noInputTarget = "NO_INPUT_TARGET"
@@ -111,7 +111,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         case .noWindowServer:
             return NSLocalizedString("The AgentSpace session has no window server. Log the AgentSpace user in through the GUI (not ssh) and retry.", comment: "")
         case .workerOffline:
-            return NSLocalizedString("Start the Space's worker: `agentspace start <space>`, or check `agentspace doctor`.", comment: "")
+            return NSLocalizedString("Start the agent's worker: `agentspace start <space>`, or check `agentspace doctor`.", comment: "")
         case .workerIsRoot:
             return NSLocalizedString("The worker refuses to run as root. It must run as the AgentSpace user inside that user's Aqua session.", comment: "")
         case .accessibilityDenied:
@@ -129,21 +129,21 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         case .appLaunchTimeout:
             return NSLocalizedString("The app was launched but never registered with the window server. It may be showing a modal in the AgentSpace session; take a screenshot to look.", comment: "")
         case .appNotRunning:
-            return NSLocalizedString("The app is not running in that Space. `agentspace apps <space>` lists what is.", comment: "")
+            return NSLocalizedString("The app is not running in that agent. `agentspace apps <space>` lists what is.", comment: "")
         case .workspaceInvalid:
             return NSLocalizedString("Check the repository path, the branch name (it must start with agentspace/) and the shared folder paths. The message names the specific problem.", comment: "")
         case .workspaceDenied:
-            return NSLocalizedString("The path is outside this Space's workspace and shared folders. Add it in the Space's Shared Folders settings first.", comment: "")
+            return NSLocalizedString("The path is outside this agent's workspace and shared folders. Add it in the agent's Shared Folders settings first.", comment: "")
         case .commandTimeout:
             return NSLocalizedString("Raise the timeout or make the command shorter. The process group was terminated.", comment: "")
         case .execDenied:
             return NSLocalizedString("That command is on AgentSpace's refusal list. Run it yourself in your own terminal if you really mean it.", comment: "")
         case .helperUnavailable:
-            return NSLocalizedString("The privileged helper is not installed. Creating and deleting Spaces needs it, because it makes a macOS user; driving an existing Space does not. Open the AgentSpace app and choose Install Helper.", comment: "")
+            return NSLocalizedString("The privileged helper is not installed. Creating and deleting agents needs it, because it makes a macOS user; driving an existing agent does not. Open the AgentSpace app and choose Install Helper.", comment: "")
         case .helperRejected:
-            return NSLocalizedString("The privileged helper refused the request. Check the Space's name and account, and use Export Diagnostics in the app to collect the helper's log.", comment: "")
+            return NSLocalizedString("The privileged helper refused the request. Check the agent's name and account, and use Export Diagnostics in the app to collect the helper's log.", comment: "")
         case .unauthorized:
-            return NSLocalizedString("The session token does not match this Space. Re-read it from the runtime directory, or recreate the Space.", comment: "")
+            return NSLocalizedString("The session token does not match this agent. Re-read it from the runtime directory, or recreate the agent.", comment: "")
         case .badRequest:
             return NSLocalizedString("Malformed request. See docs/protocol.md for the exact shape.", comment: "")
         case .methodNotFound:

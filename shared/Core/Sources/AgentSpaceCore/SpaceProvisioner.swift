@@ -1,11 +1,11 @@
 import Foundation
 
-/// Creating and deleting a Space — plan §28, §41, and the whole of phase 10.
+/// Creating and deleting an agent — plan §28, §41, and the whole of phase 10.
 ///
 /// This is the only place in AgentSpace that changes the machine: it makes a macOS
 /// account, installs a launchd job into it, and later removes them. It is therefore
 /// written as a **sequence of steps with a recorded outcome for each**, so that a
-/// failure half way through can be undone rather than left as a broken Space that
+/// failure half way through can be undone rather than left as a broken Agent that
 /// the user cannot fix and cannot remove.
 ///
 /// ## Why the helper call is injected
@@ -28,11 +28,11 @@ public struct SpaceProvisioner {
         /// below it, so two Spaces can never be given the same checkout.
         ///
         /// Plan §24 puts the space-id in the path and this is why. A path derived
-        /// from the Space's *name* collides the moment two Spaces are named `Test`
+        /// from the agent's *name* collides the moment two Spaces are named `Test`
         /// and `test` — on a case-insensitive filesystem those are one directory,
         /// and two agents would be editing the same working tree, which is the
         /// exact thing the worktree exists to prevent. A name is also not stable:
-        /// renaming a Space would move the agent's checkout out from under it.
+        /// renaming an agent would move the agent's checkout out from under it.
         public var workspaceDirectory: String
         public var mainUser: String
 
@@ -58,7 +58,7 @@ public struct SpaceProvisioner {
             case failed(String)
             /// Succeeded, then undone because a later step failed.
             case rolledBack(String)
-            /// Failed to undo. The Space is in a state the user must be told about.
+            /// Failed to undo. The agent is in a state the user must be told about.
             case rollbackFailed(String)
         }
 
@@ -104,8 +104,8 @@ public struct SpaceProvisioner {
     ///    can see.
     /// 3. **worker** last, because it starts immediately (`RunAtLoad`) and would
     ///    otherwise begin running before its runtime directory exists.
-    /// 4. **Keychain** before the registry, so a saved Space always has a password
-    ///    to show. The reverse order can produce a Space the user cannot log into.
+    /// 4. **Keychain** before the registry, so a saved Agent always has a password
+    ///    to show. The reverse order can produce an agent the user cannot log into.
     public static func create(
         name: String,
         purpose: AgentPurpose? = nil,
@@ -123,7 +123,13 @@ public struct SpaceProvisioner {
         var cleanup: [() -> Step] = []
         let spaceID = UUID()
 
-        func bail(_ error: AgentSpaceError) -> Outcome {
+        func bail(_ step: String, _ error: AgentSpaceError) -> Outcome {
+            // The failed step is recorded, not just returned in `error`: the UI
+            // renders the step list, and a run that ends without one — and
+            // without the error being shown — reads as success. On this machine
+            // a failed create displayed the sign-in instructions for an account
+            // that was never made (validation §272).
+            steps.append(Step(name: step, outcome: .failed(error.message), detail: ""))
             // Undo in reverse, so a step is only undone after the things that
             // depended on it have already gone.
             for undo in cleanup.reversed() {
@@ -134,7 +140,7 @@ public struct SpaceProvisioner {
                 return false
             }
             if partial {
-                // The Space record is written even on a failed cleanup, because an
+                // The Agent record is written even on a failed cleanup, because an
                 // account that exists and is not in the registry is invisible to
                 // the app — the user would have an `_agentspace_…` user they cannot
                 // see or remove. `state: .error` makes it visible and deletable.
@@ -156,7 +162,7 @@ public struct SpaceProvisioner {
         // 0. Validate what can be validated before touching the machine. Doing this
         //    first means a typo in a repository path cannot leave half a Space.
         //
-        //    A git worktree's path is rewritten here, where the Space's id exists,
+        //    A git worktree's path is rewritten here, where the agent's id exists,
         //    so it is unique by construction rather than by luck. Everything else
         //    the caller asked for is passed through unchanged.
         let workspace = Self.confined(workspace, spaceID: spaceID, options: options)
@@ -165,7 +171,7 @@ public struct SpaceProvisioner {
             workspaceDirectory: options.workspaceDirectory,
             fileExists: fileExists, isGitRepository: isGitRepository) {
         case .failure(let error):
-            return bail(error)
+            return bail(NSLocalizedString("plan workspace", comment: ""), error)
         case .success(let plan):
             steps.append(Step(name: NSLocalizedString("plan workspace", comment: ""), outcome: .done, detail: plan.summary))
 
@@ -179,8 +185,9 @@ public struct SpaceProvisioner {
                 // The helper's own code is preserved: an unreachable helper is
                 // HELPER_UNAVAILABLE ("install it"), a refusal is HELPER_REJECTED
                 // ("it said no"). Those need different fixes.
-                return bail(created.error ?? AgentSpaceError(
-                    code: .helperRejected, message: NSLocalizedString("the helper did not create the account", comment: "")))
+                return bail(NSLocalizedString("create account", comment: ""),
+                    created.error ?? AgentSpaceError(
+                        code: .helperRejected, message: NSLocalizedString("the helper did not create the account", comment: "")))
             }
             let uid = created.result?["uid"]?.intValue ?? 0
             steps.append(Step(name: NSLocalizedString("create account", comment: ""),
@@ -195,7 +202,7 @@ public struct SpaceProvisioner {
                            outcome: .rolledBack(String(format: NSLocalizedString("removed %@", comment: ""), username)), detail: "")
                     : Step(name: NSLocalizedString("undo create account", comment: ""),
                            outcome: .rollbackFailed(response.error?.message ?? "unknown"),
-                           detail: String(format: NSLocalizedString("the account %@ still exists. `agentspace doctor` will show it as an orphan Space you can delete.", comment: ""), username))
+                           detail: String(format: NSLocalizedString("the account %@ still exists. `agentspace doctor` will show it as an orphan agent you can delete.", comment: ""), username))
             }
 
             // 2. The runtime directory, with its ACLs.
@@ -203,13 +210,14 @@ public struct SpaceProvisioner {
                 operation: .prepareRuntimeDirectory, spaceID: spaceID, username: username,
                 mainUser: options.mainUser, runtimeRoot: options.root))
             guard prepared.ok, let runtimeDirectory = prepared.result?["runtimeDirectory"]?.stringValue else {
-                return bail(prepared.error ?? AgentSpaceError(
-                    code: .helperRejected, message: NSLocalizedString("the helper did not prepare the runtime directory", comment: "")))
+                return bail(NSLocalizedString("prepare runtime directory", comment: ""),
+                    prepared.error ?? AgentSpaceError(
+                        code: .helperRejected, message: NSLocalizedString("the helper did not prepare the runtime directory", comment: "")))
             }
             steps.append(Step(name: NSLocalizedString("prepare runtime directory", comment: ""), outcome: .done, detail: runtimeDirectory))
 
             // 2b. The workspace record the worker reads at startup. Written here,
-            //     where it can be attributed to this Space's creation, rather than
+            //     where it can be attributed to this agent's creation, rather than
             //     lazily by the worker — a worker that starts without it reports
             //     `confined: false`, which is honest but not what the user chose.
             let recordURL = URL(fileURLWithPath: runtimeDirectory).appendingPathComponent("space.json")
@@ -244,7 +252,7 @@ public struct SpaceProvisioner {
             // 2c. The workspace itself — the git worktree, if there is one.
             switch WorkspacePreparer.apply(plan) {
             case .failure(let error):
-                return bail(error)
+                return bail(NSLocalizedString("apply workspace", comment: ""), error)
             case .success:
                 if plan.gitCommand != nil {
                     steps.append(Step(name: NSLocalizedString("create git worktree", comment: ""), outcome: .done, detail: plan.summary))
@@ -260,8 +268,9 @@ public struct SpaceProvisioner {
                 operation: .installWorker, spaceID: spaceID, username: username,
                 runtimeRoot: workerRoot))
             guard installed.ok else {
-                return bail(installed.error ?? AgentSpaceError(
-                    code: .helperRejected, message: NSLocalizedString("the helper did not install the worker", comment: "")))
+                return bail(NSLocalizedString("install worker LaunchAgent", comment: ""),
+                    installed.error ?? AgentSpaceError(
+                        code: .helperRejected, message: NSLocalizedString("the helper did not install the worker", comment: "")))
             }
             steps.append(Step(name: NSLocalizedString("install worker LaunchAgent", comment: ""), outcome: .done,
                               detail: installed.result?["label"]?.stringValue ?? NSLocalizedString("installed", comment: "")))
@@ -280,9 +289,10 @@ public struct SpaceProvisioner {
             do {
                 try keychain.store(password: password.value, for: spaceID)
                 steps.append(Step(name: NSLocalizedString("store password in Keychain", comment: ""), outcome: .done,
-                                  detail: NSLocalizedString("so you can sign in to this Space once", comment: "")))
+                                  detail: NSLocalizedString("so you can sign in to this agent once", comment: "")))
             } catch {
-                return bail(AgentSpaceError(code: .internalError, message: "\(error)"))
+                return bail(NSLocalizedString("store password in Keychain", comment: ""),
+                    AgentSpaceError(code: .internalError, message: "\(error)"))
             }
             cleanup.append {
                 do {
@@ -306,9 +316,10 @@ public struct SpaceProvisioner {
                 var updated = registry
                 updated.upsert(space)
                 try updated.save(root: options.root)
-                steps.append(Step(name: NSLocalizedString("save Space", comment: ""), outcome: .done, detail: name))
+                steps.append(Step(name: NSLocalizedString("save agent", comment: ""), outcome: .done, detail: name))
             } catch {
-                return bail(AgentSpaceError(code: .internalError, message: String(format: NSLocalizedString("could not save the Space: %@", comment: ""), "\(error)")))
+                return bail(NSLocalizedString("save agent", comment: ""),
+                    AgentSpaceError(code: .internalError, message: String(format: NSLocalizedString("could not save the agent: %@", comment: ""), "\(error)")))
             }
 
             return Outcome(space: space, steps: steps, error: nil)
@@ -317,14 +328,14 @@ public struct SpaceProvisioner {
 
     // MARK: - Delete
 
-    /// Delete a Space — plan §41.
+    /// Delete an agent — plan §41.
     ///
     /// The order is the reverse of creation, and the two steps that need care are
     /// both about *not* destroying the user's work:
     ///
     /// - A **git worktree** is removed with `git worktree remove`, which refuses if
     ///   the worktree is dirty unless forced. The **branch is kept**: it holds the
-    ///   agent's commits, and deleting them along with the Space would destroy the
+    ///   agent's commits, and deleting them along with the agent would destroy the
     ///   only copy of work the user might still want. The original repository is
     ///   never touched.
     /// - The **home directory** is only removed when the caller asks, and is a
@@ -353,7 +364,7 @@ public struct SpaceProvisioner {
         // 2. The worktree, if there is one, and only ever the worktree.
         if case .gitWorktree(let repository, let branch, let path) = space.workspace {
             // `--force` because the agent almost certainly left uncommitted
-            // changes; `git worktree remove` refuses without it, and the Space is
+            // changes; `git worktree remove` refuses without it, and the agent is
             // being deleted at the user's explicit request. The branch survives,
             // which is where any work worth keeping actually lives.
             let result = WorkspacePreparer.run([
@@ -396,13 +407,15 @@ public struct SpaceProvisioner {
             var updated = registry
             updated.remove(id: space.id)
             try updated.save(root: options.root)
-            steps.append(Step(name: NSLocalizedString("remove Space record", comment: ""), outcome: .done, detail: ""))
+            steps.append(Step(name: NSLocalizedString("remove agent record", comment: ""), outcome: .done, detail: ""))
         } catch {
-            return Outcome(space: nil, steps: steps, error: AgentSpaceError(
-                code: .internalError, message: String(format: NSLocalizedString("could not update the Space registry: %@", comment: ""), "\(error)")))
+            let error = AgentSpaceError(
+                code: .internalError, message: String(format: NSLocalizedString("could not update the agent registry: %@", comment: ""), "\(error)"))
+            steps.append(Step(name: NSLocalizedString("remove agent record", comment: ""), outcome: .failed(error.message), detail: ""))
+            return Outcome(space: nil, steps: steps, error: error)
         }
 
-        // 5. The account. Last, because it is the step that makes the Space stop
+        // 5. The account. Last, because it is the step that makes the agent stop
         //    existing, and everything above is reversible.
         let deleted = call(transport, HelperRequest(
             operation: .deleteUser, username: space.username, removeHome: removeHome))
@@ -411,9 +424,11 @@ public struct SpaceProvisioner {
             // registry entry has already been removed, so this message is the only
             // remaining pointer to the leftover account.
             let detail = deleted.error?.message ?? NSLocalizedString("the helper refused", comment: "")
-            return Outcome(space: nil, steps: steps, error: AgentSpaceError(
+            let error = AgentSpaceError(
                 code: deleted.error?.code ?? .helperRejected,
-                message: String(format: NSLocalizedString("the account %1$@ still exists: %2$@. It is no longer in the Space list, so remove it with `agentspace doctor` or System Settings → Users & Groups.", comment: ""), space.username, detail)))
+                message: String(format: NSLocalizedString("the account %1$@ still exists: %2$@. It is no longer in the agent list, so remove it with `agentspace doctor` or System Settings → Users & Groups.", comment: ""), space.username, detail))
+            steps.append(Step(name: NSLocalizedString("delete account", comment: ""), outcome: .failed(error.message), detail: ""))
+            return Outcome(space: nil, steps: steps, error: error)
         }
         steps.append(Step(name: NSLocalizedString("delete account", comment: ""), outcome: .done,
                           detail: removeHome
@@ -447,7 +462,7 @@ public struct SpaceProvisioner {
 
     // MARK: - Helpers
 
-    /// Put a git worktree inside this Space's own directory.
+    /// Put a git worktree inside this agent's own directory.
     ///
     /// Only the worktree layout is changed; a shared folder is a path the user
     /// chose and is used exactly as given.

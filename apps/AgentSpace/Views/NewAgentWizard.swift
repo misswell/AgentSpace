@@ -129,6 +129,11 @@ struct NewAgentWizard: View {
             .padding(14)
         }
         .frame(width: 620, height: 620)
+        // The card below has to describe the helper as it is *now*: the periodic
+        // refresh never pings it (a timeout per refresh with no helper installed),
+        // so without this the wizard could refuse Create against a helper that
+        // answers, or green-light one launchd has since evicted.
+        .onAppear { model.refreshHelperState() }
         // Provisioning lives *inside* the wizard, not in a second sheet. A
         // window presents one sheet at a time: while the wizard held it, the
         // RootView-level provisioning sheet never appeared, so a failed create

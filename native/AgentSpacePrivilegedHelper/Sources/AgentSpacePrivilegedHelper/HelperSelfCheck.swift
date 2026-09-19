@@ -170,7 +170,7 @@ struct HelperSelfCheck {
         let accounts = SelfCheckPaths.localAccounts()
         let ours = accounts.filter { HelperValidation.isAgentSpaceAccount($0) }.sorted()
         report.checks.append(Check(
-            name: "Space accounts on this machine",
+            name: "Agent accounts on this machine",
             ok: true,
             detail: ours.isEmpty
                 ? "none — the helper would currently refuse to delete anything, because it only deletes accounts matching \(HelperValidation.accountPrefix)<6 hex>"

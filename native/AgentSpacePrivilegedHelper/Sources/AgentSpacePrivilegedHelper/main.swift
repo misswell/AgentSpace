@@ -38,8 +38,8 @@ if arguments.contains("--help") || arguments.contains("-h") {
 
     The helper answers these operations over XPC, and nothing else:
 
-      createUser                create a standard (never admin) Space account
-      deleteUser                delete a Space account the helper itself created
+      createUser                create a standard (never admin) agent account
+      deleteUser                delete an agent account the helper itself created
       installWorker             install the worker LaunchAgent into a Space
       removeWorker              remove it again
       prepareRuntimeDirectory   create and permission the Space's runtime dir

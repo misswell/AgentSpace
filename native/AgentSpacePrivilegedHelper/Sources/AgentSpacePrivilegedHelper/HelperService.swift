@@ -176,9 +176,15 @@ final class HelperService: NSObject, HelperXPCProtocol {
         }
 
         guard let uid = self.uid(of: username) else {
+            // This machine has demonstrated the case: `sysadminctl -addUser`
+            // exits 0 and creates no directory-service record at all, so the
+            // per-command exit check above passes and the uid lookup is the
+            // only thing that can catch it. Without this log the failure was
+            // silent end to end.
+            log.error("createUser: \(username) has no uid after every command exited 0 — the account was never really created (validation §272)")
             return HelperResponse(id: request.id, error: AgentSpaceError(
                 code: .helperRejected,
-                message: "the account \(username) was created but has no uid, which should be impossible"))
+                message: "the account \(username) was reported as created but has no uid, which should be impossible"))
         }
 
         if !FileManager.default.fileExists(atPath: "/Users/\(username)") {
@@ -243,7 +249,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
             }
         }
 
-        // Verify rather than assume: the app is about to remove the Space from its
+        // Verify rather than assume: the app is about to remove the agent from its
         // registry, and doing that while the account still exists would leave an
         // orphan nothing can clean up. This machine proved why the verification is
         // the verdict, not an afterthought — every command exited "cleanly" while
@@ -343,7 +349,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
 
         // Stop it first: removing the plist of a running job leaves it running
         // until the next boot, which is exactly the kind of stale state that makes
-        // "delete the Space" appear not to work.
+        // "delete the agent" appear not to work.
         let uidValue = uid(of: username) ?? 0
         _ = CommandRunner.run([HelperCommand.launchctl, "bootout", "gui/\(uidValue)/\(label)"], timeout: 30)
 
@@ -386,9 +392,9 @@ final class HelperService: NSObject, HelperXPCProtocol {
                 try fileManager.createDirectory(atPath: path, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o755, .ownerAccountID: 0, .groupOwnerAccountID: 0])
             }
-            // 1770 on the shared root: the sticky bit stops one Space from
+            // 1770 on the shared root: the sticky bit stops one Agent from
             // deleting another's runtime directory, and the group-execute bit lets
-            // members traverse. The runtime dir itself is 0700 to the Space's own
+            // members traverse. The runtime dir itself is 0700 to the agent's own
             // uid — the socket there carries a live session token, so nobody else
             // gets to open it, including the main user.
             _ = CommandRunner.run([HelperCommand.chmod, "1770", root])
@@ -419,7 +425,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
         }
     }
 
-    /// §40: end the Space's whole GUI session while keeping the account and
+    /// §40: end the agent's whole GUI session while keeping the account and
     /// its home. `launchctl bootout gui/<uid>` is the mechanism — the same
     /// domain teardown launchd itself performs at logout — and it is a
     /// root-only operation, which is exactly why it lives here as a *typed*
@@ -427,10 +433,10 @@ final class HelperService: NSObject, HelperXPCProtocol {
     ///
     /// The uid is cross-checked against the username's real passwd entry:
     /// accepting a mismatched pair would let a confused (or hostile) request
-    /// boot out a session this Space does not own.
+    /// boot out a session this agent does not own.
     private func logoutSession(_ request: HelperRequest) -> HelperResponse {
         guard let username = request.username, let uid = request.uid, uid > 0 else {
-            return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "logoutSession needs the Space's username and uid"))
+            return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "logoutSession needs the agent's username and uid"))
         }
         guard let real = self.uid(of: username), real == uid else {
             return HelperResponse(id: request.id, error: AgentSpaceError(
@@ -441,7 +447,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
         log.info("\(result.displayCommand) → exit \(result.exitCode)")
         guard result.ok else {
             // Booting out an already-absent session is not an error — §39 says
-            // a logged-out Space is a normal state, not a fault.
+            // a logged-out Agent is a normal state, not a fault.
             let absent = result.standardError.contains("Could not find") || result.standardError.contains("No such process")
             guard absent else {
                 return HelperResponse(id: request.id, error: AgentSpaceError(
