@@ -1,6 +1,9 @@
 # Project status — the handoff document
 
-**Read this first if you are picking AgentSpace up.** It is the map: what the
+**Read this first if you are picking AgentSpace up.** (Agents reach it
+through [`AGENTS.md`](../AGENTS.md) at the repo root — or `CLAUDE.md`, which
+points at the same file — because that is the file agent tooling loads
+automatically; this document is the content.) It is the map: what the
 product is, what is done, what is left, and the conventions a change must not
 break. The exhaustive evidence lives in `docs/validation.md` (266 numbered
 sections, each with claims and the tests that pin them); the product plan for
