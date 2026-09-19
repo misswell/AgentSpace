@@ -19,9 +19,9 @@ final class MultiSpaceIsolationTests: XCTestCase {
 
     private let ids = (0..<8).map { _ in UUID() }
 
-    private func spaces(_ count: Int) -> [AgentSpace] {
+    private func spaces(_ count: Int) -> [AgentAccount] {
         (0..<count).map { index in
-            AgentSpace(
+            AgentAccount(
                 id: ids[index],
                 name: "Space \(index)",
                 username: HelperValidation.generateAccountName(),
@@ -174,7 +174,7 @@ final class MultiSpaceIsolationTests: XCTestCase {
             }
         }
 
-        var created: [AgentSpace] = []
+        var created: [AgentAccount] = []
         var paths: [String] = []
         // "Test" and "test" — the case that used to collide.
         for (index, name) in ["Test", "test"].enumerated() {
@@ -234,8 +234,8 @@ final class MultiSpaceIsolationTests: XCTestCase {
         // Reachable on a case-insensitive filesystem, and the failure mode if it
         // were guessed is that commands silently act on the wrong Space.
         var registry = SpaceRegistry()
-        var first = AgentSpace(name: "Dev", username: "_agentspace_aaaaaa", uid: 1)
-        var second = AgentSpace(name: "DEV", username: "_agentspace_bbbbbb", uid: 2)
+        var first = AgentAccount(name: "Dev", username: "_agentspace_aaaaaa", uid: 1)
+        var second = AgentAccount(name: "DEV", username: "_agentspace_bbbbbb", uid: 2)
         first.id = UUID(); second.id = UUID()
         registry.upsert(first)
         registry.upsert(second)

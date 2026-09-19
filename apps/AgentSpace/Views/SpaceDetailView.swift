@@ -7,7 +7,7 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $model.selection) {
-            Section("Spaces") {
+            Section(NSLocalizedString("My Agent Accounts", comment: "")) {
                 ForEach(model.snapshots) { snapshot in
                     SidebarRow(snapshot: snapshot)
                         .tag(snapshot.id)
@@ -103,8 +103,16 @@ struct SpaceDetailView: View {
                     }
                     .padding(18)
                 }
-            } else {
+            } else if model.snapshots.isEmpty {
                 EmptyStateView { model.showingNewSpace = true }
+            } else {
+                AgentCardGrid(
+                    snapshots: model.snapshots,
+                    onSelect: { model.selection = $0 },
+                    onOpenDesktop: { snapshot in
+                        model.selection = snapshot.space.id
+                        model.showingDesktopViewer = true
+                    })
             }
         }
         .navigationTitle(model.selected?.space.name ?? "AgentSpace")
@@ -121,7 +129,7 @@ struct SpaceDetailView: View {
                 Button {
                     model.showingDesktopViewer = true
                 } label: {
-                    Label("View Desktop", systemImage: "display")
+                    Label(NSLocalizedString("Open Desktop", comment: ""), systemImage: "display")
                 }
                 .disabled(model.selected?.display == nil)
 
@@ -138,12 +146,12 @@ struct SpaceDetailView: View {
                         showingLogout = true
                     }
                     Divider()
-                    Button("Delete Space…", role: .destructive) {
+                    Button(NSLocalizedString("Delete Agent…", comment: ""), role: .destructive) {
                         showingDelete = true
                     }
                     .disabled(model.selected == nil)
                 } label: {
-                    Label("Space", systemImage: "gearshape")
+                    Label(NSLocalizedString("Agent", comment: ""), systemImage: "gearshape")
                 }
                 .disabled(model.selected == nil)
             }
@@ -189,7 +197,7 @@ struct SpaceDetailView: View {
 
     private func overviewCard(_ snapshot: SpaceSnapshot) -> some View {
         Card(title: NSLocalizedString("Overview", comment: "")) {
-            Field(label: NSLocalizedString("User", comment: ""), value: "\(snapshot.space.username) (uid \(snapshot.space.uid))", monospaced: true)
+            Field(label: NSLocalizedString("macOS User", comment: ""), value: "\(snapshot.space.username) (uid \(snapshot.space.uid))", monospaced: true)
             Field(label: NSLocalizedString("Worker", comment: ""),
                   value: snapshot.workerOnline
                     ? String(format: NSLocalizedString("running (pid %@)", comment: ""), snapshot.workerPID.map(String.init) ?? "?")
@@ -303,7 +311,7 @@ struct SpaceDetailView: View {
     private func setupCard(_ snapshot: SpaceSnapshot) -> some View {
         if !snapshot.acceptsInput && snapshot.effectiveState != .console {
             Card(title: NSLocalizedString("Setup", comment: "")) {
-                Text(NSLocalizedString("An Agent Space needs one manual sign-in before it can run in the background.", comment: ""))
+                Text(NSLocalizedString("An agent account needs one manual sign-in before it can run in the background.", comment: ""))
                     .font(.callout)
                 VStack(alignment: .leading, spacing: 6) {
                     step(1, NSLocalizedString("Open Fast User Switching from the menu bar", comment: ""), done: true)
@@ -374,12 +382,12 @@ struct SpaceDetailView: View {
             HStack(spacing: 8) {
                 Button(NSLocalizedString("Show Login Password", comment: "")) { model.revealPassword(for: space) }
                     .help(Text("Needed once, to sign in to this Space's macOS account for the first time."))
-                Button(NSLocalizedString("Delete Space…", comment: ""), role: .destructive) { showingDelete = true }
+                Button(NSLocalizedString("Delete Agent…", comment: ""), role: .destructive) { showingDelete = true }
                     .disabled(model.provisioning != nil)
             }
             .controlSize(.small)
 
-            Text(NSLocalizedString("Deleting removes this Space's macOS account, its runtime directory and its worker. A git worktree is removed but its branch is kept, and your own repository is never touched.", comment: ""))
+            Text(NSLocalizedString("Deleting removes this agent's macOS user, its runtime directory and its worker. A git worktree is removed but its branch is kept, and your own repository is never touched.", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
@@ -392,15 +400,15 @@ struct SpaceDetailView: View {
             // The home directory is a separate question because it is the one
             // irreversible step, and it holds the agent's own files — which the
             // user may want to look at after the Space is gone.
-            Button(NSLocalizedString("Delete Space, keep its home directory", comment: "")) {
+            Button(NSLocalizedString("Delete Agent, keep its home directory", comment: "")) {
                 model.deleteSpace(space, removeHome: false)
             }
-            Button(NSLocalizedString("Delete Space and its home directory", comment: ""), role: .destructive) {
+            Button(NSLocalizedString("Delete Agent and its home directory", comment: ""), role: .destructive) {
                 model.deleteSpace(space, removeHome: true)
             }
             Button(NSLocalizedString("Cancel", comment: ""), role: .cancel) { }
         } message: {
-            Text(String(format: NSLocalizedString("The account %@ will be removed, and it will no longer be able to run anything. Your files are not affected.", comment: ""), space.username))
+            Text(String(format: NSLocalizedString("The macOS user %@ will be removed, and it will no longer be able to run anything. The agent's files in its home directory are not affected unless you ask for them to be.", comment: ""), space.macOSUsername))
         }
         // A second dialog on the same view: SwiftUI allows several, each gated by
         // its own `isPresented`.

@@ -7305,3 +7305,28 @@ something this session can perform.
 | 432 | The helper verifies its partial-account cleanup and reports an unremoved account instead of trusting an exit code | pass | §265 — HelperService.swift createUser failure path |
 | 433 | The orphan-producing failure is dateable to the pre-fix helper; the skip fix landed 20 minutes later | recorded | §265 — helper log 00:27:05, `git log -S` at 00:47 (c95b05d) |
 | 434 | dist rebuilt outside the notarize flow is caught by the check-all dist guard | pass | §265 — check-all message "dist/AgentSpace.app is NOT stapled" |
+---
+
+## 266. V2 agent-account layer: renames with zero migrations
+
+The V2 product plan (docs/v2-plan.md) renamed the user-facing
+vocabulary — Space → agent account — and added the purpose-driven
+create wizard, the Finder-style account cards, the menu-bar scene,
+the CLI verb aliases and the agent_* MCP tools. The compatibility
+rules held mechanically: a legacy registry record without a purpose
+field decodes unchanged, the deep link resolves both `agent` and
+`space` hosts, and the localization tables were extended for every
+new key (the tables' own test suite enforces it). The full Swift
+suite ran 364 tests green under a system PATH; the single failure
+seen without it is the pre-existing Homebrew-git PATH mismatch in
+WorkspacePreparerTests, unchanged from before this round.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 435 | Legacy registry JSON decodes as AgentAccount with purpose nil | ✓ | SpaceModelTests.testLegacyRegistryRecordDecodesAsAgentAccount |
+| 436 | Purpose round-trips and is omitted when unset | ✓ | SpaceModelTests.testPurposeRoundTripsAndOmitsWhenAbsent |
+| 437 | Deep links: `agent` host generated, `space` host still resolves | ✓ | AppDeepLinkTests |
+| 438 | CLI verb aliases: open≡desktop, accounts≡list, `create account N`≡`create N` | ✓ | main.swift normalization + CLI smoke |
+| 439 | MCP agent_* tools bridge the same builders as agentspace_* | ✓ | npm test + mcp-smoke |
+| 440 | GUI renders the V2 vocabulary (cards, wizard, menu bar) in zh-Hans | ✓ | screenshots taken from the bundled app |
+| 441 | Every new user-facing key is in both localization tables | ✓ | LocalizationTests |

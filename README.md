@@ -1,10 +1,11 @@
 # AgentSpace
 
-**Give AI agents their own macOS desktop.**
+**Give every AI agent its own macOS account and desktop.**
 
-AgentSpace runs GUI agents inside separate macOS user sessions, so agents can
-click, type, launch apps and test software without taking over your keyboard,
-mouse or screen.
+AgentSpace manages agent accounts: each one is a real macOS user with its own
+desktop session, so agents can browse, code, test and operate GUI apps without
+taking over your keyboard, mouse or screen. Product plan and status per
+section: `docs/v2-plan.md`.
 
 **No VM. No second macOS installation. No remote Mac.**
 

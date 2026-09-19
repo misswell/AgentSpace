@@ -126,6 +126,14 @@ export function buildListArgs(): string[] {
 }
 
 /**
+ * `agentspace open <account> [--json]` — plan(v2) §16/§17. The CLI verb is
+ * `open`; the pre-V2 spelling `desktop` is the same code path.
+ */
+export function buildOpenDesktopArgs(space: string): string[] {
+  return ["open", requireSpace(space), "--json"];
+}
+
+/**
  * `agentspace status [space] [--json]`
  *
  * The Space is optional: the CLI falls back to the first registered Space.

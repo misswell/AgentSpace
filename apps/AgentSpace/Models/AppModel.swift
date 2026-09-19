@@ -174,7 +174,7 @@ final class AppModel: ObservableObject {
     /// Everything runs off the main actor: creating an account and installing a
     /// launchd job takes seconds, and blocking the main thread would freeze the
     /// window with no explanation.
-    func createSpace(name: String, workspace: Workspace, sharedFolders: [SharedFolder]) {
+    func createSpace(name: String, purpose: AgentPurpose? = nil, workspace: Workspace, sharedFolders: [SharedFolder]) {
         guard provisioning == nil else { return }
         // `root` is nil only when the service was built without one, which in this
         // app never happens; falling back to the computed default keeps create
@@ -189,7 +189,7 @@ final class AppModel: ObservableObject {
             let outcome = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
                     continuation.resume(returning: SpaceProvisioner.create(
-                        name: name, workspace: workspace, sharedFolders: sharedFolders,
+                        name: name, purpose: purpose, workspace: workspace, sharedFolders: sharedFolders,
                         options: SpaceProvisioner.Options(
                             root: root, workspaceDirectory: directory, mainUser: NSUserName()),
                         transport: { try HelperClient.call($0) },
@@ -216,21 +216,21 @@ final class AppModel: ObservableObject {
 
     /// §40's Stop Agent: stop the worker, keep the session. The effective
     /// state goes to offline/needsLogin on the next refresh — honestly.
-    func stopWorker(_ space: AgentSpace) {
+    func stopWorker(_ space: AgentAccount) {
         guard case .success = service.stopWorker(for: space) else { return }
         if selected?.space.id == space.id { reload() }
     }
 
     /// §40's Logout Desktop: helper-typed; a missing helper surfaces as the
     /// typed error with its fix, which is the fail-closed behavior.
-    func logoutDesktop(_ space: AgentSpace) {
+    func logoutDesktop(_ space: AgentAccount) {
         if case .failure(let error) = service.logoutDesktop(for: space) {
             lastError = PresentedError(code: error.code.rawValue, message: error.message, fix: error.code.remediation)
         }
         if selected?.space.id == space.id { reload() }
     }
 
-    func deleteSpace(_ space: AgentSpace, removeHome: Bool) {
+    func deleteSpace(_ space: AgentAccount, removeHome: Bool) {
         guard provisioning == nil else { return }
         provisioning = Provisioning(operation: String(format: NSLocalizedString("Deleting %@", comment: ""), space.name))
 
@@ -266,7 +266,7 @@ final class AppModel: ObservableObject {
     /// of them. Doing that on the 2–5 s status poll would pin the CPU, which §53
     /// forbids. The result is merged into the existing snapshot so the rest of the
     /// page does not flicker.
-    func measureDiskUsage(for space: AgentSpace) {
+    func measureDiskUsage(for space: AgentAccount) {
         guard measuringDisk != space.id else { return }
         measuringDisk = space.id
 
@@ -300,7 +300,7 @@ final class AppModel: ObservableObject {
     /// Read from the Keychain on demand and held only in the sheet that shows it.
     /// The app never caches it, never logs it, and never puts it on the clipboard
     /// without the user asking.
-    func revealPassword(for space: AgentSpace) {
+    func revealPassword(for space: AgentAccount) {
         do {
             if let password = try KeychainStore().password(for: space.id) {
                 revealedPassword = RevealedPassword(
@@ -397,7 +397,7 @@ final class AppModel: ObservableObject {
 
     /// Refresh the resource numbers for whichever Space is selected.
     /// Measure the selected Space's home directory (plan §30).
-    func measureDisk(for space: AgentSpace) { measureDiskUsage(for: space) }
+    func measureDisk(for space: AgentAccount) { measureDiskUsage(for: space) }
 
     func refreshSelectedResources() {
         guard let index = snapshots.firstIndex(where: { $0.id == selection }) else { return }
@@ -480,7 +480,7 @@ final class AppModel: ObservableObject {
 
     // MARK: - Space actions
 
-    func present(_ error: AgentSpaceError, space: AgentSpace?) {
+    func present(_ error: AgentSpaceError, space: AgentAccount?) {
         var presented = PresentedError(
             code: error.code.rawValue,
             message: error.message,

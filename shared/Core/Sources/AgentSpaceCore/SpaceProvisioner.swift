@@ -75,7 +75,7 @@ public struct SpaceProvisioner {
     }
 
     public struct Outcome {
-        public var space: AgentSpace?
+        public var space: AgentAccount?
         public var steps: [Step]
         public var error: AgentSpaceError?
 
@@ -108,6 +108,7 @@ public struct SpaceProvisioner {
     ///    to show. The reverse order can produce a Space the user cannot log into.
     public static func create(
         name: String,
+        purpose: AgentPurpose? = nil,
         workspace: Workspace,
         sharedFolders: [SharedFolder],
         options: Options,
@@ -141,7 +142,7 @@ public struct SpaceProvisioner {
                 // The username is recovered from the step list rather than tracked
                 // separately, because the step is the record of what actually
                 // happened on the machine and a second copy could disagree with it.
-                let broken = AgentSpace(
+                let broken = AgentAccount(
                     id: spaceID, name: name, username: usernameFrom(steps) ?? "",
                     uid: 0, state: .error, createdAt: Date(),
                     workspace: workspace, sharedFolders: sharedFolders)
@@ -293,13 +294,13 @@ public struct SpaceProvisioner {
                 }
             }
 
-            let space = AgentSpace(
+            let space = AgentAccount(
                 id: spaceID, name: name, username: username, uid: uid_t(uid),
                 // Created but not logged in yet: the account exists, the worker
                 // cannot start until the user signs in once. Reporting `ready` here
                 // would make the UI offer a desktop that does not exist.
                 state: .needsLogin, createdAt: Date(), workspace: workspace,
-                sharedFolders: sharedFolders)
+                sharedFolders: sharedFolders, purpose: purpose)
 
             do {
                 var updated = registry
@@ -329,7 +330,7 @@ public struct SpaceProvisioner {
     /// - The **home directory** is only removed when the caller asks, and is a
     ///   separate question in the UI, because it is the one irreversible step.
     public static func delete(
-        space: AgentSpace,
+        space: AgentAccount,
         removeHome: Bool,
         options: Options,
         transport: @escaping Transport,

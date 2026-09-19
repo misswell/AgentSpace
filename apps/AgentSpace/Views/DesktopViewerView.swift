@@ -141,7 +141,8 @@ struct DesktopViewerView: View {
         HStack(spacing: 10) {
             if let snapshot {
                 StatusDot(state: snapshot.effectiveState)
-                Text(snapshot.space.name).font(.headline)
+                Text(String(format: NSLocalizedString("%@ Desktop", comment: ""), snapshot.space.displayName))
+                    .font(.headline)
                 Text(snapshot.effectiveState.displayName)
                     .font(.callout)
                     .foregroundStyle(.secondary)

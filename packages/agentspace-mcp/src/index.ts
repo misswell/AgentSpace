@@ -38,6 +38,7 @@ import {
   buildKeyArgs,
   buildLaunchArgs,
   buildListArgs,
+  buildOpenDesktopArgs,
   buildQuitArgs,
   buildScreenshotArgs,
   buildScrollArgs,
@@ -257,20 +258,22 @@ function screenshotResult(value: unknown): ToolResult {
 
 // MARK: - Server
 
-const INSTRUCTIONS = `AgentSpace drives isolated macOS user sessions called Spaces. Each Space has its own background desktop, so an agent can click, type, launch apps and take screenshots without disturbing the human's own screen. This server is a thin bridge to the local \`agentspace\` CLI; it never drives the GUI itself and never falls back to your console session.
+const INSTRUCTIONS = `AgentSpace gives every AI agent its own macOS account and desktop. Each agent account is a real macOS user with its own background desktop session, so an agent can click, type, launch apps and take screenshots without disturbing the human's own screen. This server is a thin bridge to the local \`agentspace\` CLI; it never drives the GUI itself and never falls back to your console session.
+
+Tool names: the agent_* names (agent_list, agent_status, agent_open_desktop, agent_screenshot, agent_click, agent_type, agent_launch, agent_exec) are the current spelling. The older agentspace_* tools (agentspace_list, agentspace_status, agentspace_screenshot, agentspace_apps, agentspace_ax_snapshot, agentspace_input, agentspace_click, agentspace_type, agentspace_key, agentspace_scroll, agentspace_drag, agentspace_launch, agentspace_quit, agentspace_exec) remain available with identical behaviour — existing configurations keep working. Prefer the agent_* names in new work.
 
 Recommended loop:
-1. agentspace_status — confirm the Space exists, its worker is running, and its session permits input. Check accessibility/screenRecording here first.
-2. agentspace_screenshot — look before you act. Read the reported scale.
+1. agent_status — confirm the account exists, its worker is running, and its session permits input. Check accessibility/screenRecording here first.
+2. agent_screenshot — look before you act. Read the reported scale.
 3. Reason about the image.
-4. agentspace_input — send one batch of actions (preferred: fewer round trips, and the batch is validated before anything is performed). The single-purpose tools (agentspace_click, agentspace_type, agentspace_key, agentspace_scroll, agentspace_drag) each send a one-action batch.
-5. agentspace_screenshot — verify what actually happened, and correct if it did not.
+4. agentspace_input — send one batch of actions (preferred: fewer round trips, and the batch is validated before anything is performed). The single-purpose tools (agent_click, agent_type, agentspace_key, agentspace_scroll, agentspace_drag) each send a one-action batch.
+5. agent_screenshot — verify what actually happened, and correct if it did not.
 
 Coordinates are display POINTS: points = screenshot pixels / scale. Passing pixel coordinates is the most common mistake and it silently clicks the wrong thing.
 
 WARNING: synthetic input is refused with code SESSION_IS_CONSOLE when the agent desktop is currently on the physical console (for example someone fast-user-switched into it). The refusal is deliberate: the events would otherwise land on the human's own screen. Switch back to your own account and input resumes. Relay the error's fix rather than retrying in a loop.
 
-No tool creates or deletes Spaces, and no tool grants Accessibility or Screen Recording. Those are macOS-user- and TCC-level actions that a human must do in the AgentSpace GUI. If a task seems to need them, stop and ask the human.`;
+No tool creates or deletes agent accounts, and no tool grants Accessibility or Screen Recording. Those are macOS-user- and TCC-level actions that a human must do in the AgentSpace GUI. If a task seems to need them, stop and ask the human.`;
 
 const server = new McpServer(
   {
@@ -373,7 +376,7 @@ server.registerTool(
   {
     title: "List AgentSpaces",
     description:
-      "List every AgentSpace on this machine with its id, name, macOS user, state, workspace and whether its worker is currently reachable. Start here to discover valid Space names. Read-only.",
+      "Deprecated alias of agent_list. List every AgentSpace on this machine with its id, name, macOS user, state, workspace and whether its worker is currently reachable. Start here to discover valid Space names. Read-only.",
     inputSchema: {},
     annotations: { readOnlyHint: true },
   },
@@ -652,6 +655,179 @@ server.registerTool(
       space: spaceSchema,
       command: z.string().min(1).describe("Shell command to run in the Space."),
       cwd: z.string().optional().describe("Working directory inside the Space (must be in its workspace)."),
+      timeoutMs: z.number().int().positive().optional().describe("Per-command timeout in milliseconds."),
+      env: z
+        .record(z.string())
+        .optional()
+        .describe("Extra environment variables for the command, e.g. {\"FOO\":\"bar\"}."),
+    },
+  },
+  async ({ space, command, cwd, timeoutMs, env }) => {
+    const options: {
+      cwd?: string | undefined;
+      timeoutMs?: number | undefined;
+      env?: Record<string, string> | undefined;
+    } = {};
+    if (cwd !== undefined) options.cwd = cwd;
+    if (timeoutMs !== undefined) options.timeoutMs = timeoutMs;
+    if (env !== undefined) options.env = env;
+    return callCli(buildExecArgs(space, command, options), {
+      context: `agentspace exec ${space} ${command}`,
+    });
+  },
+);
+
+// MARK: V2 tool names (plan(v2) §17)
+//
+// The agent_* spellings of the core surface. They call the SAME arg builders
+// and the SAME CLI bridge as the agentspace_* tools above — one
+// implementation, two names — so the two families cannot drift. The
+// agentspace_* names stay registered unchanged for existing client configs.
+
+server.registerTool(
+  "agent_list",
+  {
+    title: "List agent accounts",
+    description:
+      "List every agent account on this machine with its id, name, macOS user, state, workspace and whether its worker is currently reachable. Start here to discover valid account names. Read-only.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  async () => callCli(buildListArgs(), { context: "agentspace list" }),
+);
+
+server.registerTool(
+  "agent_status",
+  {
+    title: "Status of an agent account",
+    description:
+      "Report one agent account's health: worker liveness, session verdict (usable / on-console / no window server), Accessibility and Screen Recording grants, display geometry in points and pixels, and resource use. Call this before acting. Read-only.",
+    inputSchema: {
+      space: spaceSchema
+        .optional()
+        .describe("Account name or UUID. Omit to use the first registered account."),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ space }) =>
+    callCli(buildStatusArgs(space), {
+      context: `agentspace status ${space ?? "(default account)"}`,
+    }),
+);
+
+server.registerTool(
+  "agent_open_desktop",
+  {
+    title: "Open an agent's desktop",
+    description:
+      "Open the agent's live desktop in the AgentSpace app on the human's screen (a deep link into the Desktop Viewer). The agent session itself is untouched. Use when a human should look at or interact with the agent's desktop directly.",
+    inputSchema: {
+      space: spaceSchema.describe("Account name or UUID, e.g. \"dev\"."),
+    },
+  },
+  async ({ space }) => callCli(buildOpenDesktopArgs(space), {
+    context: `agentspace open ${space}`,
+  }),
+);
+
+server.registerTool(
+  "agent_screenshot",
+  {
+    title: "Screenshot an agent's desktop",
+    description:
+      "Capture the agent's background desktop and return it as an image, plus path, width, height, pixelWidth, pixelHeight and scale. Input coordinates are POINTS = pixels / scale. Read-only.",
+    inputSchema: {
+      space: spaceSchema,
+      maxWidth: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("Downscale the returned PNG to at most this many pixels wide."),
+      display: z.number().int().min(0).optional().describe("0-based display index to capture."),
+      out: z.string().optional().describe("Explicit path for the PNG inside the account's workspace."),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ space, maxWidth, display, out }) => {
+    const options: { maxWidth?: number | undefined; display?: number | undefined; out?: string | undefined } = {};
+    if (maxWidth !== undefined) options.maxWidth = maxWidth;
+    if (display !== undefined) options.display = display;
+    if (out !== undefined) options.out = out;
+    const outcome = await invoke(buildScreenshotArgs(space, options), {
+      context: `agentspace screenshot ${space}`,
+    });
+    if (outcome.kind === "error") {
+      return outcome.result;
+    }
+    return screenshotResult(outcome.value);
+  },
+);
+
+server.registerTool(
+  "agent_click",
+  {
+    title: "Click in an agent's desktop",
+    description:
+      "Move the pointer to a point and click. Coordinates are display POINTS (pixels / scale), not screenshot pixels. Refused if the agent's desktop is on the physical console.",
+    inputSchema: {
+      space: spaceSchema,
+      x: z.number().describe("X in display points."),
+      y: z.number().describe("Y in display points."),
+      double: z.boolean().optional().describe("Double-click instead of a single click."),
+      right: z.boolean().optional().describe("Right-click instead of a left click."),
+    },
+  },
+  async ({ space, x, y, double, right }) => {
+    const options: { double?: boolean | undefined; right?: boolean | undefined } = {};
+    if (double !== undefined) options.double = double;
+    if (right !== undefined) options.right = right;
+    return callCli(buildClickArgs(space, x, y, options), {
+      context: `agentspace click ${space} ${x} ${y}`,
+    });
+  },
+);
+
+server.registerTool(
+  "agent_type",
+  {
+    title: "Type text in an agent's desktop",
+    description:
+      "Type literal text into whatever control is focused in the agent session. Does not press Return — use agentspace_key with \"enter\" (or \"cmd+enter\") for that. Refused if the agent's desktop is on the physical console.",
+    inputSchema: {
+      space: spaceSchema,
+      text: z.string().min(1).describe("Text to type. Sent as a single literal string."),
+    },
+  },
+  async ({ space, text }) =>
+    callCli(buildTypeArgs(space, text), { context: `agentspace type ${space}` }),
+);
+
+server.registerTool(
+  "agent_launch",
+  {
+    title: "Launch an app in an agent session",
+    description:
+      "Launch an application inside the agent's desktop session (or bring it up if already running). Pass a name the session knows (see agentspace_apps) or an absolute path to a .app bundle. Does not affect the human's desktop.",
+    inputSchema: {
+      space: spaceSchema,
+      app: z.string().min(1).describe('App name, e.g. "Safari", or an absolute path to a .app bundle.'),
+    },
+  },
+  async ({ space, app }) =>
+    callCli(buildLaunchArgs(space, app), { context: `agentspace launch ${space} ${app}` }),
+);
+
+server.registerTool(
+  "agent_exec",
+  {
+    title: "Run a shell command inside an agent session",
+    description:
+      "Run a shell command as the agent account's macOS user, inside that user's session. stdout, stderr, exitCode and duration come back as JSON. The command runs in the agent session, not on the human's desktop. Some commands are refused by AgentSpace's guard list; the error says which.",
+    inputSchema: {
+      space: spaceSchema,
+      command: z.string().min(1).describe("Shell command to run in the agent session."),
+      cwd: z.string().optional().describe("Working directory inside the account's workspace (must be within it)."),
       timeoutMs: z.number().int().positive().optional().describe("Per-command timeout in milliseconds."),
       env: z
         .record(z.string())

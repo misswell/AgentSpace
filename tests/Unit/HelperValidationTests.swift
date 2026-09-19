@@ -205,7 +205,7 @@ final class HelperValidationTests: XCTestCase {
     // MARK: - deleteUser — the check that matters most
 
     func testDeleteUserRefusesTheHumanAccount() {
-        // If this test ever fails, AgentSpace can delete the user's own account.
+        // If this test ever fails, AgentAccount can delete the user's own account.
         let request = HelperRequest(operation: .deleteUser, username: "guofeng", removeHome: true)
         let error = HelperValidation.validate(request, existingAccounts: machine)
         XCTAssertNotNil(error, "the helper agreed to delete the human's account")
