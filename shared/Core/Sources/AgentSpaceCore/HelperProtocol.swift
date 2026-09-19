@@ -87,6 +87,21 @@ public struct HelperResponse: Codable, Equatable, Sendable {
     }
 }
 
+extension HelperResponse {
+    /// The accounts a `helperStatus` reply says are on this machine, or `nil`
+    /// when the reply is not a status payload. Its readers check an after-state
+    /// rather than believing one operation's verdict, which is what validation
+    /// §269 learned when every removal command exited 0 while the account stayed.
+    public var reportedAccounts: [String]? {
+        guard case .object(let fields)? = result,
+              case .array(let values)? = fields["spaceAccounts"] else { return nil }
+        return values.compactMap { value in
+            if case .string(let name) = value { return name }
+            return nil
+        }
+    }
+}
+
 // MARK: - Validation
 
 /// Every rule the helper applies before it touches anything.

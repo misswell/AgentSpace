@@ -205,15 +205,9 @@ public enum HelperClient {
     /// and they are otherwise invisible to the app.
     public static func agentSpaceAccounts(timeout: TimeInterval = 10) -> [String]? {
         let request = HelperRequest(operation: .helperStatus)
-        guard let response = try? call(request, timeout: timeout),
-              let result = response.result,
-              case .object(let fields) = result,
-              case .array(let values)? = fields["spaceAccounts"] else {
+        guard let response = try? call(request, timeout: timeout), response.ok else {
             return nil
         }
-        return values.compactMap { value in
-            if case .string(let name) = value { return name }
-            return nil
-        }
+        return response.reportedAccounts
     }
 }

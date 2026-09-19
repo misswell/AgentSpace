@@ -195,14 +195,32 @@ public struct SpaceProvisioner {
                               detail: String(format: NSLocalizedString("%@, uid %d, standard user", comment: ""), username, uid)))
 
             cleanup.append {
+                let step = NSLocalizedString("undo create account", comment: "")
                 let response = call(transport, HelperRequest(
                     operation: .deleteUser, username: username, removeHome: true))
-                return response.ok
-                    ? Step(name: NSLocalizedString("undo create account", comment: ""),
-                           outcome: .rolledBack(String(format: NSLocalizedString("removed %@", comment: ""), username)), detail: "")
-                    : Step(name: NSLocalizedString("undo create account", comment: ""),
-                           outcome: .rollbackFailed(response.error?.message ?? "unknown"),
-                           detail: String(format: NSLocalizedString("the account %@ still exists. `agentspace doctor` will show it as an orphan agent you can delete.", comment: ""), username))
+                guard !response.ok else {
+                    return Step(name: step,
+                        outcome: .rolledBack(String(format: NSLocalizedString("removed %@", comment: ""), username)),
+                        detail: "")
+                }
+                // A refusal is not the same thing as an account left behind, and
+                // claiming it would be validation §269's lie in the other
+                // direction: the helper refuses a delete for an account that was
+                // never made ("there is no account named …"), which is what a
+                // blocked create looks like on this machine. So the undo reports
+                // what the machine says *now*, not what the delete said.
+                let status = call(transport, HelperRequest(operation: .helperStatus))
+                if status.ok, let accounts = status.reportedAccounts, !accounts.contains(username) {
+                    return Step(name: step,
+                        outcome: .rolledBack(String(format: NSLocalizedString("%@ is not on this machine, so there was nothing to undo", comment: ""), username)),
+                        detail: "")
+                }
+                let confirmed = status.ok && status.reportedAccounts?.contains(username) == true
+                return Step(name: step,
+                    outcome: .rollbackFailed(response.error?.message ?? "unknown"),
+                    detail: confirmed
+                        ? String(format: NSLocalizedString("the account %@ is still there. Open Diagnostics and use “Delete Orphaned Accounts…” to remove it.", comment: ""), username)
+                        : String(format: NSLocalizedString("whether %@ was removed could not be checked, because the helper did not answer again. Open Diagnostics and use “Delete Orphaned Accounts…” to see what is left.", comment: ""), username))
             }
 
             // 2. The runtime directory, with its ACLs.

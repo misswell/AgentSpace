@@ -128,4 +128,38 @@ final class LocalizationTests: XCTestCase {
             XCTAssertTrue(chinese[key] != nil, "key missing from zh-Hans table: \(key)")
         }
     }
+
+    /// `Text("…")` localizes by itself, but only against a key the table carries
+    /// — and a missing key is silent: the label stays English in the middle of a
+    /// Chinese window, which is what an owner's screenshot caught. Prose
+    /// literals are therefore scanned too. The filters skip what is not prose:
+    /// code identifiers, paths, example values, format strings.
+    func testEveryProseTextLiteralHasATableEntry() throws {
+        let chinese = try table("zh-Hans")
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sourceRoot = repoRoot.appendingPathComponent("apps/AgentSpace").path
+
+        let regex = try NSRegularExpression(
+            pattern: "Text\\(\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*[,)]")
+        var checked = 0
+        let enumerator = FileManager.default.enumerator(atPath: sourceRoot)
+        while let relative = enumerator?.nextObject() as? String {
+            guard relative.hasSuffix(".swift") else { continue }
+            let contents = try String(contentsOfFile: sourceRoot + "/" + relative, encoding: .utf8)
+            let range = NSRange(contents.startIndex..., in: contents)
+            for match in regex.matches(in: contents, range: range) {
+                guard let matchRange = Range(match.range(at: 1), in: contents) else { continue }
+                let key = String(contents[matchRange])
+                    .replacingOccurrences(of: "\\\"", with: "\"")
+                    .replacingOccurrences(of: "\\n", with: "\n")
+                if key.count < 15 || key.contains(where: { "/%(~$".contains($0) }) { continue }
+                checked += 1
+                XCTAssertNotNil(chinese[key],
+                                "Text(\"\(key)\") in \(relative) has no zh-Hans entry, so it never translates")
+            }
+        }
+        XCTAssertGreaterThan(checked, 10, "the literal scan found almost nothing — the scan is broken")
+    }
 }

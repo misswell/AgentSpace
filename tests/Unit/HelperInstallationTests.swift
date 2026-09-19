@@ -50,4 +50,27 @@ final class HelperInstallationTests: XCTestCase {
         XCTAssertEqual(live, onDisk,
                        "the running image and its file must hash identically")
     }
+
+    /// The app checks the helper by process rather than believing the helper's
+    /// own account — which is the whole point: a helper that measures itself
+    /// through the Security framework re-reads its own (replaced) file and
+    /// swears it is current, so only an outside view of the running task catches
+    /// it. The query must therefore work for a process that is not this one.
+    func testRunningImageHashWorksForAnotherProcess() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["5"]
+        try process.run()
+        defer { process.terminate() }
+
+        let live = HelperInstallation.runningImageCDHash(ofProcessID: process.processIdentifier)
+        process.waitUntilExit()
+        XCTAssertEqual(live?.count, 40, "the kernel query returned no cdhash for a live process")
+
+        // The self query is the same kernel query with this process's id.
+        XCTAssertEqual(HelperInstallation.currentProcessCDHash(),
+                       HelperInstallation.runningImageCDHash(ofProcessID: getpid()))
+        // A process that is not there yields nothing, not a guess.
+        XCTAssertNil(HelperInstallation.runningImageCDHash(ofProcessID: -1))
+    }
 }

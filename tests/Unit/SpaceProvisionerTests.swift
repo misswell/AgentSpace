@@ -41,12 +41,24 @@ final class SpaceProvisionerTests: XCTestCase {
         var failAfter: Int?
         private var counts: [HelperOperation: Int] = [:]
         var uid: Int = 601
+        /// What is on the machine, as `helperStatus` reports it. The undo steps
+        /// read this instead of believing a single operation's verdict, so the
+        /// fake has to carry a state rather than only a script.
+        var existingAccounts: [String] = []
+        /// A delete that takes the account away and *then* refuses — what a
+        /// partially-completed removal looks like.
+        var deleteRemovesThenFails: String?
 
         func transport(_ request: HelperRequest) throws -> HelperResponse {
             calls.append(request)
             let seen = (counts[request.operation] ?? 0) + 1
             counts[request.operation] = seen
 
+            if let message = deleteRemovesThenFails, request.operation == .deleteUser {
+                existingAccounts.removeAll { $0 == (request.username ?? "") }
+                return HelperResponse(id: request.id, error: AgentSpaceError(
+                    code: .helperRejected, message: message))
+            }
             if let message = failures[request.operation] {
                 return HelperResponse(id: request.id, error: AgentSpaceError(
                     code: .helperRejected, message: message))
@@ -62,10 +74,12 @@ final class SpaceProvisionerTests: XCTestCase {
                     "loggedOut": .bool(true), "username": .string(request.username ?? ""),
                 ]))
             case .createUser:
+                let username = request.username ?? ""
+                existingAccounts.append(username)
                 return HelperResponse(id: request.id, result: .obj([
-                    "username": .string(request.username ?? ""),
+                    "username": .string(username),
                     "uid": .int(uid),
-                    "home": .string("/Users/\(request.username ?? "")"),
+                    "home": .string("/Users/\(username)"),
                     "isAdmin": .bool(false),
                 ]))
             case .prepareRuntimeDirectory:
@@ -79,14 +93,19 @@ final class SpaceProvisionerTests: XCTestCase {
                     "label": .string(HelperCommand.workerLabel(spaceID: request.spaceID ?? UUID())),
                 ]))
             case .deleteUser:
+                let username = request.username ?? ""
+                existingAccounts.removeAll { $0 == username }
                 return HelperResponse(id: request.id, result: .obj([
-                    "username": .string(request.username ?? ""),
+                    "username": .string(username),
                     "removed": .bool(true),
                 ]))
             case .removeWorker, .stopWorker:
                 return HelperResponse(id: request.id, result: .obj(["ok": .bool(true)]))
             case .helperStatus:
-                return HelperResponse(id: request.id, result: .obj(["isRoot": .bool(true)]))
+                return HelperResponse(id: request.id, result: .obj([
+                    "isRoot": .bool(true),
+                    "spaceAccounts": .array(existingAccounts.map { .string($0) }),
+                ]))
             case .startWorker, .sessionInfo:
                 return HelperResponse(id: request.id, result: .obj(["ok": .bool(true)]))
             }
@@ -319,6 +338,37 @@ final class SpaceProvisionerTests: XCTestCase {
         XCTAssertEqual(registry.spaces.count, 1, "the orphan account is invisible to the app")
         XCTAssertEqual(registry.spaces.first?.state, .error)
         XCTAssertTrue(HelperValidation.isAgentSpaceAccount(registry.spaces.first?.username ?? ""))
+
+        // The guidance has to be something the user can click. This machine can
+        // only refuse a delete (`disallowed by sandbox`, validation §269), so
+        // every real failure lands here, and a sentence that names a terminal
+        // command is a dead end for the person holding the app.
+        let undo = try XCTUnwrap(outcome.steps.first { $0.name == "undo create account" })
+        XCTAssertTrue(undo.detail.contains("Diagnostics"), undo.detail)
+        XCTAssertFalse(undo.detail.contains("`"), "a shell command in the guidance: \(undo.detail)")
+    }
+
+    func testARollbackThatFindsNoAccountIsNotReportedAsALeftover() throws {
+        // The undo is refused, and the machine says there is nothing to remove.
+        // Reporting that as "an account was left behind" is a lie in the other
+        // direction, and the lie writes an agent record for a user that does
+        // not exist — which is then undeletable because there is nothing to
+        // delete.
+        let helper = FakeHelper()
+        helper.failures[.installWorker] = "the helper refused"
+        helper.deleteRemovesThenFails = "could not remove the home directory"
+
+        let outcome = create(helper: helper)
+        XCTAssertFalse(outcome.ok)
+        XCTAssertFalse(outcome.leftPartialState,
+                       "an account that is not on the machine was reported as left behind: \(outcome.steps)")
+
+        let undo = try XCTUnwrap(outcome.steps.first { $0.name == "undo create account" })
+        guard case .rolledBack = undo.outcome else {
+            return XCTFail("an undo that found no account was recorded as \(undo.outcome)")
+        }
+        let registry = SpaceRegistry.load(root: root.appendingPathComponent("runtime").path)
+        XCTAssertTrue(registry.spaces.isEmpty, "a phantom agent was written for an account that is not there")
     }
 
     func testAnUnreachableHelperIsReportedAsUnavailableRatherThanRetried() throws {

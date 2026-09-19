@@ -89,12 +89,12 @@ public enum WorkspacePreparer {
 
         switch workspace {
         case .none:
-            summary = "No workspace: the agent can reach nothing of yours."
+            summary = NSLocalizedString("No workspace: the agent can reach nothing of yours.", comment: "")
 
         case .sharedFolders:
             summary = sharedFolders.isEmpty
-                ? "No shared folders configured yet."
-                : "Shared folders only."
+                ? NSLocalizedString("No shared folders configured yet.", comment: "")
+                : NSLocalizedString("Shared folders only.", comment: "")
 
         case .gitWorktree(let repository, let branch, let path):
             // 1. The repository must exist and actually be a repository. Creating
@@ -168,7 +168,8 @@ public enum WorkspacePreparer {
                 git, "-C", repository, "worktree", "add",
                 "-B", branch, resolved,
             ]
-            summary = "Git worktree: \(branch) in \(resolved), read from \(repository)."
+            summary = String(format: NSLocalizedString("Git worktree: %@ in %@, read from %@.", comment: ""),
+                             branch, resolved, repository)
         }
 
         // Shared folders apply whatever the workspace kind is: an agent with a

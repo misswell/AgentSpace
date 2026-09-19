@@ -256,7 +256,7 @@ struct HelperCard: View {
                 RefusalBanner(
                     title: NSLocalizedString("The helper that answers is an older build than this app", comment: ""),
                     code: "HELPER_OUTDATED",
-                    message: "launchd keeps a registered daemon's process running across app updates, so the version inside this app has never started. Creating an account would run the old code and fail the way it always has.",
+                    message: NSLocalizedString("launchd keeps a registered daemon's process running across app updates, so the version inside this app has never started. Creating an account would run the old code and fail the way it always has.", comment: ""),
                     fix: NSLocalizedString("Reinstall the helper below. macOS will ask for your password once: it stops the old daemon and registers the current one.", comment: ""))
 
                 Button {
@@ -277,7 +277,7 @@ struct HelperCard: View {
                 RefusalBanner(
                     title: NSLocalizedString("Creating an agent account needs the privileged helper", comment: ""),
                     code: "HELPER_UNAVAILABLE",
-                    message: "An agent account is a real macOS user, so creating one is an administrator operation. AgentSpace does it through a root helper that exposes a closed list of typed operations — it never runs a shell, and it will only ever create or delete users named _agentspace_<6 hex>.",
+                    message: NSLocalizedString("An agent account is a real macOS user, so creating one is an administrator operation. AgentSpace does it through a root helper that exposes a closed list of typed operations — it never runs a shell, and it will only ever create or delete users named _agentspace_<6 hex>.", comment: ""),
                     fix: model.helperState.fix ?? NSLocalizedString("Open the AgentSpace app and choose Install Helper.", comment: ""))
 
                 HStack {

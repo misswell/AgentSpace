@@ -68,21 +68,35 @@ public enum HelperInstallation {
 
     // MARK: - Binary identity
 
-    /// The CDHash of the *running* code, as the kernel sees it.
+    /// The CDHash of the *running* code, as the kernel holds it.
     ///
-    /// This is the hash of the loaded image, not of the file on disk — which is
-    /// exactly the distinction the reinstall prompt needs: after an app rebuild
-    /// the file is new while launchd's long-lived daemon process is still the
-    /// old image, and only the live CDHash tells those apart.
+    /// This deliberately does not go through the Security framework.
+    /// `SecCodeCopyStaticCode` resolves a process back to its backing *file* and
+    /// hashes that, so a daemon launchd kept alive across an app update reports
+    /// the hash of the new binary sitting at its path and swears it is current —
+    /// measured on the machine this exists to protect: the 12:00 helper answered
+    /// `selfCDHash` with the 19:24 build's hash, and the wizard believed it.
+    ///
+    /// `csops(CS_OPS_CDHASH)` asks the kernel, which still names the inode the
+    /// image was loaded from, and works for another process too — including a
+    /// root daemon called from the app. `CS_OPS_CDHASH` is 5, and the symbol has
+    /// no public header, so it is resolved from the already-loaded libsystem.
+    public static func runningImageCDHash(ofProcessID pid: pid_t) -> String? {
+        guard pid > 0, let symbol = dlsym(dlopen(nil, RTLD_NOW), "csops") else { return nil }
+        typealias Query = @convention(c) (pid_t, UInt32, UnsafeMutableRawPointer?, Int) -> Int32
+        // A code directory hash is 20 bytes (SHA-1).
+        let length = 20
+        var raw = [UInt8](repeating: 0, count: length)
+        let rc = raw.withUnsafeMutableBytes {
+            unsafeBitCast(symbol, to: Query.self)(pid, 5, $0.baseAddress, length)
+        }
+        guard rc == 0 else { return nil }
+        return raw.map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// The CDHash this process was actually loaded from.
     public static func currentProcessCDHash() -> String? {
-        var code: SecCode?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
-        // The signing information lives on the static code of the running
-        // image — the code directory as loaded, not a re-read of the file.
-        var staticCode: SecStaticCode?
-        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess,
-              let staticCode else { return nil }
-        return cdHash(of: staticCode)
+        runningImageCDHash(ofProcessID: getpid())
     }
 
     /// The CDHash a file *would* run with — the on-disk code directory.
@@ -192,10 +206,17 @@ public enum HelperInstallation {
     public static func inspect(ping: Bool = true) -> State {
         let response = ping ? reachesHelper() : nil
         let binary = helperBinary
+        // What the kernel says about the answering process beats what that
+        // process says about itself: a helper built before this fix measures
+        // itself by re-reading its own file and would report the new binary's
+        // hash. Either way the helper cannot make the check pass by lying.
+        let observedCDHash = response?.result?["pid"]?.intValue
+            .flatMap { runningImageCDHash(ofProcessID: pid_t(truncatingIfNeeded: $0)) }
+            ?? response?.result?["selfCDHash"]?.stringValue
         // Only a helper that actually answered can be judged stale; comparing
         // hashes with nothing on the other side would invent a verdict.
         let stale = response?.ok == true && isHelperStale(
-            reportedCDHash: response?.result?["selfCDHash"]?.stringValue,
+            reportedCDHash: observedCDHash,
             expectedCDHash: binary.flatMap { fileCDHash($0) })
         return State(
             plistInBundle: launchDaemonPlist,

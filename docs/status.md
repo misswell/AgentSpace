@@ -5,7 +5,7 @@ through [`AGENTS.md`](../AGENTS.md) at the repo root — or `CLAUDE.md`, which
 points at the same file — because that is the file agent tooling loads
 automatically; this document is the content.) It is the map: what the
 product is, what is done, what is left, and the conventions a change must not
-break. The exhaustive evidence lives in `docs/validation.md` (273 numbered
+break. The exhaustive evidence lives in `docs/validation.md` (274 numbered
 sections, each with claims and the tests that pin them); the product plan for
 the account vocabulary lives in `docs/v2-plan.md`. This file is the summary
 those two assume you already found.
@@ -106,9 +106,10 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
 | V2 account vocabulary: `AgentAccount` record, 2-step create wizard (the purpose picker left in §271 — nothing reads the field yet), Finder-style account cards, menu bar, "Open Desktop" | ✅ merged | `docs/v2-plan.md` §1–§9, §14–§16; validation §266, §271; §272 — the word "Space" is gone from every user-facing string; "agent" is the only noun, while the registry's `"spaces"` key, wire methods and deep links keep their old spellings |
 | CLI: `accounts`/`open`/`create account` (new) beside `list`/`desktop`/`create` (kept) | ✅ | validation §266; CLI smoke |
 | MCP: `agent_list/status/open_desktop/screenshot/click/type/launch/exec` beside the 14 `agentspace_*` tools | ✅ | `packages/agentspace-mcp`; `scripts/mcp-smoke.sh` |
-| Localization: English + Simplified Chinese, English source text as the key | ✅ 370 keys per table | `tests/Unit/LocalizationTests.swift` enforces parity and coverage |
+| Localization: English + Simplified Chinese, English source text as the key | ✅ 374 keys per table | `tests/Unit/LocalizationTests.swift` enforces parity, `NSLocalizedString` coverage and prose `Text("…")` literals |
 | Release pipeline: bundle → sign → DMG → notarize → staple | ✅ working | `scripts/release.sh`, `scripts/notarize.sh`; validation §57 |
 | Version visibility: every bundle stamps `CFBundleVersion` from git and the sidebar footer shows `Build 0.1.0 (<n>)`, so a stale copy is recognizable on screen | ✅ | `scripts/bundle-app.sh`, `AppModel.displayVersion`; validation §273; gui-verify pins footer == plist |
+| A running daemon's identity is read from the kernel (`csops` CDHash), never from the daemon's own reply, so an old helper cannot look current | ✅ | `HelperInstallation.runningImageCDHash(ofProcessID:)`; validation §274; `HelperInstallationTests` |
 
 ## 4. What is next
 
@@ -138,7 +139,16 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
    created **on this machine** — run the same wizard on a Mac without that
    gate, or get the helper's account creation allowlisted. If the card says
    the helper is an older build, press its "Reinstall Helper…" button once
-   (one password prompt) before creating.
+   (one password prompt) before creating. **It will say so on this machine**:
+   the daemon launchd has been serving since 12:00 predates the §272 wording,
+   and §270's check could not see it because it asked the old binary what it
+   was running and believed the answer (validation §274 — the check now reads
+   the kernel's view of the process, which cannot be talked out of it).
+   **The one experiment that decides where this product can run at all**: in
+   System Settings → Users & Groups, add a local user by hand. If macOS
+   refuses, no path on this machine creates accounts and the wizard needs a
+   different Mac; if it succeeds, the gate is per-process and the helper's
+   chain can be allowlisted.
 3. **(Only when rebuilding dist)** the notarization credential:
    `scripts/notarize.sh` defaults to the keychain profile `octoshrink-notary`
    (verified live 2026-09-19), falling back to the `asc` API key. The current
