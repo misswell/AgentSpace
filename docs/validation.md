@@ -7853,6 +7853,20 @@ and keeps the refresh responsive.
 | 515 | Directory Service hidden flags are read once and discovery fails closed if the query fails | pass | `AccountDiscovery.hiddenUsernames()` uses one `dscl . -list /Users IsHidden` call; `discover`/`find` return no candidates on command failure |
 | 516 | The real GUI can select AgentUse and advance to the review step | pass | Temporary rebuilt bundle: `macOSUserPicker` contained the account; selecting radio item 2 made `wizardContinue` enabled; `scripts/gui-verify.sh` 7/7 |
 
+## 281. 0.1.3 release gate for Directory Service discovery (2026-09-19)
+
+The release candidate was rebuilt after the discovery fix. On the affected
+machine the release GUI now lists the existing `AgentUse` account and the smoke
+script selects it before checking the review card. The notarized artifact and
+all three validation layers were then checked together.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 517 | The shipped GUI lists the existing AgentUse account instead of showing the empty state | pass | `scripts/gui-verify.sh`: picker selection, `wizard reaches the helper card`, 7 passed/0 failed |
+| 518 | The account-discovery fix does not regress the complete Swift suite | pass | `scripts/test.sh`: 360 tests passed; `AccountDiscoveryTests` includes the underscore-name and hidden-account cases |
+| 519 | MCP reports the matching patch version and its safety smoke checks pass | pass | `scripts/mcp-smoke.sh`: `agentspace 0.1.3`, 22 tools, all checks passed; `npm test` 23/23 |
+| 520 | The 0.1.3 app and exact DMG are notarized, stapled and Gatekeeper-clean | pass | `scripts/notarize.sh` and `scripts/check-all.sh`; `dist/AgentSpace.app` plus `dist/AgentSpace-0.1.3.dmg` |
+
 ## 279. Patch release after the empty-account fix (2026-09-19)
 
 The fix is shipped as 0.1.2. The exact versioned DMG was rebuilt from the
