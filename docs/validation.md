@@ -7835,3 +7835,16 @@ the empty-account actions instead of trusting a no-op click.
 | 506 | The empty state provides direct Users & Groups and Refresh accounts actions | pass | `NewAgentWizard` identifiers `openUsersGroupsButton` and `refreshAccountsButton`; temporary rebuilt bundle GUI verification 7/7 |
 | 507 | The name field is clearly an Agent display label and cannot be mistaken for macOS account creation | pass | Localized `Agent display name`, `Agent name` and label-only explanation in both `.lproj` tables |
 | 508 | The Continue footer states the missing prerequisite while preserving the V3 safety boundary | pass | `continueButtonHint` and disabled condition require a selected existing account; Swift 359/359 and MCP 23/23 pass |
+
+## 279. Patch release after the empty-account fix (2026-09-19)
+
+The fix is shipped as 0.1.2. The exact versioned DMG was rebuilt from the
+updated app, notarized and stapled; the final three-layer gate was rerun with
+the MCP bundle reporting the new version.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 509 | The 0.1.2 app and DMG are notarized, stapled and accepted by Gatekeeper | pass | `scripts/notarize.sh`: `dist/AgentSpace.app` and `dist/AgentSpace-0.1.2.dmg` |
+| 510 | The shipped patch passes all release layers after the wizard fix | pass | `scripts/check-all.sh`: Swift 359/359, MCP smoke, GUI 7/7 |
+| 511 | The release GUI no longer reports a disabled-button no-op as step 2 | pass | `scripts/gui-verify.sh`: `wizard: empty account state`, then dead-link check, 7 passed/0 failed |
+| 512 | MCP and package metadata are aligned to 0.1.2 | pass | Smoke output `agentspace 0.1.2`; `npm test` 23/23 |
