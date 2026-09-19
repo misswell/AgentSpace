@@ -109,7 +109,7 @@ final class SpaceModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         var registry = SpaceRegistry()
-        let space = AgentSpace(
+        let space = AgentAccount(
             name: "Frontend Test",
             username: "_agentspace_a37f91",
             uid: 502,
@@ -133,8 +133,8 @@ final class SpaceModelTests: XCTestCase {
     }
 
     func testResolveByNameUUIDAndCaseInsensitively() {
-        let space = AgentSpace(name: "Frontend Test", username: "_agentspace_a", uid: 502)
-        let other = AgentSpace(name: "Safari Test", username: "_agentspace_b", uid: 503)
+        let space = AgentAccount(name: "Frontend Test", username: "_agentspace_a", uid: 502)
+        let other = AgentAccount(name: "Safari Test", username: "_agentspace_b", uid: 503)
         let registry = SpaceRegistry(spaces: [space, other])
 
         XCTAssertEqual(try? registry.resolve("Frontend Test").get().id, space.id)
@@ -145,7 +145,7 @@ final class SpaceModelTests: XCTestCase {
 
     func testResolveUnknownNameListsWhatExists() {
         let registry = SpaceRegistry(spaces: [
-            AgentSpace(name: "Frontend Test", username: "_a", uid: 502),
+            AgentAccount(name: "Frontend Test", username: "_a", uid: 502),
         ])
         guard case .failure(let error) = registry.resolve("Nope") else {
             return XCTFail("should not resolve")
@@ -154,8 +154,8 @@ final class SpaceModelTests: XCTestCase {
     }
 
     func testResolveAmbiguousNameIsRefusedRatherThanGuessed() {
-        let a = AgentSpace(name: "Test", username: "_a", uid: 502)
-        let b = AgentSpace(name: "test", username: "_b", uid: 503)
+        let a = AgentAccount(name: "Test", username: "_a", uid: 502)
+        let b = AgentAccount(name: "test", username: "_b", uid: 503)
         let registry = SpaceRegistry(spaces: [a, b])
         guard case .failure(let error) = registry.resolve("TEST") else {
             return XCTFail("an ambiguous name must not resolve")
@@ -167,12 +167,12 @@ final class SpaceModelTests: XCTestCase {
         guard case .failure(let error) = SpaceRegistry().resolve("anything") else {
             return XCTFail("should not resolve")
         }
-        XCTAssertTrue(error.message.contains("no AgentSpace exists yet"), error.message)
+        XCTAssertTrue(error.message.contains("no agent accounts exist yet"), error.message)
     }
 
     func testUpsertReplacesRatherThanDuplicates() {
         var registry = SpaceRegistry()
-        var space = AgentSpace(name: "A", username: "_a", uid: 502)
+        var space = AgentAccount(name: "A", username: "_a", uid: 502)
         registry.upsert(space)
         space.name = "A renamed"
         registry.upsert(space)
@@ -182,7 +182,7 @@ final class SpaceModelTests: XCTestCase {
 
     func testRemove() {
         var registry = SpaceRegistry()
-        let space = AgentSpace(name: "A", username: "_a", uid: 502)
+        let space = AgentAccount(name: "A", username: "_a", uid: 502)
         registry.upsert(space)
         registry.remove(id: space.id)
         XCTAssertTrue(registry.spaces.isEmpty)
@@ -193,7 +193,7 @@ final class SpaceModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         var registry = SpaceRegistry()
-        registry.upsert(AgentSpace(name: "A", username: "_a", uid: 502))
+        registry.upsert(AgentAccount(name: "A", username: "_a", uid: 502))
         try registry.save(root: root)
 
         // Plan §9: the account password lives in the Keychain and the session
@@ -204,5 +204,61 @@ final class SpaceModelTests: XCTestCase {
             XCTAssertFalse(contents.lowercased().contains(forbidden),
                            "the registry contains '\(forbidden)'")
         }
+    }
+}
+
+
+// MARK: - plan(v2) §3/§5: AgentAccount vocabulary and purpose
+
+extension SpaceModelTests {
+
+    /// The registry JSON written by pre-V2 builds must decode unchanged: no
+    /// purpose, no migration step, no missing-field failure.
+    func testLegacyRegistryRecordDecodesAsAgentAccount() throws {
+        let legacy = """
+        {
+          "autoStartWorker" : true,
+          "createdAt" : "2026-09-01T00:00:00Z",
+          "id" : "1B2C3D4E-5F60-4A2B-8C3D-000000000001",
+          "name" : "Frontend Test",
+          "permissions" : { "accessibility" : false, "screenRecording" : false },
+          "sharedFolders" : [ ],
+          "state" : "needsLogin",
+          "uid" : 502,
+          "username" : "_agentspace_a1b2c3",
+          "workspace" : { "kind" : "none" }
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let account = try decoder.decode(AgentAccount.self, from: Data(legacy.utf8))
+        XCTAssertEqual(account.displayName, "Frontend Test")
+        XCTAssertEqual(account.macOSUsername, "_agentspace_a1b2c3")
+        XCTAssertEqual(account.status, .needsLogin)
+        XCTAssertNil(account.purpose)
+    }
+
+    func testPurposeRoundTripsAndOmitsWhenAbsent() throws {
+        var account = AgentAccount(name: "Coding Agent", username: "_agentspace_def123", uid: 503)
+        XCTAssertNil(account.purpose)
+        account.purpose = .development
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(account)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(object?["purpose"] as? String, "development")
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(AgentAccount.self, from: data)
+        XCTAssertEqual(decoded.purpose, .development)
+
+        // An account without a purpose must not carry the key at all, so the
+        // registry file does not grow a field for every old record it touches.
+        account.purpose = nil
+        let bare = try encoder.encode(account)
+        let bareObject = try JSONSerialization.jsonObject(with: bare) as? [String: Any]
+        XCTAssertNil(bareObject?["purpose"])
     }
 }

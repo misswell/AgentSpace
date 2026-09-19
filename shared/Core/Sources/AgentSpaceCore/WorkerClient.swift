@@ -134,11 +134,11 @@ public struct WorkerClient {
 
 /// Resolves a Space reference to everything needed to talk to its worker.
 public struct SpaceConnection {
-    public let space: AgentSpace
+    public let space: AgentAccount
     public let paths: RuntimePaths
     public let token: String?
 
-    public init(space: AgentSpace, socketPath: String? = nil) {
+    public init(space: AgentAccount, socketPath: String? = nil) {
         self.space = space
         self.paths = AgentSpaceEnvironment.paths(spaceID: space.id, socketPath: socketPath)
         self.token = TokenStore.read(from: self.paths.tokenPath)?.hex

@@ -27,9 +27,9 @@ public enum AgentSpaceEnvironment {
 /// the privileged helper) and read by the CLI and MCP, so all three agree on
 /// what exists without any of them being the owner.
 public struct SpaceRegistry: Codable, Sendable {
-    public var spaces: [AgentSpace]
+    public var spaces: [AgentAccount]
 
-    public init(spaces: [AgentSpace] = []) {
+    public init(spaces: [AgentAccount] = []) {
         self.spaces = spaces
     }
 
@@ -120,7 +120,7 @@ public struct SpaceRegistry: Codable, Sendable {
 
     /// Resolve a user-supplied reference: exact UUID, exact name, or a
     /// case-insensitive name match. Ambiguity is an error, never a guess.
-    public func resolve(_ reference: String) -> Result<AgentSpace, AgentSpaceError> {
+    public func resolve(_ reference: String) -> Result<AgentAccount, AgentSpaceError> {
         if let uuid = UUID(uuidString: reference),
            let match = spaces.first(where: { $0.id == uuid }) {
             return .success(match)
@@ -138,16 +138,16 @@ public struct SpaceRegistry: Codable, Sendable {
         if spaces.isEmpty {
             return .failure(AgentSpaceError(
                 code: .sessionNotReady,
-                message: "no AgentSpace exists yet. Create one in the AgentSpace app, or run `agentspace doctor` to see what this machine still needs."))
+                message: "no agent accounts exist yet. Create one in the AgentSpace app, or run `agentspace doctor` to see what this machine still needs."))
         }
         return .failure(AgentSpaceError(
             code: .sessionNotReady,
             message: "no AgentSpace named '\(reference)'. Known Spaces: \(spaces.map(\.name).joined(separator: ", "))"))
     }
 
-    public func first() -> AgentSpace? { spaces.first }
+    public func first() -> AgentAccount? { spaces.first }
 
-    public mutating func upsert(_ space: AgentSpace) {
+    public mutating func upsert(_ space: AgentAccount) {
         if let index = spaces.firstIndex(where: { $0.id == space.id }) {
             spaces[index] = space
         } else {

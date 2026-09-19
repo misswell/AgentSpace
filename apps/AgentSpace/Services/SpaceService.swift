@@ -9,7 +9,7 @@ import AgentSpaceCore
 /// them is how a GUI ends up showing a stale `ready` for a Space whose worker
 /// died ten minutes ago.
 struct SpaceSnapshot: Identifiable, Equatable {
-    var space: AgentSpace
+    var space: AgentAccount
     var workerOnline: Bool = false
     var workerPID: Int?
     var sessionVerdict: String?
@@ -77,7 +77,7 @@ final class SpaceService {
         try registry.save(root: root)
     }
 
-    func paths(for space: AgentSpace) -> RuntimePaths {
+    func paths(for space: AgentAccount) -> RuntimePaths {
         AgentSpaceEnvironment.paths(spaceID: space.id)
     }
 
@@ -88,7 +88,7 @@ final class SpaceService {
     /// Separate from `snapshot` because it walks every file in the home and can
     /// take hundreds of milliseconds — the ordinary 2–5 s status poll must not pay
     /// for it (§53). The disk figure is the only thing this returns.
-    func measureDisk(for space: AgentSpace, timeout: Double = 30) -> Result<ResourceUsage, AgentSpaceError> {
+    func measureDisk(for space: AgentAccount, timeout: Double = 30) -> Result<ResourceUsage, AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         guard connection.paths.socketPathFits else {
             return .failure(AgentSpaceError(
@@ -120,7 +120,7 @@ final class SpaceService {
             diskTruncated: resources["diskTruncated"]?.boolValue ?? false))
     }
 
-    func snapshot(for space: AgentSpace, includeResources: Bool = false, timeout: Double = 4) -> SpaceSnapshot {
+    func snapshot(for space: AgentAccount, includeResources: Bool = false, timeout: Double = 4) -> SpaceSnapshot {
         var snapshot = SpaceSnapshot(space: space)
         let connection = SpaceConnection(space: space)
         guard connection.paths.socketPathFits else {
@@ -196,7 +196,7 @@ final class SpaceService {
     /// launchd leaves a clean exit stopped: this is a real stop, not a
     /// crash-restart loop. The session (WindowServer, frames) stays up, so the
     /// next start is instant.
-    func stopWorker(for space: AgentSpace) -> Result<Bool, AgentSpaceError> {
+    func stopWorker(for space: AgentAccount) -> Result<Bool, AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         do {
             let response = try connection.client.call(
@@ -216,7 +216,7 @@ final class SpaceService {
     /// account and home. This is root-only (`launchctl bootout gui/<uid>`), so
     /// it goes through the privileged helper as a typed RPC and fails typed
     /// when the helper is not installed — never by trying to `sudo` anything.
-    func logoutDesktop(for space: AgentSpace) -> Result<Bool, AgentSpaceError> {
+    func logoutDesktop(for space: AgentAccount) -> Result<Bool, AgentSpaceError> {
         do {
             let response = try HelperClient.call(
                 HelperRequest(operation: .logoutSession, username: space.username, uid: space.uid))
@@ -234,7 +234,7 @@ final class SpaceService {
     /// Open the Space's live capture stream. Typed error untouched on failure —
     /// in particular a console-session Space refuses, and this view falls back
     /// to the screenshot MVP rather than trying anything local.
-    func previewStart(for space: AgentSpace, maxFPS: Int = 5) -> Result<Int, AgentSpaceError> {
+    func previewStart(for space: AgentAccount, maxFPS: Int = 5) -> Result<Int, AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         do {
             let response = try connection.client.call(
@@ -247,7 +247,7 @@ final class SpaceService {
     }
 
     /// Pull the newest frame as an image, ready for the viewer.
-    func previewFrame(for space: AgentSpace) -> Result<NSImage, AgentSpaceError> {
+    func previewFrame(for space: AgentAccount) -> Result<NSImage, AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         do {
             let response = try connection.client.call(
@@ -268,7 +268,7 @@ final class SpaceService {
 
     /// Close the stream. Safe to call when it never started: the worker's stop
     /// is idempotent by contract.
-    func previewStop(for space: AgentSpace) -> Result<Bool, AgentSpaceError> {
+    func previewStop(for space: AgentAccount) -> Result<Bool, AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         do {
             let response = try connection.client.call(
@@ -280,7 +280,7 @@ final class SpaceService {
         }
     }
 
-    func screenshot(for space: AgentSpace, maxWidth: Int?, inline: Bool) -> Result<ScreenshotResult, AgentSpaceError> {
+    func screenshot(for space: AgentAccount, maxWidth: Int?, inline: Bool) -> Result<ScreenshotResult, AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         var params: [String: JSONValue] = [:]
         if let maxWidth { params["maxWidth"] = .int(maxWidth) }
@@ -319,7 +319,7 @@ final class SpaceService {
     /// Deliberately takes a batch rather than one action: the plan's §14 wants
     /// agents to amortise the round trip, and the viewer uses the same entry point
     /// so it cannot drift from what an agent does.
-    func input(for space: AgentSpace, actions: [InputAction], timeout: Double = 10) -> AgentSpaceError? {
+    func input(for space: AgentAccount, actions: [InputAction], timeout: Double = 10) -> AgentSpaceError? {
         guard !actions.isEmpty else { return nil }
         let connection = SpaceConnection(space: space)
         let encoded = actions.map { $0.wireValue }
@@ -338,8 +338,41 @@ final class SpaceService {
         }
     }
 
+    // MARK: - App control (plan(v2) §10 groundwork)
+    //
+    // Thin wrappers over wire methods the CLI and MCP already speak. The
+    // runtime manager will build on these; nothing here decides policy.
+
+    /// Launch an app inside the agent's desktop session.
+    func launch(_ space: AgentAccount, app: String, timeout: Double = 30) -> AgentSpaceError? {
+        call(space, AgentSpaceCore.Method.launch, ["app": .string(app)], timeout: timeout)
+    }
+
+    /// Bring an already-running app to the front of the agent's desktop.
+    func activate(_ space: AgentAccount, app: String, timeout: Double = 10) -> AgentSpaceError? {
+        call(space, AgentSpaceCore.Method.activate, ["app": .string(app)], timeout: timeout)
+    }
+
+    /// Ask an app in the agent's desktop to quit.
+    func quit(_ space: AgentAccount, app: String, force: Bool = false, timeout: Double = 10) -> AgentSpaceError? {
+        call(space, force ? AgentSpaceCore.Method.forceQuit : AgentSpaceCore.Method.quit, ["app": .string(app)], timeout: timeout)
+    }
+
+    private func call(_ space: AgentAccount, _ method: String, _ params: JSONValue, timeout: Double) -> AgentSpaceError? {
+        let connection = SpaceConnection(space: space)
+        do {
+            let response = try connection.client.call(
+                method: method, params: params, token: connection.token, timeout: timeout)
+            return response.error
+        } catch {
+            return AgentSpaceError(
+                code: .workerOffline,
+                message: "no worker is answering for '\(space.name)': \(error)")
+        }
+    }
+
     /// The apps running inside the Space.
-    func apps(for space: AgentSpace) -> Result<[AppEntry], AgentSpaceError> {
+    func apps(for space: AgentAccount) -> Result<[AppEntry], AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         do {
             let response = try connection.client.call(method: Method.apps, token: connection.token)

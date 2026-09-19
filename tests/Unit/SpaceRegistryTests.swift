@@ -18,8 +18,8 @@ final class SpaceRegistryTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(atPath: self.root) }
     }
 
-    private func makeSpace(_ name: String) -> AgentSpace {
-        AgentSpace(name: name, username: "_agentspace_" + String(UUID().uuidString.prefix(6)).lowercased(), uid: 502)
+    private func makeSpace(_ name: String) -> AgentAccount {
+        AgentAccount(name: name, username: "_agentspace_" + String(UUID().uuidString.prefix(6)).lowercased(), uid: 502)
     }
 
     // MARK: - The happy path still works

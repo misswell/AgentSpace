@@ -39,19 +39,23 @@ public enum SpaceState: String, Codable, Sendable, CaseIterable {
 
     /// Human-facing label, used by the CLI and the dashboard.
     ///
-    /// `NSLocalizedString` resolves against the main bundle: the GUI ships
-    /// translated tables and shows these in the user's language; the CLI and
-    /// worker carry no tables, so the lookup falls back to the key — the
-    /// English text — unchanged.
+    /// V2 vocabulary (plan(v2) §20): the states keep their registry
+    /// rawValues; only the words change. `offline` reads as **Sleeping**
+    /// because `SpaceState.effective` only yields it when a desktop session
+    /// is alive underneath — an account with no session shows as first
+    /// login required instead. The one imprecision: when the session lookup
+    /// itself failed, an account may read Sleeping while its session state
+    /// is actually unknown; recorded in validation §63 rather than guessed
+    /// at with a new state.
     public var displayName: String {
         switch self {
-        case .created: return NSLocalizedString("Created", comment: "")
-        case .needsLogin: return NSLocalizedString("Needs Login", comment: "")
-        case .needsPermission: return NSLocalizedString("Needs Permission", comment: "")
+        case .created: return NSLocalizedString("Creating", comment: "")
+        case .needsLogin: return NSLocalizedString("First login required", comment: "")
+        case .needsPermission: return NSLocalizedString("Permissions needed", comment: "")
         case .ready: return NSLocalizedString("Ready", comment: "")
         case .running: return NSLocalizedString("Running", comment: "")
-        case .offline: return NSLocalizedString("Offline", comment: "")
-        case .console: return NSLocalizedString("On Console", comment: "")
+        case .offline: return NSLocalizedString("Sleeping", comment: "")
+        case .console: return NSLocalizedString("On your display", comment: "")
         case .error: return NSLocalizedString("Error", comment: "")
         }
     }
@@ -196,11 +200,51 @@ public enum Workspace: Codable, Equatable, Sendable {
     }
 }
 
-/// The persisted record for one Space (plan §26).
-public struct AgentSpace: Codable, Equatable, Sendable, Identifiable {
+/// What the account is for — the create wizard's second step (plan(v2) §5).
+///
+/// Stored on the record and shown in the UI. A purpose has no behavioral
+/// effect yet; the per-purpose templates that will read it are the runtime
+/// manager's job (plan(v2) §10/§11, next round). The raw value is the
+/// registry/wire spelling, so it must stay stable.
+public enum AgentPurpose: String, Codable, Sendable, CaseIterable {
+    case development
+    case testing
+    case browser
+    case research
+    case custom
+
+    public var displayName: String {
+        switch self {
+        case .development: return NSLocalizedString("Development", comment: "")
+        case .testing: return NSLocalizedString("Testing", comment: "")
+        case .browser: return NSLocalizedString("Browser Automation", comment: "")
+        case .research: return NSLocalizedString("Research", comment: "")
+        case .custom: return NSLocalizedString("Custom", comment: "")
+        }
+    }
+
+    public var summary: String {
+        switch self {
+        case .development: return NSLocalizedString("Coding, building and running tests in its own worktree.", comment: "")
+        case .testing: return NSLocalizedString("QA and GUI testing against real apps.", comment: "")
+        case .browser: return NSLocalizedString("Web automation in its own browser profile.", comment: "")
+        case .research: return NSLocalizedString("Browsing, reading and collecting material.", comment: "")
+        case .custom: return NSLocalizedString("Everything else — you configure it.", comment: "")
+        }
+    }
+}
+
+/// The persisted record for one agent account (plan §26, reworded by
+/// plan(v2) §3: what the user owns is an **agent account** — a real macOS
+/// user with its own desktop session and, later, runtime).
+///
+/// The stored field names (`name`, `username`, `state`) are the registry's
+/// on-disk spelling and do not change with the product vocabulary; the
+/// computed aliases below give call sites the V2 words without a migration.
+public struct AgentAccount: Codable, Equatable, Sendable, Identifiable {
     public var id: UUID
     public var name: String
-    /// The platform account this Space drives, e.g. `_agentspace_a37f91`.
+    /// The platform account this account drives, e.g. `_agentspace_a37f91`.
     public var username: String
     public var uid: uid_t
     public var state: SpaceState
@@ -210,6 +254,9 @@ public struct AgentSpace: Codable, Equatable, Sendable, Identifiable {
     public var sharedFolders: [SharedFolder]
     public var permissions: PermissionState
     public var autoStartWorker: Bool
+    /// What the user said this agent is for. Absent in records created
+    /// before plan(v2) §5; decoded as nil there.
+    public var purpose: AgentPurpose?
 
     public init(
         id: UUID = UUID(),
@@ -222,7 +269,8 @@ public struct AgentSpace: Codable, Equatable, Sendable, Identifiable {
         workspace: Workspace = .none,
         sharedFolders: [SharedFolder] = [],
         permissions: PermissionState = PermissionState(),
-        autoStartWorker: Bool = true
+        autoStartWorker: Bool = true,
+        purpose: AgentPurpose? = nil
     ) {
         self.id = id
         self.name = name
@@ -235,6 +283,41 @@ public struct AgentSpace: Codable, Equatable, Sendable, Identifiable {
         self.sharedFolders = sharedFolders
         self.permissions = permissions
         self.autoStartWorker = autoStartWorker
+        self.purpose = purpose
+    }
+
+    // V2 vocabulary aliases (plan(v2) §3). Computed, never encoded: the
+    // registry keeps the original keys.
+    /// What the user calls this account ("Coding Agent").
+    public var displayName: String { name }
+    /// The dedicated macOS user behind the account.
+    public var macOSUsername: String { username }
+    /// V2 spelling of `state`.
+    public var status: SpaceState { state }
+}
+
+extension AgentAccount {
+    /// The registry's on-disk JSON spells the type `AgentSpace`; decoding old
+    /// records as `AgentAccount` must keep working unchanged (plan(v2) §3's
+    /// compatibility rule).
+    public init(from decoder: Decoder) throws {
+        enum Keys: String, CodingKey {
+            case id, name, username, uid, state, createdAt, lastStartedAt
+            case workspace, sharedFolders, permissions, autoStartWorker, purpose
+        }
+        let c = try decoder.container(keyedBy: Keys.self)
+        self.id = try c.decode(UUID.self, forKey: .id)
+        self.name = try c.decode(String.self, forKey: .name)
+        self.username = try c.decode(String.self, forKey: .username)
+        self.uid = try c.decode(uid_t.self, forKey: .uid)
+        self.state = try c.decode(SpaceState.self, forKey: .state)
+        self.createdAt = try c.decode(Date.self, forKey: .createdAt)
+        self.lastStartedAt = try c.decodeIfPresent(Date.self, forKey: .lastStartedAt)
+        self.workspace = try c.decodeIfPresent(Workspace.self, forKey: .workspace) ?? .none
+        self.sharedFolders = try c.decodeIfPresent([SharedFolder].self, forKey: .sharedFolders) ?? []
+        self.permissions = try c.decodeIfPresent(PermissionState.self, forKey: .permissions) ?? PermissionState()
+        self.autoStartWorker = try c.decodeIfPresent(Bool.self, forKey: .autoStartWorker) ?? true
+        self.purpose = try c.decodeIfPresent(AgentPurpose.self, forKey: .purpose)
     }
 }
 

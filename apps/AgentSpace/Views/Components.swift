@@ -151,29 +151,104 @@ struct RefusalBanner: View {
     }
 }
 
-/// The empty state before any Space exists. It has to explain the one fact that
-/// makes AgentSpace different from every other tool with a "New" button: making a
-/// Space makes a macOS user, which needs an administrator.
+/// The empty state before any agent account exists. It has to explain the one
+/// fact that makes AgentSpace different from every other tool with a "New"
+/// button: making an agent account makes a real macOS user, which needs an
+/// administrator.
 struct EmptyStateView: View {
     var onCreate: () -> Void
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "rectangle.on.rectangle.angled")
+            Image(systemName: "person.2.crop.square")
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(.secondary)
-            Text(NSLocalizedString("No Agent Spaces", comment: ""))
+            Text(NSLocalizedString("No agent accounts", comment: ""))
                 .font(.title3.weight(.semibold))
-            Text(NSLocalizedString("An Agent Space is a separate macOS user with its own desktop, so an agent can work without touching your keyboard, mouse or screen.", comment: ""))
+            Text(NSLocalizedString("An agent account is a dedicated macOS user with its own desktop, so the agent can browse, code and test without touching your keyboard, mouse or screen.", comment: ""))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
-            Button(NSLocalizedString("Create Agent Space…", comment: ""), action: onCreate)
+            Button(NSLocalizedString("New Agent…", comment: ""), action: onCreate)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
+    }
+}
+
+/// The Finder-style home (plan(v2) §4/§14): every agent account as a card with
+/// its status, its macOS user and the one action people actually want. Shown
+/// in the detail column whenever no specific account is selected.
+struct AgentCardGrid: View {
+    var snapshots: [SpaceSnapshot]
+    var onSelect: (UUID) -> Void
+    var onOpenDesktop: (SpaceSnapshot) -> Void
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 250, maximum: 360), spacing: 14)],
+                spacing: 14) {
+                ForEach(snapshots) { snapshot in
+                    AgentCard(snapshot: snapshot, onSelect: onSelect, onOpenDesktop: onOpenDesktop)
+                }
+            }
+            .padding(18)
+        }
+    }
+}
+
+private struct AgentCard: View {
+    var snapshot: SpaceSnapshot
+    var onSelect: (UUID) -> Void
+    var onOpenDesktop: (SpaceSnapshot) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                StatusDot(state: snapshot.effectiveState)
+                Text(snapshot.space.displayName)
+                    .font(.title3.weight(.semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            if let purpose = snapshot.space.purpose {
+                Text(purpose.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Field(label: NSLocalizedString("macOS User", comment: ""),
+                  value: snapshot.space.macOSUsername, monospaced: true)
+            Field(label: NSLocalizedString("Desktop", comment: ""),
+                  value: snapshot.effectiveState.displayName)
+            HStack(spacing: 8) {
+                Button(NSLocalizedString("Open Desktop", comment: "")) {
+                    onOpenDesktop(snapshot)
+                }
+                .controlSize(.small)
+                .disabled(snapshot.display == nil)
+                Button(NSLocalizedString("Details", comment: "")) {
+                    onSelect(snapshot.space.id)
+                }
+                .controlSize(.small)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 2)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1))
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onTapGesture { onSelect(snapshot.space.id) }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(snapshot.space.displayName)
     }
 }

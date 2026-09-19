@@ -118,7 +118,7 @@ final class CLIHarness {
     }
 
     /// Seed the registry this root's CLI runs will load.
-    func seed(_ spaces: [AgentSpace]) throws {
+    func seed(_ spaces: [AgentAccount]) throws {
         try SpaceRegistry(spaces: spaces).save(root: root)
     }
 
@@ -241,8 +241,8 @@ final class CLIIntegrationTests: XCTestCase {
         return harness
     }
 
-    private func makeSpace(_ name: String, state: SpaceState = .needsLogin) -> AgentSpace {
-        AgentSpace(
+    private func makeSpace(_ name: String, state: SpaceState = .needsLogin) -> AgentAccount {
+        AgentAccount(
             name: name,
             username: "_agentspace_" + String(UUID().uuidString.prefix(6)).lowercased(),
             uid: 502,
@@ -304,7 +304,7 @@ final class CLIIntegrationTests: XCTestCase {
     // MARK: - Through a live worker
 
     /// Seed a registry entry and start a real worker for it. Returns (cli, token).
-    private func liveSpace(_ name: String) throws -> (CLIHarness, SessionToken, AgentSpace) {
+    private func liveSpace(_ name: String) throws -> (CLIHarness, SessionToken, AgentAccount) {
         let cli = try harness()
         let space = makeSpace(name)
         try cli.seed([space])

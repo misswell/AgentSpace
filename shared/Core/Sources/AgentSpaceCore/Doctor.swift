@@ -248,7 +248,7 @@ public enum Doctor {
     /// Per-Space checks: the worker itself plus the two TCC grants §38 wants
     /// named — asked *of the worker*, not of this console process, whose grants
     /// are a different question entirely (the advisory check above).
-    private static func workerChecks(for space: AgentSpace, root resolvedRoot: String) -> [Check] {
+    private static func workerChecks(for space: AgentAccount, root resolvedRoot: String) -> [Check] {
         // The overridden root must reach *every* path this check derives: a
         // doctor run against a harness (or a non-default) root that quietly
         // looked at the default runtime would report the wrong machine.

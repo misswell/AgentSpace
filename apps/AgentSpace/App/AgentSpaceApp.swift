@@ -13,7 +13,7 @@ struct RootView: View {
             SpaceDetailView()
         }
         .sheet(isPresented: $model.showingNewSpace) {
-            NewSpaceView().environmentObject(model)
+            NewAgentWizard().environmentObject(model)
         }
         // Provisioning is a sheet rather than a spinner because creating a Space
         // makes real changes to the machine, and if a step fails the user needs to
@@ -43,6 +43,17 @@ struct RootView: View {
 @main
 struct AgentSpaceApp: App {
     @StateObject private var model = AppModel()
+
+    /// Bring the main window forward, optionally selecting one account.
+    /// The menu bar must not rely on SwiftUI's window-management APIs here:
+    /// activating the app and ordering the WindowGroup's window front is the
+    /// whole job, and it works whether or not the window is already open.
+    private func showMainWindow(selecting id: UUID? = nil) {
+        if let id { model.selection = id }
+        NSApp.activate(ignoringOtherApps: true)
+        let window = NSApp.windows.first { $0.toolbar != nil || $0.title == "AgentSpace" }
+        window?.makeKeyAndOrderFront(nil)
+    }
     // The deep link arrives through the AppKit open-documents path, not
     // through `.onOpenURL`: when LaunchServices re-delivers a backlog of
     // agentspace:// events at launch, the scene-level modifier can end up on
@@ -63,9 +74,33 @@ struct AgentSpaceApp: App {
                 .frame(minWidth: 860, minHeight: 560)
         }
         .windowToolbarStyle(.unified)
+        // The menu bar (plan(v2) §15): every agent account and its status,
+        // plus the three things the main window is opened for. Reads the same
+        // AppModel the window uses, so one refresh serves both.
+        MenuBarExtra {
+            ForEach(model.snapshots) { snapshot in
+                Button {
+                    showMainWindow(selecting: snapshot.space.id)
+                } label: {
+                    Text(snapshot.space.displayName + " — " + snapshot.effectiveState.displayName)
+                }
+            }
+            if !model.snapshots.isEmpty { Divider() }
+            Button(NSLocalizedString("Open AgentSpace", comment: "")) {
+                showMainWindow()
+            }
+            Button(NSLocalizedString("Settings…", comment: "")) {
+                showMainWindow()
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            }
+            Divider()
+            Button(NSLocalizedString("Quit AgentSpace", comment: "")) { NSApp.terminate(nil) }
+        } label: {
+            Image(systemName: "person.2.crop.square.stack")
+        }
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("New Agent Space…") { model.showingNewSpace = true }
+                Button(NSLocalizedString("New Agent…", comment: "")) { model.showingNewSpace = true }
                     .keyboardShortcut("n", modifiers: .command)
             }
             CommandGroup(after: .toolbar) {

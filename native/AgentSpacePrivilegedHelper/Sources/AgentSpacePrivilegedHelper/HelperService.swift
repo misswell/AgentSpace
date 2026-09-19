@@ -173,7 +173,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
             "username": .string(username),
             "uid": .int(Int(uid)),
             "home": .string(AccountDirectory.homeDirectory(of: username) ?? "/Users/\(username)"),
-            // Stated explicitly so a caller never has to infer it: AgentSpace
+            // Stated explicitly so a caller never has to infer it: AgentAccount
             // accounts are never administrators. Plan §8.
             "isAdmin": .bool(false),
         ]))
