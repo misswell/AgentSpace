@@ -7446,3 +7446,54 @@ user in the app's UI, which is exactly the surface this section fixed.
 | 453 | launchd keeps the old helper across an app rebuild; Doctor now offers the swap as a button | pass | §269 — pid 11183 pre-fix helper failing a create hours after the fix; Doctor.swift reinstallHelper hint, DoctorView + AppModel.reinstallHelper |
 | 454 | The wizard no longer dead-locks the Create button behind an un-presentable sheet | pass | §269 — NewAgentWizard overlay; repro: failed create → reopen wizard → helper green, button unclickable |
 | 455 | Second orphan `_agentspace_1869f4` produced by the pre-fix helper's lying rollback | recorded | §269 — HELPER_REJECTED screenshot of the failed create; old undo path per §265 |
+
+---
+
+## 270. The interface that lied green: stale-helper detection by running-image CDHash
+
+The user retried the create twice more (09:56 and 09:57) while the wizard's
+helper card read "installed and answering (version 0.1.0)". Both attempts
+were served by pid 11183 — the pre-fix helper still running since 00:26 —
+and both failed with the same `posix_spawn failed (2)`. The card was not
+wrong about the *daemon*; it was wrong about the *binary*: `version 0.1.0`
+is the version string, identical across rebuilds, and the wizard's
+"安装助手…" (`SMAppService.register`) is a no-op while the old process
+lives. The UI had no way to tell "answering" from "answering with the
+current code", so it sent the user into the same failure three times.
+
+The distinction is now made mechanically:
+
+- The helper's **ping** reports `selfCDHash` — the CDHash of the *running
+  image* (`SecCodeCopySelf` → `SecCodeCopyStaticCode` → `kSecCodeInfoUnique`),
+  not a hash of the file on disk, which would be identical for both and
+  prove nothing. Additive field; `protocolVersion` stays 1.
+- The app compares it against the bundled helper's on-disk code directory
+  (`SecStaticCodeCreateWithPath`). A helper that predates the field reports
+  nothing, and silence is treated as stale — the honest default, since
+  only an old binary omits it.
+- While stale: the wizard's helper card shows a `HELPER_OUTDATED` refusal
+  with the **Reinstall Helper…** button (the same swap Doctor offers), the
+  Create button is disabled with a help line that says why, and
+  `Doctor.helperCheck` warns instead of passing.
+
+The rollback path also proved itself this round: both failed creates
+(`_agentspace_1869f4`, `_agentspace_5556ba`) left **no** orphans —
+`dscl` shows only `_agentspace_a5b707` again. The old helper's plain
+`sysadminctl -deleteUser` (no `-secure`) evidently succeeded where the
+earlier §265 attempt had not; the surviving orphan remains the one from
+before that code path existed.
+
+Recorded honestly, unfixed by design: the CLI's ping is refused by the
+helper's caller requirement (it allows only the app and helper identifiers),
+so `agentspace doctor` reports the helper as "not answering" even while it
+answers the app. The CLI's orphan/doctor surfaces remain correct about
+everything they can see; the app is the trusted surface for helper state.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 456 | Two more creates were served by the pre-fix helper while the UI said "installed and answering" | recorded | §270 — helper log 09:56:30 and 09:57:23, pid 11183, both `posix_spawn failed (2)` |
+| 457 | The stale verdict compares running images, not files on disk | pass | §270 — HelperInstallation.currentProcessCDHash/fileCDHash; HelperInstallationTests (4 tests, incl. self-hash agreement on the test binary); 377 Swift green |
+| 458 | A helper that does not report selfCDHash is treated as stale | pass | §270 — isHelperStale unit tests; bundled helper CDHash 21eca314… differs from the running old one |
+| 459 | While stale the wizard disables Create and offers Reinstall Helper as the one fix | pass | §270 — NewAgentWizard HelperCard HELPER_OUTDATED branch; Doctor warn branch |
+| 460 | Both retried creates rolled back cleanly; only `_agentspace_a5b707` remains | pass | §270 — `dscl . -list /Users` after 09:57 |
+| 461 | The CLI cannot ping the helper (caller requirement) and so reports "not answering" | recorded | §270 — helper refused pid 7071; requirement names only the app/helper identifiers |

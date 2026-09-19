@@ -373,3 +373,8 @@
 "Open AgentSpace" = "打开 AgentSpace";
 "Settings…" = "设置…";
 "Quit AgentSpace" = "退出 AgentSpace";
+"installed and answering, but running an older build" = "已安装且有响应，但运行的是旧版本";
+"The app keeps a “Reinstall Helper” button in Doctor for exactly this: it stops the old daemon and registers the one inside this app." = "应用正是为此在「诊断」里保留了「重新安装助手…」按钮：它会停掉旧守护进程，并注册本应用内的新版本。";
+"The running helper is an older build; reinstall it in the card below before creating." = "正在运行的助手是旧版本；请先用下方卡片中的按钮重新安装，再创建。";
+"The helper that answers is an older build than this app" = "应答的助手是比本应用更旧的版本";
+"Reinstall the helper below. macOS will ask for your password once: it stops the old daemon and registers the current one." = "请在下方重新安装助手。macOS 只会询问一次密码：作用是停掉旧守护进程并注册当前版本。";

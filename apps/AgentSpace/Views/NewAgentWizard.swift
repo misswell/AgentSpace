@@ -59,6 +59,19 @@ struct NewAgentWizard: View {
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
 
+    /// Why the Create button is or is not armed — the stale-helper case needs
+    /// its own sentence because "installed and answering" would be a lie: the
+    /// answering process is the pre-update binary launchd kept alive.
+    private var createButtonHelp: String {
+        if !model.helperState.isReachable {
+            return NSLocalizedString("The privileged helper must be installed and answering first.", comment: "")
+        }
+        if model.helperState.isStaleBinary {
+            return NSLocalizedString("The running helper is an older build; reinstall it in the card below before creating.", comment: "")
+        }
+        return NSLocalizedString("Create the agent's macOS user, runtime and worker.", comment: "")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -106,11 +119,10 @@ struct NewAgentWizard: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(!model.helperState.isReachable
+                              || model.helperState.isStaleBinary
                               || trimmedName.isEmpty
                               || model.provisioning != nil)
-                    .help(Text(model.helperState.isReachable
-                          ? NSLocalizedString("Create the agent's macOS user, runtime and worker.", comment: "")
-                          : NSLocalizedString("The privileged helper must be installed and answering first.", comment: "")))
+                    .help(Text(createButtonHelp))
                 }
             }
             .padding(14)
@@ -243,7 +255,8 @@ struct HelperCard: View {
     var body: some View {
         Card(title: NSLocalizedString("Privileged helper", comment: "")) {
             HStack(spacing: 8) {
-                StatusDot(state: model.helperState.isReachable ? .ready : .needsPermission)
+                StatusDot(state: model.helperState.isReachable && !model.helperState.isStaleBinary
+                    ? .ready : .needsPermission)
                 Text(model.helperState.summary)
                     .font(.callout.weight(.medium))
                 Spacer()
@@ -253,7 +266,29 @@ struct HelperCard: View {
                 Field(label: NSLocalizedString("Version", comment: ""), value: version)
             }
 
-            if model.helperState.isReachable {
+            if model.helperState.isReachable, model.helperState.isStaleBinary {
+                // The trap this removes: the card used to read "installed and
+                // answering" in green while launchd served the pre-update
+                // binary, so every create failed identically and the Install
+                // button — a no-op on a registered daemon — looked like it had
+                // been ignored. Say what is running, and offer the one swap.
+                RefusalBanner(
+                    title: NSLocalizedString("The helper that answers is an older build than this app", comment: ""),
+                    code: "HELPER_OUTDATED",
+                    message: "launchd keeps a registered daemon's process running across app updates, so the version inside this app has never started. Creating an account would run the old code and fail the way it always has.",
+                    fix: NSLocalizedString("Reinstall the helper below. macOS will ask for your password once: it stops the old daemon and registers the current one.", comment: ""))
+
+                Button {
+                    model.reinstallHelper()
+                } label: {
+                    if model.isInstallingHelper {
+                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text(NSLocalizedString("Reinstalling…", comment: "")) }
+                    } else {
+                        Text(NSLocalizedString("Reinstall Helper…", comment: ""))
+                    }
+                }
+                .disabled(model.isInstallingHelper)
+            } else if model.helperState.isReachable {
                 Text("The helper is installed and answering. Creating an agent account will make a standard (never administrator) macOS user named _agentspace_<6 hex>, a runtime directory, and a LaunchAgent for its worker.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

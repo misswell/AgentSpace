@@ -42,13 +42,21 @@ final class HelperService: NSObject, HelperXPCProtocol {
     }
 
     func ping(withReply reply: @escaping (Data) -> Void) {
-        let response = HelperResponse(id: "ping", result: .obj([
+        var result: [String: JSONValue] = [
             "helperVersion": .string(helperVersion),
             "protocolVersion": .int(agentSpaceProtocolVersion),
             "isRoot": .bool(geteuid() == 0),
             "pid": .int(Int(getpid())),
             "requirement": .string(CodeSigningRequirement.enforcedRequirement),
-        ]))
+        ]
+        // The CDHash of the *running image*, so the caller can tell whether
+        // launchd is serving it the current binary or one kept alive across an
+        // app update. Omitted only when the Security framework could not read
+        // itself, which the caller treats as "old helper" — the honest default.
+        if let cdHash = HelperInstallation.currentProcessCDHash() {
+            result["selfCDHash"] = .string(cdHash)
+        }
+        let response = HelperResponse(id: "ping", result: .obj(result))
         reply((try? JSONEncoder().encode(response)) ?? Data())
     }
 

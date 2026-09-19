@@ -382,6 +382,18 @@ public enum Doctor {
     /// answer?
     static func helperCheck() -> Check {
         let state = HelperInstallation.inspect()
+        if state.isReachable, state.isStaleBinary {
+            // Answering is not the same as current: launchd keeps the previous
+            // daemon's process running across an app update, and re-registering
+            // is a no-op while it lives. The CDHash comparison says so out loud,
+            // and the reinstall button is the one fix — never a terminal command.
+            return Check(
+                name: NSLocalizedString("Privileged helper", comment: ""),
+                status: .warn,
+                detail: "answering, but running an older build than this app.",
+                fix: state.fix,
+                actionHint: "reinstallHelper")
+        }
         if state.isReachable {
             return Check(
                 name: NSLocalizedString("Privileged helper", comment: ""),

@@ -373,3 +373,8 @@
 "Open AgentSpace" = "Open AgentSpace";
 "Settings…" = "Settings…";
 "Quit AgentSpace" = "Quit AgentSpace";
+"installed and answering, but running an older build" = "installed and answering, but running an older build";
+"The app keeps a “Reinstall Helper” button in Doctor for exactly this: it stops the old daemon and registers the one inside this app." = "The app keeps a “Reinstall Helper” button in Doctor for exactly this: it stops the old daemon and registers the one inside this app.";
+"The running helper is an older build; reinstall it in the card below before creating." = "The running helper is an older build; reinstall it in the card below before creating.";
+"The helper that answers is an older build than this app" = "The helper that answers is an older build than this app";
+"Reinstall the helper below. macOS will ask for your password once: it stops the old daemon and registers the current one." = "Reinstall the helper below. macOS will ask for your password once: it stops the old daemon and registers the current one.";
