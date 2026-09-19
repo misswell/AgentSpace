@@ -7817,3 +7817,21 @@ depend on developer tooling being accidentally selected.
 | 502 | GUI verification reaches the wizard, validates the build stamp and catches dead links | pass | `scripts/gui-verify.sh`: 7 passed, 0 failed |
 | 503 | The shipped app and exact versioned DMG are notarized, stapled and Gatekeeper-clean | pass | `scripts/notarize.sh`: `dist/AgentSpace.app` and `dist/AgentSpace-0.1.1.dmg`; `spctl` accepted both |
 | 504 | CLI workspace preparation remains deterministic when PATH is restricted | pass | `WorkspacePreparer.resolveGitExecutable` selects `/usr/bin/git`; the system-PATH Swift run passed all 359 tests |
+
+## 278. Empty account selection is actionable (2026-09-19)
+
+The reported “Continue does nothing” state was reproduced on this Mac. The
+typed name in the screenshot is the Agent label, not a macOS username; the
+machine had no unattached standard `/Users` account to attach. The old GUI
+smoke test clicked a disabled button and unconditionally called that “step 2”,
+which hid the real state. The wizard now labels the field explicitly, explains
+that it cannot create an account, and offers direct links to Users & Groups and
+an account refresh. The smoke test verifies the actual accessibility state and
+the empty-account actions instead of trusting a no-op click.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 505 | A missing attach candidate is reported as an empty-account state, not as a false transition to step 2 | pass | `scripts/gui-verify.sh` first failed with `account selection required`; after the fix it reports `empty account state` and checks both action identifiers |
+| 506 | The empty state provides direct Users & Groups and Refresh accounts actions | pass | `NewAgentWizard` identifiers `openUsersGroupsButton` and `refreshAccountsButton`; temporary rebuilt bundle GUI verification 7/7 |
+| 507 | The name field is clearly an Agent display label and cannot be mistaken for macOS account creation | pass | Localized `Agent display name`, `Agent name` and label-only explanation in both `.lproj` tables |
+| 508 | The Continue footer states the missing prerequisite while preserving the V3 safety boundary | pass | `continueButtonHint` and disabled condition require a selected existing account; Swift 359/359 and MCP 23/23 pass |

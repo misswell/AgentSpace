@@ -412,6 +412,14 @@
 "Disconnecting %@" = "Disconnecting %@";
 "Disconnecting removes the AgentSpace worker and runtime. The existing macOS account and its home are always kept." = "Disconnecting removes the AgentSpace worker and runtime. The existing macOS account and its home are always kept.";
 "No unattached standard users were found. Add one in System Settings → Users & Groups, then return here." = "No unattached standard users were found. Add one in System Settings → Users & Groups, then return here.";
+"Open Users & Groups" = "Open Users & Groups";
+"Refresh accounts" = "Refresh accounts";
+"Agent display name" = "Agent display name";
+"Agent name" = "Agent name";
+"The name below is a label only; it does not create a macOS account." = "The name below is a label only; it does not create a macOS account.";
+"Select an existing macOS account before continuing." = "Select an existing macOS account before continuing.";
+"Enter an Agent display name before continuing." = "Enter an Agent display name before continuing.";
+"Continue to review the connection." = "Continue to review the connection.";
 "Open Fast User Switching (Control Centre) and sign in to the connected account with its existing password." = "Open Fast User Switching (Control Centre) and sign in to the connected account with its existing password.";
 "Sign in as “%@”" = "Sign in as “%@”";
 "launchd keeps a registered daemon's process running across app updates, so the version inside this app has never started. Connecting an account would run the old code." = "launchd keeps a registered daemon's process running across app updates, so the version inside this app has never started. Connecting an account would run the old code.";

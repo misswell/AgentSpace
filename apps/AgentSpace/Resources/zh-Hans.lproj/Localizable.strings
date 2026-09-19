@@ -412,6 +412,14 @@
 "Disconnecting %@" = "正在断开 %@";
 "Disconnecting removes the AgentSpace worker and runtime. The existing macOS account and its home are always kept." = "断开连接会移除 AgentSpace worker 和运行时；现有 macOS 账号及其家目录始终保留。";
 "No unattached standard users were found. Add one in System Settings → Users & Groups, then return here." = "未找到尚未连接的标准用户。请先在「系统设置 → 用户与群组」中添加，然后返回这里。";
+"Open Users & Groups" = "打开“用户与群组”";
+"Refresh accounts" = "刷新账号列表";
+"Agent display name" = "Agent 显示名称";
+"Agent name" = "Agent 名称";
+"The name below is a label only; it does not create a macOS account." = "下面的名称只是 Agent 标签，不会创建 macOS 账号。";
+"Select an existing macOS account before continuing." = "请先选择一个现有的 macOS 账号，再继续。";
+"Enter an Agent display name before continuing." = "请先填写 Agent 显示名称，再继续。";
+"Continue to review the connection." = "继续查看连接设置。";
 "Open Fast User Switching (Control Centre) and sign in to the connected account with its existing password." = "打开控制中心的快速用户切换，并使用该账号现有密码登录。";
 "Sign in as “%@”" = "登录账号“%@”";
 "launchd keeps a registered daemon's process running across app updates, so the version inside this app has never started. Connecting an account would run the old code." = "应用更新后 launchd 会继续运行已注册守护进程的旧进程，因此本应用内的新版本尚未启动。此时连接账号仍会运行旧代码。";

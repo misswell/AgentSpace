@@ -50,6 +50,16 @@ struct NewAgentWizard: View {
         model.availableAccounts.first { $0.username == selectedUsername }
     }
 
+    private var continueButtonHint: String? {
+        if selectedAccount == nil {
+            return NSLocalizedString("Select an existing macOS account before continuing.", comment: "")
+        }
+        if trimmedName.isEmpty {
+            return NSLocalizedString("Enter an Agent display name before continuing.", comment: "")
+        }
+        return nil
+    }
+
     /// Why the Create button is or is not armed — the stale-helper case needs
     /// its own sentence because "installed and answering" would be a lie: the
     /// answering process is the pre-update binary launchd kept alive.
@@ -94,11 +104,19 @@ struct NewAgentWizard: View {
                 }
                 Spacer()
                 if step < steps {
+                    if let continueButtonHint {
+                        Text(continueButtonHint)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.trailing)
+                    }
                     Button(NSLocalizedString("Continue", comment: "")) {
                         step += 1
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(trimmedName.isEmpty || selectedAccount == nil)
+                    .help(Text(continueButtonHint ?? NSLocalizedString("Continue to review the connection.", comment: "")))
                     .accessibilityIdentifier("wizardContinue")
                 } else {
                     Button(NSLocalizedString("Connect Account", comment: "")) {
@@ -156,9 +174,22 @@ struct NewAgentWizard: View {
     private var nameStep: some View {
         Card(title: NSLocalizedString("Available macOS Accounts", comment: "")) {
             if model.availableAccounts.isEmpty {
-                Text(NSLocalizedString("No unattached standard users were found. Add one in System Settings → Users & Groups, then return here.", comment: ""))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(NSLocalizedString("No unattached standard users were found. Add one in System Settings → Users & Groups, then return here.", comment: ""))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Button(NSLocalizedString("Open Users & Groups", comment: "")) {
+                            openUsersAndGroups()
+                        }
+                        .accessibilityIdentifier("openUsersGroupsButton")
+                        Button(NSLocalizedString("Refresh accounts", comment: "")) {
+                            model.discoverAccounts()
+                        }
+                        .accessibilityIdentifier("refreshAccountsButton")
+                    }
+                    .controlSize(.small)
+                }
             } else {
                 Picker(NSLocalizedString("macOS User", comment: ""), selection: $selectedUsername) {
                     Text(NSLocalizedString("Choose an account", comment: "")).tag(String?.none)
@@ -168,13 +199,22 @@ struct NewAgentWizard: View {
                     }
                 }
                 .pickerStyle(.radioGroup)
+                .accessibilityIdentifier("macOSUserPicker")
             }
-            TextField("Coding Agent", text: $name)
+
+            Text(NSLocalizedString("Agent display name", comment: ""))
+                .font(.callout.weight(.medium))
+            TextField(NSLocalizedString("Agent name", comment: ""), text: $name)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("agentNameField")
-            Text("AgentSpace connects to this existing standard user. It never creates or deletes a macOS account.")
+            Text(NSLocalizedString("The name below is a label only; it does not create a macOS account.", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
         }
+    }
+
+    private func openUsersAndGroups() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Users-Groups-Settings.extension") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     // MARK: - Step 2: what will be created

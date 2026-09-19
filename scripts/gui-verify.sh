@@ -15,11 +15,14 @@
 # an English window on a Chinese system. That forcing is banned here.
 #
 # Requirements: Accessibility permission for the calling terminal (System
-# Events drives the app), and the app built in dist/.
+# Events drives the app), and an app bundle. `AGENTSPACE_GUI_APP` can point at
+# a temporary verification bundle; the default remains the release bundle in
+# dist/.
 set -u
 cd "$(dirname "$0")/.."
 
-APP_BIN="dist/AgentSpace.app/Contents/MacOS/AgentSpace"
+APP_BUNDLE="${AGENTSPACE_GUI_APP:-dist/AgentSpace.app}"
+APP_BIN="$APP_BUNDLE/Contents/MacOS/AgentSpace"
 PASS=0; FAIL=0
 
 note() { printf '  %s\n' "$*"; }
@@ -61,7 +64,7 @@ pkill -f "AgentSpace.app/Contents/MacOS/AgentSpace" 2>/dev/null; sleep 1
 "$APP_BIN" >/dev/null 2>&1 &
 APP_PID=$!
 sleep 5
-trap '{ kill $APP_PID 2>/dev/null; [ "$WAS_RUNNING" = 1 ] && open dist/AgentSpace.app; } 2>/dev/null' EXIT
+trap '{ kill $APP_PID 2>/dev/null; [ "$WAS_RUNNING" = 1 ] && open "$APP_BUNDLE"; } 2>/dev/null' EXIT
 
 # --- Launch: exactly one window (§41's deep-link window bug) ----------------
 # A binary that predates onOpenURL never consumes queued agentspace:// open
@@ -75,9 +78,9 @@ check "launch opens exactly one window" "1" "${WINDOWS:-?}"
 # The build number is stamped at bundle time (scripts/bundle-app.sh); if the
 # UI ever drifts from the plist, "am I on the new build?" becomes unanswerable
 # again, which is the failure this pins. The label around the number is
-# localized, so the check compares the "0.1.1 (284)" part, not the whole line.
-SHORT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/AgentSpace.app/Contents/Info.plist)"
-BUILDN="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' dist/AgentSpace.app/Contents/Info.plist)"
+# localized, so the check compares the "0.1.2 (284)" part, not the whole line.
+SHORT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_BUNDLE/Contents/Info.plist")"
+BUILDN="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_BUNDLE/Contents/Info.plist")"
 # The sidebar footer is not in the AX tree the instant the window is; retries
 # cover the cold-start race, same as the tier check below.
 BUILD_TEXT=""
@@ -164,14 +167,12 @@ osascript -e 'key code 53' >/dev/null 2>&1
 osascript -e 'tell application "System Events" to tell process "AgentSpace" to keystroke "w" using command down' >/dev/null 2>&1
 sleep 1
 
-# --- The wizard: Create is armed exactly when the helper is current ----------
-# §274's hole was that a stale helper talked its way past the check by
-# describing itself, so what is pinned here is the *relationship*, not a state:
-# the Create button's enabled flag must disagree with the presence of the
-# HELPER_OUTDATED banner never. Both sides are language-stable — the banner is
-# an untranslated error code, the button is found by its identifier — so the
-# check holds on a Chinese system and on an English one, and it passes whether
-# or not this machine happens to be running an old daemon right now.
+# --- The wizard: account selection and helper readiness ----------------------
+# The first step has two valid outcomes: an existing account can be selected
+# and Continue reaches the review card, or the machine has no attachable account
+# and the card offers the exact next actions. A click on a disabled SwiftUI
+# button is a no-op, so merely returning "step 2" after `click` is not evidence
+# that the wizard advanced (that was the bug this check used to miss).
 # The finder library has to be handed to *this* script too. An earlier version
 # ran it as a bare heredoc, so `my findById` was an unknown handler, the error
 # went to /dev/null, and the phase below reported a healthy wizard that had
@@ -188,9 +189,17 @@ tell application \"System Events\"
 		delay 1
 		set _c to my findById(window 1, \"wizardContinue\", button, 0)
 		if _c is missing value then return \"no continue button\"
-		click _c
-		delay 2
-		return \"step 2\"
+		if (enabled of _c) as boolean then
+			click _c
+			delay 2
+			set _review to my findById(window 1, \"createAgentButton\", button, 0)
+			if _review is missing value then return \"continue did not reach review\"
+			return \"step 2\"
+		end if
+		set _open to my findById(window 1, \"openUsersGroupsButton\", button, 0)
+		set _refresh to my findById(window 1, \"refreshAccountsButton\", button, 0)
+		if _open is not missing value and _refresh is not missing value then return \"empty account state\"
+		return \"account selection required\"
 	end tell
 end tell" 2>&1)"
 CARDS="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
@@ -234,10 +243,13 @@ tell application \"System Events\"
 		return (enabled of _b) as text
 	end tell
 end tell" 2>&1 | tr -d ' ,')"
-if [ "$CREATE_ENABLED" = "missing" ]; then
-  # The button only exists on the review step, so whatever the walk reported on
-  # the way there is the diagnosis — never a silent pass.
-  check "wizard reached the helper card" "step 2" "$WIZARD"
+if [ "$WIZARD" = "empty account state" ]; then
+  check "wizard explains how to add an account" "empty account state" "$WIZARD"
+elif [ "$WIZARD" = "step 2" ]; then
+  check "wizard reaches the helper card" "step 2" "$WIZARD"
+elif [ "$CREATE_ENABLED" = "missing" ]; then
+  # No review button and no account guidance is a real diagnostic failure.
+  check "wizard reaches a real next state" "step 2" "$WIZARD"
 elif [ "$OUTDATED" = "1" ]; then
   check "Create is refused while the helper is stale" "false" "$CREATE_ENABLED"
 else
@@ -258,7 +270,11 @@ AGENTSPACE_ROOT="$TMPROOT" "$APP_BIN" >/dev/null 2>&1 &
 APP_PID=$!
 sleep 4
 DEAD_ID="11111111-2222-4333-8444-555555555555"
-open "agentspace://space/$DEAD_ID"
+if [ -n "${AGENTSPACE_GUI_APP:-}" ]; then
+  open -a "$APP_BUNDLE" "agentspace://space/$DEAD_ID"
+else
+  open "agentspace://space/$DEAD_ID"
+fi
 sleep 3
 # the alert's first static text is the error code, which is never localized
 ALERT="$(osascript -e 'tell application "System Events" to tell process "AgentSpace" to return value of static text 1 of sheet 1 of window 1' 2>/dev/null | head -c 16)"
