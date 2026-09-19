@@ -22,7 +22,7 @@ import AgentSpaceCore
 @MainActor
 final class AppModel: ObservableObject {
 
-    /// "0.1.2 (412)" — marketing version plus the build number that
+    /// "0.1.3 (412)" — marketing version plus the build number that
     /// `scripts/bundle-app.sh` stamps from git at bundle time. Shown in the
     /// sidebar so "am I looking at the copy I just built?" is answered on
     /// screen; the About panel reads the same plist keys.

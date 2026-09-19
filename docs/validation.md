@@ -7834,7 +7834,24 @@ the empty-account actions instead of trusting a no-op click.
 | 505 | A missing attach candidate is reported as an empty-account state, not as a false transition to step 2 | pass | `scripts/gui-verify.sh` first failed with `account selection required`; after the fix it reports `empty account state` and checks both action identifiers |
 | 506 | The empty state provides direct Users & Groups and Refresh accounts actions | pass | `NewAgentWizard` identifiers `openUsersGroupsButton` and `refreshAccountsButton`; temporary rebuilt bundle GUI verification 7/7 |
 | 507 | The name field is clearly an Agent display label and cannot be mistaken for macOS account creation | pass | Localized `Agent display name`, `Agent name` and label-only explanation in both `.lproj` tables |
-| 508 | The Continue footer states the missing prerequisite while preserving the V3 safety boundary | pass | `continueButtonHint` and disabled condition require a selected existing account; Swift 359/359 and MCP 23/23 pass |
+| 508 | The Continue footer states the missing prerequisite while preserving the V3 safety boundary | pass | `continueButtonHint` and disabled condition require a selected existing account; Swift 360/360 and MCP 23/23 pass |
+
+## 280. Directory Service account discovery accepts visible underscore usernames (2026-09-19)
+
+The second report supplied the missing machine state: System Settings showed a
+standard user named `AgentUse`, while its short name was the legacy
+`_agentspace_a5b707`. The old filter treated every underscore-prefixed short
+name as hidden, so it discarded this visible account. Discovery now reads the
+explicit `IsHidden` values once from Directory Service and filters only users
+actually marked hidden. This also avoids spawning one `dscl` process per account
+and keeps the refresh responsive.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 513 | A visible standard user whose short name begins with `_` is offered for attachment | pass | `AccountDiscoveryTests.testAStandardUserWithAnUnderscoreUsernameIsStillAttachable`; `_agentspace_a5b707` / display name `AgentUse` |
+| 514 | Explicitly hidden accounts remain excluded | pass | `AccountDiscoveryTests` fixture `_hidden` with `isHidden: true` remains absent from candidates |
+| 515 | Directory Service hidden flags are read once and discovery fails closed if the query fails | pass | `AccountDiscovery.hiddenUsernames()` uses one `dscl . -list /Users IsHidden` call; `discover`/`find` return no candidates on command failure |
+| 516 | The real GUI can select AgentUse and advance to the review step | pass | Temporary rebuilt bundle: `macOSUserPicker` contained the account; selecting radio item 2 made `wizardContinue` enabled; `scripts/gui-verify.sh` 7/7 |
 
 ## 279. Patch release after the empty-account fix (2026-09-19)
 

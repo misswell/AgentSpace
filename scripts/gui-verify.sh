@@ -78,7 +78,7 @@ check "launch opens exactly one window" "1" "${WINDOWS:-?}"
 # The build number is stamped at bundle time (scripts/bundle-app.sh); if the
 # UI ever drifts from the plist, "am I on the new build?" becomes unanswerable
 # again, which is the failure this pins. The label around the number is
-# localized, so the check compares the "0.1.2 (284)" part, not the whole line.
+# localized, so the check compares the "0.1.3 (284)" part, not the whole line.
 SHORT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_BUNDLE/Contents/Info.plist")"
 BUILDN="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_BUNDLE/Contents/Info.plist")"
 # The sidebar footer is not in the AX tree the instant the window is; retries
@@ -186,6 +186,13 @@ tell application \"System Events\"
 		set _f to my findById(window 1, \"agentNameField\", text field, 0)
 		if _f is missing value then return \"no name field\"
 		set value of _f to \"gui verify\"
+		set _p to my findById(window 1, \"macOSUserPicker\", radio group, 0)
+		if _p is not missing value then
+			-- The first radio item is the unselected placeholder; choose the
+			-- first real account so this check exercises the enabled path too.
+			tell _p to click radio button 2
+			delay 1
+		end if
 		delay 1
 		set _c to my findById(window 1, \"wizardContinue\", button, 0)
 		if _c is missing value then return \"no continue button\"
