@@ -208,7 +208,7 @@
 "Raise the timeout or make the command shorter. The process group was terminated." = "调大超时或缩短命令。进程组已被终止。";
 "That command is on AgentSpace's refusal list. Run it yourself in your own terminal if you really mean it." = "该命令在 AgentSpace 的拒绝清单上。如果确有需要，请在你自己的终端里运行。";
 "The privileged helper is not installed. Creating and deleting Spaces needs it, because it makes a macOS user; driving an existing Space does not. Open the AgentSpace app and choose Install Helper." = "特权助手未安装。创建和删除 Space 需要它，因为那会创建 macOS 用户；驱动已有的 Space 不需要。打开 AgentSpace 应用并选择「安装助手」。";
-"The privileged helper refused the request. Check the Space's name and account, and see the helper's log with `log show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m`." = "特权助手拒绝了请求。请检查 Space 的名称与账号，并用 `log show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m` 查看 helper 日志。";
+"The privileged helper refused the request. Check the Space's name and account, and use Export Diagnostics in the app to collect the helper's log." = "特权助手拒绝了请求。请检查 Space 的名称与账号，并使用应用内的“导出诊断信息”收集 helper 日志。";
 "The session token does not match this Space. Re-read it from the runtime directory, or recreate the Space." = "会话令牌与该 Space 不匹配。请从运行时目录重新读取，或重建该 Space。";
 "Malformed request. See docs/protocol.md for the exact shape." = "请求格式错误。具体结构见 docs/protocol.md。";
 "Unknown method. `agentspace doctor --json` prints the protocol this build speaks." = "未知方法。`agentspace doctor --json` 会打印此构建支持的协议。";
@@ -223,8 +223,8 @@
 "unknown state" = "未知状态";
 "not answering" = "无响应";
 "Run scripts/bundle-app.sh to produce a complete AgentSpace.app, then open it and choose “Install Helper”." = "运行 scripts/bundle-app.sh 生成完整的 AgentSpace.app，打开它并选择「安装助手」。";
-"System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run `agentspace doctor` again." = "系统设置 → 通用 → 登录项与扩展 → 允许 AgentSpace 后台项，然后重新运行 `agentspace doctor`。";
-"It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and logs the refusal. Check with:\nlog show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m" = "它已注册但沉默，这通常意味着代码签名不匹配：守护进程会拒绝不满足其要求的调用方并记录拒绝。检查方式：\nlog show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m";
+"System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run the Doctor check again." = "System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run the Doctor check again.";
+"It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and records the refusal. Use Export Diagnostics in the app to collect the log." = "它已注册但沉默，这通常意味着代码签名不匹配：守护进程会拒绝不满足其要求的调用方并记录拒绝。请使用应用内的“导出诊断信息”收集日志。";
 "Open the AgentSpace app and choose “Install Helper”. macOS will ask for your password, because only an administrator can add a LaunchDaemon." = "打开 AgentSpace 应用并选择「安装助手」。macOS 会要求输入密码，因为只有管理员才能添加 LaunchDaemon。";
 "plan workspace" = "规划工作区";
 "create account" = "创建账号";
@@ -291,3 +291,9 @@
 "No worker is running" = "有";
 "Unavailable" = "可";
 "Configure %@" = "置";
+
+"Install Command Line Tools…" = "安装命令行工具…";
+"The Command Line Tools installer window is open. When it finishes, try creating the Space again." = "命令行工具安装窗口已打开。安装完成后，请重新尝试创建 Agent Space。";
+"The Xcode Command Line Tools are already installed. Try creating the Space again." = "Xcode 命令行工具已安装。请重新尝试创建 Agent Space。";
+"Could not start the Command Line Tools installer." = "无法启动命令行工具安装器。";
+"Install the Xcode Command Line Tools from Software Update settings, or choose a different workspace kind." = "请从“软件更新”设置安装 Xcode 命令行工具，或选择其它工作区类型。";

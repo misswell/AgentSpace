@@ -208,7 +208,7 @@
 "Raise the timeout or make the command shorter. The process group was terminated." = "Raise the timeout or make the command shorter. The process group was terminated.";
 "That command is on AgentSpace's refusal list. Run it yourself in your own terminal if you really mean it." = "That command is on AgentSpace's refusal list. Run it yourself in your own terminal if you really mean it.";
 "The privileged helper is not installed. Creating and deleting Spaces needs it, because it makes a macOS user; driving an existing Space does not. Open the AgentSpace app and choose Install Helper." = "The privileged helper is not installed. Creating and deleting Spaces needs it, because it makes a macOS user; driving an existing Space does not. Open the AgentSpace app and choose Install Helper.";
-"The privileged helper refused the request. Check the Space's name and account, and see the helper's log with `log show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m`." = "The privileged helper refused the request. Check the Space's name and account, and see the helper's log with `log show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m`.";
+"The privileged helper refused the request. Check the Space's name and account, and use Export Diagnostics in the app to collect the helper's log." = "The privileged helper refused the request. Check the Space's name and account, and use Export Diagnostics in the app to collect the helper's log.";
 "The session token does not match this Space. Re-read it from the runtime directory, or recreate the Space." = "The session token does not match this Space. Re-read it from the runtime directory, or recreate the Space.";
 "Malformed request. See docs/protocol.md for the exact shape." = "Malformed request. See docs/protocol.md for the exact shape.";
 "Unknown method. `agentspace doctor --json` prints the protocol this build speaks." = "Unknown method. `agentspace doctor --json` prints the protocol this build speaks.";
@@ -223,8 +223,8 @@
 "unknown state" = "unknown state";
 "not answering" = "not answering";
 "Run scripts/bundle-app.sh to produce a complete AgentSpace.app, then open it and choose “Install Helper”." = "Run scripts/bundle-app.sh to produce a complete AgentSpace.app, then open it and choose “Install Helper”.";
-"System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run `agentspace doctor` again." = "System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run `agentspace doctor` again.";
-"It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and logs the refusal. Check with:\nlog show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m" = "It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and logs the refusal. Check with:\nlog show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m";
+"System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run the Doctor check again." = "System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run the Doctor check again.";
+"It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and records the refusal. Use Export Diagnostics in the app to collect the log." = "It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and records the refusal. Use Export Diagnostics in the app to collect the log.";
 "Open the AgentSpace app and choose “Install Helper”. macOS will ask for your password, because only an administrator can add a LaunchDaemon." = "Open the AgentSpace app and choose “Install Helper”. macOS will ask for your password, because only an administrator can add a LaunchDaemon.";
 "plan workspace" = "plan workspace";
 "create account" = "create account";
@@ -291,3 +291,9 @@
 "No worker is running" = "没";
 "Unavailable" = "不";
 "Configure %@" = "配";
+
+"Install Command Line Tools…" = "Install Command Line Tools…";
+"The Command Line Tools installer window is open. When it finishes, try creating the Space again." = "The Command Line Tools installer window is open. When it finishes, try creating the Space again.";
+"The Xcode Command Line Tools are already installed. Try creating the Space again." = "The Xcode Command Line Tools are already installed. Try creating the Space again.";
+"Could not start the Command Line Tools installer." = "Could not start the Command Line Tools installer.";
+"Install the Xcode Command Line Tools from Software Update settings, or choose a different workspace kind." = "Install the Xcode Command Line Tools from Software Update settings, or choose a different workspace kind.";

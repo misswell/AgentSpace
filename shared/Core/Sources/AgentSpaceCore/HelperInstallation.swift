@@ -109,10 +109,10 @@ public enum HelperInstallation {
                 return NSLocalizedString("Run scripts/bundle-app.sh to produce a complete AgentSpace.app, then open it and choose “Install Helper”.", comment: "")
             }
             if isThisProcessTheApp, appServiceStatus == .requiresApproval {
-                return NSLocalizedString("System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run `agentspace doctor` again.", comment: "")
+                return NSLocalizedString("System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run the Doctor check again.", comment: "")
             }
             if isThisProcessTheApp, appServiceStatus == .enabled {
-                return String(format: NSLocalizedString("It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and logs the refusal. Check with:\nlog show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m", comment: ""), BundleIdentifiers.logSubsystem)
+                return NSLocalizedString("It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and records the refusal. Use Export Diagnostics in the app to collect the log.", comment: "")
             }
             return NSLocalizedString("Open the AgentSpace app and choose “Install Helper”. macOS will ask for your password, because only an administrator can add a LaunchDaemon.", comment: "")
         }

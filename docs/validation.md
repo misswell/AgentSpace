@@ -7190,3 +7190,51 @@ inventing filler in the meantime.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 425 | Budget-closing state: 360+23 green, all clauses recorded, three external gates hold the goal open | final snapshot | §263 — this entry |
+
+
+---
+
+## 264. Every system fix is a button in the app, never a command for the user
+
+The user's correction: privileged and system operations must be
+offered as in-app buttons (the sanctioned macOS flows — SMAppService's
+own approval dialog, the CLT GUI installer), because the product's
+user never opens a terminal. Auditing the whole surface for copy that
+still sent the user to a command line found three residuals, all now
+closed:
+
+- **Missing git (worktree workspace) told the user to run
+  `xcode-select --install`.** That command opens a GUI installer, so
+  the app can launch it directly. `AgentSpaceError` now carries a
+  machine-readable `RecoveryHint` (`installCommandLineTools`), decoded
+  tolerantly from older wire shapes; the app's error alert grows an
+  "Install Command Line Tools…" button that runs
+  `/usr/bin/xcode-select --install` and reports the installer window,
+  already-installed, or failure — no terminal involved.
+- **Helper-refused remediation told the user to run `log show`.**
+  Export Diagnostics (§37) already does this in-app; the copy now
+  points there (both the error code's remediation and the
+  registered-but-silent fix string).
+- **`requiresApproval` fix said "run `agentspace doctor` again"** —
+  CLI advice shown to a GUI user; now "run the Doctor check again",
+  which is the in-app Doctor.
+
+Confirmed already button-driven (no change needed): Install Helper
+and Uninstall (SMAppService register/unregister, macOS shows its own
+approval prompt), Create/Stop/Logout/Delete Space (SpaceProvisioner →
+helper), Show Login Password (Keychain). The one remaining
+"your terminal" string is the ExecGuard refusal list's "run it
+yourself if you really mean it" — a statement about the *agent's*
+command, not a setup instruction, kept deliberately.
+
+New tests: the git-missing plan failure carries the hint and no
+command string; the hint survives JSON round-trip; legacy
+hint-less error JSON decodes nil. 364 Swift + 23 MCP green;
+check-all three layers pass.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 426 | Missing-git error offers the CLT installer as an in-app button; no terminal instruction in the message | pass | §264 — WorkspacePreparer.swift:157–167, AppModel.swift present()/installCommandLineTools(), AgentSpaceApp.swift alert |
+| 427 | RecoveryHint round-trips and legacy hint-less errors decode nil | pass | §264 — tests/Unit/ProtocolTests.swift RecoveryHintCodableTests |
+| 428 | Helper diagnostics copy points to in-app Export Diagnostics / Doctor, not `log show` or `agentspace doctor` | pass | §264 — ErrorCodes.swift remediation, HelperInstallation.swift fix strings, en/zh-Hans tables |
+| 429 | All privileged/system operations reachable from app buttons only (Install Helper, Create/Stop/Logout/Delete, password reveal, CLT installer) | pass | §264 — DoctorView.swift:300–309, SpaceDetailView.swift:134/396/399/431, AppModel.swift |

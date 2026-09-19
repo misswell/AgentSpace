@@ -141,7 +141,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         case .helperUnavailable:
             return NSLocalizedString("The privileged helper is not installed. Creating and deleting Spaces needs it, because it makes a macOS user; driving an existing Space does not. Open the AgentSpace app and choose Install Helper.", comment: "")
         case .helperRejected:
-            return String(format: NSLocalizedString("The privileged helper refused the request. Check the Space's name and account, and see the helper's log with `log show --predicate 'subsystem == \"%@\" AND category == \"helper\"' --last 5m`.", comment: ""), BundleIdentifiers.logSubsystem)
+            return NSLocalizedString("The privileged helper refused the request. Check the Space's name and account, and use Export Diagnostics in the app to collect the helper's log.", comment: "")
         case .unauthorized:
             return NSLocalizedString("The session token does not match this Space. Re-read it from the runtime directory, or recreate the Space.", comment: "")
         case .badRequest:
@@ -156,18 +156,48 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// A machine-readable pointer to the one in-app action that fixes this error,
+/// so the GUI can render a button instead of telling the user to open a
+/// terminal. The core never performs the action; it only names it, and the
+/// app decides how it is offered and run (plan §63.7 spirit: the product
+/// works from its own UI, not from commands the user has to know).
+public enum RecoveryHint: String, Codable, Sendable {
+    /// git is missing because the Xcode Command Line Tools are not installed.
+    /// `xcode-select --install` opens a GUI installer, so the app can launch
+    /// it directly from a button — no terminal involved.
+    case installCommandLineTools
+}
+
 /// The error object inside a failed RPC reply (plan §21).
 public struct AgentSpaceError: Error, Codable, Sendable, Equatable {
     public let code: AgentSpaceErrorCode
     public let message: String
     public let recoverable: Bool
 
+    /// Optional in-app recovery the GUI may offer as a button. Absent on
+    /// every existing wire shape, so decoding must tolerate its absence.
+    public let recoveryHint: RecoveryHint?
+
     /// `recoverable` defaults to the code's own classification so callers
     /// cannot accidentally mark a hard failure as retryable.
-    public init(code: AgentSpaceErrorCode, message: String, recoverable: Bool? = nil) {
+    public init(code: AgentSpaceErrorCode, message: String, recoverable: Bool? = nil,
+                recoveryHint: RecoveryHint? = nil) {
         self.code = code
         self.message = message
         self.recoverable = recoverable ?? code.isRecoverable
+        self.recoveryHint = recoveryHint
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case code, message, recoverable, recoveryHint
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decode(AgentSpaceErrorCode.self, forKey: .code)
+        message = try container.decode(String.self, forKey: .message)
+        recoverable = try container.decode(Bool.self, forKey: .recoverable)
+        recoveryHint = try container.decodeIfPresent(RecoveryHint.self, forKey: .recoveryHint)
     }
 }
 

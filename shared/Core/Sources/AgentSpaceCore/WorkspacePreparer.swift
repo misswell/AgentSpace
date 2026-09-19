@@ -77,7 +77,8 @@ public enum WorkspacePreparer {
         workspaceDirectory: String,
         homeDirectory: String = NSHomeDirectory(),
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
-        isGitRepository: (String) -> Bool = { isGitRepository(at: $0) }
+        isGitRepository: (String) -> Bool = { isGitRepository(at: $0) },
+        resolve: (String) -> String? = { resolveExecutable($0) }
     ) -> Result<Plan, AgentSpaceError> {
 
         var directories: [String] = [workspaceDirectory]
@@ -155,11 +156,13 @@ public enum WorkspacePreparer {
 
             // Absolute, and checked: a Mac without the Command Line Tools has no
             // git, and "worktree add failed" would send the user looking in the
-            // wrong place.
-            guard let git = resolveExecutable("git") else {
+            // wrong place. The hint tells the GUI to offer the installer as a
+            // button — the user never types the command.
+            guard let git = resolve("git") else {
                 return .failure(AgentSpaceError(
                     code: .workspaceInvalid,
-                    message: "git is not installed, so a worktree workspace cannot be created. Install the Xcode Command Line Tools (xcode-select --install), or choose a different workspace kind."))
+                    message: "git is not installed, so a worktree workspace cannot be created. Install the Xcode Command Line Tools, or choose a different workspace kind.",
+                    recoveryHint: .installCommandLineTools))
             }
             gitCommand = [
                 git, "-C", repository, "worktree", "add",

@@ -28,10 +28,21 @@ struct RootView: View {
             DoctorView().environmentObject(model)
         }
         .alert(item: $model.lastError) { error in
-            Alert(
+            let dismiss = Alert.Button.default(Text("OK"))
+            // A one-button recovery turns the alert into a fix-it dialog: the
+            // secondary button runs the action, so the problem is fixed from
+            // the dialog itself, never from a terminal.
+            if let actionTitle = error.actionTitle, let action = error.action {
+                return Alert(
+                    title: Text(error.code),
+                    message: Text([error.message, error.fix].compactMap { $0 }.joined(separator: "\n\n")),
+                    primaryButton: dismiss,
+                    secondaryButton: .default(Text(actionTitle), action: action))
+            }
+            return Alert(
                 title: Text(error.code),
                 message: Text([error.message, error.fix].compactMap { $0 }.joined(separator: "\n\n")),
-                dismissButton: .default(Text("OK")))
+                dismissButton: dismiss)
         }
         .onAppear { model.reload() }
         // Running-app delivery goes through the scene modifier; the delegate

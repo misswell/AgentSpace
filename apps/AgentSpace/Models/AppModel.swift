@@ -65,12 +65,25 @@ final class AppModel: ObservableObject {
     @Published private(set) var doctorReport: Doctor.Report?
 
     /// A failure phrased for a human, with the code kept for the detail line.
+    /// When the core marks a one-button recovery (`actionTitle` non-nil), the
+    /// alert grows that button and `action` runs it — the user fixes the
+    /// problem from the dialog, never from a terminal.
     struct PresentedError: Identifiable, Equatable {
         var id = UUID()
         var code: String
         var message: String
         var fix: String?
         var spaceName: String?
+        var actionTitle: String?
+        var action: (() -> Void)?
+
+        static func == (lhs: PresentedError, rhs: PresentedError) -> Bool {
+            // id and action are identity/behaviour, not state; comparing them
+            // would make otherwise identical presentations unequal.
+            lhs.code == rhs.code && lhs.message == rhs.message
+                && lhs.fix == rhs.fix && lhs.spaceName == rhs.spaceName
+                && lhs.actionTitle == rhs.actionTitle
+        }
     }
 
     private let service: SpaceService
@@ -400,11 +413,65 @@ final class AppModel: ObservableObject {
     // MARK: - Space actions
 
     func present(_ error: AgentSpaceError, space: AgentSpace?) {
-        lastError = PresentedError(
+        var presented = PresentedError(
             code: error.code.rawValue,
             message: error.message,
             fix: error.code.remediation,
             spaceName: space?.name)
+        // The core names the one-button recovery; the app supplies the actual
+        // behaviour, so the core stays free of AppKit concerns.
+        switch error.recoveryHint {
+        case .installCommandLineTools:
+            presented.actionTitle = NSLocalizedString("Install Command Line Tools…", comment: "")
+            presented.action = { [weak self] in self?.installCommandLineTools() }
+        case nil:
+            break
+        }
+        lastError = presented
+    }
+
+    /// Run `xcode-select --install`, which opens macOS's own GUI installer —
+    /// this is the sanctioned in-app path for a missing git (plan §51): the
+    /// user clicks a button, a system window appears, no terminal is involved.
+    func installCommandLineTools() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
+            process.arguments = ["--install"]
+            let stderrPipe = Pipe()
+            process.standardError = stderrPipe
+            process.standardOutput = Pipe()
+            do {
+                try process.run()
+            } catch {
+                DispatchQueue.main.async {
+                    self?.lastError = PresentedError(
+                        code: "WORKSPACE_INVALID",
+                        message: NSLocalizedString("Could not start the Command Line Tools installer.", comment: ""),
+                        fix: NSLocalizedString("Install the Xcode Command Line Tools from Software Update settings, or choose a different workspace kind.", comment: ""))
+                }
+                return
+            }
+            process.waitUntilExit()
+            let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            let stderr = String(data: data, encoding: .utf8) ?? ""
+            DispatchQueue.main.async {
+                if process.terminationStatus == 0 {
+                    self?.lastError = PresentedError(
+                        code: "CLT_INSTALLER_OPEN",
+                        message: NSLocalizedString("The Command Line Tools installer window is open. When it finishes, try creating the Space again.", comment: ""))
+                } else if stderr.contains("already installed") {
+                    self?.lastError = PresentedError(
+                        code: "CLT_ALREADY_INSTALLED",
+                        message: NSLocalizedString("The Xcode Command Line Tools are already installed. Try creating the Space again.", comment: ""))
+                } else {
+                    self?.lastError = PresentedError(
+                        code: "WORKSPACE_INVALID",
+                        message: NSLocalizedString("Could not start the Command Line Tools installer.", comment: ""),
+                        fix: NSLocalizedString("Install the Xcode Command Line Tools from Software Update settings, or choose a different workspace kind.", comment: ""))
+                }
+            }
+        }
     }
 
     func dismissError() { lastError = nil }

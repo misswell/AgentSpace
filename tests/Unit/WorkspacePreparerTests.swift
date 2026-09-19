@@ -359,4 +359,27 @@ final class WorkspacePreparerTests: XCTestCase {
         guard case .object(let fields) = plan.json else { return XCTFail("plan.json is not an object") }
         XCTAssertEqual(Set(fields.keys), ["directories", "allowedRoots", "writableRoots", "gitCommand", "summary"])
     }
+
+    // MARK: - missing git offers an in-app fix, not a terminal instruction
+
+    /// A Mac without the Command Line Tools has no git. The plan's product
+    /// rule (user's correction): privileged or system fixes are offered as
+    /// buttons in the app — the user is never told to run a command. The
+    /// error must carry the machine-readable hint and must NOT contain the
+    /// command string.
+    func testMissingGitCarriesInstallerHintAndNoTerminalInstruction() {
+        let result = WorkspacePreparer.plan(
+            workspace: .gitWorktree(
+                repository: "/tmp/any-repository", branch: "agentspace/x", path: workspaceDirectory + "/App"),
+            sharedFolders: [],
+            spaceID: UUID(),
+            workspaceDirectory: workspaceDirectory,
+            fileExists: { _ in true },
+            isGitRepository: { _ in true },
+            resolve: { _ in nil })
+        guard case .failure(let error) = result else { return XCTFail("expected failure") }
+        XCTAssertEqual(error.recoveryHint, RecoveryHint.installCommandLineTools)
+        XCTAssertFalse(error.message.contains("xcode-select"),
+            "error must not send the user to a terminal: \(error.message)")
+    }
 }

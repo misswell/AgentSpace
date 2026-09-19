@@ -466,7 +466,6 @@ public enum HelperCommand {
         // truth; a hand-written copy here is how a phantom worker.log almost
         // shipped (§114a).
         let paths = RuntimePaths(spaceID: spaceID, root: runtimeRoot)
-        let logDirectory = paths.directory
         return """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

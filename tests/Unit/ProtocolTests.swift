@@ -171,3 +171,35 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(actual, expected)
     }
 }
+
+// MARK: - recoveryHint on the error object
+
+/// The GUI turns a machine-readable recovery hint into a fix-it button; the
+/// wire must keep carrying hint-less errors unchanged (helper/worker builds
+/// that predate the field).
+final class RecoveryHintCodableTests: XCTestCase {
+    func testHintSurvivesRoundTrip() throws {
+        let error = AgentSpaceError(
+            code: .workspaceInvalid, message: "git is not installed",
+            recoveryHint: .installCommandLineTools)
+        let data = try JSONEncoder().encode(error)
+        let decoded = try JSONDecoder().decode(AgentSpaceError.self, from: data)
+        XCTAssertEqual(decoded, error)
+        XCTAssertEqual(decoded.recoveryHint, .installCommandLineTools)
+    }
+
+    func testLegacyErrorWithoutHintDecodesAsNil() throws {
+        // The exact shape §21 defined before hints existed.
+        let json = #"{"code":"SESSION_NOT_READY","message":"m","recoverable":true}"#
+        let decoded = try JSONDecoder().decode(AgentSpaceError.self, from: Data(json.utf8))
+        XCTAssertNil(decoded.recoveryHint)
+        XCTAssertEqual(decoded.code, .sessionNotReady)
+    }
+
+    func testHintIsHumanNamedNotActionCarrying() {
+        // The core names the recovery; it cannot carry a closure across the
+        // wire, so the enum's raw values are the whole contract.
+        XCTAssertEqual(RecoveryHint.installCommandLineTools.rawValue, "installCommandLineTools")
+    }
+}
+
