@@ -10,8 +10,42 @@ sections, each with claims and the tests that pin them); the product plan for
 the account vocabulary lives in `docs/v2-plan.md`. This file is the summary
 those two assume you already found.
 
-Last updated: 2026-09-19, at `master` = the merge of `v2-agent-account`
-(commit `6732a62`), pushed to `origin`.
+Last updated: 2026-09-19, at `master` (commit `4457251`), pushed to `origin`.
+
+## 0. Honest completion state — read this before the tables below
+
+**The project is not finished, and the missing part is the point of the
+product.** Everything works down to "an agent account exists with its own
+desktop" — and stops there. What does *not* exist:
+
+- **No runtime manager** (`docs/v2-plan.md` §10/§11). Nothing in the app or
+  worker launches an agent's tooling inside its session with a profile —
+  no "start this account's Terminal, its Chrome, its VS Code, then run
+  `claude` in its workspace". The building blocks exist (`Method.launch`,
+  `Method.exec`, `SpaceService.launch/activate/quit`, the stored `purpose`)
+  but nothing composes them into one action. Today a user drives an account
+  by hand: `agentspace launch dev Safari`, `agentspace exec dev "…"`, or by
+  opening the desktop and clicking. That is a toolkit, not the product the
+  plan describes.
+- **No Agent Profile** (§11): startup apps, startup command, per-purpose
+  templates. The `purpose` field is stored and displayed; nothing reads it.
+- **The end-to-end story is unproven** (§24): "create a Coding Agent, and
+  Claude Code + Chrome + VS Code run in it while you work" has never been
+  executed once, by a human or a test. The pieces are individually verified;
+  the composition is not.
+- **Multi-agent concurrency** (§13/§21 Phase 5) has unit-level isolation
+  tests, but no soak of two agents working while a human works.
+- **Three external gates remain** (validation §263/§265): the root-only
+  helper chain with approval prompts disabled, the second-GUI-session
+  acceptance run for §44/§48's positive isolation half, and the public
+  release URL the Homebrew cask waits on. These need access/decisions
+  outside the repo.
+
+So: the foundation is real and verified, but **the product's headline
+promise — "point an AI agent at its own Mac desktop and let it work" — is
+not yet delivered end to end.** A new agent's first job is §4b item 1
+(the runtime manager), and its first acceptance test should be plan(v2)
+§24's story run for real.
 
 ---
 
@@ -53,9 +87,11 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
 - **Tests: 373 Swift + 23 MCP, all green** (counts drift; `scripts/test.sh`
   and `npm test` are the truth). One caveat in §5.
 - **`dist/`** holds the release artifact (`AgentSpace.app` + `AgentSpace-0.1.0.dmg`),
-  Developer ID signed (`U8U443D7ZL`). `dist/` is gitignored and *guarded*:
-  `scripts/check-all.sh` refuses to pass unless the app is **notarized and
-  stapled**, and the DMG contains exactly those bytes. Rebuild → notarize,
+  Developer ID signed (`U8U443D7ZL`), **notarized and stapled** (verified
+  2026-09-19: both staple-validate, Gatekeeper accepts the app, and the DMG's
+  inner app CDHash equals the dist app's). `dist/` is gitignored and
+  *guarded*: `scripts/check-all.sh` refuses to pass unless the app stays
+  stapled and the DMG contains exactly those bytes. Rebuild → notarize,
   never rebuild alone (see §5).
 
 ## 3. What is done (and where the evidence is)
@@ -83,11 +119,11 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
 2. **Create the first usable agent** and complete its one manual first login
    (password → Fast User Switching → grant the two permissions → switch back).
    The wizard and the Space page walk through it.
-3. **Notarization credential**: `scripts/notarize.sh` defaults to the keychain
-   profile `octoshrink-notary` (verified live on 2026-09-19), falling back to
-   the `asc` API key. If both are gone, store credentials as its instructions
-   say; **the dist guard fails without a stapled app**, so a release cannot
-   skip this step.
+3. **(Only when rebuilding dist)** the notarization credential:
+   `scripts/notarize.sh` defaults to the keychain profile `octoshrink-notary`
+   (verified live 2026-09-19), falling back to the `asc` API key. The current
+   dist is already stapled; this matters the next time `scripts/release.sh`
+   rebuilds it, because the dist guard fails on an unstapled app.
 
 ### 4b. For the next agent (development)
 

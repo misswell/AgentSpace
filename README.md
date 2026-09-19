@@ -64,6 +64,14 @@ session.
 and the conventions a change must not break. `docs/validation.md` records
 exactly what is verified and what is not, with the measurements.
 
+**Honest state: the foundation is done and tested; the product's headline
+promise is not delivered yet.** Agent accounts with their own desktops work
+end to end. What does not exist is the runtime manager — nothing yet starts an
+agent's own tooling (Terminal, Chrome, VS Code, `claude`) inside its session
+from one action, so driving an agent today means CLI calls or clicking in its
+desktop by hand. See [`docs/status.md`](docs/status.md) §0 for the full gap
+list before promising anything.
+
 **Working today**
 
 - `AgentSpace.app` — the SwiftUI app: agent-account home with status cards, a
@@ -89,11 +97,16 @@ exactly what is verified and what is not, with the measurements.
   git. The exact test count, per suite, lives in `docs/validation.md` — a number
   hardcoded here would drift the moment a test is added.
 
-**Not built yet**
+**Not built yet — and the first one is the product's point**
 
-- The runtime manager: launching the agent's own tools (Terminal, Chrome,
-  VS Code) inside its session and running its command there. The plan and the
-  groundwork — see `docs/status.md` §4b.
+- **The runtime manager** (plan(v2) §10/§11): launching the agent's own tools
+  (Terminal, Chrome, VS Code) inside its session and running its command
+  there, with per-account profiles. Building blocks (`launch`/`exec` over the
+  wire, `purpose` on the record) exist; nothing composes them. Until this
+  lands, "give every agent its own Mac desktop" is a foundation, not a
+  finished product.
+- Agent profiles and the end-to-end story of plan(v2) §24.
+- Multi-agent concurrency soak (§13).
 - Preview tuning beyond the current 5 FPS stream (target 15).
 
 **Verified on this machine** — macOS 27.0, Apple Silicon:

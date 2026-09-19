@@ -7354,3 +7354,28 @@ first check).
 | 443 | Merged tree: 373 Swift + 23 MCP green | ✓ | swift test / npm test after the merge commit |
 | 444 | dist rebuilt from the merged tree, notarized and stapled | ✓ | `stapler validate dist/AgentSpace.app` |
 | 445 | A handoff document states what is next for a new agent | ✓ | docs/status.md §4 |
+
+---
+
+## 268. The completion gap is stated in the docs, not implied
+
+The owner's correction: the notarization chore was being watched while the
+product itself is unfinished, and the documentation read as if the work were
+done. Audit of what exists against `docs/v2-plan.md`: the runtime manager
+(§10/§11) and the §24 end-to-end story have **no implementation** — no code
+launches an account's tooling with a profile or runs its startup command;
+`grep` for a runtime manager or agent profile returns nothing. The pieces
+individually verified (§263–§267) remain true, but the composition the product
+promises has never been executed once. `docs/status.md` now opens with a §0
+"honest completion state" listing that gap ahead of the achievement table, and
+README's status leads with it too. dist was notarized and stapled during this
+round (staple-validate both, Gatekeeper accept, DMG-inner-app CDHash equals
+the dist app's 9ca0cb68…) — recorded as a fact, not as progress on the
+product.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 446 | No runtime manager / agent profile exists in the tree | ✓ | `grep -rn "RuntimeManager\|AgentProfile"` empty; v2-plan §10/§11 marked next |
+| 447 | The §24 end-to-end story (create a Coding Agent; its tools run in its session) is unproven | ✗ not verified | no test or run composes create → runtime → agent command |
+| 448 | Docs state the gap before the achievements | ✓ | docs/status.md §0; README Status lead |
+| 449 | dist is notarized and stapled; DMG matches dist (CDHash 9ca0cb68…) | ✓ | `stapler validate` app+dmg; diskutil mount comparison |
