@@ -7497,3 +7497,19 @@ everything they can see; the app is the trusted surface for helper state.
 | 459 | While stale the wizard disables Create and offers Reinstall Helper as the one fix | pass | §270 — NewAgentWizard HelperCard HELPER_OUTDATED branch; Doctor warn branch |
 | 460 | Both retried creates rolled back cleanly; only `_agentspace_a5b707` remains | pass | §270 — `dscl . -list /Users` after 09:57 |
 | 461 | The CLI cannot ping the helper (caller requirement) and so reports "not answering" | recorded | §270 — helper refused pid 7071; requirement names only the app/helper identifiers |
+
+---
+
+## 271. A question with no consequence is not a step — the purpose picker leaves the wizard
+
+The owner's verdict on wizard step 2: choosing a purpose costs the user time
+and judgment while nothing in the product reads the field (the runtime
+manager that would, plan(v2) §10/§11, does not exist — status §0). The
+wizard is now two steps: name → review. The `purpose` field, its record
+storage and its display remain (written only when set, decodable from old
+records — the compatibility rules are untouched); only the question goes
+away. It comes back with the feature that makes it mean something.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 462 | The wizard asks only what the product acts on today | pass | §271 — NewAgentWizard steps 3→2; 377 Swift green |

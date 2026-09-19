@@ -5,7 +5,7 @@ through [`AGENTS.md`](../AGENTS.md) at the repo root — or `CLAUDE.md`, which
 points at the same file — because that is the file agent tooling loads
 automatically; this document is the content.) It is the map: what the
 product is, what is done, what is left, and the conventions a change must not
-break. The exhaustive evidence lives in `docs/validation.md` (270 numbered
+break. The exhaustive evidence lives in `docs/validation.md` (271 numbered
 sections, each with claims and the tests that pin them); the product plan for
 the account vocabulary lives in `docs/v2-plan.md`. This file is the summary
 those two assume you already found.
@@ -103,7 +103,7 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
 | First login flow (the one manual step: fetch password → Fast User Switching → grant Accessibility + Screen Recording → switch back) | ✅ app walks through it | `LoginInstructions`/`LoginPasswordView`; validation §28-era sections |
 | Desktop Viewer: ScreenCaptureKit stream at 5 FPS, 1 FPS screenshot fallback, click-to-input with correct point/pixel mapping | ✅ | validation §52; `DesktopViewerView`, `PreviewController`, `ScreenCaptureKitSource` |
 | Fail-closed safety: input refused when the agent desktop is on the physical console; exec guard; no fallback to the human's session ever | ✅ | `SessionGuard`/`ExecGuard`; validation §12/§48; safety suite over a live socket |
-| V2 account vocabulary: `AgentAccount` record, purpose-driven 3-step wizard, Finder-style account cards, menu bar, "Open Desktop" | ✅ merged | `docs/v2-plan.md` §1–§9, §14–§16; validation §266 |
+| V2 account vocabulary: `AgentAccount` record, 2-step create wizard (the purpose picker left in §271 — nothing reads the field yet), Finder-style account cards, menu bar, "Open Desktop" | ✅ merged | `docs/v2-plan.md` §1–§9, §14–§16; validation §266, §271 |
 | CLI: `accounts`/`open`/`create account` (new) beside `list`/`desktop`/`create` (kept) | ✅ | validation §266; CLI smoke |
 | MCP: `agent_list/status/open_desktop/screenshot/click/type/launch/exec` beside the 14 `agentspace_*` tools | ✅ | `packages/agentspace-mcp`; `scripts/mcp-smoke.sh` |
 | Localization: English + Simplified Chinese, English source text as the key | ✅ 364 keys per table | `tests/Unit/LocalizationTests.swift` enforces parity and coverage |

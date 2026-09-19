@@ -3,30 +3,33 @@ import AgentSpaceCore
 
 /// The create flow restated in V2 vocabulary — plan(v2) §5.
 ///
-/// Three steps a human can follow without ever learning what a "Space" was:
+/// Two steps a human can follow without ever learning what a "Space" was:
 /// 1. name the agent,
-/// 2. say what it will do (stored on the record; per-purpose templates come
-///    with the runtime manager, plan(v2) §10/§11),
-/// 3. see exactly what will be created — and what will NOT change — before
+/// 2. see exactly what will be created — and what will NOT change — before
 ///    anything touches the machine.
 ///
-/// The workspace controls from the old single-page wizard live inside step 3:
-/// they are an advanced answer, not the first question. Step 5 of the plan's
-/// flow — the one manual first login — is not part of this sheet; it is
-/// `LoginInstructions`, shown by `ProvisioningView` once the machine work is
-/// done.
+/// The purpose picker that used to sit between them is gone: nothing reads
+/// `purpose` yet (the runtime manager, plan(v2) §10/§11, will when it
+/// exists), and a question with no consequence is time the user spends
+/// judging us rather than working. The field stays on the record, written
+/// only when set.
+///
+/// The workspace controls from the old single-page wizard live inside the
+/// review step: they are an advanced answer, not the first question. The
+/// one manual first login (plan §28) is not part of this sheet either; it
+/// is `LoginInstructions`, shown by `ProvisioningView` once the machine
+/// work is done.
 struct NewAgentWizard: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var step = 1
     @State private var name = ""
-    @State private var purpose: AgentPurpose?
     @State private var workspaceKind = 0
     @State private var repositoryPath = ""
     @State private var branch = "agentspace/"
 
-    private let steps = 3
+    private let steps = 2
 
     /// The workspace the wizard will ask for. Computed here rather than in the
     /// model so the wizard can show the worktree path it is about to use — the
@@ -88,8 +91,7 @@ struct NewAgentWizard: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if step == 1 { nameStep }
-                    if step == 2 { purposeStep }
-                    if step == 3 { reviewStep }
+                    if step == 2 { reviewStep }
                 }
                 .padding(14)
             }
@@ -113,7 +115,6 @@ struct NewAgentWizard: View {
                     Button(NSLocalizedString("Create Agent", comment: "")) {
                         model.createSpace(
                             name: trimmedName,
-                            purpose: purpose,
                             workspace: workspace,
                             sharedFolders: sharedFolders)
                     }
@@ -155,29 +156,7 @@ struct NewAgentWizard: View {
         }
     }
 
-    // MARK: - Step 2: purpose
-
-    private var purposeStep: some View {
-        Card(title: NSLocalizedString("What will this agent do?", comment: "")) {
-            Picker("", selection: $purpose) {
-                Text(NSLocalizedString("Choose a purpose…", comment: "")).tag(AgentPurpose?.none)
-                ForEach(AgentPurpose.allCases, id: \.self) { purpose in
-                    Text(purpose.displayName).tag(AgentPurpose?.some(purpose))
-                }
-            }
-            .pickerStyle(.radioGroup)
-            .labelsHidden()
-
-            if let purpose {
-                Text(purpose.summary)
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Text("The purpose is saved with the account. Per-purpose startup templates arrive with the runtime manager.")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    // MARK: - Step 3: what will be created
+    // MARK: - Step 2: what will be created
 
     private var reviewStep: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -188,9 +167,6 @@ struct NewAgentWizard: View {
                     checkmark(NSLocalizedString("Separate desktop", comment: ""))
                     checkmark(NSLocalizedString("Separate applications", comment: ""))
                     checkmark(NSLocalizedString("Your current account will not be affected", comment: ""))
-                }
-                if let purpose {
-                    Field(label: NSLocalizedString("Purpose", comment: ""), value: purpose.displayName)
                 }
                 if trimmedName.isEmpty {
                     Text(NSLocalizedString("Go back and give the agent a name.", comment: ""))
