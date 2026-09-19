@@ -172,14 +172,14 @@ struct Emitter {
 /// Resolve a Space reference, or stop with a helpful message.
 ///
 /// Never guesses: an unknown name lists what does exist.
-func resolveSpace(_ reference: String?, root: String?, emitter: Emitter) -> (AgentSpace, SpaceConnection) {
+func resolveSpace(_ reference: String?, root: String?, emitter: Emitter) -> (AgentAccount, SpaceConnection) {
     // The caller's emitter, not a fresh human-mode one: in --json mode the error
     // envelope is the whole answer, and a script branching on it must not
     // receive prose. Exit 66 is the documented not-found code; the catch-all
     // default would have made "no such Space" indistinguishable from a generic
     // failure — found by the first run of the integration suite.
     let registry = SpaceRegistry.load(root: root)
-    let space: AgentSpace
+    let space: AgentAccount
     if let reference {
         switch registry.resolve(reference) {
         case .success(let found): space = found
@@ -189,7 +189,7 @@ func resolveSpace(_ reference: String?, root: String?, emitter: Emitter) -> (Age
         guard let first = registry.first() else {
             emitter.failure(AgentSpaceError(
                 code: .sessionNotReady,
-                message: "no AgentSpace exists yet, and no name was given. Create one in the AgentSpace app first."))
+                message: "no agent accounts exist yet, and no name was given. Create one in the AgentSpace app first."))
         }
         space = first
     }
@@ -245,14 +245,15 @@ func number(_ value: Double) -> JSONValue { .double(value) }
 
 func usage() -> String {
     """
-    agentspace \(cliVersion) — run AI agents in isolated macOS desktop sessions
+    agentspace \(cliVersion) — give every AI agent its own macOS account and desktop
 
     USAGE:
-      agentspace <command> [space] [arguments] [--json]
+      agentspace <command> [account] [arguments] [--json]
 
-    SPACES
-      list                            List AgentSpaces
-      status [space]                  Session, permissions and resource state
+    AGENT ACCOUNTS
+      accounts                        List agent accounts (alias: list)
+      list                            Same as accounts
+      status [account]                Session, permissions and resource state
       doctor                          Diagnose this machine's readiness
       diagnostics                     Export a redacted support bundle
       helper                          Privileged helper: installed? answering?
@@ -261,45 +262,47 @@ func usage() -> String {
       integrate <target>              Print MCP config for claude|codex|opencode
                                       [--install writes it, backing up first]
                                       agentspace integrate rules       Agent safety rules (§35)
-      create <name>                   Create a Space: macOS user, runtime, worker
-      delete <space>                  Delete a Space (--remove-home to also remove
-                                      its home directory)
+      create [account] <name>         Create an agent account: macOS user,
+                                      runtime, worker
+      delete <account>                Delete an agent account (--remove-home to
+                                      also remove its home directory)
 
     OBSERVE
-      screenshot <space>              Capture the Space's desktop
-      desktop <space>                 Open the Space's Desktop Viewer in the app
-      preview <space> --start|frame|stop
+      screenshot <account>            Capture the agent's desktop
+      open <account>                  Open the agent's desktop in the app
+                                      (alias: desktop)
+      preview <account> --start|frame|stop
                                       Drive the live preview stream (§52 debug)
-      apps <space>                    Apps running in the Space
-      ax <space> snapshot             Accessibility tree of the frontmost app
-      ax <space> frontmost            Frontmost app and focused element
-      ax <space> windows              Windows of the frontmost app
+      apps <account>                  Apps running in the agent session
+      ax <account> snapshot           Accessibility tree of the frontmost app
+      ax <account> frontmost          Frontmost app and focused element
+      ax <account> windows            Windows of the frontmost app
 
     ACT
-      move <space> X Y                Move the pointer (points, not pixels)
-      click <space> X Y               Click  [--double] [--right]
-      type <space> TEXT               Type text
-      key <space> COMBO               Press a key combo, e.g. cmd+l
-      scroll <space> DX DY            Scroll
-      drag <space> X1 Y1 X2 Y2        Drag
-      input <space> --file F | -      Submit a batch of actions as JSON
-      launch <space> APP              Launch an app in the Space
-      activate <space> APP            Bring an app to the front
-      quit <space> APP                Quit  [--force]
-      exec <space> COMMAND            Run a shell command as the Space user
+      move <account> X Y              Move the pointer (points, not pixels)
+      click <account> X Y             Click  [--double] [--right]
+      type <account> TEXT             Type text
+      key <account> COMBO             Press a key combo, e.g. cmd+l
+      scroll <account> DX DY          Scroll
+      drag <account> X1 Y1 X2 Y2      Drag
+      input <account> --file F | -    Submit a batch of actions as JSON
+      launch <account> APP            Launch an app in the agent session
+      activate <account> APP          Bring an app to the front
+      quit <account> APP              Quit  [--force]
+      exec <account> COMMAND          Run a shell command as the agent user
                                       [--cwd DIR] [--timeout MS] [--env K=V]
 
     MANAGE
-      start|stop|restart <space>      Control the Space's worker
-      create | delete                 These need the GUI; see below
+      start|stop|restart <account>    Control the agent's worker
 
     GLOBAL
       --json                          Machine-readable output on every command
       --root PATH                     Use an alternate AgentSpace root
       --version, --help
 
-    Creating and deleting a Space makes or removes a macOS user, so it always
-    goes through the privileged helper and the GUI. The CLI never runs sudo.
+    Creating and deleting an agent account makes or removes a macOS user, so it
+    always goes through the privileged helper and the GUI. The CLI never runs
+    sudo.
     """
 }
 
@@ -347,8 +350,19 @@ if let root = parsed.flag("root") {
 let rootOverride = parsed.flag("root")
 
 let emitter = Emitter(json: parsed.bool("json"))
-let command = parsed.positionals[0]
-let rest = Array(parsed.positionals.dropFirst())
+
+// V2 verb aliases (plan(v2) §16). The new names are the primary spelling and
+// the pre-V2 verbs keep working unchanged: "create account NAME" is
+// "create NAME" with the noun made explicit, "open" is "desktop", and
+// "accounts" is "list". One normalization here means every case below stays
+// single-sourced.
+var command = parsed.positionals[0]
+var rest = Array(parsed.positionals.dropFirst())
+if command == "create", rest.first == "account", rest.count > 1 {
+    rest.removeFirst()
+}
+if command == "open" { command = "desktop" }
+if command == "accounts" { command = "list" }
 
 switch command {
 
@@ -367,7 +381,7 @@ case "create":
     // something a human does, in the GUI, having read what it means.
     let name = rest.first ?? ""
     guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
-        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace create <name> [--repo PATH] [--branch agentspace/x] [--share PATH] [--share-rw PATH]"), exitCode: 64)
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace create [account] <name> [--repo PATH] [--branch agentspace/x] [--share PATH] [--share-rw PATH]"), exitCode: 64)
     }
 
     var workspace: Workspace = .none
@@ -457,11 +471,11 @@ case "create":
         }
         if let space = outcome.space {
             print("")
-            print("Created \(space.name) as \(space.username) (uid \(space.uid)).")
+            print("Created agent account \(space.name) (macOS user \(space.username), uid \(space.uid)).")
             print("")
             print("Next, once — this is the only step that needs you:")
             print("  1. Open Fast User Switching and sign in as \"\(space.name)\"")
-            print("     The password is in the AgentSpace app: Space → Show Login Password.")
+            print("     The password is in the AgentSpace app: My Agent Accounts → Show Login Password.")
             print("  2. In that session, grant Accessibility and Screen Recording to")
             print("     agentspace-worker when the setup window asks.")
             print("  3. Switch back to your own account. The agent keeps its desktop.")
@@ -478,7 +492,7 @@ case "delete":
     guard let target = rest.first else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace delete <space> [--remove-home]"), exitCode: 64)
     }
-    let space: AgentSpace
+    let space: AgentAccount
     switch registry.resolve(target) {
     case .success(let found): space = found
     case .failure(let error):
@@ -754,9 +768,13 @@ case "list":
         ]))
     }
     if emitter.json {
-        print(emitter.pretty(.obj(["count": .int(rows.count), "spaces": .array(rows)])))
+        print(emitter.pretty(.obj([
+            "count": .int(rows.count),
+            "accounts": .array(rows),
+            "spaces": .array(rows),
+        ])))
     } else if rows.isEmpty {
-        print("No AgentSpaces yet. Open the AgentSpace app to create one.")
+        print("No agent accounts yet. Open the AgentSpace app to create one.")
     } else {
         for space in registry.spaces {
             let connection = SpaceConnection(space: space)
@@ -820,7 +838,7 @@ case "desktop":
     guard rest.first != nil else {
         emitter.failure(AgentSpaceError(
             code: .badRequest,
-            message: "usage: agentspace desktop <space>"), exitCode: 64)
+            message: "usage: agentspace open <account>"), exitCode: 64)
     }
     let (desktopSpace, _) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)
     let link = AppDeepLink.url(forSpaceID: desktopSpace.id)
@@ -835,7 +853,12 @@ case "desktop":
             message: "could not open the AgentSpace app (exit \(open.terminationStatus)). Is it in /Applications or built in dist/?"), exitCode: 69)
     }
     emitter.success(
-        ["opened": .bool(true), "space": .string(desktopSpace.name), "url": .string(link.absoluteString)],
+        [
+            "opened": .bool(true),
+            "account": .string(desktopSpace.name),
+            "space": .string(desktopSpace.name),
+            "url": .string(link.absoluteString),
+        ],
         human: "opening the Desktop Viewer for \(desktopSpace.name) — \(link.absoluteString)")
 
 case "preview":
