@@ -109,7 +109,7 @@ the CLI) are the third and fourth surfaces; all four speak the same protocol
 | Localization: English + Simplified Chinese, English source text as the key | ✅ 374 keys per table | `tests/Unit/LocalizationTests.swift` enforces parity, `NSLocalizedString` coverage and prose `Text("…")` literals |
 | Release pipeline: bundle → sign → DMG → notarize → staple | ✅ working | `scripts/release.sh`, `scripts/notarize.sh`; validation §57 |
 | Version visibility: every bundle stamps `CFBundleVersion` from git and the sidebar footer shows `Build 0.1.0 (<n>)`, so a stale copy is recognizable on screen | ✅ | `scripts/bundle-app.sh`, `AppModel.displayVersion`; validation §273; gui-verify pins footer == plist |
-| A running daemon's identity is read from the kernel (`csops` CDHash), never from the daemon's own reply, so an old helper cannot look current | ✅ | `HelperInstallation.runningImageCDHash(ofProcessID:)`; validation §274; `HelperInstallationTests` |
+| A running daemon's identity is read from the kernel (`csops` CDHash), never from the daemon's own reply, so an old helper cannot look current | ✅ | `HelperInstallation.runningImageCDHash(ofProcessID:)`; validation §274; `HelperInstallationTests`, and `gui-verify` walks the wizard to the review step and pins Create's enabled flag against the untranslated `HELPER_OUTDATED` code |
 
 ## 4. What is next
 

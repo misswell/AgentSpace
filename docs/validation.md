@@ -7693,6 +7693,18 @@ from a variable does *not* localize), and two Doctor tooltips.
 `Text("…")` literal must have a table entry, because a missing key is silent
 otherwise — it just stays English.
 
+**The new check could not fail, which is how it passed at first.** The wizard
+phase that pins the staleness relationship ran its AppleScript as a bare
+heredoc — without the finder library the other phases concatenate — so
+`my findById` was an unknown handler, the error went to `/dev/null`, and the
+phase saw no banner and no button. It then reported the *wrong story*
+("Create is armed for a current helper") about a wizard that had never opened.
+And the guard that was supposed to catch exactly that compared against
+`"not found"` after piping through `tr -d ' '`, which had already made it
+`notfound`. Two rules for this script: a phase reports how far it got
+(`step 2`, `no name field`, `no continue button`) and that word is echoed on
+every run, and a sentinel compared after whitespace stripping must be one word.
+
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 475 | The staleness verdict comes from the kernel's view of the running process, not from the process's own account of itself | pass | §274 — `HelperInstallation.runningImageCDHash(ofProcessID:)`, preferred over `selfCDHash` in `inspect` |
@@ -7702,3 +7714,5 @@ otherwise — it just stays English.
 | 479 | Rollback guidance names a button in the app, never a shell command | pass | §274 — the undo detail asserts `Diagnostics` and no backtick: `testAFailedRollbackIsRecordedAsPartialStateAndTheSpaceStaysVisible` |
 | 480 | Prose `Text` literals cannot silently stay English in a Chinese window | pass | §274 — `LocalizationTests.testEveryProseTextLiteralHasATableEntry`, 374 keys in both tables |
 | 481 | The helper's refusal strings remain untranslated on purpose, as evidence under a localized label | recorded | §274 — a root daemon has no UI language; the step name above it is localized |
+| 482 | "Create is armed exactly when the helper is current" is a gate check, not something observed by hand | pass | §274 — `gui-verify` 7/7 on build 287: `Create is refused while the helper is stale`, with this machine's older installed helper still live |
+| 483 | A gui-verify phase that cannot reach its control says how far it got, instead of reporting a healthy wizard | pass | §274 — the same phase first "passed" with `notfound` because its library was missing; `wizard: <word>` now prints on every run |

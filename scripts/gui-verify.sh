@@ -172,23 +172,27 @@ sleep 1
 # an untranslated error code, the button is found by its identifier — so the
 # check holds on a Chinese system and on an English one, and it passes whether
 # or not this machine happens to be running an old daemon right now.
-osascript >/dev/null 2>&1 <<'EOF'
-tell application "System Events"
-	tell process "AgentSpace"
+# The finder library has to be handed to *this* script too. An earlier version
+# ran it as a bare heredoc, so `my findById` was an unknown handler, the error
+# went to /dev/null, and the phase below reported a healthy wizard that had
+# never opened.
+WIZARD="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	tell process \"AgentSpace\"
 		set frontmost to true
-		keystroke "n" using command down
+		keystroke \"n\" using command down
 		delay 2
-		set _f to my findById(window 1, "agentNameField", text field, 0)
-		if _f is not missing value then
-			set value of _f to "gui verify"
-			delay 1
-			set _c to my findById(window 1, "wizardContinue", button, 0)
-			if _c is not missing value then click _c
-			delay 2
-		end if
+		set _f to my findById(window 1, \"agentNameField\", text field, 0)
+		if _f is missing value then return \"no name field\"
+		set value of _f to \"gui verify\"
+		delay 1
+		set _c to my findById(window 1, \"wizardContinue\", button, 0)
+		if _c is missing value then return \"no continue button\"
+		click _c
+		delay 2
+		return \"step 2\"
 	end tell
-end tell
-EOF
+end tell" 2>&1)"
 CARDS="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 on textsOf(theWindow, theDepth, theAcc)
 	if theDepth > 9 then return theAcc
@@ -217,7 +221,7 @@ tell application \"System Events\"
 		end repeat
 		return _t
 	end tell
-end tell" 2>/dev/null)"
+end tell" 2>&1)"
 case "$CARDS" in
   *HELPER_OUTDATED*) OUTDATED=1;;
   *) OUTDATED=0;;
@@ -226,17 +230,20 @@ CREATE_ENABLED="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
 	tell process \"AgentSpace\"
 		set _b to my findById(window 1, \"createAgentButton\", button, 0)
-		if _b is missing value then return \"not found\"
+		if _b is missing value then return \"missing\"
 		return (enabled of _b) as text
 	end tell
-end tell" 2>/dev/null | tr -d ' ,')"
-if [ "$CREATE_ENABLED" = "not found" ]; then
-  check "wizard reached the helper card" "the card" "no createAgentButton"
+end tell" 2>&1 | tr -d ' ,')"
+if [ "$CREATE_ENABLED" = "missing" ]; then
+  # The button only exists on the review step, so whatever the walk reported on
+  # the way there is the diagnosis — never a silent pass.
+  check "wizard reached the helper card" "step 2" "$WIZARD"
 elif [ "$OUTDATED" = "1" ]; then
   check "Create is refused while the helper is stale" "false" "$CREATE_ENABLED"
 else
   check "Create is armed for a current helper" "true" "$CREATE_ENABLED"
 fi
+note "wizard: $WIZARD"
 # Close the wizard rather than create anything: this test reads, it does not
 # change the machine.
 osascript -e 'tell application "System Events" to tell process "AgentSpace" to key code 53' >/dev/null 2>&1
