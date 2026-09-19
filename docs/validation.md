@@ -7190,3 +7190,28 @@ inventing filler in the meantime.
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 425 | Budget-closing state: 360+23 green, all clauses recorded, three external gates hold the goal open | final snapshot | §263 — this entry |
+---
+
+## 264. V2 agent-account layer: renames with zero migrations
+
+The V2 product plan (docs/v2-plan.md) renamed the user-facing
+vocabulary — Space → agent account — and added the purpose-driven
+create wizard, the Finder-style account cards, the menu-bar scene,
+the CLI verb aliases and the agent_* MCP tools. The compatibility
+rules held mechanically: a legacy registry record without a purpose
+field decodes unchanged, the deep link resolves both `agent` and
+`space` hosts, and the localization tables were extended for every
+new key (the tables' own test suite enforces it). The full Swift
+suite ran 364 tests green under a system PATH; the single failure
+seen without it is the pre-existing Homebrew-git PATH mismatch in
+WorkspacePreparerTests, unchanged from before this round.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 426 | Legacy registry JSON decodes as AgentAccount with purpose nil | ✓ | SpaceModelTests.testLegacyRegistryRecordDecodesAsAgentAccount |
+| 427 | Purpose round-trips and is omitted when unset | ✓ | SpaceModelTests.testPurposeRoundTripsAndOmitsWhenAbsent |
+| 428 | Deep links: `agent` host generated, `space` host still resolves | ✓ | AppDeepLinkTests |
+| 429 | CLI verb aliases: open≡desktop, accounts≡list, `create account N`≡`create N` | ✓ | main.swift normalization + CLI smoke |
+| 430 | MCP agent_* tools bridge the same builders as agentspace_* | ✓ | npm test + mcp-smoke |
+| 431 | GUI renders the V2 vocabulary (cards, wizard, menu bar) in zh-Hans | ✓ | screenshots taken from the bundled app |
+| 432 | Every new user-facing key is in both localization tables | ✓ | LocalizationTests |

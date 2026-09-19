@@ -1,5 +1,11 @@
 # Architecture
 
+> Vocabulary note (docs/v2-plan.md): the persisted record once called a
+> **Space** is presented to users as an **agent account** (`AgentAccount`).
+> Stored field names, registry paths and the wire protocol keep their
+> original spelling; only the user-facing words changed.
+
+
 AgentSpace runs AI agents in **separate macOS user sessions on the same Mac**.
 
 ```
