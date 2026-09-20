@@ -55,9 +55,9 @@ final class AppModel: ObservableObject {
     @Published var selection: UUID?
     /// Settable because SwiftUI's `alert(item:)` needs a two-way binding.
     @Published var lastError: PresentedError?
-    /// Whether the selected Space's Desktop Viewer sheet is up. Owned by the
-    /// model, not the detail view, so a deep link can raise it: the CLI's
-    /// `desktop` command lands here (§31's `agentspace desktop <space>`).
+    /// Compatibility state for callers that used to present the Desktop Viewer
+    /// as a sheet. New opens go through `DesktopViewerWindowManager`, which
+    /// owns a detached native window instead.
     @Published var showingDesktopViewer = false
     /// What is known about the privileged helper. Refreshed with everything else
     /// so the UI never offers a button that cannot work.
@@ -713,6 +713,7 @@ final class AppModel: ObservableObject {
 
     func deleteSpace(_ space: AgentAccount, removeHome: Bool = false) {
         guard provisioning == nil else { return }
+        DesktopViewerWindowManager.shared.close(for: space.id)
         FusionManager.shared.closeApps(for: space.id)
         _ = removeHome
         provisioning = Provisioning(operation: String(format: NSLocalizedString("Disconnecting %@", comment: ""), space.name))
@@ -827,7 +828,9 @@ final class AppModel: ObservableObject {
             return
         }
         selection = id
-        showingDesktopViewer = true
+        if let space = snapshots.first(where: { $0.space.id == id })?.space {
+            DesktopViewerWindowManager.shared.open(for: space, model: self)
+        }
     }
 
     func reload() {

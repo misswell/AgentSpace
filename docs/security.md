@@ -432,7 +432,7 @@ CLI shipped inside the app (plan §57).
 process can post the URL, not just the CLI. That is acceptable because of what
 the link can and cannot do.
 
-What it can do: select a Space and raise the Desktop Viewer sheet. The viewer
+What it can do: select a Space and raise the detached Desktop Viewer window. The viewer
 itself is the app's pull-model preview — it talks to the worker through the
 same token-gated socket as everything else, shows the same permission and
 offline states, and offers input only when the worker itself said input is
@@ -445,9 +445,9 @@ UUID. `AppDeepLink.spaceID` refuses everything that is not an exact
 a link naming a deleted Space surfaces `SPACE_NOT_FOUND` *inside the app*, the
 only place a failure is visible when the poster may be long gone.
 
-The reviewer's check: the deep-link handler ends in `selection = id` and
-`showingDesktopViewer = true`, and nowhere else. If it ever grows an action
-parameter, this section must grow a threat model first.
+The reviewer's check: the deep-link handler ends in `selection = id` and a
+`DesktopViewerWindowManager` lookup by that UUID, and nowhere else. If it ever
+grows an action parameter, this section must grow a threat model first.
 
 ---
 

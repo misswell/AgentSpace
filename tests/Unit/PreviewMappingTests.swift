@@ -37,6 +37,22 @@ final class PreviewMappingTests: XCTestCase {
         XCTAssertEqual(mapping.displayPoint(viewX: 959.9, viewY: 539.9)?.y, 1079)
     }
 
+    /// AppKit NSViews use a bottom-left local origin while the SwiftUI preview
+    /// mapping uses a top-left origin.  The transparent click surface must use
+    /// this bridge or a click near the visual top lands near the bottom of the
+    /// agent's display.
+    func testAppKitBottomLeftCoordinatesAreFlippedBeforeMapping() {
+        let mapping = exactFit()
+
+        let visualTop = mapping.displayPoint(appKitX: 480, appKitY: 539.9)
+        XCTAssertEqual(visualTop?.x, 960)
+        XCTAssertEqual(visualTop?.y, 0)
+
+        let visualBottom = mapping.displayPoint(appKitX: 480, appKitY: 0)
+        XCTAssertEqual(visualBottom?.x, 960)
+        XCTAssertEqual(visualBottom?.y, 1079)
+    }
+
     /// The bug this whole type exists to prevent: treating a view point in a
     /// half-size preview as a display point, or a pixel as a point. A click at
     /// the visual centre must be 960,540 — never 1920,1080 and never 480,270.

@@ -233,6 +233,22 @@ public struct PreviewMapping: Equatable, Sendable {
                 y: min(y, Double(max(0, displayHeight - 1))))
     }
 
+    /// Where a point reported by an AppKit `NSView` lands on the display.
+    ///
+    /// AppKit view coordinates have their origin at the lower-left, while the
+    /// SwiftUI preview (and the input protocol) use a top-left origin.  The
+    /// conversion belongs here rather than in each event callback so a
+    /// transparent `NSViewRepresentable` cannot silently invert vertical
+    /// clicks when it is embedded in SwiftUI's flipped host view.
+    public func displayPoint(appKitX: Double, appKitY: Double) -> (x: Double, y: Double)? {
+        let topLeftY = viewHeight - appKitY
+        // An AppKit event at the lower edge reports y == 0.  The equivalent
+        // top-left coordinate is the last point inside the image, not the
+        // half-open view boundary at y == viewHeight.
+        let insideTopLeftY = topLeftY == viewHeight ? viewHeight.nextDown : topLeftY
+        return displayPoint(viewX: appKitX, viewY: insideTopLeftY)
+    }
+
     /// The inverse, for drawing an indicator at the agent's last known pointer
     /// position. Returns `nil` if the point is off the display.
     public func viewPoint(displayX: Double, displayY: Double) -> (x: Double, y: Double)? {

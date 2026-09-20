@@ -3,8 +3,8 @@ import AgentSpaceCore
 
 /// The Desktop Viewer — plan §17 and §52.
 ///
-/// The user sees the agent's actual desktop inside the main app, and can click
-/// and type into it, without fast-user-switching.
+/// The user sees the agent's actual desktop in a detached native window and can
+/// click and type into it, without fast-user-switching.
 ///
 /// Three properties are worth naming, because each is a decision rather than an
 /// implementation detail.
@@ -22,6 +22,14 @@ import AgentSpaceCore
 ///    accepting clicks, because the alternative is clicking on the user's own
 ///    screen.
 struct DesktopViewerView: View {
+    /// Pin a detached viewer to the account that opened it.  A nil value keeps
+    /// the selected-account behaviour used by previews and older callers.
+    private let spaceID: UUID?
+
+    init(spaceID: UUID? = nil) {
+        self.spaceID = spaceID
+    }
+
     /// The viewer's scale is deliberately independent from the agent's
     /// display mode. "Fit" is the local-window equivalent of a native desktop
     /// viewer; the other values zoom the captured surface and keep scrolling
@@ -122,7 +130,10 @@ struct DesktopViewerView: View {
         if permitted { syncKeyboardMonitor() } else { removeKeyboardMonitor() }
     }
 
-    private var snapshot: SpaceSnapshot? { model.selected }
+    private var snapshot: SpaceSnapshot? {
+        guard let spaceID else { return model.selected }
+        return model.snapshots.first(where: { $0.space.id == spaceID })
+    }
 
     // MARK: - Keyboard forwarding (§17 "键盘输入也一样", §52 输入)
 
@@ -212,7 +223,11 @@ struct DesktopViewerView: View {
             }
             Button {
                 model.showingDesktopViewer = false
-                dismiss()
+                if let hostWindow {
+                    hostWindow.performClose(nil)
+                } else {
+                    dismiss()
+                }
             } label: {
                 Label(NSLocalizedString("Close", comment: ""), systemImage: "xmark")
             }
@@ -528,7 +543,12 @@ struct DesktopViewerView: View {
         button: MouseButton
     ) {
         guard snapshot.acceptsInput else { return }
-        guard let point = mapping.displayPoint(viewX: Double(location.x), viewY: Double(location.y)) else {
+        // MouseInputNSView reports its native AppKit (bottom-left) coordinates;
+        // PreviewMapping owns the bridge back to the SwiftUI (top-left) space.
+        // Keeping this conversion at the boundary prevents an upper-half click
+        // from being delivered to the lower half of the agent's desktop.
+        guard let point = mapping.displayPoint(
+            appKitX: Double(location.x), appKitY: Double(location.y)) else {
             // A click on the letterbox. Not an error worth a banner — the user
             // aimed at the black bar — but it must not become a click at the edge.
             pendingAction = NSLocalizedString("click outside the desktop: ignored", comment: "")
@@ -633,9 +653,8 @@ private struct WindowCapture: NSViewRepresentable {
         required init?(coder: NSCoder) { fatalError("not used") }
         override func viewDidMoveToWindow() {
             if let window {
-                // Sheets inherit the presenting window's sizing policy on some
-                // macOS releases. Make the viewer behave like a native desktop
-                // window and remain resizable after it is presented.
+                // Keep the host resizable even when the view is embedded by a
+                // caller that still uses the legacy sheet presentation.
                 window.styleMask.insert(.resizable)
                 window.minSize = NSSize(width: 720, height: 520)
             }

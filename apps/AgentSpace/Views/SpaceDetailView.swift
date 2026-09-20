@@ -132,7 +132,7 @@ struct SpaceDetailView: View {
                     onSelect: { model.selection = $0 },
                     onOpenDesktop: { snapshot in
                         model.selection = snapshot.space.id
-                        model.showingDesktopViewer = true
+                        DesktopViewerWindowManager.shared.open(for: snapshot.space, model: model)
                     })
             }
         }
@@ -177,7 +177,9 @@ struct SpaceDetailView: View {
                 .disabled(model.selected == nil)
 
                 Button {
-                    model.showingDesktopViewer = true
+                    if let space = model.selected?.space {
+                        DesktopViewerWindowManager.shared.open(for: space, model: model)
+                    }
                 } label: {
                     Label(NSLocalizedString("Open Desktop", comment: ""), systemImage: "display")
                 }
@@ -211,9 +213,6 @@ struct SpaceDetailView: View {
                 }
                 .disabled(model.selected == nil)
             }
-        }
-        .sheet(isPresented: $model.showingDesktopViewer) {
-            DesktopViewerView().environmentObject(model)
         }
         .sheet(isPresented: $showingPermissionGuide) {
             if let snapshot = model.snapshots.first(where: { $0.id == model.selection }) {

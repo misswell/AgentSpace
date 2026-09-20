@@ -8185,3 +8185,21 @@ so.
 | 598 | Slow consumers cannot accumulate an unbounded queue of old frames | pass (Core primitive) | `LatestFrameBuffer` is a single replaceable slot and `FrameBackPressureTests` stores frames 1, 2, 3 before one read, which yields only 3 and then nil; both current SCK sources likewise overwrite one `latest` value |
 | 599 | The separate binary frame channel is complete | not yet | `FrameHeaderTests` verifies the 52-byte network-order `ASFR` header and Core has the one-slot back-pressure primitive, but `docs/status.md` correctly records that Desktop and Fusion still pull base64 JPEG through JSON. No claim of P8/P9 completion is made |
 | 600 | TextEdit Fusion works end to end across the controller and attached account | not run | the code path and independent proxy `NSWindow` now exist, but this gate needs the attached account's real Aqua session plus its Screen Recording and Accessibility grants, a Fast User Switch, and visual confirmation in TextEdit; it cannot be truthfully replaced by a single-session CI test |
+
+---
+
+## 295. Detached Desktop Viewer coordinate and window behavior (2026-09-20)
+
+The Desktop Viewer used to be presented as a SwiftUI sheet. Its transparent
+AppKit click surface reported bottom-left coordinates directly to
+`PreviewMapping`, whose public contract is top-left (the same space used by the
+worker input API). That made an upper-half click land in the lower half of the
+agent's desktop. The viewer is now hosted by one native `NSWindow` per account;
+the dashboard remains available and the viewer's title bar controls its own
+position and size.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 601 | AppKit click coordinates are converted from bottom-left to the viewer's top-left mapping before input is sent | pass | `PreviewMappingTests.testAppKitBottomLeftCoordinatesAreFlippedBeforeMapping` first failed against the old bridge, then passed after `PreviewMapping.displayPoint(appKitX:appKitY:)` was used by `DesktopViewerView.sendClick` |
+| 602 | Opening Desktop creates a detached, resizable, movable native window rather than a sheet constrained by the dashboard | pass (code/build) | `DesktopViewerWindowManager` creates one `NSWindow` per account with `.titled/.closable/.miniaturizable/.resizable`, explicit movability, a minimum size and frame autosave; `SpaceDetailView` no longer presents `DesktopViewerView` as a sheet; `swift build --product AgentSpaceApp` passes |
+| 603 | A detached viewer stays pinned to the account that opened it and is cleaned up on disconnect | pass (code) | `DesktopViewerView(spaceID:)` resolves its own snapshot instead of following dashboard selection; `AppModel.deleteSpace` closes the matching controller before detaching the account |

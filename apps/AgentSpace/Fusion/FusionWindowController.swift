@@ -27,6 +27,11 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
             defer: false)
         window.title = "\(space.displayName) — \(remoteWindow.appName)"
         window.isReleasedWhenClosed = false
+        window.isMovable = true
+        window.collectionBehavior = [.managed, .participatesInCycle]
+        window.minSize = NSSize(width: 420, height: 300)
+        window.setFrameAutosaveName(
+            "AgentSpace.Fusion.\(space.id.uuidString).\(remoteWindow.pid).\(remoteWindow.id)")
         super.init(window: window)
         window.delegate = self
         window.contentView = NSHostingView(rootView: FusionWindowView(state: state) { [weak self] action in
