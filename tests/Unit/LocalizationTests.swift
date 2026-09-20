@@ -129,6 +129,37 @@ final class LocalizationTests: XCTestCase {
         }
     }
 
+    /// `InfoPlist.strings` is the second table macOS reads, and the one that shows
+    /// up **inside a TCC dialog** — the sentence a user weighs while deciding
+    /// whether to grant. Copying the Chinese values into `en.lproj` is how it
+    /// failed once, and nothing else in the build would notice.
+    func testInfoPlistTablesHaveParityAndTheEnglishOneIsEnglish() throws {
+        func table(_ language: String) throws -> [String: String] {
+            let url = URL(fileURLWithPath: "\(resourcesRoot)/\(language).lproj/InfoPlist.strings")
+            let data = try Data(contentsOf: url)
+            guard let dict = try PropertyListSerialization
+                .propertyList(from: data, options: [], format: nil) as? [String: String] else {
+                XCTFail("\(url.path) did not parse as [String: String]")
+                return [:]
+            }
+            return dict
+        }
+        let english = try table("en")
+        let chinese = try table("zh-Hans")
+        XCTAssertFalse(english.isEmpty)
+        XCTAssertEqual(Set(english.keys), Set(chinese.keys),
+                       "the two purpose tables disagree, so one locale shows a raw key")
+
+        // A CJK code point anywhere in an English purpose string.
+        for (key, value) in english {
+            XCTAssertFalse(value.contains { (character: Character) in
+                character.unicodeScalars.contains {
+                    (0x3000...0x9FFF).contains($0.value) || (0xFF00...0xFFEF).contains($0.value)
+                }
+            }, "en purpose string for \(key) is not English, so an English macOS shows Chinese in a privacy dialog")
+        }
+    }
+
     /// `Text("…")` localizes by itself, but only against a key the table carries
     /// — and a missing key is silent: the label stays English in the middle of a
     /// Chinese window, which is what an owner's screenshot caught. Prose

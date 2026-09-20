@@ -125,7 +125,7 @@ session.
 
 ## Install
 
-If you have the DMG (`dist/AgentSpace-0.1.12.dmg`, produced by
+If you have the DMG (`dist/AgentSpace-0.1.13.dmg`, produced by
 `scripts/release.sh` and notarized by `scripts/notarize.sh` — run both, in that
 order; `check-all.sh`'s dist guard fails on an unstapled app):
 

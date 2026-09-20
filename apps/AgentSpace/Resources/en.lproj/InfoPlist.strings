@@ -1,2 +1,2 @@
-"NSAppleEventsUsageDescription" = "AgentSpace 在你要求时通过 Finder 显示某个 Space 的运行时文件夹。";
-"NSScreenCaptureUsageDescription" = "AgentSpace 显示你的 Agent 自己桌面的实时画面。它绝不会抓取你正在看的桌面。";
+"NSAppleEventsUsageDescription" = "AgentSpace asks Finder to reveal an agent account's runtime folder when you request it.";
+"NSScreenCaptureUsageDescription" = "AgentSpace shows you a live view of your agent's own desktop. It never captures the desktop you are looking at.";
