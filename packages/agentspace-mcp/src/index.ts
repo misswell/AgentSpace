@@ -278,7 +278,7 @@ No tool creates or deletes agent accounts, and no tool grants Accessibility or S
 const server = new McpServer(
   {
     name: "agentspace",
-    version: "0.1.7",
+    version: "0.1.8",
   },
   {
     capabilities: { tools: {} },

@@ -52,7 +52,7 @@ struct PermissionGuideView: View {
     @ViewBuilder
     private func guide(_ snapshot: SpaceSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(String(format: NSLocalizedString("You do not need to find AgentSpace in %@. These buttons open System Settings in that account's own session; switch to %@, approve the permission, then return here.", comment: ""), snapshot.space.username, snapshot.space.username))
+            Text(String(format: NSLocalizedString("You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. Switch to %@ only to approve it, then return here.", comment: ""), snapshot.space.username, snapshot.space.username))
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -140,15 +140,11 @@ struct PermissionGuideView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 Button(NSLocalizedString("Open settings", comment: "")) {
-                    model.openSystemSettings(space, pane: pane)
+                    model.authorizeAgent(space, pane: pane)
                 }
                 .accessibilityIdentifier(identifier)
-                .disabled(!snapshotWorkerOnline || model.openingSystemSettings != nil || model.updatingWorker != nil)
+                .disabled(model.authorizingPermission != nil || model.openingSystemSettings != nil || model.updatingWorker != nil || model.finishingSetup != nil)
             }
         }
-    }
-
-    private var snapshotWorkerOnline: Bool {
-        snapshot?.workerOnline == true
     }
 }

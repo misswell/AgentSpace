@@ -459,6 +459,14 @@
 "Needs approval" = "Needs approval";
 "Open settings" = "Open settings";
 "Refresh authorization status" = "Refresh authorization status";
+"Permissions & authorization" = "Permissions & authorization";
+"Authorize %@ here. These buttons open System Settings in that account's own session; you do not need to find AgentSpace after switching users." = "Authorize %@ here. These buttons open System Settings in that account's own session; you do not need to find AgentSpace after switching users.";
+"The permission entry is agentspace-worker. It is a background process, not a separate app to launch or install." = "The permission entry is agentspace-worker. It is a background process, not a separate app to launch or install.";
+"You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. Switch to %@ only to approve it, then return here." = "You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. Switch to %@ only to approve it, then return here.";
+"Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window." = "Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window.";
+"The worker is not running yet. Clicking either permission button will install/start it first, then open the matching System Settings pane." = "The worker is not running yet. Clicking either permission button will install/start it first, then open the matching System Settings pane.";
+"Preparing authorization…" = "Preparing authorization…";
+"Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session." = "Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session.";
 "Sign in to the attached account first. The worker must be running before macOS can show its permission entry." = "Sign in to the attached account first. The worker must be running before macOS can show its permission entry.";
 "AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings." = "AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings.";
 "This agent is no longer attached. Close this guide and refresh the account list." = "This agent is no longer attached. Close this guide and refresh the account list.";

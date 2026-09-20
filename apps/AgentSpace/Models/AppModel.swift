@@ -22,7 +22,7 @@ import AgentSpaceCore
 @MainActor
 final class AppModel: ObservableObject {
 
-    /// "0.1.7 (412)" — marketing version plus the build number that
+    /// "0.1.8 (412)" — marketing version plus the build number that
     /// `scripts/bundle-app.sh` stamps from git at bundle time. Shown in the
     /// sidebar so "am I looking at the copy I just built?" is answered on
     /// screen; the About panel reads the same plist keys.
@@ -104,6 +104,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var finishingSetup: UUID?
     @Published private(set) var openingSystemSettings: UUID?
     @Published private(set) var updatingWorker: UUID?
+    @Published private(set) var authorizingPermission: UUID?
 
     init(service: SpaceService = SpaceService()) {
         self.service = service
@@ -219,7 +220,7 @@ final class AppModel: ObservableObject {
     /// METHOD_NOT_FOUND for `systemSettings.open`. If the helper is old too,
     /// swap it first so the install operation copies the current worker.
     func updateWorker(_ space: AgentAccount) {
-        guard updatingWorker == nil, finishingSetup == nil else { return }
+        guard updatingWorker == nil, finishingSetup == nil, authorizingPermission == nil else { return }
         updatingWorker = space.id
         Task {
             let state = await Task.detached(priority: .userInitiated) {
@@ -346,31 +347,79 @@ final class AppModel: ObservableObject {
     /// allowed to write the LaunchAgent; this method merely retries the typed
     /// operation after the user has completed that macOS login.
     func finishPendingSetup(_ space: AgentAccount) {
-        guard finishingSetup == nil else { return }
+        guard finishingSetup == nil, authorizingPermission == nil else { return }
         finishingSetup = space.id
-        let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
-        let accountRoot = space.runtimeRoot ?? root
-        let directory = Self.worktreesDirectory
-        let registry = service.loadRegistry()
         Task {
-            let outcome = await withCheckedContinuation { continuation in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    continuation.resume(returning: AccountAttachService.finishPendingSetup(
-                        account: space,
-                        options: AccountAttachService.Options(
-                            root: accountRoot,
-                            registryRoot: root,
-                            workspaceDirectory: directory,
-                            mainUser: NSUserName()),
-                        transport: { try HelperClient.call($0) },
-                        registry: registry))
-                }
-            }
+            let outcome = await finishPendingSetupOutcome(for: space)
             self.finishingSetup = nil
             if let error = outcome.error {
                 self.lastError = self.presented(for: error, space: space)
             }
             self.reload()
+        }
+    }
+
+    /// Install/start the worker when a user presses a permission button before
+    /// the worker exists, then open the requested pane in that account's Aqua
+    /// session. This is intentionally one action from the main page: users do
+    /// not need to find a second AgentSpace app or guess which account owns the
+    /// System Settings window.
+    func authorizeAgent(_ space: AgentAccount, pane: SystemSettingsPane) {
+        guard authorizingPermission == nil,
+              updatingWorker == nil,
+              finishingSetup == nil,
+              openingSystemSettings == nil else { return }
+
+        authorizingPermission = space.id
+        if snapshots.first(where: { $0.id == space.id })?.workerOnline == true {
+            openSystemSettings(space, pane: pane)
+            return
+        }
+
+        finishingSetup = space.id
+        let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+        Task {
+            let outcome = await self.finishPendingSetupOutcome(for: space, registryRoot: root)
+            self.finishingSetup = nil
+            if let error = outcome.error {
+                self.authorizingPermission = nil
+                self.lastError = self.presented(for: error, space: space)
+                self.reload()
+                return
+            }
+            self.openingSystemSettings = space.id
+            let error = await Task.detached(priority: .userInitiated) {
+                SpaceService().openSystemSettings(for: space, pane: pane)
+            }.value
+            self.openingSystemSettings = nil
+            self.authorizingPermission = nil
+            if let error {
+                self.lastError = self.presented(for: error, space: space)
+            }
+            self.reload()
+        }
+    }
+
+    private func finishPendingSetupOutcome(
+        for space: AgentAccount,
+        registryRoot: String? = nil
+    ) async -> AccountAttachService.Outcome {
+        let root = registryRoot ?? service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+        let accountRoot = space.runtimeRoot ?? root
+        let directory = Self.worktreesDirectory
+        let registry = service.loadRegistry()
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: AccountAttachService.finishPendingSetup(
+                    account: space,
+                    options: AccountAttachService.Options(
+                        root: accountRoot,
+                        registryRoot: root,
+                        workspaceDirectory: directory,
+                        mainUser: NSUserName()),
+                    transport: { try HelperClient.call($0) },
+                    registry: registry))
+            }
         }
     }
 
@@ -385,6 +434,9 @@ final class AppModel: ObservableObject {
                 SpaceService().openSystemSettings(for: space, pane: pane)
             }.value
             self.openingSystemSettings = nil
+            if self.authorizingPermission == space.id {
+                self.authorizingPermission = nil
+            }
             if let error {
                 self.lastError = self.presented(for: error, space: space)
             }

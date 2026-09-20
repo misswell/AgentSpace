@@ -14,7 +14,7 @@ struct Operations {
     /// ScreenCaptureKit source; there is no other place capture can come from.
     let preview: PreviewController
 
-    static let workerVersion = "0.1.7"
+    static let workerVersion = "0.1.8"
 
     init(context: WorkerContext, preview: PreviewController? = nil) {
         self.context = context
@@ -412,6 +412,20 @@ struct Operations {
             throw AgentSpaceError(
                 code: .badRequest,
                 message: #"systemSettings.open requires pane "accessibility" or "screenRecording""#)
+        }
+
+        // A preflight check only tells us that TCC is currently denied; it does
+        // not create the process's entry in the target user's privacy list and
+        // it never shows a prompt. This method is reached only from the user's
+        // explicit authorization button, so ask macOS to register the worker
+        // before opening the corresponding pane. The settings window remains
+        // the source of truth and the user still makes the final decision.
+        switch pane {
+        case .accessibility:
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+            _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
+        case .screenRecording:
+            _ = CGRequestScreenCaptureAccess()
         }
         guard NSWorkspace.shared.open(url) else {
             throw AgentSpaceError(

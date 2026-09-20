@@ -7971,3 +7971,22 @@ refresh (or Finish setup when the worker is not online).
 | 536 | The setup card exposes a prominent authorization-guide button and the guide exposes both permission actions | pass | `SpaceDetailView` identifier `openAgentPermissionGuide`; `PermissionGuideView` identifiers `permissionGuideAccessibility` and `permissionGuideScreenRecording` |
 | 537 | The guide tells users to switch accounts only to approve the grant and never requires a second AgentSpace app | pass | `PermissionGuideView` session-boundary copy; both localization tables |
 | 538 | The guide reports current grant state and provides Refresh authorization status/Finish setup actions | pass | `PermissionGuideView` live `SpaceSnapshot` lookup and action controls |
+
+## 287. Keep authorization available when the worker is missing (2026-09-20)
+
+The authorization controls are now a first-class card on every attached-agent
+detail page, including the offline, first-login and console states where the
+old setup card could disappear. The two permission buttons remain actionable
+when the worker is absent: they install and start the worker through the typed
+privileged-helper operations, wait for the normal worker readiness path, and
+then ask that worker to request/register its TCC entry and open the matching
+System Settings pane in the attached account's own session. The connected
+account still needs no AgentSpace GUI.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 539 | The main agent page always shows a Permissions & authorization card, even when setup is hidden for the console state | pass | `SpaceDetailView` renders `permissionsCard(snapshot)` outside `setupCard`'s state guard |
+| 540 | Permission buttons are not disabled just because the worker is offline | pass | `SpaceDetailView.permissionButton`; `AppModel.authorizeAgent` invokes `finishPendingSetup` before opening the pane |
+| 541 | A missing worker is installed/started before the requested pane is opened, with errors returned in-app | pass | `AppModel.authorizeAgent`; `AccountAttachService.finishPendingSetup`; `SpaceService.openSystemSettings` |
+| 542 | The explicit permission action asks macOS to register/show the worker's TCC entry before opening the pane | pass | `Operations.openSystemSettings` calls `AXIsProcessTrustedWithOptions` or `CGRequestScreenCaptureAccess` only after the user presses the authorization button |
+| 543 | A GUI opened inside the attached account explains why its panel is empty and points back to the main account's authorization card | pass | `EmptyStateView` and both localization tables |

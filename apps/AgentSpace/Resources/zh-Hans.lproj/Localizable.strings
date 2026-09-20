@@ -459,6 +459,14 @@
 "Needs approval" = "待授权";
 "Open settings" = "打开设置";
 "Refresh authorization status" = "刷新授权状态";
+"Permissions & authorization" = "权限与授权";
+"Authorize %@ here. These buttons open System Settings in that account's own session; you do not need to find AgentSpace after switching users." = "在这里为 %@ 授权。下面的按钮会在该账号自己的会话中打开系统设置；切换用户后不需要寻找 AgentSpace。";
+"The permission entry is agentspace-worker. It is a background process, not a separate app to launch or install." = "系统设置中的权限条目是 agentspace-worker。它是后台进程，不是需要单独打开或安装的 App。";
+"You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. Switch to %@ only to approve it, then return here." = "你不需要在 %@ 中寻找 AgentSpace。权限条目是 agentspace-worker，它是后台进程而不是独立 App。切换到 %@ 只是为了勾选授权，然后返回这里。";
+"Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window." = "这个桌面的权限属于该账号中的后台进程 agentspace-worker。请回到主账号的 AgentSpace 窗口，使用「权限与授权」卡片。";
+"The worker is not running yet. Clicking either permission button will install/start it first, then open the matching System Settings pane." = "worker 还没有运行。点击任一权限按钮后，软件会先安装并启动 worker，再打开对应的系统设置页面。";
+"Preparing authorization…" = "正在准备授权…";
+"Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session." = "请使用上方的「权限与授权」卡片。按钮会在需要时安装并启动 worker，然后在已连接账号的会话中打开隐私设置。";
 "Sign in to the attached account first. The worker must be running before macOS can show its permission entry." = "请先登录已连接账号。worker 启动后，macOS 才会显示它的权限条目。";
 "AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings." = "AgentSpace 不会写入 TCC 数据库。每项权限都由你在已连接账号的系统设置中亲自确认。";
 "This agent is no longer attached. Close this guide and refresh the account list." = "此 Agent 已不再连接。请关闭向导并刷新账号列表。";

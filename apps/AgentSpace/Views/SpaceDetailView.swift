@@ -101,6 +101,7 @@ struct SpaceDetailView: View {
                                 fix: problem.code.remediation)
                         }
                         overviewCard(snapshot)
+                        permissionsCard(snapshot)
                         if let display = snapshot.display {
                             displayCard(display)
                         }
@@ -238,6 +239,90 @@ struct SpaceDetailView: View {
         }
     }
 
+    /// Permissions are a first-class main-page action, not a step hidden inside
+    /// the first-login checklist. The attached account has no AgentSpace GUI;
+    /// this card is the one place users need to come back to for authorization.
+    private func permissionsCard(_ snapshot: SpaceSnapshot) -> some View {
+        Card(title: NSLocalizedString("Permissions & authorization", comment: "")) {
+            Text(String(format: NSLocalizedString("Authorize %@ here. These buttons open System Settings in that account's own session; you do not need to find AgentSpace after switching users.", comment: ""), snapshot.space.username))
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(NSLocalizedString("The permission entry is agentspace-worker. It is a background process, not a separate app to launch or install.", comment: ""))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                PermissionChip(name: NSLocalizedString("Accessibility", comment: ""), granted: snapshot.accessibility)
+                PermissionChip(name: NSLocalizedString("Screen Recording", comment: ""), granted: snapshot.screenRecording)
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                permissionButton(
+                    snapshot,
+                    pane: .accessibility,
+                    title: NSLocalizedString("Open Accessibility settings", comment: ""),
+                    icon: "person.crop.circle.badge.checkmark",
+                    identifier: "openAgentAccessibilitySettings")
+                permissionButton(
+                    snapshot,
+                    pane: .screenRecording,
+                    title: NSLocalizedString("Open Screen Recording settings", comment: ""),
+                    icon: "record.circle",
+                    identifier: "openAgentScreenRecordingSettings")
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    showingPermissionGuide = true
+                } label: {
+                    Label(NSLocalizedString("Open authorization guide", comment: ""), systemImage: "checklist")
+                }
+                .accessibilityIdentifier("openAgentPermissionGuide")
+                .disabled(model.authorizingPermission != nil || model.openingSystemSettings != nil || model.updatingWorker != nil || model.finishingSetup != nil)
+
+                Button {
+                    model.reload()
+                } label: {
+                    Label(NSLocalizedString("Refresh authorization status", comment: ""), systemImage: "arrow.clockwise")
+                }
+                .accessibilityIdentifier("refreshPermissionStatus")
+                .disabled(model.isLoading || model.authorizingPermission != nil)
+            }
+
+            if !snapshot.workerOnline {
+                Label(NSLocalizedString("The worker is not running yet. Clicking either permission button will install/start it first, then open the matching System Settings pane.", comment: ""), systemImage: "arrow.down.circle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func permissionButton(
+        _ snapshot: SpaceSnapshot,
+        pane: SystemSettingsPane,
+        title: String,
+        icon: String,
+        identifier: String
+    ) -> some View {
+        Button {
+            model.authorizeAgent(snapshot.space, pane: pane)
+        } label: {
+            if model.authorizingPermission == snapshot.space.id {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(NSLocalizedString("Preparing authorization…", comment: ""))
+                }
+            } else {
+                Label(title, systemImage: icon)
+            }
+        }
+        .accessibilityIdentifier(identifier)
+        .disabled(model.authorizingPermission != nil || model.openingSystemSettings != nil || model.updatingWorker != nil || model.finishingSetup != nil)
+    }
+
     private func displayCard(_ display: DisplayGeometry) -> some View {
         Card(title: NSLocalizedString("Display", comment: "")) {
             Field(label: NSLocalizedString("Points", comment: ""), value: "\(display.width) × \(display.height)", monospaced: true)
@@ -343,33 +428,9 @@ struct SpaceDetailView: View {
                 Text(NSLocalizedString("After the first login, switch back to your account and click Finish setup. The worker must start before macOS can show its privacy-permission prompts.", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(NSLocalizedString("These buttons open the privacy pane inside the connected account's session. If you are currently in your own account, click one first, then fast-switch to the connected account to see System Settings there.", comment: ""))
+                Text(NSLocalizedString("Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session.", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                HStack(spacing: 8) {
-                    Button {
-                        showingPermissionGuide = true
-                    } label: {
-                        Label(NSLocalizedString("Open authorization guide", comment: ""), systemImage: "checklist")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("openAgentPermissionGuide")
-                    .disabled(model.updatingWorker != nil)
-                    Button {
-                        model.openSystemSettings(snapshot.space, pane: .accessibility)
-                    } label: {
-                        Label(NSLocalizedString("Open Accessibility settings", comment: ""), systemImage: "person.crop.circle.badge.checkmark")
-                    }
-                    .accessibilityIdentifier("openAgentAccessibilitySettings")
-                    .disabled(!snapshot.workerOnline || model.openingSystemSettings != nil || model.updatingWorker != nil)
-                    Button {
-                        model.openSystemSettings(snapshot.space, pane: .screenRecording)
-                    } label: {
-                        Label(NSLocalizedString("Open Screen Recording settings", comment: ""), systemImage: "record.circle")
-                    }
-                    .accessibilityIdentifier("openAgentScreenRecordingSettings")
-                    .disabled(!snapshot.workerOnline || model.openingSystemSettings != nil || model.updatingWorker != nil)
-                }
                 HStack {
                     Button {
                         model.finishPendingSetup(snapshot.space)
