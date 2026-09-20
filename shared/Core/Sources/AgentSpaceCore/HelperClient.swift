@@ -9,7 +9,11 @@ public let helperMachServiceName = BundleIdentifiers.helper
 
 /// The helper's build version, bumped when its *behaviour* changes so the app can
 /// tell "the helper is installed" from "the right helper is installed".
-public let helperVersion = "0.1.10"
+/// One source of truth for the native GUI/helper/worker build. Keeping the
+/// worker's hello version separate previously made a partial version bump look
+/// exactly like a worker that launchd had failed to update.
+public let agentSpaceVersion = "0.1.10"
+public let helperVersion = agentSpaceVersion
 
 /// The XPC surface, as Objective-C sees it.
 ///
