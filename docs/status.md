@@ -102,7 +102,9 @@ V3 does not make the later roadmap appear by renaming Phase 1:
 3. **Real-machine acceptance** — connect a manually created standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the
    worker online, and complete the Desktop and Fusion TextEdit gates while the
-   main desktop is unaffected.
+   main desktop is unaffected. Two Fusion checks are owed by validation §296:
+   input against two overlapping windows of one app, and a text selection or
+   slider driven through a proxy.
 4. **Multi-account soak** — two attached accounts working concurrently while
    the human continues normal work.
 5. **Fusion V2 surfaces** — transient windows, explicit clipboard bridging and
@@ -116,14 +118,20 @@ The first Fusion vertical slice is now implemented in this tree:
   down on console, indeterminate or no-WindowServer transitions.
 - `RemoteWindow` uses `pid + windowID + generation`; `window.list` exposes only
   visible layer-0 regular-app windows discovered through public APIs.
-- `window.stream.*` captures one desktop-independent `SCWindow`, retaining only
-  the newest JPEG. `window.input` accepts window-relative fractions and maps
-  them against the worker's current global window frame.
+- `window.stream.*` captures one desktop-independent `SCWindow` at the panel's
+  pixel size, retaining only the newest JPEG. `window.input` accepts
+  window-relative fractions and maps them against the worker's current global
+  window frame, after raising *that* window so input cannot land on a sibling.
 - **Open Apps** creates one native proxy `NSWindow` per remote window. Proxy
   position and size remain local; minimizing stops capture, restoring restarts
-  it, and closing maps to a unique AX window or refuses an ambiguous match.
-- Direct proxy interaction owns a renewable five-second human input lease;
-  normal automation input returns `INPUT_BUSY_BY_HUMAN` during that interval.
+  it, and closing maps to a unique AX window or refuses an ambiguous match. A
+  proxy whose stream stops answering — most often a restarted worker — rebuilds
+  itself instead of freezing on the last frame.
+- Pressing and travelling in a proxy is one `drag` action; pressing and releasing
+  in place is a click. Direct proxy interaction owns a renewable five-second
+  human input lease, but only deliberate interaction claims it — a cursor
+  crossing the window does not pause the agent. Normal automation input returns
+  `INPUT_BUSY_BY_HUMAN` during that interval.
 - Settings now separates Accounts, Permissions, Performance and Advanced.
 - The fixed binary `FrameHeader` and one-slot back-pressure primitive are in
   Core and tested. The current first-slice app still pulls JPEG through the
