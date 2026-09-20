@@ -28,6 +28,7 @@
 "Shared" = "共享";
 "Accessibility" = "辅助功能";
 "Screen Recording" = "屏幕录制";
+"Screen & System Audio Recording" = "屏幕与系统声音录制";
 "Display" = "显示器";
 "Points" = "点";
 "Pixels" = "像素";
@@ -448,3 +449,16 @@
 "Try Update worker again after a moment." = "稍等片刻后再次点击「更新 worker」。";
 "Open Accessibility settings" = "打开辅助功能设置";
 "Open Screen Recording settings" = "打开屏幕录制设置";
+"Open authorization guide" = "打开授权向导";
+"Authorize this agent" = "授权此 Agent";
+"The worker needs two macOS privacy permissions before it can control the attached desktop." = "worker 需要两个 macOS 隐私权限，才能控制已连接账号的桌面。";
+"You do not need to find AgentSpace in %@. These buttons open System Settings in that account's own session; switch to %@, approve the permission, then return here." = "你不需要在 %@ 账号里寻找 AgentSpace。下面的按钮会在该账号自己的会话中打开系统设置；切换到 %@，完成授权后再回到这里。";
+"Lets agentspace-worker operate the attached desktop." = "允许 agentspace-worker 操作已连接账号的桌面。";
+"Lets the worker capture the attached desktop for previews." = "允许 worker 捕获已连接账号的桌面用于预览。";
+"Granted" = "已授权";
+"Needs approval" = "待授权";
+"Open settings" = "打开设置";
+"Refresh authorization status" = "刷新授权状态";
+"Sign in to the attached account first. The worker must be running before macOS can show its permission entry." = "请先登录已连接账号。worker 启动后，macOS 才会显示它的权限条目。";
+"AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings." = "AgentSpace 不会写入 TCC 数据库。每项权限都由你在已连接账号的系统设置中亲自确认。";
+"This agent is no longer attached. Close this guide and refresh the account list." = "此 Agent 已不再连接。请关闭向导并刷新账号列表。";

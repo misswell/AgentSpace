@@ -14,7 +14,7 @@ struct Operations {
     /// ScreenCaptureKit source; there is no other place capture can come from.
     let preview: PreviewController
 
-    static let workerVersion = "0.1.6"
+    static let workerVersion = "0.1.7"
 
     init(context: WorkerContext, preview: PreviewController? = nil) {
         self.context = context

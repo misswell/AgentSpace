@@ -7956,3 +7956,18 @@ continues in the main account.
 | 533 | `METHOD_NOT_FOUND` for `systemSettings.open` is converted into an in-app worker reinstall recovery | pass | `WorkerCompatibilityTests.testUnknownMethodFromAnOlderWorkerOffersWorkerReinstall`; `SpaceService.openSystemSettings`; `AppModel.updateWorker` |
 | 534 | A stale helper is refreshed before the worker is reinstalled, avoiding another old worker copy | pass | `AppModel.reinstallHelperForWorker`; `HelperInstallation.isStaleBinary`; existing helper CDHash tests |
 | 535 | The connected account's empty GUI panel is explained as intentional and points back to the main account | pass | `EmptyStateView`, `SpaceDetailView` and both localization tables |
+
+## 286. Add an in-app authorization guide (2026-09-20)
+
+The attached account intentionally has no second AgentSpace GUI, so asking a
+new user to find the privacy panes there leaves them stuck. The main account's
+setup card now opens a focused authorization guide. It explains the session
+boundary, shows live Accessibility and Screen Recording state, opens either
+allowed System Settings pane through the attached worker, and offers a status
+refresh (or Finish setup when the worker is not online).
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 536 | The setup card exposes a prominent authorization-guide button and the guide exposes both permission actions | pass | `SpaceDetailView` identifier `openAgentPermissionGuide`; `PermissionGuideView` identifiers `permissionGuideAccessibility` and `permissionGuideScreenRecording` |
+| 537 | The guide tells users to switch accounts only to approve the grant and never requires a second AgentSpace app | pass | `PermissionGuideView` session-boundary copy; both localization tables |
+| 538 | The guide reports current grant state and provides Refresh authorization status/Finish setup actions | pass | `PermissionGuideView` live `SpaceSnapshot` lookup and action controls |

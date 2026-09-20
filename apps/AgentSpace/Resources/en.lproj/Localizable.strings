@@ -28,6 +28,7 @@
 "Shared" = "Shared";
 "Accessibility" = "Accessibility";
 "Screen Recording" = "Screen Recording";
+"Screen & System Audio Recording" = "Screen & System Audio Recording";
 "Display" = "Display";
 "Points" = "Points";
 "Pixels" = "Pixels";
@@ -448,3 +449,16 @@
 "Try Update worker again after a moment." = "Try Update worker again after a moment.";
 "Open Accessibility settings" = "Open Accessibility settings";
 "Open Screen Recording settings" = "Open Screen Recording settings";
+"Open authorization guide" = "Open authorization guide";
+"Authorize this agent" = "Authorize this agent";
+"The worker needs two macOS privacy permissions before it can control the attached desktop." = "The worker needs two macOS privacy permissions before it can control the attached desktop.";
+"You do not need to find AgentSpace in %@. These buttons open System Settings in that account's own session; switch to %@, approve the permission, then return here." = "You do not need to find AgentSpace in %@. These buttons open System Settings in that account's own session; switch to %@, approve the permission, then return here.";
+"Lets agentspace-worker operate the attached desktop." = "Lets agentspace-worker operate the attached desktop.";
+"Lets the worker capture the attached desktop for previews." = "Lets the worker capture the attached desktop for previews.";
+"Granted" = "Granted";
+"Needs approval" = "Needs approval";
+"Open settings" = "Open settings";
+"Refresh authorization status" = "Refresh authorization status";
+"Sign in to the attached account first. The worker must be running before macOS can show its permission entry." = "Sign in to the attached account first. The worker must be running before macOS can show its permission entry.";
+"AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings." = "AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings.";
+"This agent is no longer attached. Close this guide and refresh the account list." = "This agent is no longer attached. Close this guide and refresh the account list.";

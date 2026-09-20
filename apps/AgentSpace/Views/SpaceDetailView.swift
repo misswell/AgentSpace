@@ -85,6 +85,7 @@ struct SpaceDetailView: View {
     @State private var apps: [AppEntry] = []
     @State private var appsError: AppModel.PresentedError?
     @State private var showingApps = false
+    @State private var showingPermissionGuide = false
 
     var body: some View {
         Group {
@@ -164,6 +165,12 @@ struct SpaceDetailView: View {
         }
         .sheet(isPresented: $model.showingDesktopViewer) {
             DesktopViewerView().environmentObject(model)
+        }
+        .sheet(isPresented: $showingPermissionGuide) {
+            if let snapshot = model.snapshots.first(where: { $0.id == model.selection }) {
+                PermissionGuideView(spaceID: snapshot.space.id)
+                    .environmentObject(model)
+            }
         }
     }
 
@@ -340,6 +347,14 @@ struct SpaceDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 8) {
+                    Button {
+                        showingPermissionGuide = true
+                    } label: {
+                        Label(NSLocalizedString("Open authorization guide", comment: ""), systemImage: "checklist")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("openAgentPermissionGuide")
+                    .disabled(model.updatingWorker != nil)
                     Button {
                         model.openSystemSettings(snapshot.space, pane: .accessibility)
                     } label: {
