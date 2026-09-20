@@ -227,6 +227,12 @@ final class RecoveryHintCodableTests: XCTestCase {
 }
 
 final class WorkerCompatibilityTests: XCTestCase {
+    private func hello(version: String) -> RPCResponse {
+        RPCResponse(id: UUID().uuidString, result: .obj([
+            "worker": .obj(["version": .string(version)]),
+        ]))
+    }
+
     func testUnknownMethodFromAnOlderWorkerOffersWorkerReinstall() {
         let oldWorker = AgentSpaceError(code: .methodNotFound, message: "unknown method 'systemSettings.open'")
 
@@ -243,5 +249,27 @@ final class WorkerCompatibilityTests: XCTestCase {
         XCTAssertEqual(
             WorkerCompatibility.recovery(for: denied, method: Method.openSystemSettings),
             denied)
+    }
+
+    func testWorkerVersionWaitsThroughStartupUntilTheExpectedImageAnswers() {
+        var responses: [RPCResponse?] = [nil, hello(version: "0.1.3"), hello(version: "0.1.10")]
+        var pauses = 0
+
+        let result = WorkerCompatibility.waitForVersion(
+            expected: "0.1.10", attempts: 3,
+            pause: { pauses += 1 },
+            probe: { responses.removeFirst() })
+
+        XCTAssertEqual(result, .ready)
+        XCTAssertEqual(pauses, 2)
+    }
+
+    func testWorkerVersionReportsTheStaleImageAfterTheWaitExpires() {
+        let result = WorkerCompatibility.waitForVersion(
+            expected: "0.1.10", attempts: 2,
+            pause: {},
+            probe: { self.hello(version: "0.1.3") })
+
+        XCTAssertEqual(result, .mismatched("0.1.3"))
     }
 }

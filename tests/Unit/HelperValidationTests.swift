@@ -243,15 +243,17 @@ final class HelperValidationTests: XCTestCase {
 
     func testStartingWorkerReloadsTheLaunchAgentBeforeKickstart() {
         let spaceID = UUID(uuidString: "6EA2FB6B-2B91-4BEE-B7D0-7E76CA28C9A1")!
-        let plist = "/Users/agentuse/Library/LaunchAgents/\(HelperCommand.workerLabel(spaceID: spaceID)).plist"
+        let plist = HelperCommand.canonicalWorkerLaunchAgentPath(spaceID: spaceID)
+        let commands = HelperCommand.workerReloadCommands(
+            uid: 503, spaceID: spaceID, plistPath: plist)
 
-        XCTAssertEqual(
-            HelperCommand.workerReloadCommands(uid: 503, spaceID: spaceID, plistPath: plist),
-            [
-                [HelperCommand.launchctl, "bootout", "gui/503/\(HelperCommand.workerLabel(spaceID: spaceID))"],
-                [HelperCommand.launchctl, "bootstrap", "gui/503", plist],
-                [HelperCommand.launchctl, "kickstart", "-k", "gui/503/\(HelperCommand.workerLabel(spaceID: spaceID))"],
-            ])
+        XCTAssertEqual(commands.bootout,
+                       [HelperCommand.launchctl, "bootout", "gui/503/\(HelperCommand.workerLabel(spaceID: spaceID))"])
+        XCTAssertEqual(commands.bootstrap,
+                       [HelperCommand.launchctl, "bootstrap", "gui/503", plist])
+        XCTAssertEqual(commands.kickstart,
+                       [HelperCommand.launchctl, "kickstart", "-k", "gui/503/\(HelperCommand.workerLabel(spaceID: spaceID))"])
+        XCTAssertTrue(plist.hasPrefix("/Library/Application Support/AgentSpace/Worker/"))
     }
 
     func testTheWorkerLaunchAgentPlistIsValidXML() {

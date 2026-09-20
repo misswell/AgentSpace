@@ -189,6 +189,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
         let launchAgents = "\(home)/Library/LaunchAgents"
         let installedWorker = HelperCommand.workerInstallPath(version: helperVersion)
         let workerVersionDirectory = (installedWorker as NSString).deletingLastPathComponent
+        let canonicalPlist = HelperCommand.canonicalWorkerLaunchAgentPath(spaceID: spaceID)
 
         do {
             let runtimeDirectory = "\(runtimeRoot)/Runtime/\(spaceID.uuidString)"
@@ -225,7 +226,11 @@ final class HelperService: NSObject, HelperXPCProtocol {
             // The executable is shared and root-owned. Only the small plist lives
             // in the agent's home, so the agent cannot replace the code launchd
             // executes on its next login.
-            for directory in [HelperCommand.workerInstallRoot, workerVersionDirectory] {
+            for directory in [
+                HelperCommand.workerInstallRoot,
+                workerVersionDirectory,
+                HelperCommand.workerLaunchAgentRoot,
+            ] {
                 var isDirectory: ObjCBool = false
                 if fileManager.fileExists(atPath: directory, isDirectory: &isDirectory) {
                     let attributes = try fileManager.attributesOfItem(atPath: directory)
@@ -253,6 +258,12 @@ final class HelperService: NSObject, HelperXPCProtocol {
             try refuseSymbolicLink(at: plistURL.path)
             let plist = HelperCommand.workerLaunchAgent(
                 spaceID: spaceID, username: username, workerPath: installedWorker, runtimeRoot: runtimeRoot)
+            try refuseSymbolicLink(at: canonicalPlist)
+            try plist.write(
+                to: URL(fileURLWithPath: canonicalPlist), atomically: true, encoding: .utf8)
+            try fileManager.setAttributes(
+                [.posixPermissions: 0o644, .ownerAccountID: 0, .groupOwnerAccountID: 0],
+                ofItemAtPath: canonicalPlist)
             try plist.write(to: plistURL, atomically: true, encoding: .utf8)
             try fileManager.setAttributes([.posixPermissions: 0o644, .ownerAccountID: uid, .groupOwnerAccountID: gid(of: username) ?? 20],
                                           ofItemAtPath: plistURL.path)
@@ -262,6 +273,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
                 "username": .string(username),
                 "workerPath": .string(installedWorker),
                 "launchAgentPath": .string(plistURL.path),
+                "canonicalLaunchAgentPath": .string(canonicalPlist),
                 "label": .string(HelperCommand.workerLabel(spaceID: spaceID)),
                 "runtimeDirectory": .string(runtimeDirectory),
             ]))
@@ -301,16 +313,25 @@ final class HelperService: NSObject, HelperXPCProtocol {
                     NSLocalizedDescriptionKey: "could not stop \(label): \(stopped.standardError)",
                 ])
             }
+            var removed: [String] = []
+            let canonicalPlist = HelperCommand.canonicalWorkerLaunchAgentPath(spaceID: spaceID)
+            try refuseSymbolicLink(at: canonicalPlist)
+            if FileManager.default.fileExists(atPath: canonicalPlist) {
+                try FileManager.default.removeItem(atPath: canonicalPlist)
+                removed.append(canonicalPlist)
+            }
             guard FileManager.default.fileExists(atPath: home) else {
                 return HelperResponse(id: request.id, result: .obj([
                     "username": .string(username),
-                    "removed": .array([]),
+                    "removed": .array(removed.map { .string($0) }),
                 ]))
             }
             try prepareLaunchAgentsDirectory(home: home, uid: uidValue,
                                              gid: gid(of: username) ?? 20, create: false)
-            var removed: [String] = []
-            for path in ["\(launchAgents)/\(label).plist", "\(launchAgents)/agentspace-worker"] {
+            for path in [
+                "\(launchAgents)/\(label).plist",
+                "\(launchAgents)/agentspace-worker",
+            ] {
                 try refuseSymbolicLink(at: path)
                 if FileManager.default.fileExists(atPath: path) {
                     try FileManager.default.removeItem(atPath: path)
@@ -366,6 +387,18 @@ final class HelperService: NSObject, HelperXPCProtocol {
         guard info.st_mode & S_IFMT != S_IFLNK else {
             throw NSError(domain: "AgentSpace.Helper", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "refusing a symbolic link at \(path)",
+            ])
+        }
+    }
+
+    private func requireRootOwnedRegularFile(_ path: String) throws {
+        var info = stat()
+        guard lstat(path, &info) == 0,
+              info.st_mode & S_IFMT == S_IFREG,
+              info.st_uid == 0,
+              info.st_mode & 0o022 == 0 else {
+            throw NSError(domain: "AgentSpace.Helper", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "refusing a missing, non-file, writable or non-root-owned path at \(path)",
             ])
         }
     }
@@ -518,35 +551,21 @@ final class HelperService: NSObject, HelperXPCProtocol {
 
         let result: CommandRunner.Result
         if start {
-            let home = AccountDirectory.homeDirectory(of: username) ?? "/Users/\(username)"
-            let plist = "\(home)/Library/LaunchAgents/\(label).plist"
+            let plist = HelperCommand.canonicalWorkerLaunchAgentPath(spaceID: spaceID)
             do {
-                try prepareLaunchAgentsDirectory(
-                    home: home, uid: uidValue, gid: gid(of: username) ?? 20, create: false)
                 try refuseSymbolicLink(at: plist)
-                guard FileManager.default.fileExists(atPath: plist) else {
-                    throw NSError(domain: "AgentSpace.Helper", code: 1, userInfo: [
-                        NSLocalizedDescriptionKey: "the worker LaunchAgent is not installed at \(plist)",
-                    ])
-                }
+                try requireRootOwnedRegularFile(plist)
 
                 let commands = HelperCommand.workerReloadCommands(
                     uid: uidValue, spaceID: spaceID, plistPath: plist)
-                let bootedOut = CommandRunner.run(commands[0], timeout: 60)
+                let bootedOut = CommandRunner.run(commands.bootout, timeout: 60)
                 log.info("\(bootedOut.displayCommand) → exit \(bootedOut.exitCode)")
-                let oldJobWasAbsent = bootedOut.standardError.localizedCaseInsensitiveContains("not found")
-                    || bootedOut.standardError.localizedCaseInsensitiveContains("no such process")
-                    || bootedOut.standardError.localizedCaseInsensitiveContains("could not find specified service")
-                    || bootedOut.standardError.localizedCaseInsensitiveContains("could not find domain for user")
-                guard bootedOut.ok || oldJobWasAbsent else {
-                    throw NSError(domain: "AgentSpace.Helper", code: Int(bootedOut.exitCode), userInfo: [
-                        NSLocalizedDescriptionKey: bootedOut.standardError.isEmpty
-                            ? "could not unload the existing worker job"
-                            : bootedOut.standardError,
-                    ])
-                }
+                // An absent service is the normal first-start case. Do not
+                // interpret launchctl's localized prose: bootstrap is the
+                // authoritative next operation. If a live job could not be
+                // removed, bootstrap fails rather than starting stale state.
 
-                let bootstrapped = CommandRunner.run(commands[1], timeout: 60)
+                let bootstrapped = CommandRunner.run(commands.bootstrap, timeout: 60)
                 log.info("\(bootstrapped.displayCommand) → exit \(bootstrapped.exitCode)")
                 guard bootstrapped.ok else {
                     throw NSError(domain: "AgentSpace.Helper", code: Int(bootstrapped.exitCode), userInfo: [
@@ -556,7 +575,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
                     ])
                 }
 
-                result = CommandRunner.run(commands[2], timeout: 60)
+                result = CommandRunner.run(commands.kickstart, timeout: 60)
                 log.info("\(result.displayCommand) → exit \(result.exitCode)")
             } catch {
                 return HelperResponse(id: request.id, error: AgentSpaceError(

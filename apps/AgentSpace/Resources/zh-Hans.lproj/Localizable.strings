@@ -480,6 +480,8 @@
 "The AgentSpace helper is not ready, so the worker cannot be updated yet." = "AgentSpace 助手尚未就绪，暂时无法更新 worker。";
 "Sign in to the attached account's desktop once before requesting permissions." = "请先登录已连接账号的桌面一次，再请求权限。";
 "The helper did not install the current worker." = "助手没有安装当前 worker。";
+"The updated worker was started but did not become ready." = "新版 worker 已启动，但未能进入就绪状态。";
+"The worker is still running version %@ instead of %@." = "worker 仍在运行版本 %@，而不是 %@。";
 "The worker could not be started in the attached account's desktop." = "无法在已连接账号的桌面中启动 worker。";
 "The helper could not prepare the worker: %@" = "助手无法准备 worker：%@";
 "If this account has already been attached, refresh this window to reveal its authorization card." = "如果此账号已经连接，请刷新此窗口以显示授权卡片。";

@@ -547,6 +547,13 @@ final class AppModel: ObservableObject {
         _ space: AgentAccount,
         mainUser: String
     ) async -> AgentSpaceError? {
+        let currentVersion = await Task.detached(priority: .userInitiated) {
+            WorkerCompatibility.version(from: Self.workerHello(space))
+        }.value
+        if currentVersion == helperVersion {
+            return nil
+        }
+
         let helperState = await Task.detached(priority: .userInitiated) {
             HelperInstallation.inspect()
         }.value
@@ -564,13 +571,13 @@ final class AppModel: ObservableObject {
         let error = await Task.detached(priority: .userInitiated) {
             Self.installAndStartWorker(space, mainUser: mainUser)
         }.value
-        if let error { return error }
+        return error
+    }
 
-        // Give launchd a short opportunity to hand the new image its socket.
-        // The RPC below remains the source of truth; this delay only avoids a
-        // false offline result during the normal bootstrap window.
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        return nil
+    nonisolated private static func workerHello(_ space: AgentAccount) -> RPCResponse? {
+        let connection = SpaceConnection(space: space)
+        return try? connection.client.call(
+            method: Method.hello, token: nil, timeout: 1)
     }
 
     nonisolated private static func installAndStartWorker(
@@ -616,7 +623,30 @@ final class AppModel: ObservableObject {
                         comment: ""),
                     recoverable: true)
             }
-            return nil
+            let readiness = WorkerCompatibility.waitForVersion(
+                expected: helperVersion,
+                attempts: 40,
+                pause: { Thread.sleep(forTimeInterval: 0.15) },
+                probe: { workerHello(space) })
+            switch readiness {
+            case .ready:
+                return nil
+            case .unavailable:
+                return AgentSpaceError(
+                    code: .workerOffline,
+                    message: NSLocalizedString(
+                        "The updated worker was started but did not become ready.", comment: ""),
+                    recoverable: true,
+                    recoveryHint: .reinstallWorker)
+            case .mismatched(let actual):
+                return AgentSpaceError(
+                    code: .workerOffline,
+                    message: String(format: NSLocalizedString(
+                        "The worker is still running version %@ instead of %@.", comment: ""),
+                        actual, helperVersion),
+                    recoverable: true,
+                    recoveryHint: .reinstallWorker)
+            }
         } catch let error as HelperClientError {
             return error.agentSpaceError
         } catch {

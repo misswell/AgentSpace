@@ -8023,5 +8023,7 @@ a successful restart of stale configuration as an update.
 |---|---|---|---|
 | 547 | The reported stale-worker state is reproducible: 0.1.9 existed on disk while the live AgentUse process ran 0.1.3 | pass | real-machine process path `/Library/Application Support/AgentSpace/Worker/versions/0.1.3/agentspace-worker`; 0.1.9 binary predated that process start |
 | 548 | Starting a worker always unloads any cached service before loading the current plist | pass | `HelperCommand.workerReloadCommands`; `HelperValidationTests.testStartingWorkerReloadsTheLaunchAgentBeforeKickstart` |
-| 549 | A failed unload is accepted only when the job/domain is already absent; other launchd failures stop the update | pass | `HelperService.workerControl` checks the bounded launchctl absence messages before bootstrap |
-| 550 | The updated Swift and MCP layers remain green at version 0.1.10 | pass | system-PATH `swift test`; MCP tests 23/23; rebuilt MCP smoke reports `agentspace 0.1.10` and all checks passed |
+| 549 | The helper bootstraps only a root-owned, non-writable canonical plist rather than trusting the account-owned login copy | pass | `HelperCommand.canonicalWorkerLaunchAgentPath`; `HelperService.requireRootOwnedRegularFile` |
+| 550 | First start does not depend on localized launchctl “not found” prose | pass | `HelperService.workerControl` attempts canonical bootstrap after bootout and treats bootstrap as the authoritative result |
+| 551 | Authorization waits until `hello` reports exactly 0.1.10 and avoids restarting a worker already at that version | pass | `WorkerCompatibility.waitForVersion`; `WorkerCompatibilityTests` startup/mismatch cases; `AppModel.prepareWorkerForAuthorization` |
+| 552 | The updated Swift and MCP layers remain green at version 0.1.10 | pass | system-PATH `swift test`; MCP tests 23/23; rebuilt MCP smoke reports `agentspace 0.1.10` and all checks passed |

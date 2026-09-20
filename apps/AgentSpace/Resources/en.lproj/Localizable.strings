@@ -480,6 +480,8 @@
 "The AgentSpace helper is not ready, so the worker cannot be updated yet." = "The AgentSpace helper is not ready, so the worker cannot be updated yet.";
 "Sign in to the attached account's desktop once before requesting permissions." = "Sign in to the attached account's desktop once before requesting permissions.";
 "The helper did not install the current worker." = "The helper did not install the current worker.";
+"The updated worker was started but did not become ready." = "The updated worker was started but did not become ready.";
+"The worker is still running version %@ instead of %@." = "The worker is still running version %@ instead of %@.";
 "The worker could not be started in the attached account's desktop." = "The worker could not be started in the attached account's desktop.";
 "The helper could not prepare the worker: %@" = "The helper could not prepare the worker: %@";
 "If this account has already been attached, refresh this window to reveal its authorization card." = "If this account has already been attached, refresh this window to reveal its authorization card.";

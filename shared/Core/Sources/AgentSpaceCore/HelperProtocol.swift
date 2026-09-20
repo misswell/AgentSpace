@@ -413,6 +413,7 @@ public enum HelperCommand {
     public static let chown = "/usr/sbin/chown"
     public static let mkdir = "/bin/mkdir"
     public static let workerInstallRoot = "/Library/Application Support/AgentSpace/Worker/versions"
+    public static let workerLaunchAgentRoot = "/Library/Application Support/AgentSpace/Worker/LaunchAgents"
 
     /// Root-owned, versioned worker location. The version is a build constant,
     /// never request data; keeping it in the path lets an updated helper install
@@ -491,19 +492,28 @@ public enum HelperCommand {
     /// still point at an older versioned worker path, even though installWorker
     /// has written a new plist. Booting out and bootstrapping the plist is what
     /// makes the newly installed worker version authoritative.
+    public struct WorkerReloadCommands: Equatable {
+        public let bootout: [String]
+        public let bootstrap: [String]
+        public let kickstart: [String]
+    }
+
     public static func workerReloadCommands(
         uid: uid_t,
         spaceID: UUID,
         plistPath: String
-    ) -> [[String]] {
+    ) -> WorkerReloadCommands {
         let label = workerLabel(spaceID: spaceID)
         let userDomain = "gui/\(uid)"
         let serviceDomain = "\(userDomain)/\(label)"
-        return [
-            [launchctl, "bootout", serviceDomain],
-            [launchctl, "bootstrap", userDomain, plistPath],
-            [launchctl, "kickstart", "-k", serviceDomain],
-        ]
+        return WorkerReloadCommands(
+            bootout: [launchctl, "bootout", serviceDomain],
+            bootstrap: [launchctl, "bootstrap", userDomain, plistPath],
+            kickstart: [launchctl, "kickstart", "-k", serviceDomain])
+    }
+
+    public static func canonicalWorkerLaunchAgentPath(spaceID: UUID) -> String {
+        "\(workerLaunchAgentRoot)/\(workerLabel(spaceID: spaceID)).plist"
     }
 
     /// The exact path a worker LaunchAgent is written to inside a Space's home.
