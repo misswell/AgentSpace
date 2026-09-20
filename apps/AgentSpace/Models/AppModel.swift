@@ -1,7 +1,23 @@
 import Foundation
 import SwiftUI
+import Darwin
 @preconcurrency import ServiceManagement
 import AgentSpaceCore
+
+/// A runtime record discovered from the attached account's own session.
+///
+/// The controller keeps the registry private to the main account (the target
+/// account cannot traverse `Spaces/` by design), but the target account can
+/// still see its own 0700 runtime directory. This small hand-off lets the
+/// AgentSpace UI running there offer the same authorization action without
+/// exposing the controller's registry or creating a second management view.
+struct CurrentAccountAuthorization: Equatable, Sendable {
+    var account: AgentAccount
+    var mainUser: String
+    var workerOnline: Bool
+    var accessibility: Bool
+    var screenRecording: Bool
+}
 
 /// The GUI's state.
 ///
@@ -22,7 +38,7 @@ import AgentSpaceCore
 @MainActor
 final class AppModel: ObservableObject {
 
-    /// "0.1.8 (412)" — marketing version plus the build number that
+    /// "0.1.9 (412)" — marketing version plus the build number that
     /// `scripts/bundle-app.sh` stamps from git at bundle time. Shown in the
     /// sidebar so "am I looking at the copy I just built?" is answered on
     /// screen; the About panel reads the same plist keys.
@@ -54,6 +70,11 @@ final class AppModel: ObservableObject {
     /// Set when something was copied, so the UI can confirm without an alert.
     @Published var copiedMessage: String?
     @Published private(set) var availableAccounts: [LocalAccount] = []
+    /// The attached account represented by this login session, when this
+    /// process is running inside that account. It is intentionally separate
+    /// from `snapshots`: the controller's registry is not readable by the
+    /// attached account, but its own runtime is.
+    @Published private(set) var currentAccountAuthorization: CurrentAccountAuthorization?
 
     struct Provisioning: Equatable, Identifiable {
         var id = UUID()
@@ -101,10 +122,12 @@ final class AppModel: ObservableObject {
     private let service: SpaceService
     private var refreshTask: Task<Void, Never>?
     private var accountDiscoveryGeneration = 0
+    private var currentAccountDiscoveryGeneration = 0
     @Published private(set) var finishingSetup: UUID?
     @Published private(set) var openingSystemSettings: UUID?
     @Published private(set) var updatingWorker: UUID?
     @Published private(set) var authorizingPermission: UUID?
+    @Published private(set) var authorizingCurrentPermission: SystemSettingsPane?
 
     init(service: SpaceService = SpaceService()) {
         self.service = service
@@ -342,6 +365,66 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Find the runtime owned by the account running this GUI, without reading
+    /// the controller's private `Spaces/index.json`. Runtime directories are
+    /// named by UUID; only the matching account can read its `space.json`, so a
+    /// target-account AgentSpace window gets a narrow, local authorization
+    /// hand-off rather than a copy of the controller's registry.
+    func discoverCurrentAccountAuthorization() {
+        currentAccountDiscoveryGeneration += 1
+        let generation = currentAccountDiscoveryGeneration
+        Task {
+            let discovered = await Task.detached(priority: .userInitiated) {
+                Self.discoverCurrentAccountAuthorizationFromRuntime()
+            }.value
+            guard generation == self.currentAccountDiscoveryGeneration else { return }
+            self.currentAccountAuthorization = discovered
+        }
+    }
+
+    nonisolated private static func discoverCurrentAccountAuthorizationFromRuntime() -> CurrentAccountAuthorization? {
+        let username = NSUserName()
+        guard !username.isEmpty else { return nil }
+        let resolvedRoot = AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
+        let runtimeRoot = resolvedRoot + "/Runtime"
+        let fileManager = FileManager.default
+        guard let entries = try? fileManager.contentsOfDirectory(atPath: runtimeRoot) else {
+            return nil
+        }
+
+        for entry in entries {
+            guard let id = UUID(uuidString: entry) else { continue }
+            let recordPath = "\(runtimeRoot)/\(entry)/space.json"
+            guard let data = fileManager.contents(atPath: recordPath),
+                  let object = try? JSONSerialization.jsonObject(with: data),
+                  let record = object as? [String: Any],
+                  let home = record["home"] as? String,
+                  (home as NSString).lastPathComponent == username,
+                  let mainUser = record["mainUser"] as? String,
+                  !mainUser.isEmpty else { continue }
+
+            let name = (record["spaceName"] as? String).flatMap {
+                $0.isEmpty ? nil : $0
+            } ?? username
+            let account = AgentAccount(
+                id: id,
+                name: name,
+                username: username,
+                uid: getuid(),
+                homeDirectory: home,
+                runtimeRoot: resolvedRoot,
+                state: .offline)
+            let snapshot = SpaceService().snapshot(for: account)
+            return CurrentAccountAuthorization(
+                account: account,
+                mainUser: mainUser,
+                workerOnline: snapshot.workerOnline,
+                accessibility: snapshot.accessibility,
+                screenRecording: snapshot.screenRecording)
+        }
+        return nil
+    }
+
     /// Finish the one deferred step for an account whose home directory was
     /// created by its first GUI login. The helper remains the only component
     /// allowed to write the LaunchAgent; this method merely retries the typed
@@ -371,32 +454,177 @@ final class AppModel: ObservableObject {
               openingSystemSettings == nil else { return }
 
         authorizingPermission = space.id
-        if snapshots.first(where: { $0.id == space.id })?.workerOnline == true {
-            openSystemSettings(space, pane: pane)
-            return
-        }
-
-        finishingSetup = space.id
-        let root = service.root ?? AgentSpaceEnvironment.rootOverride ?? RuntimePaths.root
         Task {
-            let outcome = await self.finishPendingSetupOutcome(for: space, registryRoot: root)
-            self.finishingSetup = nil
-            if let error = outcome.error {
+            // Do this for both online and offline workers. `launchd` can keep
+            // an old binary alive after an app update, and the old worker is
+            // exactly what makes the button look like it did nothing.
+            let preparationError = await self.prepareWorkerForAuthorization(
+                space, mainUser: NSUserName())
+            if let preparationError {
                 self.authorizingPermission = nil
-                self.lastError = self.presented(for: error, space: space)
+                self.lastError = self.presented(for: preparationError, space: space)
                 self.reload()
                 return
             }
             self.openingSystemSettings = space.id
-            let error = await Task.detached(priority: .userInitiated) {
+            var error = await Task.detached(priority: .userInitiated) {
                 SpaceService().openSystemSettings(for: space, pane: pane)
             }.value
+            // A helper/worker race can leave launchd serving the old image for
+            // one request. Repair once and retry automatically instead of
+            // surfacing METHOD_NOT_FOUND as if the button were broken.
+            if error?.recoveryHint == .reinstallWorker {
+                if await self.prepareWorkerForAuthorization(space, mainUser: NSUserName()) == nil {
+                    error = await Task.detached(priority: .userInitiated) {
+                        SpaceService().openSystemSettings(for: space, pane: pane)
+                    }.value
+                }
+            }
             self.openingSystemSettings = nil
             self.authorizingPermission = nil
             if let error {
                 self.lastError = self.presented(for: error, space: space)
             }
             self.reload()
+        }
+    }
+
+    /// Authorize the worker from the AgentSpace window running *inside* the
+    /// attached account. The target account cannot read the controller's
+    /// registry, so it uses the current-session runtime hand-off discovered by
+    /// `discoverCurrentAccountAuthorization()` instead.
+    func authorizeCurrentAccount(pane: SystemSettingsPane) {
+        guard let currentAccountAuthorization,
+              authorizingCurrentPermission == nil,
+              authorizingPermission == nil,
+              openingSystemSettings == nil else { return }
+
+        authorizingCurrentPermission = pane
+        Task {
+            let preparationError = await self.prepareWorkerForAuthorization(
+                currentAccountAuthorization.account,
+                mainUser: currentAccountAuthorization.mainUser)
+            if let preparationError {
+                self.authorizingCurrentPermission = nil
+                self.lastError = self.presented(
+                    for: preparationError,
+                    space: currentAccountAuthorization.account)
+                self.discoverCurrentAccountAuthorization()
+                return
+            }
+
+            var error = await Task.detached(priority: .userInitiated) {
+                SpaceService().openSystemSettings(
+                    for: currentAccountAuthorization.account,
+                    pane: pane)
+            }.value
+            if error?.recoveryHint == .reinstallWorker {
+                if await self.prepareWorkerForAuthorization(
+                    currentAccountAuthorization.account,
+                    mainUser: currentAccountAuthorization.mainUser) == nil {
+                    error = await Task.detached(priority: .userInitiated) {
+                        SpaceService().openSystemSettings(
+                            for: currentAccountAuthorization.account,
+                            pane: pane)
+                    }.value
+                }
+            }
+            self.authorizingCurrentPermission = nil
+            if let error {
+                self.lastError = self.presented(
+                    for: error,
+                    space: currentAccountAuthorization.account)
+            }
+            self.discoverCurrentAccountAuthorization()
+        }
+    }
+
+    /// Install and kick the current worker through the typed helper surface.
+    /// This deliberately does not call `AccountAttachService.finishPendingSetup`:
+    /// the target account must not write the controller-owned registry just to
+    /// grant its own permissions.
+    private func prepareWorkerForAuthorization(
+        _ space: AgentAccount,
+        mainUser: String
+    ) async -> AgentSpaceError? {
+        let helperState = await Task.detached(priority: .userInitiated) {
+            HelperInstallation.inspect()
+        }.value
+        if !helperState.isReachable || helperState.isStaleBinary {
+            guard await reinstallHelperForWorker() else {
+                return AgentSpaceError(
+                    code: .helperUnavailable,
+                    message: NSLocalizedString(
+                        "The AgentSpace helper is not ready, so the worker cannot be updated yet.",
+                        comment: ""),
+                    recoverable: true)
+            }
+        }
+
+        let error = await Task.detached(priority: .userInitiated) {
+            Self.installAndStartWorker(space, mainUser: mainUser)
+        }.value
+        if let error { return error }
+
+        // Give launchd a short opportunity to hand the new image its socket.
+        // The RPC below remains the source of truth; this delay only avoids a
+        // false offline result during the normal bootstrap window.
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        return nil
+    }
+
+    nonisolated private static func installAndStartWorker(
+        _ space: AgentAccount,
+        mainUser: String
+    ) -> AgentSpaceError? {
+        let install = HelperRequest(
+            operation: .installWorker,
+            spaceID: space.id,
+            username: space.username,
+            mainUser: mainUser,
+            runtimeRoot: space.runtimeRoot ?? RuntimePaths.root,
+            uid: space.uid)
+        do {
+            let installed = try HelperClient.call(install)
+            guard installed.ok else {
+                return installed.error ?? AgentSpaceError(
+                    code: .helperRejected,
+                    message: NSLocalizedString(
+                        "The helper did not install the current worker.", comment: ""))
+            }
+            if installed.result?["deferred"]?.boolValue == true {
+                return AgentSpaceError(
+                    code: .sessionNotReady,
+                    message: NSLocalizedString(
+                        "Sign in to the attached account's desktop once before requesting permissions.",
+                        comment: ""),
+                    recoverable: true)
+            }
+
+            let start = try HelperClient.call(HelperRequest(
+                operation: .startWorker,
+                spaceID: space.id,
+                username: space.username,
+                mainUser: mainUser,
+                runtimeRoot: space.runtimeRoot ?? RuntimePaths.root,
+                uid: space.uid))
+            guard start.ok else {
+                return start.error ?? AgentSpaceError(
+                    code: .workerOffline,
+                    message: NSLocalizedString(
+                        "The worker could not be started in the attached account's desktop.",
+                        comment: ""),
+                    recoverable: true)
+            }
+            return nil
+        } catch let error as HelperClientError {
+            return error.agentSpaceError
+        } catch {
+            return AgentSpaceError(
+                code: .helperRejected,
+                message: String(format: NSLocalizedString(
+                    "The helper could not prepare the worker: %@", comment: ""),
+                    error.localizedDescription))
         }
     }
 
@@ -586,6 +814,7 @@ final class AppModel: ObservableObject {
             service.snapshot(for: space, includeResources: space.id == selection)
         }
         isLoading = false
+        discoverCurrentAccountAuthorization()
 
         if let selected = snapshots.first(where: { $0.id == selection }), let problem = selected.problem {
             // A refusal is normal and is shown in the detail pane, not as an

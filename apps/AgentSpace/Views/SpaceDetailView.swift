@@ -131,6 +131,35 @@ struct SpaceDetailView: View {
         .navigationTitle(model.selected?.space.name ?? "AgentSpace")
         .toolbar {
             ToolbarItemGroup {
+                Menu {
+                    if let space = model.selected?.space {
+                        Button {
+                            model.authorizeAgent(space, pane: .accessibility)
+                        } label: {
+                            Label(NSLocalizedString("Accessibility", comment: ""), systemImage: "person.crop.circle.badge.checkmark")
+                        }
+                        Button {
+                            model.authorizeAgent(space, pane: .screenRecording)
+                        } label: {
+                            Label(NSLocalizedString("Screen Recording", comment: ""), systemImage: "record.circle")
+                        }
+                        Divider()
+                        Button {
+                            showingPermissionGuide = true
+                        } label: {
+                            Label(NSLocalizedString("Open authorization guide", comment: ""), systemImage: "checklist")
+                        }
+                    }
+                } label: {
+                    Label(NSLocalizedString("Authorize", comment: ""), systemImage: "lock.shield")
+                }
+                .accessibilityIdentifier("openAgentPermissionToolbar")
+                .disabled(model.selected == nil
+                    || model.authorizingPermission != nil
+                    || model.openingSystemSettings != nil
+                    || model.updatingWorker != nil
+                    || model.finishingSetup != nil)
+
                 Button {
                     showingApps.toggle()
                     if showingApps { loadApps() }

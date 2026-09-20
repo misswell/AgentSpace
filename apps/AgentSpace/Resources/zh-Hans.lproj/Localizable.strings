@@ -470,3 +470,17 @@
 "Sign in to the attached account first. The worker must be running before macOS can show its permission entry." = "请先登录已连接账号。worker 启动后，macOS 才会显示它的权限条目。";
 "AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings." = "AgentSpace 不会写入 TCC 数据库。每项权限都由你在已连接账号的系统设置中亲自确认。";
 "This agent is no longer attached. Close this guide and refresh the account list." = "此 Agent 已不再连接。请关闭向导并刷新账号列表。";
+"Authorize" = "授权";
+"Authorize this account" = "授权此账号";
+"This AgentSpace window is running as %@. Authorize the background agentspace-worker for this desktop here." = "当前 AgentSpace 窗口运行在 %@ 账号中，可在这里为此桌面的后台 agentspace-worker 授权。";
+"You do not need a second AgentSpace app. The buttons below prepare the worker and open this account's own System Settings." = "不需要安装或寻找第二个 AgentSpace。下面的按钮会准备 worker，并打开此账号自己的系统设置。";
+"Authorize Accessibility" = "授权辅助功能";
+"Authorize Screen Recording" = "授权屏幕录制";
+"The worker is not running yet. The first authorization click installs and starts the current worker before opening System Settings." = "worker 还没有运行。第一次点击授权时会先安装并启动当前 worker，再打开系统设置。";
+"The AgentSpace helper is not ready, so the worker cannot be updated yet." = "AgentSpace 助手尚未就绪，暂时无法更新 worker。";
+"Sign in to the attached account's desktop once before requesting permissions." = "请先登录已连接账号的桌面一次，再请求权限。";
+"The helper did not install the current worker." = "助手没有安装当前 worker。";
+"The worker could not be started in the attached account's desktop." = "无法在已连接账号的桌面中启动 worker。";
+"The helper could not prepare the worker: %@" = "助手无法准备 worker：%@";
+"If this account has already been attached, refresh this window to reveal its authorization card." = "如果此账号已经连接，请刷新此窗口以显示授权卡片。";
+"Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card." = "这个桌面的权限属于该账号中的后台进程 agentspace-worker。如果此账号已经连接，请刷新此窗口以显示授权卡片。";

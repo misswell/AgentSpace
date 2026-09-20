@@ -9,7 +9,7 @@ public let helperMachServiceName = BundleIdentifiers.helper
 
 /// The helper's build version, bumped when its *behaviour* changes so the app can
 /// tell "the helper is installed" from "the right helper is installed".
-public let helperVersion = "0.1.8"
+public let helperVersion = "0.1.9"
 
 /// The XPC surface, as Objective-C sees it.
 ///

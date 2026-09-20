@@ -470,3 +470,17 @@
 "Sign in to the attached account first. The worker must be running before macOS can show its permission entry." = "Sign in to the attached account first. The worker must be running before macOS can show its permission entry.";
 "AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings." = "AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings.";
 "This agent is no longer attached. Close this guide and refresh the account list." = "This agent is no longer attached. Close this guide and refresh the account list.";
+"Authorize" = "Authorize";
+"Authorize this account" = "Authorize this account";
+"This AgentSpace window is running as %@. Authorize the background agentspace-worker for this desktop here." = "This AgentSpace window is running as %@. Authorize the background agentspace-worker for this desktop here.";
+"You do not need a second AgentSpace app. The buttons below prepare the worker and open this account's own System Settings." = "You do not need a second AgentSpace app. The buttons below prepare the worker and open this account's own System Settings.";
+"Authorize Accessibility" = "Authorize Accessibility";
+"Authorize Screen Recording" = "Authorize Screen Recording";
+"The worker is not running yet. The first authorization click installs and starts the current worker before opening System Settings." = "The worker is not running yet. The first authorization click installs and starts the current worker before opening System Settings.";
+"The AgentSpace helper is not ready, so the worker cannot be updated yet." = "The AgentSpace helper is not ready, so the worker cannot be updated yet.";
+"Sign in to the attached account's desktop once before requesting permissions." = "Sign in to the attached account's desktop once before requesting permissions.";
+"The helper did not install the current worker." = "The helper did not install the current worker.";
+"The worker could not be started in the attached account's desktop." = "The worker could not be started in the attached account's desktop.";
+"The helper could not prepare the worker: %@" = "The helper could not prepare the worker: %@";
+"If this account has already been attached, refresh this window to reveal its authorization card." = "If this account has already been attached, refresh this window to reveal its authorization card.";
+"Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card." = "Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card.";

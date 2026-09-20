@@ -156,6 +156,7 @@ struct RefusalBanner: View {
 /// button: making an agent account makes a real macOS user, which needs an
 /// administrator.
 struct EmptyStateView: View {
+    @EnvironmentObject private var model: AppModel
     var onCreate: () -> Void
 
     var body: some View {
@@ -170,22 +171,112 @@ struct EmptyStateView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
-            Text(NSLocalizedString("If you are signed in as an attached account, this panel is intentionally empty. Switch back to the account that owns AgentSpace to manage the agent and its permissions.", comment: ""))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
-            Text(NSLocalizedString("Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window.", comment: ""))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
+            if let current = model.currentAccountAuthorization {
+                CurrentAccountPermissionCard(current: current)
+                    .environmentObject(model)
+            } else {
+                Text(NSLocalizedString("If you are signed in as an attached account, this panel is intentionally empty. Switch back to the account that owns AgentSpace to manage the agent and its permissions.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+                Text(NSLocalizedString("Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+            }
             Button(NSLocalizedString("New Agent…", comment: ""), action: onCreate)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
+    }
+}
+
+/// The attached account's local authorization surface. The controller's
+/// registry remains private, but this account can authorize its own
+/// `agentspace-worker` directly from the same AgentSpace window it opened.
+private struct CurrentAccountPermissionCard: View {
+    @EnvironmentObject private var model: AppModel
+
+    let current: CurrentAccountAuthorization
+
+    var body: some View {
+        Card(title: NSLocalizedString("Authorize this account", comment: "")) {
+            Text(String(format: NSLocalizedString("This AgentSpace window is running as %@. Authorize the background agentspace-worker for this desktop here.", comment: ""), current.account.username))
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(NSLocalizedString("You do not need a second AgentSpace app. The buttons below prepare the worker and open this account's own System Settings.", comment: ""))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                PermissionChip(
+                    name: NSLocalizedString("Accessibility", comment: ""),
+                    granted: current.accessibility)
+                PermissionChip(
+                    name: NSLocalizedString("Screen Recording", comment: ""),
+                    granted: current.screenRecording)
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    model.authorizeCurrentAccount(pane: .accessibility)
+                } label: {
+                    authorizationLabel(
+                        title: NSLocalizedString("Authorize Accessibility", comment: ""),
+                        icon: "person.crop.circle.badge.checkmark",
+                        pane: .accessibility)
+                }
+                .accessibilityIdentifier("authorizeCurrentAccountAccessibility")
+
+                Button {
+                    model.authorizeCurrentAccount(pane: .screenRecording)
+                } label: {
+                    authorizationLabel(
+                        title: NSLocalizedString("Authorize Screen Recording", comment: ""),
+                        icon: "record.circle",
+                        pane: .screenRecording)
+                }
+                .accessibilityIdentifier("authorizeCurrentAccountScreenRecording")
+            }
+
+            Button {
+                model.discoverCurrentAccountAuthorization()
+            } label: {
+                Label(NSLocalizedString("Refresh authorization status", comment: ""), systemImage: "arrow.clockwise")
+            }
+            .controlSize(.small)
+            .disabled(model.authorizingCurrentPermission != nil)
+
+            if !current.workerOnline {
+                Label(NSLocalizedString("The worker is not running yet. The first authorization click installs and starts the current worker before opening System Settings.", comment: ""), systemImage: "arrow.down.circle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: 560)
+    }
+
+    @ViewBuilder
+    private func authorizationLabel(
+        title: String,
+        icon: String,
+        pane: SystemSettingsPane
+    ) -> some View {
+        if model.authorizingCurrentPermission == pane {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text(NSLocalizedString("Preparing authorization…", comment: ""))
+            }
+        } else {
+            Label(title, systemImage: icon)
+        }
     }
 }
 

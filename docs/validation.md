@@ -7990,3 +7990,21 @@ account still needs no AgentSpace GUI.
 | 541 | A missing worker is installed/started before the requested pane is opened, with errors returned in-app | pass | `AppModel.authorizeAgent`; `AccountAttachService.finishPendingSetup`; `SpaceService.openSystemSettings` |
 | 542 | The explicit permission action asks macOS to register/show the worker's TCC entry before opening the pane | pass | `Operations.openSystemSettings` calls `AXIsProcessTrustedWithOptions` or `CGRequestScreenCaptureAccess` only after the user presses the authorization button |
 | 543 | A GUI opened inside the attached account explains why its panel is empty and points back to the main account's authorization card | pass | `EmptyStateView` and both localization tables |
+
+## 288. Make authorization reachable from either account's AgentSpace window (2026-09-20)
+
+The authorization path no longer assumes that a user can find the controller
+window or that the worker currently installed in the attached account is new
+enough. The controller page has a toolbar quick-action plus the full
+Permissions & authorization card. When AgentSpace is opened inside the attached
+account, the empty registry panel discovers only that account's own runtime and
+shows the same two authorization actions locally. Both paths reinstall and
+kickstart the current worker through the typed helper operation before asking
+the worker to open its own session's System Settings pane; no registry write or
+second AgentSpace installation is needed in the target account.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 544 | The controller detail page exposes a visible toolbar authorization menu in addition to the card | pass | `SpaceDetailView` toolbar identifier `openAgentPermissionToolbar` and both pane actions |
+| 545 | An AgentSpace window opened as the attached account discovers its local runtime and displays authorization buttons instead of an unexplained empty panel | pass | `AppModel.discoverCurrentAccountAuthorizationFromRuntime`; `EmptyStateView` `CurrentAccountPermissionCard` |
+| 546 | Authorization repairs an old or missing worker before opening settings, without allowing the target account to write the controller registry | pass | `AppModel.prepareWorkerForAuthorization`; typed `.installWorker`/`.startWorker` requests; no `AccountAttachService` call on the target path |
