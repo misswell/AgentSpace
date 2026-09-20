@@ -516,17 +516,8 @@ final class HelperService: NSObject, HelperXPCProtocol {
         let label = HelperCommand.workerLabel(spaceID: spaceID)
         let domain = "gui/\(uidValue)/\(label)"
 
-        let command = start
-            ? [HelperCommand.launchctl, "kickstart", "-k", domain]
-            : [HelperCommand.launchctl, "bootout", domain]
-        var result = CommandRunner.run(command, timeout: 60)
-        log.info("\(result.displayCommand) → exit \(result.exitCode)")
-
-        // A plist installed after the user logged in has not been discovered by
-        // launchd yet. Bootstrap that exact, verified plist once, then kickstart
-        // it. If there is no gui/<uid> domain, bootstrap fails normally and the
-        // caller records needsLogin instead of pretending the worker is online.
-        if start, !result.ok {
+        let result: CommandRunner.Result
+        if start {
             let home = AccountDirectory.homeDirectory(of: username) ?? "/Users/\(username)"
             let plist = "\(home)/Library/LaunchAgents/\(label).plist"
             do {
@@ -538,20 +529,44 @@ final class HelperService: NSObject, HelperXPCProtocol {
                         NSLocalizedDescriptionKey: "the worker LaunchAgent is not installed at \(plist)",
                     ])
                 }
-                let bootstrapped = CommandRunner.run(
-                    [HelperCommand.launchctl, "bootstrap", "gui/\(uidValue)", plist], timeout: 60)
-                log.info("\(bootstrapped.displayCommand) → exit \(bootstrapped.exitCode)")
-                if bootstrapped.ok {
-                    result = CommandRunner.run(command, timeout: 60)
-                    log.info("\(result.displayCommand) → exit \(result.exitCode)")
-                } else {
-                    result = bootstrapped
+
+                let commands = HelperCommand.workerReloadCommands(
+                    uid: uidValue, spaceID: spaceID, plistPath: plist)
+                let bootedOut = CommandRunner.run(commands[0], timeout: 60)
+                log.info("\(bootedOut.displayCommand) → exit \(bootedOut.exitCode)")
+                let oldJobWasAbsent = bootedOut.standardError.localizedCaseInsensitiveContains("not found")
+                    || bootedOut.standardError.localizedCaseInsensitiveContains("no such process")
+                    || bootedOut.standardError.localizedCaseInsensitiveContains("could not find specified service")
+                    || bootedOut.standardError.localizedCaseInsensitiveContains("could not find domain for user")
+                guard bootedOut.ok || oldJobWasAbsent else {
+                    throw NSError(domain: "AgentSpace.Helper", code: Int(bootedOut.exitCode), userInfo: [
+                        NSLocalizedDescriptionKey: bootedOut.standardError.isEmpty
+                            ? "could not unload the existing worker job"
+                            : bootedOut.standardError,
+                    ])
                 }
+
+                let bootstrapped = CommandRunner.run(commands[1], timeout: 60)
+                log.info("\(bootstrapped.displayCommand) → exit \(bootstrapped.exitCode)")
+                guard bootstrapped.ok else {
+                    throw NSError(domain: "AgentSpace.Helper", code: Int(bootstrapped.exitCode), userInfo: [
+                        NSLocalizedDescriptionKey: bootstrapped.standardError.isEmpty
+                            ? "could not load the updated worker LaunchAgent"
+                            : bootstrapped.standardError,
+                    ])
+                }
+
+                result = CommandRunner.run(commands[2], timeout: 60)
+                log.info("\(result.displayCommand) → exit \(result.exitCode)")
             } catch {
                 return HelperResponse(id: request.id, error: AgentSpaceError(
                     code: .helperRejected,
                     message: "start failed: \(error.localizedDescription)"))
             }
+        } else {
+            result = CommandRunner.run(
+                [HelperCommand.launchctl, "bootout", domain], timeout: 60)
+            log.info("\(result.displayCommand) → exit \(result.exitCode)")
         }
 
         guard result.ok else {

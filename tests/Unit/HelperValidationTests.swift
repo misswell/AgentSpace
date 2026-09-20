@@ -241,6 +241,19 @@ final class HelperValidationTests: XCTestCase {
         XCTAssertFalse(path.hasPrefix("/Users/"))
     }
 
+    func testStartingWorkerReloadsTheLaunchAgentBeforeKickstart() {
+        let spaceID = UUID(uuidString: "6EA2FB6B-2B91-4BEE-B7D0-7E76CA28C9A1")!
+        let plist = "/Users/agentuse/Library/LaunchAgents/\(HelperCommand.workerLabel(spaceID: spaceID)).plist"
+
+        XCTAssertEqual(
+            HelperCommand.workerReloadCommands(uid: 503, spaceID: spaceID, plistPath: plist),
+            [
+                [HelperCommand.launchctl, "bootout", "gui/503/\(HelperCommand.workerLabel(spaceID: spaceID))"],
+                [HelperCommand.launchctl, "bootstrap", "gui/503", plist],
+                [HelperCommand.launchctl, "kickstart", "-k", "gui/503/\(HelperCommand.workerLabel(spaceID: spaceID))"],
+            ])
+    }
+
     func testTheWorkerLaunchAgentPlistIsValidXML() {
         // A malformed plist would make launchd refuse the job, and the error the
         // user saw would be "the Space never starts" with nothing to go on.

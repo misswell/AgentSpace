@@ -1,6 +1,6 @@
 {
   "name": "@agentspace/mcp",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Model Context Protocol server that bridges to the AgentSpace CLI so an agent can drive a background macOS desktop without touching the human's own session.",
   "license": "MIT",
   "type": "module",

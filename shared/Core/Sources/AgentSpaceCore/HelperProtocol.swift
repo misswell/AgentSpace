@@ -484,6 +484,28 @@ public enum HelperCommand {
         "\(BundleIdentifiers.worker).\(spaceID.uuidString)"
     }
 
+    /// Reloads a worker LaunchAgent from its on-disk plist before starting it.
+    ///
+    /// `launchctl kickstart -k` only restarts the configuration already cached
+    /// by launchd. After an AgentSpace update that cached configuration can
+    /// still point at an older versioned worker path, even though installWorker
+    /// has written a new plist. Booting out and bootstrapping the plist is what
+    /// makes the newly installed worker version authoritative.
+    public static func workerReloadCommands(
+        uid: uid_t,
+        spaceID: UUID,
+        plistPath: String
+    ) -> [[String]] {
+        let label = workerLabel(spaceID: spaceID)
+        let userDomain = "gui/\(uid)"
+        let serviceDomain = "\(userDomain)/\(label)"
+        return [
+            [launchctl, "bootout", serviceDomain],
+            [launchctl, "bootstrap", userDomain, plistPath],
+            [launchctl, "kickstart", "-k", serviceDomain],
+        ]
+    }
+
     /// The exact path a worker LaunchAgent is written to inside a Space's home.
     ///
     /// Derived from the validated account name rather than from anything in the

@@ -8008,3 +8008,20 @@ second AgentSpace installation is needed in the target account.
 | 544 | The controller detail page exposes a visible toolbar authorization menu in addition to the card | pass | `SpaceDetailView` toolbar identifier `openAgentPermissionToolbar` and both pane actions |
 | 545 | An AgentSpace window opened as the attached account discovers its local runtime and displays authorization buttons instead of an unexplained empty panel | pass | `AppModel.discoverCurrentAccountAuthorizationFromRuntime`; `EmptyStateView` `CurrentAccountPermissionCard` |
 | 546 | Authorization repairs an old or missing worker before opening settings, without allowing the target account to write the controller registry | pass | `AppModel.prepareWorkerForAuthorization`; typed `.installWorker`/`.startWorker` requests; no `AccountAttachService` call on the target path |
+
+## 289. Reload the worker LaunchAgent after an app update (2026-09-20)
+
+The real machine had the 0.1.9 worker installed on disk while launchd continued
+to run 0.1.3. Updating the LaunchAgent plist and calling only
+`launchctl kickstart -k` restarted launchd's cached job, whose program path still
+named the old version. Worker start now unloads the registered service, loads
+the exact verified plist from the attached account, and only then starts it.
+This makes the newly installed versioned path authoritative instead of treating
+a successful restart of stale configuration as an update.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 547 | The reported stale-worker state is reproducible: 0.1.9 existed on disk while the live AgentUse process ran 0.1.3 | pass | real-machine process path `/Library/Application Support/AgentSpace/Worker/versions/0.1.3/agentspace-worker`; 0.1.9 binary predated that process start |
+| 548 | Starting a worker always unloads any cached service before loading the current plist | pass | `HelperCommand.workerReloadCommands`; `HelperValidationTests.testStartingWorkerReloadsTheLaunchAgentBeforeKickstart` |
+| 549 | A failed unload is accepted only when the job/domain is already absent; other launchd failures stop the update | pass | `HelperService.workerControl` checks the bounded launchctl absence messages before bootstrap |
+| 550 | The updated Swift and MCP layers remain green at version 0.1.10 | pass | system-PATH `swift test`; MCP tests 23/23; rebuilt MCP smoke reports `agentspace 0.1.10` and all checks passed |
