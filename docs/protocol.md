@@ -224,8 +224,12 @@ faster than the client pulls are dropped, newest wins); `preview.stop` closes it
 `window.list` returns the visible layer-0 standard application windows in the
 worker's Aqua session. Each record carries `id`, `pid`, app metadata, title,
 frame, visibility and `generation`. The identity for every later call is the
-triple `{ windowId, pid, generation }`; a recycled CGWindowID never authorizes
-an operation against a different window.
+triple `{ windowId, pid, generation }`. The catalog advances the generation
+when it observes a `(pid, windowId)` disappear and later reappear, so a stale
+identity cannot authorize that observable reuse. Public CGWindow metadata
+cannot prove replacement that begins and ends entirely between two catalog
+snapshots; destructive AX actions therefore also require a unique live
+pid/title/frame match and refuse ambiguity.
 
 `window.stream.start`, `.frame` and `.stop` use that identity. Capture uses
 `SCContentFilter(desktopIndependentWindow:)`, so the returned JPEG is the
