@@ -92,7 +92,7 @@ struct Operations {
     private func requireDesktopSession(_ what: String) throws {
         let verdict = context.sessionVerdict()
         guard verdict == .usable else {
-            Log.input.error("refused \(what): session is on the console")
+            Log.input.error("refused \(what): desktop session is not usable")
             let message: String
             switch verdict {
             case .isConsole:
@@ -718,12 +718,12 @@ struct Operations {
     // MARK: - Fusion windows
 
     func windowList() throws -> JSONValue {
-        try requireUsableDesktopSession("list Fusion windows")
+        try requireDesktopSession("list Fusion windows")
         return .array(windowCatalog.windows().map(\.jsonValue))
     }
 
     func windowStreamStart(params: JSONValue) throws -> JSONValue {
-        try requireUsableDesktopSession("capture a Fusion window")
+        try requireDesktopSession("capture a Fusion window")
         guard ScreenCapture.permissionGranted() else {
             throw AgentSpaceError(code: .screenRecordingDenied, message: "Screen Recording is not granted to agentspace-worker in this session.")
         }
@@ -748,30 +748,32 @@ struct Operations {
     }
 
     func windowInput(params: JSONValue) throws -> JSONValue {
-        try requireUsableDesktopSession("inject Fusion input")
+        try requireDesktopSession("inject Fusion input")
         guard AccessibilityBridge.trusted() else {
             throw AgentSpaceError(code: .accessibilityDenied, message: "Accessibility is not granted to agentspace-worker in this session.")
         }
         let window = try windowCatalog.window(matching: windowIdentity(params))
+        let action = try WindowInputRouter.prepare(params: params, window: window)
+        try WindowInputRouter.activate(window: window)
         inputLease.claimHuman()
-        return .obj(["performed": .int(try WindowInputRouter.perform(params: params, window: window))])
+        return .obj(["performed": .int(try WindowInputRouter.perform(action))])
     }
 
     func windowActivate(params: JSONValue) throws -> JSONValue {
-        try requireUsableDesktopSession("activate a Fusion window")
+        try requireDesktopSession("activate a Fusion window")
         let window = try windowCatalog.window(matching: windowIdentity(params))
         return try AppControl.activate(String(window.pid)).json
     }
 
     func windowAction(params: JSONValue, action: WindowActions.Action) throws -> JSONValue {
-        try requireUsableDesktopSession("change a Fusion window")
+        try requireDesktopSession("change a Fusion window")
         let window = try windowCatalog.window(matching: windowIdentity(params))
         try WindowActions.perform(action, window: window)
         return .obj(["performed": .bool(true)])
     }
 
     func windowSetFrame(params: JSONValue) throws -> JSONValue {
-        try requireUsableDesktopSession("resize a Fusion window")
+        try requireDesktopSession("resize a Fusion window")
         let window = try windowCatalog.window(matching: windowIdentity(params))
         guard let value = params["frame"],
               let x = value["x"]?.doubleValue, let y = value["y"]?.doubleValue,
@@ -785,21 +787,15 @@ struct Operations {
     }
 
     private func windowIdentity(_ params: JSONValue) throws -> WindowIdentity {
-        guard let rawID = params["windowId"]?.intValue, rawID >= 0,
+        guard let rawID = params["windowId"]?.intValue,
               let rawPID = params["pid"]?.intValue,
-              let rawGeneration = params["generation"]?.intValue, rawGeneration >= 0 else {
+              let rawGeneration = params["generation"]?.intValue,
+              let windowID = UInt32(exactly: rawID),
+              let pid = Int32(exactly: rawPID),
+              let generation = UInt64(exactly: rawGeneration) else {
             throw AgentSpaceError(code: .badRequest, message: "window request requires windowId, pid and generation")
         }
-        return WindowIdentity(pid: Int32(rawPID), windowID: UInt32(rawID), generation: UInt64(rawGeneration))
-    }
-
-    private func requireUsableDesktopSession(_ what: String) throws {
-        let verdict = context.sessionVerdict()
-        guard verdict == .usable else {
-            throw AgentSpaceError(
-                code: verdict.errorCode,
-                message: "refusing to \(what): the agent session is \(verdict).")
-        }
+        return WindowIdentity(pid: pid, windowID: windowID, generation: generation)
     }
 
     // MARK: - shutdown

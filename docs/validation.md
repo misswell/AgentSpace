@@ -8167,6 +8167,7 @@ refuses anywhere else.
 Numbered after §294: this section and that one were written at the same
 moment in the same checkout, and 588-595 were already taken when this table
 came back for its last five claims.
+
 `check-all.sh` therefore stops at `scripts/gui-verify.sh` on this host right now,
 and not on a product claim: every step before it passed (Swift tests, the MCP
 suite, the notarization guard), and the two GUI assertions above are

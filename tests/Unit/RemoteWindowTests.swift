@@ -40,4 +40,13 @@ final class RemoteWindowTests: XCTestCase {
                 XCTAssertEqual((error as? AgentSpaceError)?.code, .invalidCoordinate)
             }
     }
+
+    func testWireWindowRefusesAnIDThatCannotFitCGWindowIDInsteadOfTrapping() {
+        let value: JSONValue = .obj([
+            "id": .int(Int.max), "pid": .int(1), "appName": .string("TextEdit"),
+            "frame": .obj(["x": .int(0), "y": .int(0), "width": .int(100), "height": .int(100)]),
+            "layer": .int(0), "generation": .int(1),
+        ])
+        XCTAssertThrowsError(try RemoteWindow(jsonValue: value))
+    }
 }

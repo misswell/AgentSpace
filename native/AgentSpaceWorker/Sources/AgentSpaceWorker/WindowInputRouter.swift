@@ -3,7 +3,7 @@ import Foundation
 import AgentSpaceCore
 
 enum WindowInputRouter {
-    static func perform(params: JSONValue, window: RemoteWindow) throws -> Int {
+    static func prepare(params: JSONValue, window: RemoteWindow) throws -> InputAction {
         guard let value = params["action"] else {
             throw AgentSpaceError(code: .invalidAction, message: #"window.input requires an "action" object"#)
         }
@@ -44,10 +44,17 @@ enum WindowInputRouter {
             throw AgentSpaceError(code: .invalidAction, message: "unsupported window action '\(type)'")
         }
 
+        return action
+    }
+
+    static func activate(window: RemoteWindow) throws {
         guard let app = NSRunningApplication(processIdentifier: window.pid),
               app.activate(options: [.activateAllWindows]) else {
             throw AgentSpaceError(code: .appNotRunning, message: "could not activate pid \(window.pid) before Fusion input")
         }
+    }
+
+    static func perform(_ action: InputAction) throws -> Int {
         try InputSynthesizer.perform(action)
         return 1
     }

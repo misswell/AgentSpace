@@ -101,19 +101,21 @@ public struct RemoteWindow: Codable, Equatable, Identifiable, Sendable {
               let height = frame["height"]?.doubleValue,
               let layer = value["layer"]?.intValue,
               let generation = value["generation"]?.intValue,
-              id >= 0, generation >= 0
+              let windowID = UInt32(exactly: id),
+              let processID = Int32(exactly: pid),
+              let windowGeneration = UInt64(exactly: generation)
         else {
             throw AgentSpaceError(code: .badRequest, message: "malformed remote window")
         }
         self.init(
-            id: UInt32(id), pid: Int32(pid), appName: appName,
+            id: windowID, pid: processID, appName: appName,
             bundleIdentifier: value["bundleIdentifier"]?.stringValue,
             title: value["title"]?.stringValue,
             frame: CGRectValue(x: x, y: y, width: width, height: height),
             layer: layer,
             visible: value["visible"]?.boolValue ?? true,
             minimized: value["minimized"]?.boolValue ?? false,
-            generation: UInt64(generation))
+            generation: windowGeneration)
     }
 }
 
