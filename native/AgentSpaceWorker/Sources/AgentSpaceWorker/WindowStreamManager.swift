@@ -6,9 +6,8 @@ final class WindowStreamManager {
     private var streams: [WindowIdentity: PreviewController] = [:]
 
     func start(window: RemoteWindow, maxFPS: Int) throws -> Int {
-        lock.lock()
+        lock.lock(); defer { lock.unlock() }
         if let existing = streams[window.identity] {
-            lock.unlock()
             return try existing.start(maxFPS: maxFPS)
         }
 
@@ -16,14 +15,13 @@ final class WindowStreamManager {
         let controller = PreviewController(idleTimeout: 10) { _ in
             WindowCaptureFrameSource(windowID: identity.windowID, pid: identity.pid)
         }
+        // Do not publish a controller until its source is running. Keeping the
+        // manager lock through start also makes concurrent starts for the same
+        // identity linear: a failed starter cannot remove a later successful
+        // stream, and every published stream remains reachable by frame/stop.
+        let configuredFPS = try controller.start(maxFPS: maxFPS)
         streams[identity] = controller
-        lock.unlock()
-        do {
-            return try controller.start(maxFPS: maxFPS)
-        } catch {
-            lock.lock(); streams.removeValue(forKey: identity); lock.unlock()
-            throw error
-        }
+        return configuredFPS
     }
 
     func frame(identity: WindowIdentity, verdict: SessionVerdict) throws -> Data? {
