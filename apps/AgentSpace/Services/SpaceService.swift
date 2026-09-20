@@ -341,6 +341,22 @@ final class SpaceService {
         call(space, force ? AgentSpaceCore.Method.forceQuit : AgentSpaceCore.Method.quit, ["app": .string(app)], timeout: timeout)
     }
 
+    /// Open a privacy pane in the attached account's own Aqua session. Calling
+    /// `NSWorkspace` here would open the controller's System Settings instead;
+    /// the worker owns the correct session and is therefore the only safe
+    /// launcher for this setup action.
+    func openSystemSettings(
+        for space: AgentAccount,
+        pane: SystemSettingsPane,
+        timeout: Double = 10
+    ) -> AgentSpaceError? {
+        call(
+            space,
+            Method.openSystemSettings,
+            ["pane": .string(pane.rawValue)],
+            timeout: timeout)
+    }
+
     private func call(_ space: AgentAccount, _ method: String, _ params: JSONValue, timeout: Double) -> AgentSpaceError? {
         let connection = SpaceConnection(space: space)
         do {

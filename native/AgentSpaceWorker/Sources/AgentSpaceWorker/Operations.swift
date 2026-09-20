@@ -14,7 +14,7 @@ struct Operations {
     /// ScreenCaptureKit source; there is no other place capture can come from.
     let preview: PreviewController
 
-    static let workerVersion = "0.1.4"
+    static let workerVersion = "0.1.5"
 
     init(context: WorkerContext, preview: PreviewController? = nil) {
         self.context = context
@@ -43,6 +43,7 @@ struct Operations {
             case Method.axWindows: return .success(try axWindows(params: params))
             case Method.axElementAt: return .success(try axElementAt(params: params))
             case Method.axPerform: return .success(try axPerform(params: params))
+            case Method.openSystemSettings: return .success(try openSystemSettings(params: params))
             case Method.shutdown: return .success(try shutdown(params: params))
             case Method.previewStart: return .success(try previewStart(params: params))
             case Method.previewFrame: return .success(try previewFrame())
@@ -397,6 +398,30 @@ struct Operations {
         let timeout = Double(params["timeoutSeconds"]?.intValue ?? 30)
         let app = try AppControl.launch(reference, timeout: max(1, min(timeout, 300)))
         return app.json
+    }
+
+    /// Open a fixed privacy pane in this worker's Aqua session. This is a
+    /// setup-only convenience: it does not inspect the desktop or synthesize
+    /// input, so it remains available while the user is looking at this
+    /// account's console session during first-time permission setup. The closed
+    /// `SystemSettingsPane` enum is the URL allow-list.
+    func openSystemSettings(params: JSONValue) throws -> JSONValue {
+        guard let raw = params["pane"]?.stringValue,
+              let pane = SystemSettingsPane(rawValue: raw),
+              let url = URL(string: pane.urlString) else {
+            throw AgentSpaceError(
+                code: .badRequest,
+                message: #"systemSettings.open requires pane "accessibility" or "screenRecording""#)
+        }
+        guard NSWorkspace.shared.open(url) else {
+            throw AgentSpaceError(
+                code: .internalError,
+                message: "System Settings did not accept the \(raw) privacy-pane URL in the AgentSpace session.")
+        }
+        return .obj([
+            "pane": .string(pane.rawValue),
+            "url": .string(pane.urlString),
+        ])
     }
 
     func quit(params: JSONValue, force: Bool) throws -> JSONValue {

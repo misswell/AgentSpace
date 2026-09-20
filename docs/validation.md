@@ -7908,3 +7908,19 @@ capture is refused.
 | 525 | Permission remediation no longer sends GUI users to a terminal command, and explains that no second AgentSpace app is expected in the connected account | pass | `ErrorCodes`, `LoginInstructions`, `SpaceDetailView` and both localization tables |
 | 526 | Desktop Viewer can always be dismissed from its own content | pass | `DesktopViewerView` `closeDesktopViewer` button, cancel keyboard shortcut, and full Swift build |
 | 527 | The regression suite remains green after the deferred attach and onboarding changes | pass | `env PATH=/usr/bin:/bin:/usr/sbin:/sbin swift test`; `LocalizationTests` and `AccountAttachServiceTests` pass |
+
+## 283. Open connected-account privacy panes from the main account (2026-09-20)
+
+The setup card previously opened Accessibility with the controller app's own
+`NSWorkspace`, which sent the user to the wrong account's System Settings. The
+worker now exposes one additive, token-authenticated method with a closed
+two-pane allow-list. The agent card presents separate Accessibility and Screen
+Recording buttons; the worker launches those URLs in the connected account's
+own Aqua session, including while that account is the console during first-time
+setup. No desktop observation or input is enabled by this method.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 528 | Privacy-pane URLs are limited to Accessibility and Screen Recording | pass | `SystemSettingsPane` enum and `ProtocolTests.testSystemSettingsPaneRoutesOnlyToPrivacyPanels` |
+| 529 | The worker and GUI use an additive `systemSettings.open` RPC without changing protocol version 1 | pass | `Method.openSystemSettings`, worker dispatch, `SpaceService.openSystemSettings`, `ProtocolTests.testMethodNamespaceIsStable` |
+| 530 | The setup card gives explicit buttons for both permissions and never opens the controller account's System Settings | pass | `SpaceDetailView` identifiers `openAgentAccessibilitySettings` and `openAgentScreenRecordingSettings`; Worker owns the `NSWorkspace` call |

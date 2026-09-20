@@ -4,7 +4,7 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-19 on `master`.
+Last updated: 2026-09-20 on `master`.
 
 ## Product in one sentence
 
@@ -44,7 +44,9 @@ Phase 1 (attach existing account) is implemented in this tree:
   or removed in Users & Groups can be discovered without closing the wizard.
 - The connected account intentionally receives only the background worker, not
   a second AgentSpace app. Its Accessibility and Screen Recording grants are
-  given in that account's own System Settings after the worker is installed.
+  given in that account's own System Settings after the worker is installed;
+  the agent card now has buttons that open each privacy pane in that account's
+  session, so the main account never opens the wrong System Settings window.
 - Desktop Viewer has an explicit **Close** action (and ⌘W/ Escape cancellation)
   even when the worker is offline or a permission is missing.
 - CLI primary verbs are `attach` and `detach`; legacy `create`/`delete`

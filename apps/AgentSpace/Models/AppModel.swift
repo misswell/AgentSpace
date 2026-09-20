@@ -22,7 +22,7 @@ import AgentSpaceCore
 @MainActor
 final class AppModel: ObservableObject {
 
-    /// "0.1.4 (412)" — marketing version plus the build number that
+    /// "0.1.5 (412)" — marketing version plus the build number that
     /// `scripts/bundle-app.sh` stamps from git at bundle time. Shown in the
     /// sidebar so "am I looking at the copy I just built?" is answered on
     /// screen; the About panel reads the same plist keys.
@@ -102,6 +102,7 @@ final class AppModel: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var accountDiscoveryGeneration = 0
     @Published private(set) var finishingSetup: UUID?
+    @Published private(set) var openingSystemSettings: UUID?
 
     init(service: SpaceService = SpaceService()) {
         self.service = service
@@ -304,6 +305,23 @@ final class AppModel: ObservableObject {
                 self.lastError = self.presented(for: error, space: space)
             }
             self.reload()
+        }
+    }
+
+    /// Ask the worker to open a privacy pane in the connected account's own
+    /// session. The app's `NSWorkspace` would target the controller account,
+    /// which is exactly the confusion this button is meant to remove.
+    func openSystemSettings(_ space: AgentAccount, pane: SystemSettingsPane) {
+        guard openingSystemSettings == nil else { return }
+        openingSystemSettings = space.id
+        Task {
+            let error = await Task.detached(priority: .userInitiated) {
+                SpaceService().openSystemSettings(for: space, pane: pane)
+            }.value
+            self.openingSystemSettings = nil
+            if let error {
+                self.lastError = self.presented(for: error, space: space)
+            }
         }
     }
 

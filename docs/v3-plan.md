@@ -22,9 +22,11 @@ controller.
    attach is recorded as `needsLogin` and the GUI offers **Finish setup** after
    the first login; AgentSpace never creates the home directory itself.
 5. Sign into that account with its existing password, return to AgentSpace and
-   finish setup, then grant Accessibility plus Screen Recording to the worker
-   from that account's own System Settings. The connected account does not need
-   a second AgentSpace app.
+   finish setup. Use the agent card's **Open Accessibility settings** and
+   **Open Screen Recording settings** buttons; they launch the selected privacy
+   pane in the connected account's own session, so a fast user switch reveals
+   the correct System Settings window. The connected account does not need a
+   second AgentSpace app.
 6. Open and control the account's desktop from the main account.
 
 Disconnecting reverses only AgentSpace-owned state. The macOS account and its
@@ -60,7 +62,8 @@ An attach candidate must:
 - exist in the local passwd database;
 - have uid >= 500;
 - have a home below `/Users`;
-- not begin with `_` and not be `root`;
+- not be marked hidden by Directory Service (a visible underscore username is
+  allowed) and not be `root`;
 - not be the current controller user;
 - not be a member of `admin`;
 - not already be attached.

@@ -333,11 +333,26 @@ struct SpaceDetailView: View {
                 Text(NSLocalizedString("After the first login, switch back to your account and click Finish setup. The worker must start before macOS can show its privacy-permission prompts.", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                HStack {
-                    Button(NSLocalizedString("Open System Settings", comment: "")) {
-                        NSWorkspace.shared.open(URL(
-                            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                Text(NSLocalizedString("These buttons open the privacy pane inside the connected account's session. If you are currently in your own account, click one first, then fast-switch to the connected account to see System Settings there.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Button {
+                        model.openSystemSettings(snapshot.space, pane: .accessibility)
+                    } label: {
+                        Label(NSLocalizedString("Open Accessibility settings", comment: ""), systemImage: "person.crop.circle.badge.checkmark")
                     }
+                    .accessibilityIdentifier("openAgentAccessibilitySettings")
+                    .disabled(!snapshot.workerOnline || model.openingSystemSettings != nil)
+                    Button {
+                        model.openSystemSettings(snapshot.space, pane: .screenRecording)
+                    } label: {
+                        Label(NSLocalizedString("Open Screen Recording settings", comment: ""), systemImage: "record.circle")
+                    }
+                    .accessibilityIdentifier("openAgentScreenRecordingSettings")
+                    .disabled(!snapshot.workerOnline || model.openingSystemSettings != nil)
+                }
+                HStack {
                     Button {
                         model.finishPendingSetup(snapshot.space)
                     } label: {

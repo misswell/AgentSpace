@@ -354,7 +354,7 @@ public enum Doctor {
                     name: String(format: NSLocalizedString("Screen Recording (%@)", comment: ""), space.name),
                     status: recording ? .pass : .fail,
                     detail: recording ? "granted to the worker." : "not granted to the worker.",
-                    fix: recording ? nil : "In the AgentSpace user's session, open System Settings → Privacy & Security → Screen Recording and enable agentspace-worker."))
+                    fix: recording ? nil : "In the connected account's session, open System Settings → Privacy & Security → Screen & System Audio Recording and enable agentspace-worker. Then switch back and click Finish setup in AgentSpace."))
             }
         } catch {
             results.append(Check(
