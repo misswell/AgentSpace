@@ -37,6 +37,18 @@ public enum Method {
     public static let previewFrame = "preview.frame"
     public static let previewStop = "preview.stop"
 
+    /// Fusion window surfaces. These are additive protocol-v1 methods: old
+    /// clients and workers keep speaking the same envelope and method names.
+    public static let windowList = "window.list"
+    public static let windowStreamStart = "window.stream.start"
+    public static let windowStreamFrame = "window.stream.frame"
+    public static let windowStreamStop = "window.stream.stop"
+    public static let windowInput = "window.input"
+    public static let windowActivate = "window.activate"
+    public static let windowClose = "window.close"
+    public static let windowMinimize = "window.minimize"
+    public static let windowSetFrame = "window.setFrame"
+
     /// Methods that must never be answered unless the caller proved it holds
     /// the Space's session secret. Everything is on this list except `hello`,
     /// which answers only non-sensitive liveness facts and is what a client

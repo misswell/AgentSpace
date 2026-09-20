@@ -183,6 +183,17 @@ struct SpaceDetailView: View {
                 }
                 .disabled(model.selected?.display == nil)
 
+                Button {
+                    if let space = model.selected?.space {
+                        FusionManager.shared.openApps(for: space)
+                    }
+                } label: {
+                    Label(NSLocalizedString("Open Apps", comment: ""), systemImage: "macwindow.on.rectangle")
+                }
+                .disabled(model.selected?.acceptsInput != true
+                    || model.selected?.screenRecording != true
+                    || model.selected?.accessibility != true)
+
                 // Stop keeps the session; Disconnect removes only
                 // AgentSpace-owned setup.
                 Menu {

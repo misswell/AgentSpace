@@ -95,6 +95,32 @@ public final class PreviewController {
         return source.latestFrame
     }
 
+    /// Pull only while the worker can still prove that it belongs to a
+    /// background Aqua session. A stream can outlive a Fast User Switch, so
+    /// checking only at `start` would let stale capture continue after this
+    /// account becomes the physical console. Refusal tears the source down
+    /// before returning and therefore also discards its last encoded frame.
+    public func frame(sessionVerdict: SessionVerdict, now: Date = Date()) throws -> Data? {
+        guard sessionVerdict == .usable else {
+            stop()
+            let message: String
+            switch sessionVerdict {
+            case .isConsole:
+                message = "the session is now the physical console"
+            case .indeterminate:
+                message = "the session's console state can no longer be determined"
+            case .noWindowServer:
+                message = "the session no longer has a WindowServer"
+            case .usable:
+                preconditionFailure("handled by the guard")
+            }
+            throw AgentSpaceError(
+                code: sessionVerdict.errorCode,
+                message: "the live preview stopped because \(message).")
+        }
+        return frame(now: now)
+    }
+
     /// Stop the stream. Safe to call when nothing is running.
     public func stop() {
         lock.lock(); defer { lock.unlock() }

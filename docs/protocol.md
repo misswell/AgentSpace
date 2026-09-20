@@ -214,6 +214,37 @@ faster than the client pulls are dropped, newest wins); `preview.stop` closes it
   next pull) — a viewer that crashes must not leave the worker capturing forever.
 - `preview.frame` without a stream is `PREVIEW_NOT_RUNNING`, never a silent
   success.
+- Every `preview.frame` pull re-evaluates the live session verdict. A Fast User
+  Switch to the agent account, an indeterminate verdict, or loss of its
+  WindowServer stops the `SCStream`, discards the last frame, and refuses the
+  pull. Start-time safety is not treated as a lifetime grant.
+
+### Fusion windows — `window.*`
+
+`window.list` returns the visible layer-0 standard application windows in the
+worker's Aqua session. Each record carries `id`, `pid`, app metadata, title,
+frame, visibility and `generation`. The identity for every later call is the
+triple `{ windowId, pid, generation }`; a recycled CGWindowID never authorizes
+an operation against a different window.
+
+`window.stream.start`, `.frame` and `.stop` use that identity. Capture uses
+`SCContentFilter(desktopIndependentWindow:)`, so the returned JPEG is the
+selected application window rather than the whole agent display. Like Desktop
+preview, every frame pull is fail-closed and the controller retains only the
+latest frame.
+
+`window.input` takes the identity plus one action. Pointer actions use
+`xFraction` / `yFraction` in 0...1; the worker re-reads the current global
+window frame immediately before posting the event, so a moved remote window
+does not make a cached coordinate dangerous. `type` and `key` reuse the normal
+input action shapes. Direct Fusion interaction renews a five-second human input
+lease; ordinary `input` calls during that lease fail `INPUT_BUSY_BY_HUMAN`.
+
+`window.activate` activates the owning pid. `window.close` maps the CG window to
+exactly one AX window by pid, title and frame (±5 points) and refuses ambiguous
+matches instead of guessing. `window.minimize` is registered for compatible
+clients; the V4 app minimizes its local proxy and stops capture without changing
+the remote window.
 
 Returns `{ "performed": N }`.
 
@@ -348,6 +379,7 @@ Every code, and what a caller should do. `recoverable` is derived from the code.
 | `INVALID_COORDINATE` | **no** | Off-display, negative, or non-finite |
 | `INVALID_ACTION` | **no** | Malformed action batch; nothing was performed |
 | `NO_INPUT_TARGET` | yes | No frontmost app to deliver to |
+| `INPUT_BUSY_BY_HUMAN` | yes | A person interacted with a Fusion proxy in the last five seconds |
 | `APP_NOT_FOUND` | yes | No such app in this session |
 | `APP_LAUNCH_TIMEOUT` | yes | Launched, never registered |
 | `WORKSPACE_INVALID` | **no** | The workspace reference does not resolve to a prepared workspace |

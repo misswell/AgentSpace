@@ -96,16 +96,43 @@ V3 does not make the later roadmap appear by renaming Phase 1:
 1. **Agent runtime manager / profiles** — compose startup apps, workspace and a
    command such as Claude Code into one Start action. The low-level launch and
    exec RPCs already exist.
-2. **Accounts / Permissions settings** — the attach wizard exists, but the V3
-   settings surfaces for reviewing account bindings and permission state are
-   not yet separate product pages.
-3. **Desktop performance pass** — tune the live viewer toward 15 FPS while
-   retaining the safe 1 FPS fallback.
-4. **Real-machine acceptance** — connect a manually created standard account,
+2. **Binary capture migration / Desktop performance pass** — Core framing and
+   back-pressure exist, but Desktop and Fusion still pull base64 JPEG over the
+   JSON socket. Move both to a binary frame socket, then tune toward 15 FPS.
+3. **Real-machine acceptance** — connect a manually created standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the
-   worker online, and drive that desktop while the main desktop is unaffected.
-5. **Multi-account soak** — two attached accounts working concurrently while
+   worker online, and complete the Desktop and Fusion TextEdit gates while the
+   main desktop is unaffected.
+4. **Multi-account soak** — two attached accounts working concurrently while
    the human continues normal work.
+5. **Fusion V2 surfaces** — transient windows, explicit clipboard bridging and
+   restricted transfer-directory drag and drop remain intentionally deferred.
+
+## V4 Fusion implementation state
+
+The first Fusion vertical slice is now implemented in this tree:
+
+- `preview.frame` re-checks the live session on every pull and tears capture
+  down on console, indeterminate or no-WindowServer transitions.
+- `RemoteWindow` uses `pid + windowID + generation`; `window.list` exposes only
+  visible layer-0 regular-app windows discovered through public APIs.
+- `window.stream.*` captures one desktop-independent `SCWindow`, retaining only
+  the newest JPEG. `window.input` accepts window-relative fractions and maps
+  them against the worker's current global window frame.
+- **Open Apps** creates one native proxy `NSWindow` per remote window. Proxy
+  position and size remain local; minimizing stops capture, restoring restarts
+  it, and closing maps to a unique AX window or refuses an ambiguous match.
+- Direct proxy interaction owns a renewable five-second human input lease;
+  normal automation input returns `INPUT_BUSY_BY_HUMAN` during that interval.
+- Settings now separates Accounts, Permissions, Performance and Advanced.
+- The fixed binary `FrameHeader` and one-slot back-pressure primitive are in
+  Core and tested. The current first-slice app still pulls JPEG through the
+  compatible JSON RPC; the separate binary socket migration remains P8/P9.
+
+The code gates can verify protocol, lifecycle and mapping. The defining
+TextEdit cross-session acceptance still requires the attached account's real
+Aqua session and TCC grants, and must not be represented as passed until that
+manual run is recorded in `docs/validation.md`.
 
 ## Required verification
 

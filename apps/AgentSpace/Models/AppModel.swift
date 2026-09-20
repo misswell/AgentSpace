@@ -713,6 +713,7 @@ final class AppModel: ObservableObject {
 
     func deleteSpace(_ space: AgentAccount, removeHome: Bool = false) {
         guard provisioning == nil else { return }
+        FusionManager.shared.closeApps(for: space.id)
         _ = removeHome
         provisioning = Provisioning(operation: String(format: NSLocalizedString("Disconnecting %@", comment: ""), space.name))
 

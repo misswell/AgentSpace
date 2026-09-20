@@ -13,6 +13,9 @@ struct Operations {
     /// The §52 live preview lifecycle. The factory closure injects the real
     /// ScreenCaptureKit source; there is no other place capture can come from.
     let preview: PreviewController
+    let windowCatalog: WindowCatalog
+    let windowStreams: WindowStreamManager
+    let inputLease: InputLeaseManager
 
     static let workerVersion = agentSpaceVersion
 
@@ -21,6 +24,9 @@ struct Operations {
         self.preview = preview ?? PreviewController(idleTimeout: 10) { fps in
             ScreenCaptureFrameSource()
         }
+        self.windowCatalog = WindowCatalog()
+        self.windowStreams = WindowStreamManager()
+        self.inputLease = InputLeaseManager(duration: 5)
     }
 
     // MARK: - Dispatch
@@ -48,6 +54,15 @@ struct Operations {
             case Method.previewStart: return .success(try previewStart(params: params))
             case Method.previewFrame: return .success(try previewFrame())
             case Method.previewStop: return .success(try previewStop())
+            case Method.windowList: return .success(try windowList())
+            case Method.windowStreamStart: return .success(try windowStreamStart(params: params))
+            case Method.windowStreamFrame: return .success(try windowStreamFrame(params: params))
+            case Method.windowStreamStop: return .success(try windowStreamStop(params: params))
+            case Method.windowInput: return .success(try windowInput(params: params))
+            case Method.windowActivate: return .success(try windowActivate(params: params))
+            case Method.windowClose: return .success(try windowAction(params: params, action: .close))
+            case Method.windowMinimize: return .success(try windowAction(params: params, action: .minimize))
+            case Method.windowSetFrame: return .success(try windowSetFrame(params: params))
             default:
                 return .failure(AgentSpaceError(
                     code: .methodNotFound,
@@ -75,11 +90,23 @@ struct Operations {
     /// anyone's desktop: hello, status, exec and shutdown. Everything else
     /// refuses with SESSION_IS_CONSOLE.
     private func requireDesktopSession(_ what: String) throws {
-        guard context.sessionVerdict() != .isConsole else {
+        let verdict = context.sessionVerdict()
+        guard verdict == .usable else {
             Log.input.error("refused \(what): session is on the console")
+            let message: String
+            switch verdict {
+            case .isConsole:
+                message = "the session is currently on the physical console"
+            case .indeterminate:
+                message = "the session's console state could not be determined"
+            case .noWindowServer:
+                message = "the session has no WindowServer"
+            case .usable:
+                preconditionFailure("handled by guard")
+            }
             throw AgentSpaceError(
-                code: .sessionIsConsole,
-                message: "refusing to \(what): the '\(context.spaceName)' session is currently on the console, so the framebuffer and window list belong to the user's own desktop.")
+                code: verdict.errorCode,
+                message: "refusing to \(what): \(message). AgentSpace requires a provably background Aqua desktop.")
         }
     }
 
@@ -305,6 +332,12 @@ struct Operations {
                 message: "refusing to inject input: this session has no window server, so there is no event stream to post into.")
         case .usable:
             break
+        }
+
+        guard inputLease.automationAllowed() else {
+            throw AgentSpaceError(
+                code: .inputBusyByHuman,
+                message: String(format: "Fusion input is owned by a person for another %.1f seconds.", inputLease.remaining()))
         }
 
         // (2) A daemon without Accessibility could post nothing anyway, so say
@@ -664,12 +697,14 @@ struct Operations {
     }
 
     func previewFrame() throws -> JSONValue {
-        guard let data = preview.frame() else {
-            // Distinguish "never started" from "started but idle-stopped": both
-            // are PREVIEW_NOT_RUNNING, and the fix text covers the timeout.
-            if !preview.isRunning {
-                throw AgentSpaceError(code: .previewNotRunning, message: "no preview stream is running for this agent.")
-            }
+        // A failed start leaves no stream to inspect. Preserve the stable
+        // PREVIEW_NOT_RUNNING contract for that case; only an already-running
+        // stream should be re-checked for a session transition below.
+        guard preview.isRunning else {
+            throw AgentSpaceError(code: .previewNotRunning, message: "no preview stream is running for this agent.")
+        }
+        guard let data = try preview.frame(sessionVerdict: context.sessionVerdict()) else {
+            // A running stream may have stopped itself after going idle.
             throw AgentSpaceError(code: .previewNotRunning, message: "the preview stream went idle and stopped itself; call preview.start again.")
         }
         return .obj(["inline": .string(data.base64EncodedString())])
@@ -678,6 +713,93 @@ struct Operations {
     func previewStop() throws -> JSONValue {
         preview.stop()
         return .obj(["streaming": .bool(false)])
+    }
+
+    // MARK: - Fusion windows
+
+    func windowList() throws -> JSONValue {
+        try requireUsableDesktopSession("list Fusion windows")
+        return .array(windowCatalog.windows().map(\.jsonValue))
+    }
+
+    func windowStreamStart(params: JSONValue) throws -> JSONValue {
+        try requireUsableDesktopSession("capture a Fusion window")
+        guard ScreenCapture.permissionGranted() else {
+            throw AgentSpaceError(code: .screenRecordingDenied, message: "Screen Recording is not granted to agentspace-worker in this session.")
+        }
+        let identity = try windowIdentity(params)
+        let window = try windowCatalog.window(matching: identity)
+        let fps = try windowStreams.start(window: window, maxFPS: params["maxFPS"]?.intValue ?? 15)
+        return .obj(["streaming": .bool(true), "fps": .int(fps)])
+    }
+
+    func windowStreamFrame(params: JSONValue) throws -> JSONValue {
+        let identity = try windowIdentity(params)
+        guard let data = try windowStreams.frame(
+            identity: identity, verdict: context.sessionVerdict()) else {
+            throw AgentSpaceError(code: .previewNotRunning, message: "the window stream has not produced a frame yet")
+        }
+        return .obj(["inline": .string(data.base64EncodedString())])
+    }
+
+    func windowStreamStop(params: JSONValue) throws -> JSONValue {
+        windowStreams.stop(identity: try windowIdentity(params))
+        return .obj(["streaming": .bool(false)])
+    }
+
+    func windowInput(params: JSONValue) throws -> JSONValue {
+        try requireUsableDesktopSession("inject Fusion input")
+        guard AccessibilityBridge.trusted() else {
+            throw AgentSpaceError(code: .accessibilityDenied, message: "Accessibility is not granted to agentspace-worker in this session.")
+        }
+        let window = try windowCatalog.window(matching: windowIdentity(params))
+        inputLease.claimHuman()
+        return .obj(["performed": .int(try WindowInputRouter.perform(params: params, window: window))])
+    }
+
+    func windowActivate(params: JSONValue) throws -> JSONValue {
+        try requireUsableDesktopSession("activate a Fusion window")
+        let window = try windowCatalog.window(matching: windowIdentity(params))
+        return try AppControl.activate(String(window.pid)).json
+    }
+
+    func windowAction(params: JSONValue, action: WindowActions.Action) throws -> JSONValue {
+        try requireUsableDesktopSession("change a Fusion window")
+        let window = try windowCatalog.window(matching: windowIdentity(params))
+        try WindowActions.perform(action, window: window)
+        return .obj(["performed": .bool(true)])
+    }
+
+    func windowSetFrame(params: JSONValue) throws -> JSONValue {
+        try requireUsableDesktopSession("resize a Fusion window")
+        let window = try windowCatalog.window(matching: windowIdentity(params))
+        guard let value = params["frame"],
+              let x = value["x"]?.doubleValue, let y = value["y"]?.doubleValue,
+              let width = value["width"]?.doubleValue, width > 40,
+              let height = value["height"]?.doubleValue, height > 40 else {
+            throw AgentSpaceError(code: .badRequest, message: "window.setFrame requires a frame with x, y, width and height")
+        }
+        try WindowActions.setFrame(
+            CGRectValue(x: x, y: y, width: width, height: height), window: window)
+        return .obj(["performed": .bool(true)])
+    }
+
+    private func windowIdentity(_ params: JSONValue) throws -> WindowIdentity {
+        guard let rawID = params["windowId"]?.intValue, rawID >= 0,
+              let rawPID = params["pid"]?.intValue,
+              let rawGeneration = params["generation"]?.intValue, rawGeneration >= 0 else {
+            throw AgentSpaceError(code: .badRequest, message: "window request requires windowId, pid and generation")
+        }
+        return WindowIdentity(pid: Int32(rawPID), windowID: UInt32(rawID), generation: UInt64(rawGeneration))
+    }
+
+    private func requireUsableDesktopSession(_ what: String) throws {
+        let verdict = context.sessionVerdict()
+        guard verdict == .usable else {
+            throw AgentSpaceError(
+                code: verdict.errorCode,
+                message: "refusing to \(what): the agent session is \(verdict).")
+        }
     }
 
     // MARK: - shutdown

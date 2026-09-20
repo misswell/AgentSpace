@@ -124,4 +124,21 @@ final class PreviewControllerTests: XCTestCase {
         controller.stop()
         XCTAssertEqual(try controller.start(maxFPS: 1000), 30, "an unbounded client must not set the capture rate")
     }
+
+    func testFramePullStopsAndClearsTheStreamWhenSessionStopsBeingUsable() throws {
+        try controller.start(maxFPS: 5)
+
+        for verdict in [SessionVerdict.isConsole, .indeterminate, .noWindowServer] {
+            XCTAssertThrowsError(try controller.frame(sessionVerdict: verdict)) { error in
+                XCTAssertEqual((error as? AgentSpaceError)?.code, verdict.errorCode)
+            }
+            XCTAssertFalse(controller.isRunning)
+            XCTAssertEqual(factorySource.stopped, 1)
+            XCTAssertNil(controller.frame(), "a refused pull must not expose the last captured frame")
+
+            factorySource = FakeSource()
+            controller = PreviewController(idleTimeout: 10) { _ in self.factorySource }
+            try controller.start(maxFPS: 5)
+        }
+    }
 }

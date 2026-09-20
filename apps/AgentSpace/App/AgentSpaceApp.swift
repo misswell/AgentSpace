@@ -181,43 +181,76 @@ final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Preferences. Deliberately sparse — plan §61 keeps V1 to one Mac and a few
-/// Spaces, and every preference here is something the user can actually change
-/// today rather than a placeholder for a phase that has not landed.
+/// V4 settings separate account bindings, grants and capture policy so the
+/// dashboard can stay focused on opening the two presentation surfaces.
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @AppStorage("statusRefreshSeconds") private var statusRefreshSeconds = 3.0
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 1600
+    @AppStorage("desktopFPSPolicy") private var desktopFPSPolicy = 0
+    @AppStorage("fusionFPSPolicy") private var fusionFPSPolicy = 0
+    @AppStorage("captureQuality") private var captureQuality = "balanced"
     @State private var advancedRoot = AgentSpaceEnvironment.rootOverride ?? ""
 
     var body: some View {
         TabView {
             Form {
                 Section {
-                    Slider(value: $statusRefreshSeconds, in: 2...10, step: 1) {
-                        Text(String(format: NSLocalizedString("Status refresh: %lds", comment: ""), Int(statusRefreshSeconds)))
+                    ForEach(model.snapshots) { snapshot in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(snapshot.space.displayName).font(.headline)
+                                Text("UID \(snapshot.space.uid)").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(snapshot.effectiveState.displayName)
+                        }
                     }
-                    .accessibilityIdentifier("statusRefreshSlider")
-                    Text("Plan §53 sets a 2–5 s floor. Polling faster costs more than the app manages, so it is not offered.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Section {
-                    Picker("Preview width", selection: $previewMaxWidth) {
-                        Text("960 px").tag(960)
-                        Text("1280 px").tag(1280)
-                        Text("1600 px").tag(1600)
-                        Text("1920 px").tag(1920)
-                    }
-                    .accessibilityIdentifier("previewWidthPicker")
-                    Text("The Desktop Viewer captures at 1 FPS while it is open, and never while it is closed. Click coordinates are unaffected by this: they are derived from the display's own size, not the image's.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    if model.snapshots.isEmpty { Text("No connected accounts") }
                 }
             }
             .formStyle(.grouped)
-            .tabItem { Label("General", systemImage: "gearshape") }
+            .tabItem { Label("Accounts", systemImage: "person.2") }
+
+            Form {
+                ForEach(model.snapshots) { snapshot in
+                    Section(snapshot.space.displayName) {
+                        permissionRow("Accessibility", granted: snapshot.accessibility)
+                        permissionRow("Screen Recording", granted: snapshot.screenRecording)
+                        permissionRow("Full Disk Access", granted: snapshot.fileAccess, optional: true)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Permissions", systemImage: "lock.shield") }
 
             Form {
                 Section {
+                    Picker("Desktop FPS", selection: $desktopFPSPolicy) {
+                        Text("Auto").tag(0); Text("5 FPS").tag(5); Text("10 FPS").tag(10); Text("15 FPS").tag(15)
+                    }
+                    Picker("Fusion FPS", selection: $fusionFPSPolicy) {
+                        Text("Auto").tag(0); Text("5 FPS").tag(5); Text("10 FPS").tag(10); Text("15 FPS").tag(15)
+                    }
+                    Picker("Quality", selection: $captureQuality) {
+                        Text("Balanced").tag("balanced")
+                        Text("Sharper").tag("sharp")
+                        Text("Lower bandwidth").tag("efficient")
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Performance", systemImage: "gauge.with.dots.needle.67percent") }
+
+            Form {
+                Section {
+                    Slider(value: $statusRefreshSeconds, in: 2...10, step: 1) {
+                        Text(String(format: NSLocalizedString("Status refresh: %lds", comment: ""), Int(statusRefreshSeconds)))
+                    }
+                    Picker("Preview width", selection: $previewMaxWidth) {
+                        Text("960 px").tag(960); Text("1280 px").tag(1280)
+                        Text("1600 px").tag(1600); Text("1920 px").tag(1920)
+                    }
                     TextField("AgentSpace root", text: $advancedRoot)
                         .textFieldStyle(.roundedBorder)
                     Text("Where accounts, runtime sockets and logs live. Empty means /Library/Application Support/AgentSpace. AGENTSPACE_ROOT is read at launch; restart to apply.")
@@ -234,6 +267,19 @@ struct SettingsView: View {
             .formStyle(.grouped)
             .tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
         }
-        .frame(width: 520, height: 340)
+        .frame(width: 620, height: 420)
+    }
+
+    private func permissionRow(_ title: LocalizedStringKey, granted: Bool?, optional: Bool = false) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            if let granted {
+                Label(granted ? "Granted" : "Not Granted", systemImage: granted ? "checkmark.circle.fill" : "xmark.circle")
+                    .foregroundStyle(granted ? .green : .secondary)
+            } else {
+                Text(optional ? "Optional" : "Unknown").foregroundStyle(.secondary)
+            }
+        }
     }
 }

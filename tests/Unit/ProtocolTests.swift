@@ -172,6 +172,19 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(actual, expected)
     }
 
+    func testFusionMethodsAreAdditiveAtProtocolVersionOne() {
+        XCTAssertEqual(agentSpaceProtocolVersion, 1)
+        XCTAssertEqual([
+            Method.windowList, Method.windowStreamStart, Method.windowStreamFrame,
+            Method.windowStreamStop, Method.windowInput, Method.windowActivate,
+            Method.windowClose, Method.windowMinimize, Method.windowSetFrame,
+        ], [
+            "window.list", "window.stream.start", "window.stream.frame",
+            "window.stream.stop", "window.input", "window.activate",
+            "window.close", "window.minimize", "window.setFrame",
+        ])
+    }
+
     func testSystemSettingsPaneRoutesOnlyToPrivacyPanels() {
         XCTAssertEqual(
             SystemSettingsPane.accessibility.urlString,

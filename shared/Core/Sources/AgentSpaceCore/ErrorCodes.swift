@@ -34,6 +34,8 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     /// an event would be posted into nothing and the caller would believe it
     /// landed. Refused instead of silently no-op'd.
     case noInputTarget = "NO_INPUT_TARGET"
+    /// Direct interaction with a Fusion proxy temporarily owns input.
+    case inputBusyByHuman = "INPUT_BUSY_BY_HUMAN"
 
     // --- Apps ---------------------------------------------------------------
     case appNotFound = "APP_NOT_FOUND"
@@ -82,7 +84,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         case .sessionNotReady, .workerOffline, .noWindowServer,
              .sessionIsConsole, .appLaunchTimeout, .commandTimeout,
              .helperUnavailable, .previewNotRunning,
-             .appNotFound, .appNotRunning, .noInputTarget:
+             .appNotFound, .appNotRunning, .noInputTarget, .inputBusyByHuman:
             return true
         case .accessibilityDenied, .screenRecordingDenied,
              .workerIsRoot, .workspaceDenied, .workspaceInvalid, .execDenied,
@@ -124,6 +126,8 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
             return NSLocalizedString("Check the action list against docs/protocol.md. The whole batch is validated before anything is performed, so nothing was done.", comment: "")
         case .noInputTarget:
             return NSLocalizedString("No app is frontmost in the AgentSpace session, so the events would go nowhere. Launch or activate something there first, e.g. `agentspace launch <space> Finder`.", comment: "")
+        case .inputBusyByHuman:
+            return NSLocalizedString("A person is controlling an Agent window. Wait five seconds after their last input, or choose Agent Control in the Fusion window.", comment: "")
         case .appNotFound:
             return NSLocalizedString("Pass an app name that exists in the AgentSpace session (`agentspace apps <space>`) or an absolute path to a .app bundle.", comment: "")
         case .appLaunchTimeout:

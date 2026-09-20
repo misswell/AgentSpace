@@ -76,6 +76,31 @@ final class SafetyTests: XCTestCase {
         }
     }
 
+    func testFusionObservationAndInputAreRefusedOnConsoleSession() throws {
+        let harness = try WorkerHarness()
+        try harness.start()
+        defer { harness.stop() }
+
+        let hello = try harness.call(Method.hello)
+        guard hello.result?["session"]?["verdict"]?.stringValue == "isConsole" else {
+            throw XCTSkip("this test requires a console-session worker")
+        }
+        XCTAssertEqual(try harness.errorCode(Method.windowList, .obj([:])), .sessionIsConsole)
+        let identity: JSONValue = .obj([
+            "windowId": .int(1), "pid": .int(1), "generation": .int(1),
+        ])
+        XCTAssertEqual(try harness.errorCode(Method.windowStreamStart, identity), .sessionIsConsole)
+        XCTAssertEqual(try harness.errorCode(
+            Method.windowInput,
+            .obj([
+                "windowId": .int(1), "pid": .int(1), "generation": .int(1),
+                "action": .obj([
+                    "type": .string("click"),
+                    "xFraction": .double(0.5), "yFraction": .double(0.5),
+                ]),
+            ])), .sessionIsConsole)
+    }
+
     // MARK: - 2. No fallback
 
     /// Plan §55: `testInputDeliveredOnlyToWorkerSession`.

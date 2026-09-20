@@ -269,6 +269,105 @@ final class SpaceService {
         }
     }
 
+    // MARK: - Fusion windows
+
+    func windows(for space: AgentAccount) -> Result<[RemoteWindow], AgentSpaceError> {
+        switch fusionCall(space: space, method: Method.windowList, params: .obj([:])) {
+        case .failure(let error): return .failure(error)
+        case .success(let value):
+            do {
+                return .success(try (value.arrayValue ?? []).map(RemoteWindow.init(jsonValue:)))
+            } catch let error as AgentSpaceError {
+                return .failure(error)
+            } catch {
+                return .failure(AgentSpaceError(code: .internalError, message: "could not decode the remote window list: \(error)"))
+            }
+        }
+    }
+
+    func windowStreamStart(
+        for space: AgentAccount, window: RemoteWindow, maxFPS: Int = 15
+    ) -> Result<Int, AgentSpaceError> {
+        var params = identityParams(window)
+        params["maxFPS"] = .int(maxFPS)
+        switch fusionCall(space: space, method: Method.windowStreamStart, params: .object(params)) {
+        case .failure(let error): return .failure(error)
+        case .success(let value): return .success(value["fps"]?.intValue ?? maxFPS)
+        }
+    }
+
+    func windowFrame(for space: AgentAccount, window: RemoteWindow) -> Result<NSImage, AgentSpaceError> {
+        switch fusionCall(
+            space: space, method: Method.windowStreamFrame,
+            params: .object(identityParams(window))) {
+        case .failure(let error): return .failure(error)
+        case .success(let value):
+            guard let encoded = value["inline"]?.stringValue,
+                  let data = Data(base64Encoded: encoded),
+                  let image = NSImage(data: data) else {
+                return .failure(AgentSpaceError(code: .internalError, message: "the worker returned no decodable Fusion frame"))
+            }
+            return .success(image)
+        }
+    }
+
+    func windowStreamStop(for space: AgentAccount, window: RemoteWindow) {
+        _ = fusionCall(
+            space: space, method: Method.windowStreamStop,
+            params: .object(identityParams(window)))
+    }
+
+    func windowInput(
+        for space: AgentAccount, window: RemoteWindow, action: JSONValue
+    ) -> Result<Bool, AgentSpaceError> {
+        var params = identityParams(window)
+        params["action"] = action
+        switch fusionCall(space: space, method: Method.windowInput, params: .object(params)) {
+        case .failure(let error): return .failure(error)
+        case .success: return .success(true)
+        }
+    }
+
+    func windowActivate(for space: AgentAccount, window: RemoteWindow) -> Result<Bool, AgentSpaceError> {
+        switch fusionCall(
+            space: space, method: Method.windowActivate,
+            params: .object(identityParams(window))) {
+        case .failure(let error): return .failure(error)
+        case .success: return .success(true)
+        }
+    }
+
+    func windowClose(for space: AgentAccount, window: RemoteWindow) -> Result<Bool, AgentSpaceError> {
+        switch fusionCall(space: space, method: Method.windowClose, params: .object(identityParams(window))) {
+        case .failure(let error): return .failure(error)
+        case .success: return .success(true)
+        }
+    }
+
+    private func identityParams(_ window: RemoteWindow) -> [String: JSONValue] {
+        [
+            "windowId": .int(Int(window.id)),
+            "pid": .int(Int(window.pid)),
+            "generation": .int(Int(window.generation)),
+        ]
+    }
+
+    private func fusionCall(
+        space: AgentAccount, method: String, params: JSONValue
+    ) -> Result<JSONValue, AgentSpaceError> {
+        let connection = SpaceConnection(space: space)
+        do {
+            let response = try connection.client.call(method: method, params: params, token: connection.token)
+            if let error = response.error { return .failure(error) }
+            guard let result = response.result else {
+                return .failure(AgentSpaceError(code: .internalError, message: "the worker answered \(method) without a result"))
+            }
+            return .success(result)
+        } catch {
+            return .failure(AgentSpaceError(code: .workerOffline, message: "no worker is answering for '\(space.name)': \(error)"))
+        }
+    }
+
     func screenshot(for space: AgentAccount, maxWidth: Int?, inline: Bool) -> Result<ScreenshotResult, AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         var params: [String: JSONValue] = [:]
