@@ -52,18 +52,23 @@ final class ScreenCaptureFrameSource: NSObject, PreviewFrameSource {
             throw AgentSpaceError(code: .noWindowServer, message: "this session has no display to capture.")
         }
 
-        width = display.width
-        height = display.height
         // `CGDisplayPixelsWide` returns *points* on scaled displays — the trap
         // recorded in docs/validation.md — so the scale comes from the CG
         // display mode's pixel width over SCDisplay's point width.
         let cgID = CGDirectDisplayID(display.displayID)
         let pixelWidth = CGDisplayPixelsWide(cgID) // points
+        let measuredScale: Int
         if let mode = CGDisplayCopyDisplayMode(cgID) {
-            scale = max(1, mode.pixelWidth / max(1, mode.width))
+            measuredScale = max(1, mode.pixelWidth / max(1, mode.width))
         } else {
-            scale = max(1, pixelWidth / max(1, display.width))
+            measuredScale = max(1, pixelWidth / max(1, display.width))
         }
+
+        lock.lock()
+        width = display.width
+        height = display.height
+        scale = measuredScale
+        lock.unlock()
 
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let configuration = SCStreamConfiguration()
@@ -74,8 +79,15 @@ final class ScreenCaptureFrameSource: NSObject, PreviewFrameSource {
         configuration.height = display.height
         configuration.scalesToFit = false
 
-        let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
+        let stream = SCStream(
+            filter: filter, configuration: configuration, delegate: self)
         try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: DispatchQueue(label: BundleIdentifiers.worker + ".preview"))
+        // Publish ownership before the asynchronous start, as
+        // `WindowCaptureFrameSource` does. Assigning only after `startCapture`
+        // returns makes a timed-out start un-stoppable: `PreviewController`'s
+        // failure cleanup calls `stop()`, which would find no stream and return,
+        // leaving a live capture running once ScreenCaptureKit finished late.
+        lock.lock(); self.stream = stream; lock.unlock()
 
         let startSemaphore = DispatchSemaphore(value: 0)
         var startError: Error?
@@ -89,13 +101,13 @@ final class ScreenCaptureFrameSource: NSObject, PreviewFrameSource {
         if let startError {
             throw AgentSpaceError(code: .noWindowServer, message: "ScreenCaptureKit failed to start: \(startError)")
         }
-        self.stream = stream
     }
 
     func stop() {
         lock.lock()
         let stream = self.stream
         self.stream = nil
+        latest = nil
         lock.unlock()
         guard let stream else { return }
         let semaphore = DispatchSemaphore(value: 0)
@@ -135,12 +147,14 @@ extension ScreenCaptureFrameSource: SCStreamOutput {
 
 extension ScreenCaptureFrameSource: SCStreamDelegate {
     /// A stream error (display reconfiguration, session teardown) stops the
-    /// source rather than leaving it half-alive: the next `preview.frame`
-    /// returns whatever was last captured, and the idle timeout or an explicit
-    /// stop cleans up. `preview.start` after a failure rebuilds from scratch.
+    /// source rather than leaving it half-alive, and it drops the last frame: a
+    /// dead stream that keeps serving its newest image is how a preview starts
+    /// lying. The next `preview.frame` therefore reports no frame instead of a
+    /// stale one, and `preview.start` after a failure rebuilds from scratch.
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         lock.lock()
         self.stream = nil
+        latest = nil
         lock.unlock()
     }
 }

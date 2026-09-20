@@ -13,7 +13,7 @@ enum WindowInputRouter {
 
         let action: InputAction
         switch type {
-        case "move", "click", "doubleClick", "rightClick", "scroll":
+        case "move", "click", "doubleClick", "rightClick", "scroll", "drag":
             guard let xFraction = object["xFraction"]?.doubleValue,
                   let yFraction = object["yFraction"]?.doubleValue else {
                 throw AgentSpaceError(code: .invalidCoordinate, message: "window pointer input requires xFraction and yFraction")
@@ -23,6 +23,19 @@ enum WindowInputRouter {
             switch type {
             case "move":
                 action = .move(x: point.x, y: point.y)
+            case "drag":
+                // A drag is two normalized points of the same window: the press
+                // and the release. Text selection and sliders need the travelled
+                // path, which `click` + `move` cannot express.
+                guard let toXFraction = object["toXFraction"]?.doubleValue,
+                      let toYFraction = object["toYFraction"]?.doubleValue else {
+                    throw AgentSpaceError(code: .invalidCoordinate, message: "window drag requires toXFraction and toYFraction")
+                }
+                let destination = try WindowCoordinateMapper.point(
+                    xFraction: toXFraction, yFraction: toYFraction, in: window.frame)
+                action = .drag(
+                    fromX: point.x, fromY: point.y, toX: destination.x, toY: destination.y,
+                    button: .left, modifiers: [])
             case "scroll":
                 action = .scroll(
                     x: point.x, y: point.y,
@@ -47,11 +60,14 @@ enum WindowInputRouter {
         return action
     }
 
+    /// Make the Fusion window a provable input target before posting at its
+    /// coordinates: frontmost app *and* frontmost window within it.
     static func activate(window: RemoteWindow) throws {
         guard let app = NSRunningApplication(processIdentifier: window.pid),
               app.activate(options: [.activateAllWindows]) else {
             throw AgentSpaceError(code: .appNotRunning, message: "could not activate pid \(window.pid) before Fusion input")
         }
+        try WindowActions.raise(window: window)
     }
 
     static func perform(_ action: InputAction) throws -> Int {

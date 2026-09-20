@@ -29,6 +29,11 @@ final class WindowCatalog {
             nextGeneration &+= 1
         }
         previouslyVisible = seen
+        // Forget what is no longer on screen. `nextGeneration` never rewinds, so
+        // a reappearing `(pid, windowID)` still gets a fresh generation and the
+        // reuse protection is unchanged — while the map, and the snapshot copy
+        // made on every listing, stop growing for the worker's whole lifetime.
+        for key in generations.keys where !seen.contains(key) { generations[key] = nil }
         let snapshot = generations
         lock.unlock()
 

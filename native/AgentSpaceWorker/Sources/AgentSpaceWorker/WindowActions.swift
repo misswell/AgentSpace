@@ -5,6 +5,34 @@ import AgentSpaceCore
 enum WindowActions {
     enum Action { case close, minimize }
 
+    /// Bring *this* window forward inside its own application.
+    ///
+    /// Activating the process only guarantees that the app is frontmost among
+    /// apps; which of its windows is key is whatever the app last focused, so
+    /// input posted at this window's coordinates can land on a sibling. When the
+    /// window cannot be pinned to exactly one accessibility element this refuses
+    /// rather than pretending: posting anyway is how a Fusion proxy silently
+    /// drives a different window than the one the person is looking at.
+    static func raise(window: RemoteWindow) throws {
+        guard AccessibilityBridge.trusted() else {
+            throw AgentSpaceError(code: .accessibilityDenied, message: "Accessibility is required to raise a window.")
+        }
+        let matches = matchingAXWindows(window)
+        guard matches.count == 1, let element = matches.first else {
+            throw AgentSpaceError(
+                code: .badRequest,
+                message: matches.isEmpty
+                    ? "no accessibility window matches window \(window.id), so input could land on another window"
+                    : "more than one accessibility window matches window \(window.id), so refusing to guess which one to raise")
+        }
+        let status = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+        guard status == .success else {
+            throw AgentSpaceError(
+                code: .badRequest,
+                message: "macOS refused to raise window \(window.id) (AX error \(status.rawValue)), so input could land on another window")
+        }
+    }
+
     static func perform(_ action: Action, window: RemoteWindow) throws {
         guard AccessibilityBridge.trusted() else {
             throw AgentSpaceError(code: .accessibilityDenied, message: "Accessibility is required for window actions.")

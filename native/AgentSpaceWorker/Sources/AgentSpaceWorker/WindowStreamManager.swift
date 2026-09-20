@@ -5,12 +5,18 @@ final class WindowStreamManager {
     private let lock = NSLock()
     private var streams: [WindowIdentity: PreviewController] = [:]
 
+    /// Idle controllers hold no capture, so pruning them cannot orphan a live
+    /// stream; without a bound the map grows for the worker's lifetime, one
+    /// entry per window generation ever streamed.
+    private static let retainedLimit = 32
+
     func start(window: RemoteWindow, maxFPS: Int) throws -> Int {
         lock.lock()
         if let existing = streams[window.identity] {
             lock.unlock()
             return try existing.start(maxFPS: maxFPS)
         }
+        pruneIdleStreamsLocked()
 
         let identity = window.identity
         let controller = PreviewController(idleTimeout: 10) { _ in
@@ -52,5 +58,14 @@ final class WindowStreamManager {
     func stopAll() {
         lock.lock(); let active = Array(streams.values); streams.removeAll(); lock.unlock()
         active.forEach { $0.stop() }
+    }
+
+    /// Caller holds `lock`. `PreviewController.isRunning` takes its own lock and
+    /// never reaches back here, so no cycle is possible.
+    private func pruneIdleStreamsLocked() {
+        guard streams.count >= Self.retainedLimit else { return }
+        for (identity, controller) in streams where !controller.isRunning {
+            streams.removeValue(forKey: identity)
+        }
     }
 }

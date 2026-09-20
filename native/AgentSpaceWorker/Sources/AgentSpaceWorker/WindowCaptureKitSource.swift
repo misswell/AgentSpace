@@ -43,8 +43,12 @@ final class WindowCaptureFrameSource: NSObject, PreviewFrameSource {
         configuration.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(max(1, maxFPS)))
         configuration.queueDepth = 2
         configuration.showsCursor = true
-        configuration.width = max(1, Int(window.frame.width))
-        configuration.height = max(1, Int(window.frame.height))
+        // `SCWindow.frame` is in points, so a 1:1 buffer on a Retina panel
+        // halves the resolution of everything small enough to matter — menu
+        // text, 12 pt body copy. Ask for the panel's pixel size instead.
+        let backingScale = Self.pixelsPerPoint(for: window.frame)
+        configuration.width = max(1, Int(window.frame.width) * backingScale)
+        configuration.height = max(1, Int(window.frame.height) * backingScale)
         configuration.scalesToFit = true
 
         let stream = SCStream(
@@ -68,6 +72,27 @@ final class WindowCaptureFrameSource: NSObject, PreviewFrameSource {
         if let startError {
             throw AgentSpaceError(code: .screenRecordingDenied, message: "window capture failed: \(startError)")
         }
+    }
+
+    /// Backing scale of the display this window sits on. `CGDisplayBounds` and
+    /// the captured window frame share the top-left global space, so the frame
+    /// can be compared with the displays directly; the busiest overlap wins.
+    /// Same pixel-over-points probe `ScreenCaptureFrameSource` uses, so a
+    /// mirrored or scaled panel reports what it actually encodes.
+    private static func pixelsPerPoint(for frame: CGRect) -> Int {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return 1 }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return 1 }
+        let visible = displays.filter { CGDisplayIsActive($0) != 0 }
+        guard let best = (visible.isEmpty ? displays : visible).max(by: {
+            area(CGDisplayBounds($0).intersection(frame)) > area(CGDisplayBounds($1).intersection(frame))
+        }), let mode = CGDisplayCopyDisplayMode(best) else { return 1 }
+        return max(1, mode.pixelWidth / max(1, mode.width))
+    }
+
+    private static func area(_ rect: CGRect) -> CGFloat {
+        max(0, rect.width) * max(0, rect.height)
     }
 
     func stop() {

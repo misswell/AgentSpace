@@ -45,7 +45,12 @@ final class FusionSession {
     private func reconcile(_ windows: [RemoteWindow]) {
         let incoming = Set(windows.map(\.identity))
         for identity in Set(controllers.keys).subtracting(incoming) {
-            controllers.removeValue(forKey: identity)?.close()
+            // `close()` alone would leave the frame timer running against a
+            // window nobody is watching, and never tell the worker to stop.
+            if let gone = controllers.removeValue(forKey: identity) {
+                gone.stop()
+                gone.close()
+            }
         }
         for remote in windows where controllers[remote.identity] == nil {
             let controller = FusionWindowController(space: space, remoteWindow: remote)

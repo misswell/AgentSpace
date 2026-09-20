@@ -3,17 +3,37 @@ import Foundation
 import AgentSpaceCore
 
 enum FusionInputRouter {
+    /// Normalized pointer geometry lives in the fitted image rect, so a value
+    /// can land just outside it; the worker refuses out-of-window fractions, so
+    /// clamp here rather than dropping the gesture.
+    private static func clamp(_ fraction: Double) -> Double {
+        max(0, min(1, fraction))
+    }
+
     static func pointer(type: String, x: Double, y: Double, event: NSEvent? = nil) -> JSONValue {
         var object: [String: JSONValue] = [
             "type": .string(type),
-            "xFraction": .double(max(0, min(1, x))),
-            "yFraction": .double(max(0, min(1, y))),
+            "xFraction": .double(clamp(x)),
+            "yFraction": .double(clamp(y)),
         ]
         if let event, type == "scroll" {
             object["dx"] = .int(Int(event.scrollingDeltaX.rounded()))
             object["dy"] = .int(Int(event.scrollingDeltaY.rounded()))
         }
         return .object(object)
+    }
+
+    /// A press-and-travel gesture as one action: text selection, slider knobs
+    /// and marquee rectangles need the button held between two points, which a
+    /// `click` followed by `move` events cannot express.
+    static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) -> JSONValue {
+        .object([
+            "type": .string("drag"),
+            "xFraction": .double(clamp(fromX)),
+            "yFraction": .double(clamp(fromY)),
+            "toXFraction": .double(clamp(toX)),
+            "toYFraction": .double(clamp(toY)),
+        ])
     }
 
     static func keyboard(_ event: NSEvent) -> JSONValue? {

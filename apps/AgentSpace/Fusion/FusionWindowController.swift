@@ -12,6 +12,15 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private var timer: DispatchSourceTimer?
     private var startingCapture = false
     private var closingRemote = false
+    private var frameInFlight = false
+    private var streamFPS = 5
+    private var pullsWithoutFrame = 0
+    private var rebuildWork: DispatchWorkItem?
+    private var rebuildAttempt = 0
+    /// Gaps between rebuild attempts, so a worker that is restarting — or a
+    /// window that vanished — costs a decaying trickle of RPCs, not one per
+    /// frame pull.
+    private static let rebuildDelays: [TimeInterval] = [0.5, 1, 2, 4, 8]
 
     init(space: AgentAccount, remoteWindow: RemoteWindow) {
         self.space = space
@@ -58,6 +67,9 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     func stop() {
         timer?.cancel(); timer = nil
         startingCapture = false
+        rebuildWork?.cancel()
+        rebuildWork = nil
+        pullsWithoutFrame = 0
         let space = self.space, remote = remoteWindow
         queue.async { SpaceService().windowStreamStop(for: space, window: remote) }
     }
@@ -96,13 +108,19 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private func startCapture() {
         guard timer == nil, !startingCapture, window?.isMiniaturized != true else { return }
         startingCapture = true
+        pullsWithoutFrame = 0
         let space = self.space, remote = remoteWindow
         let configuredFPS = UserDefaults.standard.integer(forKey: "fusionFPSPolicy")
         let fps = configuredFPS == 0 ? (window?.isKeyWindow == true ? 15 : 5) : configuredFPS
+        streamFPS = fps
         queue.async { [weak self] in
             switch SpaceService().windowStreamStart(for: space, window: remote, maxFPS: fps) {
             case .failure(let error):
-                Task { @MainActor in self?.startingCapture = false; self?.state.error = error }
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.startingCapture = false
+                    self.scheduleRebuild(after: error)
+                }
             case .success:
                 self?.beginFrameTimer(fps: fps)
             }
@@ -112,6 +130,35 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private func restartCapture() {
         stop()
         startCapture()
+    }
+
+    /// Put the stream back up after it stopped producing frames.
+    ///
+    /// This is the only path out of a worker restart. The new worker has no
+    /// stream for this window, `window.stream.frame` answers PREVIEW_NOT_RUNNING
+    /// to every pull, and a `startCapture()` blocked by the live timer would
+    /// never re-issue `window.stream.start` — the proxy would keep showing the
+    /// last frame of the old worker indefinitely.
+    private func scheduleRebuild(after error: AgentSpaceError? = nil) {
+        if let error { state.error = error }
+        // A session that can no longer be captured is not retried here: the
+        // refusal is the outcome, and the window list refresh drops the proxy.
+        guard error?.code != .sessionIsConsole, error?.code != .noWindowServer else {
+            stop()
+            return
+        }
+        guard rebuildWork == nil else { return }
+        let delay = Self.rebuildDelays[min(rebuildAttempt, Self.rebuildDelays.count - 1)]
+        rebuildAttempt += 1
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self, self.rebuildWork != nil else { return }
+                self.rebuildWork = nil
+                self.restartCapture()
+            }
+        }
+        rebuildWork = work
+        queue.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private nonisolated func beginFrameTimer(fps: Int) {
@@ -128,18 +175,33 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
 
     private nonisolated func pullFrame() {
         Task { @MainActor [weak self] in
-            guard let self else { return }
+            // One outstanding pull at a time: a slow worker must not turn a
+            // 15 FPS timer into an unbounded queue of blocking RPCs.
+            guard let self, !self.frameInFlight else { return }
+            self.frameInFlight = true
             let space = self.space, remote = self.remoteWindow
             self.queue.async { [weak self] in
                 let result = SpaceService().windowFrame(for: space, window: remote)
                 Task { @MainActor in
                     guard let self else { return }
+                    self.frameInFlight = false
                     switch result {
-                    case .success(let image): self.state.image = image; self.state.error = nil
+                    case .success(let image):
+                        self.state.image = image
+                        self.state.error = nil
+                        self.pullsWithoutFrame = 0
+                        self.rebuildAttempt = 0
                     case .failure(let error):
-                        if error.code != .previewNotRunning {
-                            self.state.error = error
-                            if error.code == .sessionIsConsole || error.code == .noWindowServer { self.stop() }
+                        if error.code == .previewNotRunning {
+                            // The same code covers "no frame yet" and "there is
+                            // no stream", so a fresh stream gets about a second
+                            // of pulls before it counts as dead.
+                            self.pullsWithoutFrame += 1
+                            if self.pullsWithoutFrame > max(2, self.streamFPS) {
+                                self.scheduleRebuild()
+                            }
+                        } else {
+                            self.scheduleRebuild(after: error)
                         }
                     }
                 }

@@ -755,14 +755,21 @@ struct Operations {
         let window = try windowCatalog.window(matching: windowIdentity(params))
         let action = try WindowInputRouter.prepare(params: params, window: window)
         try WindowInputRouter.activate(window: window)
-        inputLease.claimHuman()
+        // A pointer that only passed over the proxy is not a person taking
+        // control; claiming the lease for every moved event would pause the
+        // agent for five seconds at a time, forever.
+        if !action.isHover { inputLease.claimHuman() }
         return .obj(["performed": .int(try WindowInputRouter.perform(action))])
     }
 
     func windowActivate(params: JSONValue) throws -> JSONValue {
         try requireDesktopSession("activate a Fusion window")
         let window = try windowCatalog.window(matching: windowIdentity(params))
-        return try AppControl.activate(String(window.pid)).json
+        let info = try AppControl.activate(String(window.pid)).json
+        // App-level activation leaves whichever window the app last focused on
+        // top; a Fusion proxy is about one window, so raise that one too.
+        try WindowActions.raise(window: window)
+        return info
     }
 
     func windowAction(params: JSONValue, action: WindowActions.Action) throws -> JSONValue {

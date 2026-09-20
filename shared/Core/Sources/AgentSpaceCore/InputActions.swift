@@ -76,6 +76,14 @@ public enum InputAction: Equatable, Sendable {
         case .sleep: return "sleep"
         }
     }
+
+    /// Pointer travel with no button held. A Fusion proxy receives these while a
+    /// person's cursor merely crosses it, which is not the same thing as that
+    /// person taking over — only the latter may pause the agent's input.
+    public var isHover: Bool {
+        if case .move = self { return true }
+        return false
+    }
 }
 
 /// Hard bounds. Plan §14 asks for batching; unbounded batching is a
