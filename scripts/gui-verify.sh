@@ -62,13 +62,25 @@ APPLESCRIPT
 
 # The test replaces the running app; if it was open before, hand it back at
 # the end — as a normal launch, in the user's own system language.
-WAS_RUNNING=0
-pgrep -f "AgentSpace.app/Contents/MacOS/AgentSpace" >/dev/null 2>&1 && WAS_RUNNING=1
-pkill -f "AgentSpace.app/Contents/MacOS/AgentSpace" 2>/dev/null; sleep 1
+#
+# Both the lookup and the kill are scoped to this uid on purpose. AgentSpace is
+# also running inside every attached agent account, and an unscoped pattern
+# counts that instance as "the app was open here": the hand-back then launches
+# the build under test onto the human's own desktop and leaves it there after
+# the run, and the kill reaches for a process this user cannot signal anyway.
+WAS_RUNNING_APP=""
+while IFS= read -r running; do
+	case "$running" in
+		*/AgentSpace.app/Contents/MacOS/AgentSpace)
+			WAS_RUNNING_APP="${running%/Contents/MacOS/AgentSpace}"
+			break ;;
+	esac
+done < <(ps -U "$(id -u)" -o comm=)
+pkill -U "$(id -u)" -f "AgentSpace.app/Contents/MacOS/AgentSpace" 2>/dev/null; sleep 1
 "$APP_BIN" >/dev/null 2>&1 &
 APP_PID=$!
 sleep 5
-trap '{ kill $APP_PID 2>/dev/null; [ "$WAS_RUNNING" = 1 ] && open "$APP_BUNDLE"; } 2>/dev/null' EXIT
+trap '{ kill $APP_PID 2>/dev/null; [ -n "$WAS_RUNNING_APP" ] && open "$WAS_RUNNING_APP"; } 2>/dev/null' EXIT
 
 # --- Launch: exactly one window (§41's deep-link window bug) ----------------
 # A binary that predates onOpenURL never consumes queued agentspace:// open

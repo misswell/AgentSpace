@@ -8139,3 +8139,33 @@ the sentence an English-locale macOS would have printed inside a privacy dialog
 | 581 | The recurring `kTCCServiceAppleEvents` denials are system machinery attributed to our processes, not AgentSpace asking for automation | no action | `/usr/bin/log show --last 2h --predicate 'eventMessage CONTAINS "kTCCServiceAppleEvents"'` reads "Prompting policy for hardened runtime; service: kTCCServiceAppleEvents requires entitlement com.apple.security.automation.apple-events but it is missing", requester `appleeventsd`, naming `com.agentspace.AgentSpace`, `com.agentspace.AgentSpace.Worker` and the AppKit XPC child `ThemeWidgetControlViewService`. No AppleScript, `NSAppleEventDescriptor` or `osascript` call exists in `apps`, `native`, `shared` or `packages`, so the entitlement was deliberately **not** added — it would advertise a capability the product does not use — and the denial is silent: no dialog, no failed feature |
 | 582 | An English-locale macOS would have shown both privacy purpose strings in Chinese | pass (fixed) | `apps/AgentSpace/Resources/en.lproj/InfoPlist.strings` held the zh-Hans values for `NSAppleEventsUsageDescription` and `NSScreenCaptureUsageDescription`; the English values now mirror `Info.plist`, and the Apple Events string follows the current vocabulary (agent account, not Space) |
 | 583 | That wrong-language purpose table cannot recur silently | pass | `LocalizationTests.testInfoPlistTablesHaveParityAndTheEnglishOneIsEnglish` asserts key parity between the two `InfoPlist.strings` tables and fails on any CJK code point in an English purpose string |
+
+---
+
+## 293. The test suite must not leave a worker running as the owner's own account (2026-09-20)
+
+Answering "which button do I press now?" required reading the machine's actual
+state, and the state was wrong: ten `agentspace-worker` processes were running as
+`guofeng`. Nobody had started them — `swift test` had, and the owner's rule that a
+test may not touch their session was being broken by every integration run since
+the suite existed. Each holds a unix socket and a session tap under an account
+whose desktop is the human's own, which is precisely the pairing this product
+refuses anywhere else.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 584 | `swift test` left live workers behind, and the cause is a dropped `Process` reference rather than a missed cleanup | pass (fixed) | 10 processes (`ppid 1`) running `.build/arm64-apple-macosx/debug/agentspace-worker --runtime-dir /tmp/as-cli-…`, all started inside the 16:26 test run, while every `/tmp/as-cli-*` directory was already gone — `CLIHarness.startWorker` kept its `Process` in a local, and `Process` does not kill its child on dealloc, so the worker was reparented to launchd and `tearDown`'s directory removal ran without ever seeing it |
+| 585 | The integration harness now puts its workers down, and the same suite leaves none | pass | controlled before/after on the fix: PID set snapshotted, `env PATH=/usr/bin:/bin:/usr/sbin:/sbin swift test --filter CLIIntegrationTests` run (15 tests, 0 failures), PID set re-read — 11 before, 11 after, and `comm -13` reports zero new survivors, against the 10 the same suite had leaked minutes earlier from the pre-fix binary |
+| 586 | The safety suite was never part of this | pass | `WorkerHarness` owns `stop()` and its `deinit` calls it, so its process reference survives to teardown; every leaked process had an `as-cli-` runtime root, and no `as-<uuid8>` root from the safety harness existed at any point (`ls -d /tmp/as-*` returned only `/tmp/as-mcp`) |
+| 587 | The machine was returned to exactly one worker, the installed one | pass | the 10 were confirmed orphaned first (ppid 1, no `xctest`/`swift test` alive), then SIGTERM'd; `ps` afterwards lists only pid 54796, `agentuse`, `/Library/Application Support/AgentSpace/Worker/active/agentspace-worker` |
+| 588 | `gui-verify.sh` measures nothing when two agents run it in one checkout | pass (environment) | the 16:41 run reported `launch opens exactly one window: expected [1] got [0]` with `Terminated: 15` against its own app pid, while a sibling's `scripts/gui-verify.sh` (pid 89988) was live — each run begins by `pkill`ing any `AgentSpace.app/Contents/MacOS/AgentSpace`, so each one kills the other's subject. The same check reads `ok` once the machine is quiet |
+| 589 | The hand-back used to launch the build under test onto the human's own desktop because it counted the *agent account's* copy as "already open" | pass (fixed) | `pgrep -f "AgentSpace.app/…"` matched pid 81059 (`agentuse`, `/Applications/AgentSpace.app`), so `WAS_RUNNING=1` and the `EXIT` trap ran `open "$APP_BUNDLE"` in the owner's session — producing the never-requested guofeng instances 89823 (16:42:16) and 90003 (16:42:43). Detection and kill are now `-U $(id -u)`-scoped and the hand-back re-opens the bundle that was actually running; a dry run resolves to this user's own copy and reports `detected=[…/dist/AgentSpace.app]` while agentuse's `/Applications` copy is listed and ignored |
+| 590 | The last two `gui-verify` failures are the window the machine had, not the build | pass (explained) | the only window in the owner's session was the account viewer: `closeDesktopViewer` → present, `appBuildVersion` → absent, `newAgentWizardContinue` → absent, so "sidebar build stamp" and "wizard reaches a real next state" cannot be evaluated. The same probe found `openAgentFullDiskAccessSettings` → present, i.e. §292's new button is in the shipped 0.1.13 binary |
+
+`check-all.sh` therefore stops at `scripts/gui-verify.sh` on this host right now,
+and not on a product claim: every step before it passed (Swift tests, the MCP
+suite, the notarization guard), and the two GUI assertions above are
+environment-dependent — one because a second agent holds the app, one because the
+helper was being reinstalled while the run was in flight. It has not been
+observed 7/7 this round, so the next quiet-machine run must be the one that says
+so.
