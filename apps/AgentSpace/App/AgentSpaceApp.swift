@@ -162,8 +162,14 @@ final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
                 // toolbar is the stable AppKit marker for the dashboard
                 // window; matching the old fixed title left restored
                 // duplicates alive and made every settings sheet ambiguous.
-                $0.isVisible && !$0.isSheet && $0.toolbar != nil
+                !$0.isSheet && $0.toolbar != nil
             }
+            // State restoration can recreate the dashboard without ordering it
+            // on screen. That leaves a healthy process with no usable window,
+            // which looks exactly like a hung app after switching accounts.
+            // Activation is the user's request to see the app, so make the
+            // surviving dashboard visible before closing any duplicates.
+            mains.first?.makeKeyAndOrderFront(nil)
             for extra in mains.dropFirst() { extra.close() }
         }
     }
