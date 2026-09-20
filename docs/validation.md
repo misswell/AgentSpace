@@ -7924,3 +7924,17 @@ setup. No desktop observation or input is enabled by this method.
 | 528 | Privacy-pane URLs are limited to Accessibility and Screen Recording | pass | `SystemSettingsPane` enum and `ProtocolTests.testSystemSettingsPaneRoutesOnlyToPrivacyPanels` |
 | 529 | The worker and GUI use an additive `systemSettings.open` RPC without changing protocol version 1 | pass | `Method.openSystemSettings`, worker dispatch, `SpaceService.openSystemSettings`, `ProtocolTests.testMethodNamespaceIsStable` |
 | 530 | The setup card gives explicit buttons for both permissions and never opens the controller account's System Settings | pass | `SpaceDetailView` identifiers `openAgentAccessibilitySettings` and `openAgentScreenRecordingSettings`; Worker owns the `NSWorkspace` call |
+
+## 284. Keep restored dashboard windows and GUI checks deterministic (2026-09-20)
+
+Window restoration can recreate several dashboard windows whose titles are the
+selected agent name rather than the scene label. The app now identifies those
+windows by their toolbar and closes restored duplicates; the GUI smoke test
+waits for that convergence, brings the settings scene to the front before
+reading its accessibility tree, and targets the exact bundle under test for
+deep links.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 531 | Restored dashboard duplicates converge to one main window | pass | `OpenLinkDelegate.applicationDidBecomeActive` toolbar-based filtering; `scripts/gui-verify.sh` launch check |
+| 532 | The full release verification remains green with the connected-account permission flow | pass | `scripts/check-all.sh`: stapled dist guard, Swift suite, MCP smoke and GUI verify 7/7 |

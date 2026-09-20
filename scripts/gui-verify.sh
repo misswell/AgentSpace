@@ -22,6 +22,10 @@ set -u
 cd "$(dirname "$0")/.."
 
 APP_BUNDLE="${AGENTSPACE_GUI_APP:-dist/AgentSpace.app}"
+case "$APP_BUNDLE" in
+  /*) ;;
+  *) APP_BUNDLE="$PWD/$APP_BUNDLE" ;;
+esac
 APP_BIN="$APP_BUNDLE/Contents/MacOS/AgentSpace"
 PASS=0; FAIL=0
 
@@ -71,7 +75,12 @@ trap '{ kill $APP_PID 2>/dev/null; [ "$WAS_RUNNING" = 1 ] && open "$APP_BUNDLE";
 # events, so LaunchServices re-delivers them at every launch and each one
 # spawns a WindowGroup window — three identical windows, and every sheet
 # flag then presents in all of them at once. One launch, one window.
-WINDOWS="$(osascript -e 'tell application "System Events" to tell process "AgentSpace" to return count of windows' 2>/dev/null)"
+WINDOWS=""
+for attempt in 1 2 3 4 5; do
+  WINDOWS="$(osascript -e 'tell application "System Events" to tell process "AgentSpace" to return count of windows' 2>/dev/null)"
+  [ "${WINDOWS:-?}" = "1" ] && break
+  sleep 1
+done
 check "launch opens exactly one window" "1" "${WINDOWS:-?}"
 
 # --- Version stamp: the sidebar shows what the bundle actually carries -------
@@ -84,10 +93,11 @@ BUILDN="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_BUNDLE/Conte
 # The sidebar footer is not in the AX tree the instant the window is; retries
 # cover the cold-start race, same as the tier check below.
 BUILD_TEXT=""
-for attempt in 1 2 3; do
+for attempt in 1 2 3 4 5; do
   BUILD_TEXT="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
 	tell process \"AgentSpace\"
+		set frontmost to true
 		set _t to \"\"
 		repeat with _w in windows
 			set _e to my findById(_w, \"appBuildVersion\", static text, 0)
@@ -108,6 +118,7 @@ esac
 osascript >/dev/null 2>&1 <<'EOF'
 tell application "System Events"
 	tell process "AgentSpace"
+		set frontmost to true
 		repeat with _mi in menu items of menu 1 of menu bar item "AgentSpace" of menu bar 1
 			try
 				if value of attribute "AXMenuItemCmdChar" of _mi is "," then
@@ -277,11 +288,9 @@ AGENTSPACE_ROOT="$TMPROOT" "$APP_BIN" >/dev/null 2>&1 &
 APP_PID=$!
 sleep 4
 DEAD_ID="11111111-2222-4333-8444-555555555555"
-if [ -n "${AGENTSPACE_GUI_APP:-}" ]; then
-  open -a "$APP_BUNDLE" "agentspace://space/$DEAD_ID"
-else
-  open "agentspace://space/$DEAD_ID"
-fi
+# Always target the bundle under test.  A bare scheme open can route to an
+# older copy in /Applications, making this assertion inspect the wrong app.
+open -a "$APP_BUNDLE" "agentspace://space/$DEAD_ID"
 sleep 3
 # the alert's first static text is the error code, which is never localized
 ALERT="$(osascript -e 'tell application "System Events" to tell process "AgentSpace" to return value of static text 1 of sheet 1 of window 1' 2>/dev/null | head -c 16)"

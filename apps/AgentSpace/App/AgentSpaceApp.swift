@@ -146,7 +146,12 @@ final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
         // window is the one SwiftUI created first; sheets are not windows.
         DispatchQueue.main.async {
             let mains = NSApp.windows.filter {
-                $0.isVisible && !$0.isSheet && $0.title == "AgentSpace"
+                // WindowGroup titles are the selected agent's display name
+                // (for example, "AgentUse"), not the scene label.  The
+                // toolbar is the stable AppKit marker for the dashboard
+                // window; matching the old fixed title left restored
+                // duplicates alive and made every settings sheet ambiguous.
+                $0.isVisible && !$0.isSheet && $0.toolbar != nil
             }
             for extra in mains.dropFirst() { extra.close() }
         }
