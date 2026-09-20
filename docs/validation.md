@@ -8084,3 +8084,48 @@ macOS display mode.
 | 565 | The Desktop Viewer window is resizable and its zoomed surface keeps click mapping in image-local coordinates | pass | `WindowCapture` inserts the resizable mask and min size; `ViewerZoom` uses a scrollable image surface whose gesture feeds `PreviewMapping` with the image's displayed size; final installed viewer screenshot shows the two-row native-style footer |
 | 566 | Desktop Viewer capture width and live FPS can be changed without changing the agent's display mode | pass | in-window `desktopViewerResolutionPicker` (960/1280/1600/1920) drives screenshot `maxWidth`; `desktopViewerFPSPicker` restarts `preview.start(maxFPS:)` and the timer; final screenshot shows `1280 px` and `30 FPS`; no display-mode RPC or TCC mutation is introduced |
 | 567 | Desktop Viewer distinguishes left and right mouse clicks | pass | `MouseInputSurface` handles AppKit `mouseUp` and `rightMouseUp`; final installed viewer showed the remote Safari context menu and the footer status `右键点击 → 1430, 792`, proving the corresponding `MouseButton.right` reached the agent through the normal input RPC |
+
+## 292. A metric may not spend a privacy decision, and Full Disk Access becomes a reported grant (2026-09-20)
+
+macOS told the owner "worker 无法访问其他 app 数据". The prompt was real and it
+came from AgentSpace — but not from a capability the product needs. It came from
+the **opt-in disk-usage measurement**: `Resources.sample(includeDisk:)` walked the
+attached account's whole home, and a home contains exactly the directories TCC
+gates. tccd lines attributed to the worker's stable path recorded the cost: 8×
+`kTCCServiceSystemPolicyAppDataDetailed` (`auditon … Operation not permitted`),
+`AUTHREQ_PROMPTING` for the Desktop/Documents/Downloads folder gates, and
+`kTCCServicePhotos` denied with "Policy disallows prompt" — one unanswerable
+dialog per access, in a session nobody is watching.
+
+Two fixes, because "obtain every permission we need" has two halves. A number must
+stop asking: `DiskUsage.allocatedBytes(under:budget:skip:)` now takes
+root-relative roots to leave out of the walk, and the worker passes
+`FilePrivacy.protectedSubpaths` (`Desktop`, `Documents`, `Downloads`, `Pictures`,
+`Movies`, `Music`, `Library`) unless the grant exists; the result carries
+`skippedProtected`, which reaches the wire as `diskExcludesProtected` and the GUI
+as a caption saying the figure is a lower bound. And the grant the agent genuinely
+wants becomes first-class: `FilePrivacy.granted(home:)` answers Full Disk Access
+**silently**, `status`/`hello`/readiness carry `fileAccess`, `SystemSettingsPane
+.fullDiskAccess` routes to the verified `Privacy_AllFiles` anchor, the button
+calls `FilePrivacy.registerForFullDiskAccess` so the worker appears as a row the
+user can switch on, and `doctor` reports it as `.warn` — never `.fail`, because an
+agent that can see and drive its desktop but keeps out of `~/Documents` is
+working. The two grants that gate the desktop are still the only ones that can put
+a Space in `needsPermission`.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 568 | The prompt came from the disk measurement, not from a missing capability | pass | `/usr/bin/log show` for `process == "tccd"` in the measurement window: `kTCCServiceSystemPolicyAppDataDetailed` ×8 with `auditon … Operation not permitted`, `AUTHREQ_PROMPTING` on the three folder gates, `kTCCServicePhotos` with "Policy disallows prompt", all attributed to `responsible_path=/Library/Application Support/AgentSpace/Worker/active/agentspace-worker`; the only code path entering those roots was the opt-in `resources` disk walk |
+| 569 | The skipping walk raises no prompt and touches no folder gate | pass | `/tmp/skipwalk` probe compiled from the real `DiskUsage.swift` + `FilePrivacy.swift`: `home=/Users/guofeng skip=protected roots bytes=14594064384 files=215089 truncated=true skippedProtected=true ms=6775`; `/usr/bin/log show --start … --predicate 'process == "tccd"'` filtered for `AUTHREQ_PROMPTING\|SystemPolicy{Desktop,Documents,Downloads}Folder\|AppDataDetailed\|kTCCServicePhotos` in the same window returned nothing |
+| 570 | The Full Disk Access probe is answered by a silent denial, so it is safe in a status path | pass | `~/Library/Application Support/Knowledge/knowledgeC.db` and `~/Library/Messages/chat.db` are `-rw-r--r--` owned by the reading user, yet `open()` gives `EPERM` ("Operation not permitted") and `isReadableFile` is false; tccd logs `Handling access request to kTCCServiceSystemPolicyAllFiles … Denied (Service Policy), DB Action: None` with no prompting event |
+| 571 | TCC attributes the denial to the responsible process, so log evidence must be read by responsible_path and not by the child's name | pass | `cat` run from a terminal produced `AUTHREQ_CTX … from Sub:{com.qoder.app}Resp:{… responsible_path=/Applications/Qoder.app/…}`, and a probe binary run as itself produced no line naming it — the same rule that makes the worker's stable `/Library/Application Support/…/active/agentspace-worker` path the identity TCC remembers |
+| 572 | Skipping is root-relative: an agent's own `project/Documents` is still counted | pass | `DiskUsageTests.testSkippingIsRootRelativeNotByNameAnywhere` (the nested 64 KiB is measured, `skippedProtected` false) |
+| 573 | A partial figure says it is partial, and an absent skip does not flag anything | pass | `DiskUsage.Measurement.skippedProtected` → `diskExcludesProtected` on the wire → `ResourcesCard` caption; `DiskUsageTests.testProtectedRootsAreLeftOutOfTheWalkAndTheNumberSaysSo`, `testSkippingSomethingAbsentDoesNotFlagTheResult` |
+| 574 | Full Disk Access is a reported permission that never gates the desktop | pass | `PermissionState.fileAccess` is optional and excluded from `allGranted`/`missing`; `SpaceModelTests.testFileAccessNeverGatesTheDesktop` |
+| 575 | A registry record written before the probe decodes unchanged, and no key is written when nobody probed | pass | explicit `CodingKeys` + `decodeIfPresent`/`encodeIfPresent`; `testPermissionStateFromBeforeTheFileProbeDecodes`, `testFileAccessIsWrittenOnlyWhenItWasProbed`; legacy record fixture in `testLegacyRegistryRecordDecodesAsAgentAccount` |
+| 576 | `Privacy_AllFiles` is a routable anchor on this macOS and the pane enum stays a closed allow-list | pass | anchor read from `/System/Library/ExtensionKit/Extensions/SecurityPrivacyExtension.appex`, then opened live and confirmed to land on 「完全磁盘访问权限」; `ProtocolTests.testSystemSettingsPaneRoutesOnlyToPrivacyPanels` asserts all three URLs and rejects an unknown raw value |
+| 577 | The third grant is visible from both authorization surfaces and from every reporting path | pass (code) | `SpaceDetailView.permissionsCard` + `Overview` chips, `CurrentAccountPermissionCard`, `PermissionGuideView` third row, `Doctor.workerChecks`, `agentspace status`, `agentspace-session-test` preflight, worker `Readiness.Report`; GUI and CLI build and `scripts/test.sh` passes (§4) |
+| 581 | A worker from before the probe reports "never looked" instead of a false denial | pass | live against the installed worker (pid 54796): `agentspace status AgentUse` printed `file access    unknown — this worker predates the probe`, its `--json` carried no `fileAccess` key, and `agentspace doctor` emitted no `Full Disk Access (AgentUse)` check at all while still reporting Accessibility and Screen Recording as granted |
+| 578 | Clicking the new button puts agentspace-worker in the Full Disk Access list | pending | needs the updated worker installed and one click in the attached account's session; `FilePrivacy.registerForFullDiskAccess` performs the gated open that macOS requires for the row to appear |
+| 579 | An updated worker's disk measurement produces no gate activity in the attached account | pending | to be re-measured with `/usr/bin/log show --predicate 'process == "tccd"'` after the worker update; the 568 evidence above is the before picture |
+| 580 | The AgentSpace GUI's recurring `kTCCServiceAppleEvents` denials are not this product asking for automation | no action | tccd denies `kTCCServiceAppleEvents` for targets `com.apple.systemevents` and `ThemeWidgetControlViewService` on GUI launch, while no AppleScript, `NSAppleEventDescriptor` or `osascript` call exists in the sources; adding `com.apple.security.automation.apple-events` would over-grant a capability the app does not use, so it was deliberately not added |

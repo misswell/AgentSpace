@@ -16,6 +16,10 @@ struct SpaceSnapshot: Identifiable, Equatable {
     var acceptsInput: Bool = false
     var screenRecording: Bool = false
     var accessibility: Bool = false
+    /// Full Disk Access, as the worker reports it. Optional because a worker from
+    /// before this grant was tracked answers without the field, and "the old
+    /// worker never looked" must not render as "denied".
+    var fileAccess: Bool? = nil
     var display: DisplayGeometry?
     var resources: ResourceUsage?
     /// Set when the last refresh failed, so the detail view can explain why
@@ -117,7 +121,8 @@ final class SpaceService {
             processCount: resources["processCount"]?.intValue ?? 0,
             diskBytes: UInt64(resources["diskBytes"]?.intValue ?? 0),
             diskMeasured: resources["diskBytes"]?.intValue != nil,
-            diskTruncated: resources["diskTruncated"]?.boolValue ?? false))
+            diskTruncated: resources["diskTruncated"]?.boolValue ?? false,
+            diskExcludesProtected: resources["diskExcludesProtected"]?.boolValue ?? false))
     }
 
     func snapshot(for space: AgentAccount, includeResources: Bool = false, timeout: Double = 4) -> SpaceSnapshot {
@@ -160,6 +165,7 @@ final class SpaceService {
             snapshot.acceptsInput = result["acceptsInput"]?.boolValue ?? false
             snapshot.screenRecording = result["screenRecording"]?.boolValue ?? false
             snapshot.accessibility = result["accessibility"]?.boolValue ?? false
+            snapshot.fileAccess = result["fileAccess"]?.boolValue
             if let display = result["display"] {
                 snapshot.display = DisplayGeometry(
                     width: display["width"]?.intValue ?? 0,

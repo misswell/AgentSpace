@@ -24,7 +24,7 @@ public enum Method {
     public static let axElementAt = "ax.elementAt"
     public static let axPerform = "ax.perform"
     public static let shutdown = "shutdown"
-    /// Open one of the two privacy panes in the connected account's own Aqua
+    /// Open one of the privacy panes in the connected account's own Aqua
     /// session. The worker is the only process that can launch the URL there;
     /// the controller must not accidentally open the main user's settings.
     public static let openSystemSettings = "systemSettings.open"

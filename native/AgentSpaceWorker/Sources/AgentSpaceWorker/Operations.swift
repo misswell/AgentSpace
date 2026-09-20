@@ -121,6 +121,7 @@ struct Operations {
             "permissions": .obj([
                 "screenRecording": .bool(ScreenCapture.permissionGranted()),
                 "accessibility": .bool(AccessibilityBridge.trusted()),
+                "fileAccess": .bool(FilePrivacy.granted(home: context.home)),
             ]),
             "requiresToken": .bool(true),
         ])
@@ -130,9 +131,11 @@ struct Operations {
 
     func status(params: JSONValue) throws -> JSONValue {
         let verdict = context.sessionVerdict()
+        let fileAccess = FilePrivacy.granted(home: context.home)
         let permissions = PermissionState(
             screenRecording: ScreenCapture.permissionGranted(),
-            accessibility: AccessibilityBridge.trusted())
+            accessibility: AccessibilityBridge.trusted(),
+            fileAccess: fileAccess)
         let state = currentState(verdict: verdict, permissions: permissions)
         let geometry = ScreenCapture.mainDisplayGeometry()
 
@@ -149,6 +152,7 @@ struct Operations {
             "workerUptimeSeconds": .int(Int(Date().timeIntervalSince(context.startedAt))),
             "screenRecording": .bool(permissions.screenRecording),
             "accessibility": .bool(permissions.accessibility),
+            "fileAccess": .bool(fileAccess),
             "session": .obj([
                 "verdict": .string(verdictName(verdict)),
                 "onConsole": .bool(verdict == .isConsole || verdict == .indeterminate),
@@ -180,7 +184,8 @@ struct Operations {
             object["resources"] = Resources.sample(
                 uid: context.uid,
                 includeDisk: resources == "disk",
-                home: context.home).json
+                home: context.home,
+                fileAccess: permissions.fileAccess ?? false).json
         }
         return .object(object)
     }
@@ -411,7 +416,7 @@ struct Operations {
               let url = URL(string: pane.urlString) else {
             throw AgentSpaceError(
                 code: .badRequest,
-                message: #"systemSettings.open requires pane "accessibility" or "screenRecording""#)
+                message: #"systemSettings.open requires pane "accessibility", "screenRecording" or "fullDiskAccess""#)
         }
 
         // A preflight check only tells us that TCC is currently denied; it does
@@ -426,6 +431,11 @@ struct Operations {
             _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
         case .screenRecording:
             _ = CGRequestScreenCaptureAccess()
+        case .fullDiskAccess:
+            // No prompt for this grant, so registration is the whole job: the
+            // denied read is what puts agentspace-worker in the list the panel
+            // below then shows.
+            FilePrivacy.registerForFullDiskAccess(home: context.home)
         }
         guard NSWorkspace.shared.open(url) else {
             throw AgentSpaceError(
@@ -699,6 +709,10 @@ enum Resources {
         var diskBytes: UInt64?
         /// True when the walk hit its budget and `diskBytes` is a lower bound.
         var diskTruncated = false
+        /// True when macOS-protected folders were left out because this process
+        /// has no Full Disk Access. Without this flag the number reads as "this
+        /// account owns little disk" exactly when it owns the most.
+        var diskExcludesProtected = false
 
         var json: JSONValue {
             var object: [String: JSONValue] = [
@@ -708,6 +722,7 @@ enum Resources {
             ]
             object["diskBytes"] = diskBytes.map { .int(Int($0)) } ?? .null
             if diskTruncated { object["diskTruncated"] = .bool(true) }
+            if diskExcludesProtected { object["diskExcludesProtected"] = .bool(true) }
             return .obj(object)
         }
     }
@@ -715,7 +730,12 @@ enum Resources {
     /// One `ps` invocation, filtered to the uid. Called at most every couple of
     /// seconds by the UI, so the fork cost is acceptable and avoids the
     /// private-API surface of `proc_pidinfo` across a `libproc` boundary.
-    static func sample(uid: uid_t, includeDisk: Bool = false, home: String? = nil) -> Sample {
+    static func sample(
+        uid: uid_t,
+        includeDisk: Bool = false,
+        home: String? = nil,
+        fileAccess: Bool = false
+    ) -> Sample {
         var sample = Sample(cpuPercent: 0, memoryBytes: 0, processCount: 0)
         if let output = runPS() {
             // Parsing lives in Core (ResourcesParsing) so tests can pin the
@@ -726,9 +746,16 @@ enum Resources {
             sample.cpuPercent = totals.cpuPercent
         }
         if includeDisk, let home {
-            let measured = DiskUsage.allocatedBytes(under: home)
+            // Protected folders stay out of the walk until the grant exists: a
+            // metric that reads `Documents` spends a privacy decision the user
+            // never agreed to spend, and in a background session the resulting
+            // dialog has nobody to answer it.
+            let measured = DiskUsage.allocatedBytes(
+                under: home,
+                skip: fileAccess ? [] : Set(FilePrivacy.protectedSubpaths))
             sample.diskBytes = measured.bytes
             sample.diskTruncated = measured.truncated
+            sample.diskExcludesProtected = measured.skippedProtected
         }
         return sample
     }

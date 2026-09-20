@@ -157,10 +157,14 @@ let verdict = hello["session"]?["verdict"]?.stringValue ?? "unknown"
 let permitsInput = hello["session"]?["permitsInput"]?.boolValue ?? false
 let accessibility = hello["permissions"]?["accessibility"]?.boolValue ?? false
 let screenRecording = hello["permissions"]?["screenRecording"]?.boolValue ?? false
+// `nil` means the worker predates the probe. It is not "denied", and a missing
+// optional grant is not a failure — so this line reports, it never gates.
+let fileAccess = hello["permissions"]?["fileAccess"]?.boolValue
 
 report.step("Worker is up. Session verdict: \(verdict)")
 report.step("  accessibility:    \(accessibility ? "granted" : "MISSING")")
 report.step("  screen recording: \(screenRecording ? "granted" : "MISSING")")
+report.step("  file access:      \(fileAccess.map { $0 ? "granted" : "not granted (optional)" } ?? "unknown")")
 report.step("  permits input:    \(permitsInput)")
 report.step("")
 

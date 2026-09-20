@@ -149,6 +149,39 @@ first and refuses **without invoking `screencapture`** when the grant is absent,
 because invoking it unpermitted can raise a TCC prompt in a session nobody is
 looking at — a dialog that can never be answered, appearing forever.
 
+### A metric never spends a privacy decision
+
+The TCC rule above has a second consequence that is easy to miss: **nothing the
+product measures may read a protected folder either.** The disk-usage figure
+walks the agent's own home, and a home contains exactly the directories macOS
+gates — `Desktop`, `Documents`, `Downloads`, and per-app data under `Library`.
+
+Two families of gate fail differently, and both are unacceptable as a side effect
+of a number:
+
+- The folder gates **prompt** on first read. In an unattended background session
+  that dialog has nobody to answer it — the same trap `screenshot` preflights for.
+- Per-app data (`kTCCServiceSystemPolicyAppDataDetailed`, Photos, Messages) is
+  consulted **per access**, so a walk of `~/Library` costs one tccd round trip per
+  protected container and denies hard when prompting is disallowed.
+
+So `DiskUsage.allocatedBytes(under:skip:)` is given the roots to skip, and the
+worker passes `FilePrivacy.protectedSubpaths` unless the grant exists. The result
+carries `skippedProtected`, which becomes `diskExcludesProtected` on the wire and
+an explicit caption in the GUI: the number is a lower bound for part of the home,
+never a quiet zero for the folders nobody looked in. Skip is **root-relative** —
+an agent's own `~/project/Documents` is an ordinary directory and is still counted.
+
+Full Disk Access is therefore a first-class, *optional* third grant: it is
+detected silently (`FilePrivacy.granted` — the kernel denies the open, it does not
+ask, so polling is safe), offered as an in-app button that opens
+`Privacy_AllFiles`, and reported by `status`, `hello`, `agentspace status` and
+`agentspace doctor` as `.warn` rather than `.fail`. Its row in System Settings
+exists only after a gated read has been attempted, so the button performs that
+attempt from the user's explicit click — never from a poll. A missing grant does
+not move `state` to `needsPermission`: an agent that can see and drive its desktop
+but keeps out of `~/Documents` is working, not stuck.
+
 ### Secrets
 
 - The existing account's password never enters AgentSpace. It is typed only into
@@ -188,6 +221,7 @@ not recoverable, so nothing retries it.
 | Log leak of a token or password | `Redaction` at the single logging choke point | A future call site that bypasses `Log` |
 | Helper abused for root | Closed typed XPC surface; code-signature requirement checked | Needs the phase-3 security review (§56) |
 | TCC prompt loops forever | Preflight first, never invoke unpermitted | None |
+| A metric raises the prompt nobody can answer | Disk walk skips macOS-protected roots unless Full Disk Access is granted; the grant is probed by a denied open, which never prompts | The disk figure is a labelled lower bound until the grant exists |
 | `APP_LAUNCH` returns a unusable pid | Wait for real registration | — |
 
 ## Not controls

@@ -99,10 +99,20 @@ public enum SpaceState: String, Codable, Sendable, CaseIterable {
 public struct PermissionState: Codable, Equatable, Sendable {
     public var screenRecording: Bool
     public var accessibility: Bool
+    /// Full Disk Access — the grant that decides whether this account's worker can
+    /// read the folders macOS protects (`Documents`, another app's data).
+    ///
+    /// Optional and only written when known, like `purpose`: a record from before
+    /// it existed must decode unchanged, and "nobody probed" is not the same claim
+    /// as "denied". `allGranted` and `missing` deliberately ignore it — a desktop
+    /// an agent can see and drive but not file through is a working session, not a
+    /// session stuck in `needsPermission`.
+    public var fileAccess: Bool?
 
-    public init(screenRecording: Bool = false, accessibility: Bool = false) {
+    public init(screenRecording: Bool = false, accessibility: Bool = false, fileAccess: Bool? = nil) {
         self.screenRecording = screenRecording
         self.accessibility = accessibility
+        self.fileAccess = fileAccess
     }
 
     public var allGranted: Bool { screenRecording && accessibility }
@@ -113,6 +123,24 @@ public struct PermissionState: Codable, Equatable, Sendable {
         if !accessibility { out.append(NSLocalizedString("Accessibility", comment: "")) }
         if !screenRecording { out.append(NSLocalizedString("Screen Recording", comment: "")) }
         return out
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case screenRecording, accessibility, fileAccess
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.screenRecording = try c.decodeIfPresent(Bool.self, forKey: .screenRecording) ?? false
+        self.accessibility = try c.decodeIfPresent(Bool.self, forKey: .accessibility) ?? false
+        self.fileAccess = try c.decodeIfPresent(Bool.self, forKey: .fileAccess)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(screenRecording, forKey: .screenRecording)
+        try c.encode(accessibility, forKey: .accessibility)
+        try c.encodeIfPresent(fileAccess, forKey: .fileAccess)
     }
 }
 
@@ -352,6 +380,11 @@ public struct ResourceUsage: Codable, Equatable, Sendable {
     public var diskMeasured: Bool
     /// True when the walk hit its budget, making `diskBytes` a lower bound.
     public var diskTruncated: Bool
+    /// True when macOS-protected folders were left out of the walk because the
+    /// worker has no Full Disk Access, so `diskBytes` is a figure for part of the
+    /// home rather than for the home. Saying so is the difference between a small
+    /// number and a wrong one.
+    public var diskExcludesProtected: Bool
 
     public init(
         cpuPercent: Double = 0,
@@ -359,7 +392,8 @@ public struct ResourceUsage: Codable, Equatable, Sendable {
         processCount: Int = 0,
         diskBytes: UInt64 = 0,
         diskMeasured: Bool = false,
-        diskTruncated: Bool = false
+        diskTruncated: Bool = false,
+        diskExcludesProtected: Bool = false
     ) {
         self.cpuPercent = cpuPercent
         self.memoryBytes = memoryBytes
@@ -367,6 +401,7 @@ public struct ResourceUsage: Codable, Equatable, Sendable {
         self.diskBytes = diskBytes
         self.diskMeasured = diskMeasured
         self.diskTruncated = diskTruncated
+        self.diskExcludesProtected = diskExcludesProtected
     }
 
     public var memoryDisplay: String {

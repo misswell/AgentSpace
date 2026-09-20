@@ -46,6 +46,40 @@ final class SpaceModelTests: XCTestCase {
         XCTAssertTrue(full.missing.isEmpty)
     }
 
+    /// Full Disk Access deliberately stays out of both judgements. An agent that
+    /// can see and drive its desktop but keeps out of `~/Documents` is working,
+    /// not stuck — and a grant that is merely absent must not read as denied.
+    func testFileAccessNeverGatesTheDesktop() {
+        let denied = PermissionState(screenRecording: true, accessibility: true, fileAccess: false)
+        XCTAssertTrue(denied.allGranted)
+        XCTAssertTrue(denied.missing.isEmpty)
+
+        let unknown = PermissionState(screenRecording: true, accessibility: true)
+        XCTAssertNil(unknown.fileAccess)
+    }
+
+    func testFileAccessIsWrittenOnlyWhenItWasProbed() throws {
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+
+        let unprobed = try encoder.encode(PermissionState(screenRecording: true, accessibility: true))
+        var object = try JSONSerialization.jsonObject(with: unprobed) as? [String: Any]
+        XCTAssertNil(object?["fileAccess"], "a poll that never looked must not write a claim")
+
+        let probed = try encoder.encode(PermissionState(screenRecording: true, accessibility: true, fileAccess: false))
+        object = try JSONSerialization.jsonObject(with: probed) as? [String: Any]
+        XCTAssertEqual(object?["fileAccess"] as? Bool, false)
+        XCTAssertEqual(try decoder.decode(PermissionState.self, from: probed).fileAccess, false)
+    }
+
+    /// The registry records pre-V3 builds carry only the two original keys.
+    func testPermissionStateFromBeforeTheFileProbeDecodes() throws {
+        let legacy = Data(#"{"screenRecording":true,"accessibility":true}"#.utf8)
+        let state = try JSONDecoder().decode(PermissionState.self, from: legacy)
+        XCTAssertEqual(state, PermissionState(screenRecording: true, accessibility: true))
+        XCTAssertNil(state.fileAccess)
+    }
+
     // MARK: Shared folders
 
     func testSharedFolderDefaultsToReadOnly() {

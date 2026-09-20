@@ -798,6 +798,18 @@ case "status":
         print("  session        \(result["session"]?["verdict"]?.stringValue ?? "?")")
         print("  accessibility  \(result["accessibility"]?.boolValue == true ? "granted" : "MISSING")")
         print("  screen record  \(result["screenRecording"]?.boolValue == true ? "granted" : "MISSING")")
+        // Three states, because "an older worker never looked" is not the same
+        // claim as "this account denied it" — and this one is optional anyway.
+        let fileAccessText: String
+        switch result["fileAccess"]?.boolValue {
+        case .some(true):
+            fileAccessText = "granted"
+        case .some(false):
+            fileAccessText = "not granted (optional) — without Full Disk Access this account's Desktop, Documents, Downloads and other apps' data stay closed"
+        case nil:
+            fileAccessText = "unknown — this worker predates the probe; update it from the AgentSpace app"
+        }
+        print("  file access    \(fileAccessText)")
         print("  display        \(result["display"]?["width"]?.intValue ?? 0)x\(result["display"]?["height"]?.intValue ?? 0) points, scale \(result["display"]?["scale"]?.intValue ?? 1)")
         if let resources = result["resources"] {
             print("  cpu            \(resources["cpuPercent"]?.doubleValue ?? 0)%")

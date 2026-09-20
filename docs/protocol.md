@@ -95,7 +95,7 @@ failure cannot be accidentally advertised as retryable.
   "user": { "uid": 502, "name": "_agentspace_a37f91", "home": "/Users/_agentspace_a37f91" },
   "session": { "verdict": "usable", "onConsole": false, "permitsInput": true, "windowServer": true },
   "display": { "width": 1920, "height": 1080, "pixelWidth": 3840, "pixelHeight": 2160, "scale": 2 },
-  "permissions": { "screenRecording": true, "accessibility": true },
+  "permissions": { "screenRecording": true, "accessibility": true, "fileAccess": false },
   "requiresToken": true
 }
 ```
@@ -103,24 +103,47 @@ failure cannot be accidentally advertised as retryable.
 `session.verdict` is one of `usable`, `isConsole`, `noWindowServer`,
 `indeterminate`. Only `usable` sets `permitsInput: true`.
 
+`permissions.fileAccess` is Full Disk Access — the grant that decides whether
+this account's worker may read the folders macOS protects. It is **optional**:
+`screenRecording` and `accessibility` gate whether the desktop can be operated at
+all, and only those two move `state` to `needsPermission`. A worker from before
+this field existed simply omits it, which a client must read as "never probed",
+not as "denied".
+
 ### `status`
 
-Params: `{ "resources": "full" | "summary" }`. `full` adds a `resources` block
-(one `ps` fork); `summary` — the default — forks nothing, because the UI polls
-this every few seconds and §53 wants that to be nearly free.
+Params: `{ "resources": "full" | "disk" | "summary" }`. `full` adds a `resources`
+block (one `ps` fork); `disk` adds the same block plus the home-directory walk;
+`summary` — the default — forks nothing, because the UI polls this every few
+seconds and §53 wants that to be nearly free.
 
 ```json
 {
   "space": "Frontend", "spaceId": "…", "uid": 502, "user": "_agentspace_a37f91",
   "state": "ready", "stateLabel": "Ready", "acceptsInput": true,
   "worker": true, "workerPid": 55007, "workerUptimeSeconds": 412,
-  "screenRecording": true, "accessibility": true,
+  "screenRecording": true, "accessibility": true, "fileAccess": false,
   "session": { "verdict": "usable", "onConsole": false },
   "display": { "width": 1920, "height": 1080, "pixelWidth": 3840, "pixelHeight": 2160, "scale": 2 },
   "workspace": { "confined": true, "allowedRoots": ["…"], "writableRoots": ["…"] },
   "resources": { "cpuPercent": 8.4, "memoryBytes": 1460000000, "processCount": 47 }
 }
 ```
+
+Only `"resources": "disk"` runs the walk, and the block then also carries:
+
+```json
+"diskBytes": 4823482368, "diskTruncated": true, "diskExcludesProtected": true
+```
+
+`diskBytes` is `null` when the walk did not run (never a `0`, which a client
+would read as a measured empty home), `diskTruncated` means the file budget was
+hit, and `diskExcludesProtected` means the walk stopped at the macOS folder gates
+because this process has no Full Disk Access — so the figure is a lower bound for
+part of the home, not the home. `diskTruncated` and `diskExcludesProtected` are
+omitted rather than sent as `false`. See
+[`security.md`](security.md) for why a metric is not allowed to enter
+`Documents`.
 
 ### `screenshot`
 
@@ -283,6 +306,23 @@ predicate `role`, `titleContains`, `identifier`.
 
 Bounded on both depth and node count: a browser accessibility tree is tens of
 thousands of nodes and walking one unbounded would wedge the worker.
+
+### `systemSettings.open`
+
+Params: `{ "pane": "accessibility" | "screenRecording" | "fullDiskAccess" }`.
+Opens that privacy pane **in the attached account's own Aqua session** — the
+worker is the only process that can do it, and a controller that opened the URL
+through its own `NSWorkspace` would show the human's settings instead, which is
+the confusion the whole feature exists to remove.
+
+`SystemSettingsPane` (in Core) is the closed allow-list of `x-apple.systempreferences:`
+anchors; no other destination is reachable through this method. Each pane is
+paired with the silent pre-check that makes the worker appear as a row the user
+can switch on: `AXIsProcessTrustedWithOptions(prompt:)`,
+`CGRequestScreenCaptureAccess()`, and for Full Disk Access one deliberately-gated
+read (`FilePrivacy.registerForFullDiskAccess`). macOS never prompts for that last
+grant — a gated open is simply denied — so without the attempt there is no row
+to approve.
 
 ### `shutdown`
 

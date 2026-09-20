@@ -179,8 +179,14 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(
             SystemSettingsPane.screenRecording.urlString,
             "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+        XCTAssertEqual(
+            SystemSettingsPane.fullDiskAccess.urlString,
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
         XCTAssertNil(SystemSettingsPane(rawValue: "usersAndGroups"))
-        XCTAssertEqual(Set(SystemSettingsPane.allCases), [.accessibility, .screenRecording])
+        XCTAssertNil(SystemSettingsPane(rawValue: "Accessibility"))
+        XCTAssertEqual(
+            Set(SystemSettingsPane.allCases),
+            [.accessibility, .screenRecording, .fullDiskAccess])
     }
 }
 

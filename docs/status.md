@@ -84,6 +84,10 @@ the V3 root.
   `agentspace_*` MCP tools, registry keys and deep-link compatibility remain.
 - English and Simplified Chinese localization with automated key parity.
 - Signed, notarized and stapled release pipeline.
+- Three reported permissions: Accessibility and Screen Recording gate the
+  desktop, optional Full Disk Access gates this account's own protected folders.
+  Each is detectable without prompting, has its own in-app authorization button,
+  and is reported by GUI, `agentspace status` and `agentspace doctor`.
 
 ## Still missing
 
@@ -132,6 +136,9 @@ For official `dist/`, always run `scripts/release.sh` and then
 
 - No user creation or deletion. No `sysadminctl` mutation path.
 - No fallback into the current user's desktop.
+- No metric reads a macOS-protected folder: the disk walk skips
+  `FilePrivacy.protectedSubpaths` unless Full Disk Access is granted, so a
+  number never costs the user a privacy dialog in an unattended session.
 - No generic shell or arbitrary-path privileged helper operation.
 - Helper paths are derived from validated account IDs and fixed roots.
 - Runtime access is verified before the worker binds.

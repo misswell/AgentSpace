@@ -153,6 +153,7 @@ enum Readiness {
         var verdict: String
         var screenRecording: Bool
         var accessibility: Bool
+        var fileAccess: Bool = false
         var socketPath: String
         var socketPathFits: Bool
         var problems: [String]
@@ -166,6 +167,7 @@ enum Readiness {
                 "sessionVerdict": .string(verdict),
                 "screenRecording": .bool(screenRecording),
                 "accessibility": .bool(accessibility),
+                "fileAccess": .bool(fileAccess),
                 "socketPath": .string(socketPath),
                 "socketPathFits": .bool(socketPathFits),
                 "problems": .array(problems.map { .string($0) }),
@@ -222,6 +224,7 @@ enum Readiness {
             verdict: verdictName(verdict),
             screenRecording: CGPreflightScreenCaptureAccess(),
             accessibility: AXIsProcessTrusted(),
+            fileAccess: FilePrivacy.granted(home: NSHomeDirectory()),
             socketPath: socketPath,
             socketPathFits: RuntimePaths.socketPathFits(socketPath),
             problems: problems)

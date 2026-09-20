@@ -225,6 +225,11 @@ private struct CurrentAccountPermissionCard: View {
                 PermissionChip(
                     name: NSLocalizedString("Screen Recording", comment: ""),
                     granted: current.screenRecording)
+                if let fileAccess = current.fileAccess {
+                    PermissionChip(
+                        name: NSLocalizedString("Full Disk Access", comment: ""),
+                        granted: fileAccess)
+                }
                 Spacer(minLength: 0)
             }
 
@@ -249,6 +254,22 @@ private struct CurrentAccountPermissionCard: View {
                 }
                 .accessibilityIdentifier("authorizeCurrentAccountScreenRecording")
             }
+
+            Button {
+                model.authorizeCurrentAccount(pane: .fullDiskAccess)
+            } label: {
+                authorizationLabel(
+                    title: NSLocalizedString("Authorize Full Disk Access", comment: ""),
+                    icon: "lock.open.trianglebadge.exclamationmark",
+                    pane: .fullDiskAccess)
+            }
+            .accessibilityIdentifier("authorizeCurrentAccountFullDiskAccess")
+
+            Text(NSLocalizedString("Accessibility and Screen Recording are required. Full Disk Access is optional: without it this account's Desktop, Documents, Downloads and other apps' data stay closed to the worker, which is a working state, not a broken one.", comment: ""))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
                 model.discoverCurrentAccountAuthorization()

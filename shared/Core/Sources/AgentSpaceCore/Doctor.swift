@@ -355,6 +355,21 @@ public enum Doctor {
                     status: recording ? .pass : .fail,
                     detail: recording ? "granted to the worker." : "not granted to the worker.",
                     fix: recording ? nil : "In the connected account's session, open System Settings → Privacy & Security → Screen & System Audio Recording and enable agentspace-worker. Then switch back and click Finish setup in AgentSpace."))
+                // A missing key means an older worker never probed this, which is
+                // not the same as "denied" — reporting it as such would send the
+                // user to Settings for a grant macOS already gave.
+                if let fileAccess = body["fileAccess"]?.boolValue {
+                    results.append(Check(
+                        name: String(format: NSLocalizedString("Full Disk Access (%@)", comment: ""), space.name),
+                        // `.warn`, not `.fail`: the two grants above gate the
+                        // desktop, this one only widens which files the agent may
+                        // read inside its own account.
+                        status: fileAccess ? .pass : .warn,
+                        detail: fileAccess
+                            ? "granted to the worker; this account's protected folders are readable."
+                            : "not granted to the worker. Its Desktop, Documents, Downloads and other apps' data stay closed, and file walks report a lower bound rather than a guess.",
+                        fix: fileAccess ? nil : "Optional. Open this account in AgentSpace and click Open Full Disk Access settings, then enable agentspace-worker under Privacy & Security → Full Disk Access."))
+                }
             }
         } catch {
             results.append(Check(

@@ -42,7 +42,7 @@ struct PermissionGuideView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(NSLocalizedString("Authorize this agent", comment: ""))
                     .font(.title2.weight(.semibold))
-                Text(NSLocalizedString("The worker needs two macOS privacy permissions before it can control the attached desktop.", comment: ""))
+                Text(NSLocalizedString("The worker needs two macOS privacy permissions before it can control the attached desktop. A third, optional grant opens this account's own files.", comment: ""))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -71,6 +71,16 @@ struct PermissionGuideView: View {
                     granted: snapshot.screenRecording,
                     pane: .screenRecording,
                     identifier: "permissionGuideScreenRecording")
+                if let fileAccess = snapshot.fileAccess {
+                    permissionRow(
+                        space: snapshot.space,
+                        title: NSLocalizedString("Full Disk Access", comment: ""),
+                        detail: NSLocalizedString("Optional. Lets agentspace-worker read this account's Desktop, Documents, Downloads and other apps' data. Without it those folders stay closed and the agent works normally everywhere else.", comment: ""),
+                        granted: fileAccess,
+                        pane: .fullDiskAccess,
+                        identifier: "permissionGuideFullDiskAccess",
+                        optional: true)
+                }
             }
             .padding(12)
             .background(
@@ -119,19 +129,18 @@ struct PermissionGuideView: View {
         detail: String,
         granted: Bool,
         pane: SystemSettingsPane,
-        identifier: String
+        identifier: String,
+        optional: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: granted ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(granted ? Color.green : Color.orange)
+                    .foregroundStyle(stateColor(granted: granted, optional: optional))
                 Text(title).font(.callout.weight(.semibold))
                 Spacer()
-                Text(granted
-                     ? NSLocalizedString("Granted", comment: "")
-                     : NSLocalizedString("Needs approval", comment: ""))
+                Text(statusLabel(granted: granted, optional: optional))
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(granted ? Color.green : Color.orange)
+                    .foregroundStyle(stateColor(granted: granted, optional: optional))
             }
             HStack(alignment: .top, spacing: 8) {
                 Text(detail)
@@ -146,5 +155,18 @@ struct PermissionGuideView: View {
                 .disabled(model.authorizingPermission != nil || model.openingSystemSettings != nil || model.updatingWorker != nil || model.finishingSetup != nil)
             }
         }
+    }
+
+    /// A missing optional grant is a choice, not a fault, so it does not earn
+    /// the warning orange that "this desktop cannot be operated" earns.
+    private func stateColor(granted: Bool, optional: Bool) -> Color {
+        if granted { return .green }
+        return optional ? .secondary : .orange
+    }
+
+    private func statusLabel(granted: Bool, optional: Bool) -> String {
+        if granted { return NSLocalizedString("Granted", comment: "") }
+        if optional { return NSLocalizedString("Not granted (optional)", comment: "") }
+        return NSLocalizedString("Needs approval", comment: "")
     }
 }

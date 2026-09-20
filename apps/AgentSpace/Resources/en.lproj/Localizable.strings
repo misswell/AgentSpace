@@ -457,7 +457,6 @@
 "Open Screen Recording settings" = "Open Screen Recording settings";
 "Open authorization guide" = "Open authorization guide";
 "Authorize this agent" = "Authorize this agent";
-"The worker needs two macOS privacy permissions before it can control the attached desktop." = "The worker needs two macOS privacy permissions before it can control the attached desktop.";
 "You do not need to find AgentSpace in %@. These buttons open System Settings in that account's own session; switch to %@, approve the permission, then return here." = "You do not need to find AgentSpace in %@. These buttons open System Settings in that account's own session; switch to %@, approve the permission, then return here.";
 "Lets agentspace-worker operate the attached desktop." = "Lets agentspace-worker operate the attached desktop.";
 "Lets the worker capture the attached desktop for previews." = "Lets the worker capture the attached desktop for previews.";
@@ -470,7 +469,6 @@
 "The permission entry is agentspace-worker. It is a background process, not a separate app to launch or install." = "The permission entry is agentspace-worker. It is a background process, not a separate app to launch or install.";
 "You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. Switch to %@ only to approve it, then return here." = "You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. Switch to %@ only to approve it, then return here.";
 "Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window." = "Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window.";
-"The worker is not running yet. Clicking either permission button will install/start it first, then open the matching System Settings pane." = "The worker is not running yet. Clicking either permission button will install/start it first, then open the matching System Settings pane.";
 "Preparing authorization…" = "Preparing authorization…";
 "Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session." = "Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session.";
 "Sign in to the attached account first. The worker must be running before macOS can show its permission entry." = "Sign in to the attached account first. The worker must be running before macOS can show its permission entry.";
@@ -492,3 +490,14 @@
 "The helper could not prepare the worker: %@" = "The helper could not prepare the worker: %@";
 "If this account has already been attached, refresh this window to reveal its authorization card." = "If this account has already been attached, refresh this window to reveal its authorization card.";
 "Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card." = "Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card.";
+"The worker needs two macOS privacy permissions before it can control the attached desktop. A third, optional grant opens this account's own files." = "The worker needs two macOS privacy permissions before it can control the attached desktop. A third, optional grant opens this account's own files.";
+"The worker is not running yet. Clicking any permission button will install/start it first, then open the matching System Settings pane." = "The worker is not running yet. Clicking any permission button will install/start it first, then open the matching System Settings pane.";
+"Full Disk Access" = "Full Disk Access";
+"Authorize Full Disk Access" = "Authorize Full Disk Access";
+"Open Full Disk Access settings" = "Open Full Disk Access settings";
+"Not granted (optional)" = "Not granted (optional)";
+"Full Disk Access (%@)" = "Full Disk Access (%@)";
+"Accessibility and Screen Recording are required. Full Disk Access is optional: without it this account's Desktop, Documents, Downloads and other apps' data stay closed to the worker, which is a working state, not a broken one." = "Accessibility and Screen Recording are required. Full Disk Access is optional: without it this account's Desktop, Documents, Downloads and other apps' data stay closed to the worker, which is a working state, not a broken one.";
+"The first two are required. Full Disk Access is optional and covers this account's Desktop, Documents, Downloads and other apps' data; without it the agent simply keeps out of those folders." = "The first two are required. Full Disk Access is optional and covers this account's Desktop, Documents, Downloads and other apps' data; without it the agent simply keeps out of those folders.";
+"macOS-protected folders were left out of this figure, not counted as zero. Grant Full Disk Access to include them." = "macOS-protected folders were left out of this figure, not counted as zero. Grant Full Disk Access to include them.";
+"Optional. Lets agentspace-worker read this account's Desktop, Documents, Downloads and other apps' data. Without it those folders stay closed and the agent works normally everywhere else." = "Optional. Lets agentspace-worker read this account's Desktop, Documents, Downloads and other apps' data. Without it those folders stay closed and the agent works normally everywhere else.";

@@ -17,6 +17,8 @@ struct CurrentAccountAuthorization: Equatable, Sendable {
     var workerOnline: Bool
     var accessibility: Bool
     var screenRecording: Bool
+    /// `nil` when the worker predates the grant and never reported it.
+    var fileAccess: Bool?
 }
 
 /// The GUI's state.
@@ -420,7 +422,8 @@ final class AppModel: ObservableObject {
                 mainUser: mainUser,
                 workerOnline: snapshot.workerOnline,
                 accessibility: snapshot.accessibility,
-                screenRecording: snapshot.screenRecording)
+                screenRecording: snapshot.screenRecording,
+                fileAccess: snapshot.fileAccess)
         }
         return nil
     }

@@ -457,7 +457,6 @@
 "Open Screen Recording settings" = "打开屏幕录制设置";
 "Open authorization guide" = "打开授权向导";
 "Authorize this agent" = "授权此 Agent";
-"The worker needs two macOS privacy permissions before it can control the attached desktop." = "worker 需要两个 macOS 隐私权限，才能控制已连接账号的桌面。";
 "You do not need to find AgentSpace in %@. These buttons open System Settings in that account's own session; switch to %@, approve the permission, then return here." = "你不需要在 %@ 账号里寻找 AgentSpace。下面的按钮会在该账号自己的会话中打开系统设置；切换到 %@，完成授权后再回到这里。";
 "Lets agentspace-worker operate the attached desktop." = "允许 agentspace-worker 操作已连接账号的桌面。";
 "Lets the worker capture the attached desktop for previews." = "允许 worker 捕获已连接账号的桌面用于预览。";
@@ -470,7 +469,6 @@
 "The permission entry is agentspace-worker. It is a background process, not a separate app to launch or install." = "系统设置中的权限条目是 agentspace-worker。它是后台进程，不是需要单独打开或安装的 App。";
 "You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. Switch to %@ only to approve it, then return here." = "你不需要在 %@ 中寻找 AgentSpace。权限条目是 agentspace-worker，它是后台进程而不是独立 App。切换到 %@ 只是为了勾选授权，然后返回这里。";
 "Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window." = "这个桌面的权限属于该账号中的后台进程 agentspace-worker。请回到主账号的 AgentSpace 窗口，使用「权限与授权」卡片。";
-"The worker is not running yet. Clicking either permission button will install/start it first, then open the matching System Settings pane." = "worker 还没有运行。点击任一权限按钮后，软件会先安装并启动 worker，再打开对应的系统设置页面。";
 "Preparing authorization…" = "正在准备授权…";
 "Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session." = "请使用上方的「权限与授权」卡片。按钮会在需要时安装并启动 worker，然后在已连接账号的会话中打开隐私设置。";
 "Sign in to the attached account first. The worker must be running before macOS can show its permission entry." = "请先登录已连接账号。worker 启动后，macOS 才会显示它的权限条目。";
@@ -492,3 +490,14 @@
 "The helper could not prepare the worker: %@" = "助手无法准备 worker：%@";
 "If this account has already been attached, refresh this window to reveal its authorization card." = "如果此账号已经连接，请刷新此窗口以显示授权卡片。";
 "Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card." = "这个桌面的权限属于该账号中的后台进程 agentspace-worker。如果此账号已经连接，请刷新此窗口以显示授权卡片。";
+"The worker needs two macOS privacy permissions before it can control the attached desktop. A third, optional grant opens this account's own files." = "worker 需要两个 macOS 隐私权限，才能控制已连接账号的桌面。第三个授权是可选的，用于开放该账号自己的文件。";
+"The worker is not running yet. Clicking any permission button will install/start it first, then open the matching System Settings pane." = "worker 还没有运行。点击任一权限按钮后，软件会先安装并启动 worker，再打开对应的系统设置页面。";
+"Full Disk Access" = "完全磁盘访问权限";
+"Authorize Full Disk Access" = "授权完全磁盘访问权限";
+"Open Full Disk Access settings" = "打开完全磁盘访问权限设置";
+"Not granted (optional)" = "未授权（可选）";
+"Full Disk Access (%@)" = "完全磁盘访问权限（%@）";
+"Accessibility and Screen Recording are required. Full Disk Access is optional: without it this account's Desktop, Documents, Downloads and other apps' data stay closed to the worker, which is a working state, not a broken one." = "辅助功能和屏幕录制是必需的。完全磁盘访问权限是可选的：没有它，该账号的桌面、文稿、下载以及其他 App 的数据会对 worker 保持关闭，这是可用的状态，不是故障。";
+"The first two are required. Full Disk Access is optional and covers this account's Desktop, Documents, Downloads and other apps' data; without it the agent simply keeps out of those folders." = "前两项是必需的。完全磁盘访问权限是可选的，它涵盖该账号的桌面、文稿、下载以及其他 App 的数据；没有它，Agent 只是不会进入这些文件夹。";
+"macOS-protected folders were left out of this figure, not counted as zero. Grant Full Disk Access to include them." = "这个数值不包含 macOS 保护的文件夹，它们也没有被算作 0。授予完全磁盘访问权限后即可包含进来。";
+"Optional. Lets agentspace-worker read this account's Desktop, Documents, Downloads and other apps' data. Without it those folders stay closed and the agent works normally everywhere else." = "可选。允许 agentspace-worker 读取该账号的桌面、文稿、下载以及其他 App 的数据。没有它，这些文件夹保持关闭，Agent 在其他方面仍然正常工作。";

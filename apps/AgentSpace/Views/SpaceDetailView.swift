@@ -270,6 +270,9 @@ struct SpaceDetailView: View {
                 Spacer().frame(width: 108)
                 PermissionChip(name: NSLocalizedString("Accessibility", comment: ""), granted: snapshot.accessibility)
                 PermissionChip(name: NSLocalizedString("Screen Recording", comment: ""), granted: snapshot.screenRecording)
+                if let fileAccess = snapshot.fileAccess {
+                    PermissionChip(name: NSLocalizedString("Full Disk Access", comment: ""), granted: fileAccess)
+                }
                 Spacer(minLength: 0)
             }
             .padding(.top, 2)
@@ -292,6 +295,9 @@ struct SpaceDetailView: View {
             HStack(spacing: 8) {
                 PermissionChip(name: NSLocalizedString("Accessibility", comment: ""), granted: snapshot.accessibility)
                 PermissionChip(name: NSLocalizedString("Screen Recording", comment: ""), granted: snapshot.screenRecording)
+                if let fileAccess = snapshot.fileAccess {
+                    PermissionChip(name: NSLocalizedString("Full Disk Access", comment: ""), granted: fileAccess)
+                }
                 Spacer(minLength: 0)
             }
 
@@ -309,6 +315,18 @@ struct SpaceDetailView: View {
                     icon: "record.circle",
                     identifier: "openAgentScreenRecordingSettings")
             }
+
+            permissionButton(
+                snapshot,
+                pane: .fullDiskAccess,
+                title: NSLocalizedString("Open Full Disk Access settings", comment: ""),
+                icon: "lock.open.trianglebadge.exclamationmark",
+                identifier: "openAgentFullDiskAccessSettings")
+
+            Text(NSLocalizedString("The first two are required. Full Disk Access is optional and covers this account's Desktop, Documents, Downloads and other apps' data; without it the agent simply keeps out of those folders.", comment: ""))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 8) {
                 Button {
@@ -329,7 +347,7 @@ struct SpaceDetailView: View {
             }
 
             if !snapshot.workerOnline {
-                Label(NSLocalizedString("The worker is not running yet. Clicking either permission button will install/start it first, then open the matching System Settings pane.", comment: ""), systemImage: "arrow.down.circle")
+                Label(NSLocalizedString("The worker is not running yet. Clicking any permission button will install/start it first, then open the matching System Settings pane.", comment: ""), systemImage: "arrow.down.circle")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
@@ -396,6 +414,16 @@ struct SpaceDetailView: View {
                         .controlSize(.small)
                         .help(Text("Walks every file in the agent's home. Takes a moment; not measured continuously."))
                 }
+            }
+
+            // Without Full Disk Access the walk stops at the folder gates instead
+            // of spending one of the user's privacy decisions on a metric, so the
+            // number is a lower bound and has to say so.
+            if resources.diskMeasured && resources.diskExcludesProtected {
+                Text(NSLocalizedString("macOS-protected folders were left out of this figure, not counted as zero. Grant Full Disk Access to include them.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Text(NSLocalizedString("Measured from this agent's own processes, aggregated by uid. An agent is not a VM, so there is no allocation to show.", comment: ""))

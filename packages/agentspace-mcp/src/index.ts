@@ -263,7 +263,7 @@ const INSTRUCTIONS = `AgentSpace gives every AI agent its own macOS account and 
 Tool names: the agent_* names (agent_list, agent_status, agent_open_desktop, agent_screenshot, agent_click, agent_type, agent_launch, agent_exec) are the current spelling. The older agentspace_* tools (agentspace_list, agentspace_status, agentspace_screenshot, agentspace_apps, agentspace_ax_snapshot, agentspace_input, agentspace_click, agentspace_type, agentspace_key, agentspace_scroll, agentspace_drag, agentspace_launch, agentspace_quit, agentspace_exec) remain available with identical behaviour — existing configurations keep working. Prefer the agent_* names in new work.
 
 Recommended loop:
-1. agent_status — confirm the account exists, its worker is running, and its session permits input. Check accessibility/screenRecording here first.
+1. agent_status — confirm the account exists, its worker is running, and its session permits input. Check accessibility/screenRecording here first; fileAccess is optional and only says whether macOS-protected folders in that account are readable.
 2. agent_screenshot — look before you act. Read the reported scale.
 3. Reason about the image.
 4. agentspace_input — send one batch of actions (preferred: fewer round trips, and the batch is validated before anything is performed). The single-purpose tools (agent_click, agent_type, agentspace_key, agentspace_scroll, agentspace_drag) each send a one-action batch.

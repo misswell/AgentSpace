@@ -112,4 +112,71 @@ final class DiskUsageTests: XCTestCase {
         XCTAssertEqual(measurement.files, 1, "a symlink target was counted as part of this directory")
         XCTAssertLessThan(measurement.bytes, 64 * 1024, "the linked-in 512 KB was counted")
     }
+
+    // MARK: - a metric must not spend a privacy decision
+
+    /// Pseudo-random bytes, because APFS gives a block-less allocation to a file
+    /// of zeros and the test would then be measuring compression, not the walk.
+    private func writeRandomBytes(to url: URL, count: Int) throws {
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(count)
+        var seed: UInt64 = 0x9E3779B97F4A7C15
+        for _ in 0..<count {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            bytes.append(UInt8(truncatingIfNeeded: seed >> 33))
+        }
+        try Data(bytes).write(to: url)
+    }
+
+    private func makeProtectedFixture() throws {
+        let documents = root.appendingPathComponent("Documents")
+        try FileManager.default.createDirectory(at: documents, withIntermediateDirectories: true)
+        try writeRandomBytes(to: documents.appendingPathComponent("taxes.pdf"), count: 256 * 1024)
+        try writeRandomBytes(to: root.appendingPathComponent("notes.txt"), count: 4 * 1024)
+    }
+
+    func testProtectedRootsAreLeftOutOfTheWalkAndTheNumberSaysSo() throws {
+        try makeProtectedFixture()
+
+        let skipped = DiskUsage.allocatedBytes(under: root.path, skip: ["Documents"])
+        XCTAssertLessThan(skipped.bytes, 128 * 1024,
+                          "Documents was entered even though it was in `skip`")
+        XCTAssertEqual(skipped.files, 1)
+        XCTAssertTrue(skipped.skippedProtected,
+                      "a figure for part of the home was reported as the whole home")
+
+        // The same call with the grant in place: the bytes were always there, so
+        // `skip` is the only difference and the number has to move.
+        let complete = DiskUsage.allocatedBytes(under: root.path, skip: [])
+        XCTAssertGreaterThanOrEqual(complete.bytes, 256 * 1024)
+        XCTAssertEqual(complete.files, 2)
+        XCTAssertFalse(complete.skippedProtected)
+    }
+
+    func testSkippingIsRootRelativeNotByNameAnywhere() throws {
+        // `~/a/Documents` is an ordinary directory the agent created; the gate is
+        // on the home's own protected roots. Skipping by basename anywhere in the
+        // tree would silently under-report an agent's work.
+        let nested = root.appendingPathComponent("project/Documents")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        try writeRandomBytes(to: nested.appendingPathComponent("draft.txt"), count: 64 * 1024)
+
+        let measurement = DiskUsage.allocatedBytes(under: root.path, skip: ["Documents"])
+        XCTAssertGreaterThanOrEqual(measurement.bytes, 64 * 1024)
+        XCTAssertEqual(measurement.files, 1)
+    }
+
+    func testSkippingSomethingAbsentDoesNotFlagTheResult() throws {
+        try makeProtectedFixture()
+        let measurement = DiskUsage.allocatedBytes(under: root.path, skip: ["Library", "Music"])
+        XCTAssertFalse(measurement.skippedProtected,
+                       "an empty skip is not a reason to call the figure partial")
+        XCTAssertEqual(measurement.files, 2)
+    }
+
+    func testTheBudgetStillStopsTheWalkWhenRootsAreSkipped() throws {
+        try makeProtectedFixture()
+        let measurement = DiskUsage.allocatedBytes(under: root.path, budget: 1, skip: ["Documents"])
+        XCTAssertTrue(measurement.truncated)
+    }
 }

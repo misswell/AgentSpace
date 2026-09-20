@@ -99,6 +99,31 @@ session nobody is watching.
 
 ---
 
+## macOS says the worker cannot access other apps' data
+
+This is **not** a broken installation and not one of the two grants that gate the
+desktop. It is the file-privacy family: `Desktop`, `Documents`, `Downloads` and
+per-app data under `Library` belong to the account, and macOS decides per access
+who may read them.
+
+**What AgentSpace does with it.** Nothing that requires a decision. The disk
+measurement skips those roots until the grant exists and labels the number as
+partial (`diskExcludesProtected`); `Full Disk Access` is probed by an open macOS
+either allows or silently denies, never by a prompt, so a status poll cannot raise
+a dialog nobody is watching.
+
+**Fix, if the agent should work in those folders.** On the agent's card press
+**Open Full Disk Access settings** (the same row exists in the authorization guide
+and in the attached account's own AgentSpace window). The worker registers itself
+as a row named `agentspace-worker` when you press it; enable that row, then
+refresh the card. `agentspace doctor` reports the same state as a **warning**, not
+a failure — a Space that can be seen and driven but not filed through is working.
+
+**Do not** grant it to the AgentSpace app. The permission belongs to
+`agentspace-worker`, the background process in the attached account.
+
+---
+
 ## `INVALID_COORDINATE` — "off the main display"
 
 The overwhelmingly likely cause: **a coordinate was taken from a screenshot in
