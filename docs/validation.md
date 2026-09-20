@@ -8060,3 +8060,27 @@ authorize the active worker entry once.
 | 560 | Activating a restored GUI orders its surviving dashboard window on screen instead of leaving a healthy process with no visible UI | pass | `OpenLinkDelegate.applicationDidBecomeActive` selects dashboard windows regardless of current visibility, orders the first one front, then closes duplicates |
 | 561 | The final 0.1.11 app and DMG are signed, notarized, stapled and accepted by Gatekeeper | pass | `scripts/release.sh`; `scripts/notarize.sh`; build 307 in `dist/AgentSpace.app` and `dist/AgentSpace-0.1.11.dmg` |
 | 562 | The final gate passes 369 Swift tests and all MCP smoke checks; GUI automation can inspect the release window | partial | `scripts/check-all.sh`; Swift and MCP passed, but this Codex host could not activate the launched app as a foreground AX window, so `gui-verify.sh` reported 0/7 rather than observing the UI |
+
+## 291. Refresh attached-account authorization, keep the empty sidebar visible, and make the desktop viewer adjustable (2026-09-20)
+
+An AgentUse GUI can remain open while its worker is restarted. The worker status
+was already `accessibility=true`, `screenRecording=true`, and `ready`, while the
+authorization card still showed the pre-restart snapshot until its refresh button
+was pressed. The GUI now reloads on foreground activation. The empty attached-account
+sidebar also kept its footer in a `List.safeAreaInset` positioned outside the window;
+the empty sidebar no longer renders that footer at all. The build stamp is rendered
+inside the visible empty-state detail page instead; accounts with rows retain the
+bottom footer and refresh control. The Desktop Viewer now behaves like a local
+viewer: the window is resizable, the captured surface can be fit or zoomed with
+scrolling, the screenshot capture width can be changed in-window, and the live
+pull rate can be selected from 1/5/10/15/30 FPS. The capture-width control changes
+the received image quality; it deliberately does not change the attached account's
+macOS display mode.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 563 | Returning to an AgentSpace window refreshes the attached worker authorization state | pass | `OpenLinkDelegate.applicationDidBecomeActive` calls `AppModel.reload()` after activation; live AgentUse AX/screenshot shows both permission chips as granted after a worker restart |
+| 564 | The empty attached-account page keeps the build stamp visible | pass | `EmptyStateView` renders the build stamp directly; live AgentUse AX frame is inside the 1080px desktop and the screenshot shows `构建 0.1.12 (308)` |
+| 565 | The Desktop Viewer window is resizable and its zoomed surface keeps click mapping in image-local coordinates | pass | `WindowCapture` inserts the resizable mask and min size; `ViewerZoom` uses a scrollable image surface whose gesture feeds `PreviewMapping` with the image's displayed size; final installed viewer screenshot shows the two-row native-style footer |
+| 566 | Desktop Viewer capture width and live FPS can be changed without changing the agent's display mode | pass | in-window `desktopViewerResolutionPicker` (960/1280/1600/1920) drives screenshot `maxWidth`; `desktopViewerFPSPicker` restarts `preview.start(maxFPS:)` and the timer; final screenshot shows `1280 px` and `30 FPS`; no display-mode RPC or TCC mutation is introduced |
+| 567 | Desktop Viewer distinguishes left and right mouse clicks | pass | `MouseInputSurface` handles AppKit `mouseUp` and `rightMouseUp`; final installed viewer showed the remote Safari context menu and the footer status `右键点击 → 1430, 792`, proving the corresponding `MouseButton.right` reached the agent through the normal input RPC |

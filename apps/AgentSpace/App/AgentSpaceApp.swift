@@ -171,6 +171,12 @@ final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
             // surviving dashboard visible before closing any duplicates.
             mains.first?.makeKeyAndOrderFront(nil)
             for extra in mains.dropFirst() { extra.close() }
+
+            // A worker can be restarted while this account's AgentSpace window
+            // remains open. Re-read the worker status when the session returns
+            // to the foreground so the authorization card cannot retain the
+            // pre-restart snapshot until the user discovers the manual button.
+            self.model?.reload()
         }
     }
 }

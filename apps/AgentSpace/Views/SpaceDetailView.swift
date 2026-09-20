@@ -6,51 +6,59 @@ struct SidebarView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        List(selection: $model.selection) {
-            Section(NSLocalizedString("My Agent Accounts", comment: "")) {
-                ForEach(model.snapshots) { snapshot in
-                    SidebarRow(snapshot: snapshot)
-                        .tag(snapshot.id)
+        ZStack(alignment: .bottom) {
+            List(selection: $model.selection) {
+                Section(NSLocalizedString("My Agent Accounts", comment: "")) {
+                    ForEach(model.snapshots) { snapshot in
+                        SidebarRow(snapshot: snapshot)
+                            .tag(snapshot.id)
+                    }
                 }
             }
-        }
-        .listStyle(.sidebar)
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 0) {
-                Divider()
-                HStack(spacing: 8) {
-                    Button {
-                        model.showingNewSpace = true
-                    } label: {
-                        Image(systemName: "plus")
+            .listStyle(.sidebar)
+
+            // Keep this as a bottom-aligned sibling rather than a
+            // List.safeAreaInset. An empty List in an attached account can
+            // report an unbounded content height; SwiftUI then places an
+            // inset below the window, hiding the build stamp and refresh
+            // control even though they remain in AX.
+            if !model.snapshots.isEmpty {
+                VStack(spacing: 0) {
+                    Divider()
+                    HStack(spacing: 8) {
+                        Button {
+                            model.showingNewSpace = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .buttonStyle(.borderless)
+                        .help(Text("New agent"))
+
+                        Spacer()
+
+                        // The build stamp, always on screen when the sidebar
+                        // has rows. Empty attached accounts render their stamp
+                        // in EmptyStateView instead of relying on List sizing.
+                        Text("Build \(AppModel.displayVersion)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("appBuildVersion")
+
+                        Spacer()
+
+                        Button {
+                            model.reload()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .buttonStyle(.borderless)
+                        .help(Text("Refresh"))
+                        .disabled(model.isLoading)
                     }
-                    .buttonStyle(.borderless)
-                    .help(Text("New agent"))
-
-                    Spacer()
-
-                    // The build stamp, always on screen. Every bundle carries a
-                    // new one (scripts/bundle-app.sh), so a stale copy is
-                    // recognizable without opening the About panel.
-                    Text("Build \(AppModel.displayVersion)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .textSelection(.enabled)
-                        .accessibilityIdentifier("appBuildVersion")
-
-                    Spacer()
-
-                    Button {
-                        model.reload()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderless)
-                    .help(Text("Refresh"))
-                    .disabled(model.isLoading)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
             }
         }
     }

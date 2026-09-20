@@ -171,6 +171,11 @@ struct EmptyStateView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
+            Text("Build \(AppModel.displayVersion)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .textSelection(.enabled)
+                .accessibilityIdentifier("appBuildVersion")
             if let current = model.currentAccountAuthorization {
                 CurrentAccountPermissionCard(current: current)
                     .environmentObject(model)

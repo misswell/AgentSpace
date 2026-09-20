@@ -57,7 +57,8 @@ cp "$BIN_DIR/agentspace-worker" "$APP/Contents/MacOS/agentspace-worker"
 cp "$BIN_DIR/agentspace"        "$APP/Contents/Helpers/agentspace"
 cp apps/AgentSpace/Resources/Info.plist "$APP/Contents/Info.plist"
 # Stamp the build number from git rather than editing the plist by hand:
-# every bundle produced since is distinguishable in the UI ("0.1.11 (414)"),
+# every bundle produced since is distinguishable in the UI (for example,
+# "0.1.12 (build)"),
 # which is the guard against silently running an older copy. The repo plist
 # stays untouched so builds never dirty the tree.
 BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 0)"

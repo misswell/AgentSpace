@@ -147,11 +147,17 @@
 "Input is not available" = "输入不可用";
 "Clicks are disabled: they would land on your own screen. Fast-user-switch back and they resume automatically." = "点击已被禁用：它们会落在你自己的屏幕上。用快速用户切换切回后，点击会自动恢复。";
 "The worker has not permitted input for this agent." = "worker 尚未允许对这个 Agent 的输入。";
+"Fit" = "适应窗口";
+"Zoom" = "缩放";
+"Capture width" = "捕获宽度";
+"Frame rate" = "帧率";
+"Live preview (%ld FPS)" = "实时预览（%ld FPS）";
 "Live preview (1 FPS)" = "实时预览（1 FPS）";
 "updated %@" = "更新于 %@";
 "Reveal File" = "显示文件";
 "click outside the desktop: ignored" = "点击落在桌面之外：已忽略";
 "click → %1$ld, %2$ld" = "点击 → %1$ld, %2$ld";
+"right click → %1$ld, %2$ld" = "右键点击 → %1$ld, %2$ld";
 "key → %@" = "按键 → %@";
 "type → %@" = "输入 → %@";
 "the worker wrote a capture to %@ but it could not be read" = "worker 已把截图写入 %@，但无法读取";

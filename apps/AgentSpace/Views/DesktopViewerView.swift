@@ -22,6 +22,46 @@ import AgentSpaceCore
 ///    accepting clicks, because the alternative is clicking on the user's own
 ///    screen.
 struct DesktopViewerView: View {
+    /// The viewer's scale is deliberately independent from the agent's
+    /// display mode. "Fit" is the local-window equivalent of a native desktop
+    /// viewer; the other values zoom the captured surface and keep scrolling
+    /// available when it is larger than this window.
+    private enum ViewerZoom: String, CaseIterable, Identifiable {
+        case fit
+        case seventyFive = "0.75"
+        case one = "1.0"
+        case oneTwentyFive = "1.25"
+        case oneFifty = "1.5"
+        case two = "2.0"
+
+        var id: String { rawValue }
+
+        var factor: Double {
+            switch self {
+            case .fit: return 1
+            case .seventyFive: return 0.75
+            case .one: return 1
+            case .oneTwentyFive: return 1.25
+            case .oneFifty: return 1.5
+            case .two: return 2
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .fit: return NSLocalizedString("Fit", comment: "")
+            case .seventyFive: return "75%"
+            case .one: return "100%"
+            case .oneTwentyFive: return "125%"
+            case .oneFifty: return "150%"
+            case .two: return "200%"
+            }
+        }
+    }
+
+    private static let frameRateOptions = [1, 5, 10, 15, 30]
+    private static let captureWidthOptions = [960, 1280, 1600, 1920]
+
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var image: NSImage?
@@ -34,6 +74,8 @@ struct DesktopViewerView: View {
     @State private var lastClickPoint: (x: Double, y: Double)?
     @State private var pendingAction: String?
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 1600
+    @AppStorage("previewFPS") private var previewFPS = 5
+    @State private var zoom = ViewerZoom.fit
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,7 +85,7 @@ struct DesktopViewerView: View {
             Divider()
             footer
         }
-        .frame(minWidth: 720, minHeight: 520)
+        .frame(minWidth: 720, idealWidth: 1120, minHeight: 520, idealHeight: 760)
         .background(WindowCapture { hostWindow = $0 })
         .onAppear {
             capture()
@@ -62,6 +104,13 @@ struct DesktopViewerView: View {
         .onChange(of: snapshot?.workerOnline) { _ in syncKeyboardState() }
         .onChange(of: snapshot?.acceptsInput) { _ in syncKeyboardState() }
         .onChange(of: hostWindow) { _ in syncKeyboardState() }
+        .onChange(of: previewFPS) { _ in restartPreviewIfNeeded() }
+        .onChange(of: previewMaxWidth) { _ in
+            // A live SCK stream is native-sized; the capture-width picker
+            // applies to the screenshot fallback and is picked up on its next
+            // tick. Capture immediately when that is the active mode.
+            if timer != nil, !previewStreaming { capture() }
+        }
     }
 
     /// Install or tear down the keyboard monitor to match the current
@@ -189,44 +238,41 @@ struct DesktopViewerView: View {
             }
         } else if let image, let result, let snapshot {
             GeometryReader { proxy in
+                let geometry = snapshot.display ?? DisplayGeometry(
+                    width: result.pixelWidth, height: result.pixelHeight,
+                    pixelWidth: result.pixelWidth, pixelHeight: result.pixelHeight, scale: result.scale)
+                let fitted = fittedImageSize(
+                    imageWidth: result.width,
+                    imageHeight: result.height,
+                    in: proxy.size)
+                let imageSize = CGSize(
+                    width: max(1, fitted.width * zoom.factor),
+                    height: max(1, fitted.height * zoom.factor))
                 let mapping = PreviewMapping.fitting(
                     imageWidth: result.width,
                     imageHeight: result.height,
-                    geometry: snapshot.display ?? DisplayGeometry(
-                        width: result.pixelWidth, height: result.pixelHeight,
-                        pixelWidth: result.pixelWidth, pixelHeight: result.pixelHeight, scale: result.scale),
-                    viewWidth: proxy.size.width,
-                    viewHeight: proxy.size.height)
+                    geometry: geometry,
+                    viewWidth: imageSize.width,
+                    viewHeight: imageSize.height)
 
                 ZStack {
                     Color.black
-                    Image(nsImage: image)
-                        .resizable()
-                        .interpolation(.medium)
-                        .aspectRatio(contentMode: .fit)
-
-                    // Where the last click was sent, in the agent's coordinates.
-                    // Drawing it is what makes a mis-scaled mapping visible
-                    // immediately instead of as a mysterious misplaced click.
-                    if let point = lastClickPoint, let view = mapping.viewPoint(displayX: point.x, displayY: point.y) {
-                        Circle()
-                            .stroke(Color.accentColor, lineWidth: 2)
-                            .frame(width: 18, height: 18)
-                            .position(x: view.x, y: view.y)
-                            .allowsHitTesting(false)
+                    if zoom == .fit {
+                        previewImage(image, size: imageSize, mapping: mapping, snapshot: snapshot)
+                    } else {
+                        ScrollView([.horizontal, .vertical]) {
+                            previewImage(image, size: imageSize, mapping: mapping, snapshot: snapshot)
+                                .frame(
+                                    width: max(imageSize.width, proxy.size.width),
+                                    height: max(imageSize.height, proxy.size.height))
+                        }
+                        .scrollIndicators(.automatic)
                     }
 
                     if !snapshot.acceptsInput {
                         inputBlockedOverlay(snapshot)
                     }
                 }
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onEnded { value in
-                            sendClick(at: value.location, mapping: mapping, snapshot: snapshot)
-                        }
-                )
             }
         } else {
             VStack(spacing: 10) {
@@ -264,43 +310,74 @@ struct DesktopViewerView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        HStack(spacing: 10) {
-            Button {
-                capture()
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                Button {
+                    capture()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .disabled(snapshot == nil)
+
+                Toggle(livePreviewLabel, isOn: Binding(
+                    get: { timer != nil },
+                    set: { $0 ? startPreview() : stopPreview() }))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                if let pendingAction {
+                    Text(pendingAction)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if let lastCapture {
+                    Text(String(format: NSLocalizedString("updated %@", comment: ""), lastCapture.formatted(date: .omitted, time: .standard)))
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+
+                Button {
+                    if let result { NSWorkspace.shared.selectFile(result.path, inFileViewerRootedAtPath: "") }
+                } label: {
+                    Label("Reveal File", systemImage: "folder")
+                }
+                .disabled(result == nil)
             }
-            .disabled(snapshot == nil)
 
-            Toggle("Live preview (1 FPS)", isOn: Binding(
-                get: { timer != nil },
-                set: { $0 ? startPreview() : stopPreview() }))
-                .toggleStyle(.switch)
-                .controlSize(.small)
+            HStack(spacing: 12) {
+                Picker("Zoom", selection: $zoom) {
+                    ForEach(ViewerZoom.allCases) { value in
+                        Text(value.title).tag(value)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("desktopViewerZoomPicker")
 
-            if let pendingAction {
-                Text(pendingAction)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Picker("Capture width", selection: $previewMaxWidth) {
+                    ForEach(Self.captureWidthOptions, id: \.self) { width in
+                        Text("\(width) px").tag(width)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("desktopViewerResolutionPicker")
+
+                Picker("Frame rate", selection: $previewFPS) {
+                    ForEach(Self.frameRateOptions, id: \.self) { fps in
+                        Text("\(fps) FPS").tag(fps)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("desktopViewerFPSPicker")
+
+                Spacer(minLength: 0)
             }
-
-            Spacer()
-
-            if let lastCapture {
-                Text(String(format: NSLocalizedString("updated %@", comment: ""), lastCapture.formatted(date: .omitted, time: .standard)))
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-            }
-
-            Button {
-                if let result { NSWorkspace.shared.selectFile(result.path, inFileViewerRootedAtPath: "") }
-            } label: {
-                Label("Reveal File", systemImage: "folder")
-            }
-            .disabled(result == nil)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.vertical, 7)
     }
 
     // MARK: - Capture
@@ -313,10 +390,10 @@ struct DesktopViewerView: View {
         // viewer falls back to the 1 FPS screenshot MVP — the verified path —
         // rather than showing nothing.
         guard let space = snapshot?.space else { return }
-        if case .success = SpaceService().previewStart(for: space) {
+        if case .success = SpaceService().previewStart(for: space, maxFPS: previewFPS) {
             previewStreaming = true
         }
-        let interval: TimeInterval = previewStreaming ? 1.0 / 5.0 : 1.0
+        let interval: TimeInterval = previewStreaming ? 1.0 / Double(max(1, previewFPS)) : 1.0
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             Task { @MainActor in
                 if previewStreaming {
@@ -337,6 +414,63 @@ struct DesktopViewerView: View {
                 _ = SpaceService().previewStop(for: snapshot.space)
             }
         }
+    }
+
+    private func restartPreviewIfNeeded() {
+        guard timer != nil else { return }
+        stopPreview()
+        startPreview()
+    }
+
+    private var livePreviewLabel: String {
+        String(format: NSLocalizedString("Live preview (%ld FPS)", comment: ""), previewFPS)
+    }
+
+    private func fittedImageSize(imageWidth: Int, imageHeight: Int, in viewport: CGSize) -> CGSize {
+        guard imageWidth > 0, imageHeight > 0, viewport.width > 0, viewport.height > 0 else {
+            return .zero
+        }
+        let imageAspect = CGFloat(imageWidth) / CGFloat(imageHeight)
+        let viewportAspect = viewport.width / viewport.height
+        if imageAspect > viewportAspect {
+            return CGSize(width: viewport.width, height: viewport.width / imageAspect)
+        }
+        return CGSize(width: viewport.height * imageAspect, height: viewport.height)
+    }
+
+    /// The image owns the gesture so a zoomed, scrolled surface reports local
+    /// image coordinates. This keeps click mapping correct without guessing a
+    /// ScrollView offset, and it makes black letterbox bars non-interactive.
+    private func previewImage(
+        _ image: NSImage,
+        size: CGSize,
+        mapping: PreviewMapping,
+        snapshot: SpaceSnapshot
+    ) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .interpolation(.medium)
+            .frame(width: size.width, height: size.height)
+            .contentShape(Rectangle())
+            .overlay {
+                if let point = lastClickPoint,
+                   let view = mapping.viewPoint(displayX: point.x, displayY: point.y) {
+                    Circle()
+                        .stroke(Color.accentColor, lineWidth: 2)
+                        .frame(width: 18, height: 18)
+                        .position(x: view.x, y: view.y)
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay {
+                MouseInputSurface(
+                    onLeftClick: { point in
+                        sendClick(at: point, mapping: mapping, snapshot: snapshot, button: .left)
+                    },
+                    onRightClick: { point in
+                        sendClick(at: point, mapping: mapping, snapshot: snapshot, button: .right)
+                    })
+            }
     }
 
     /// One pull of the live stream. A frame updates the image in place; a
@@ -387,7 +521,12 @@ struct DesktopViewerView: View {
 
     // MARK: - Input
 
-    private func sendClick(at location: CGPoint, mapping: PreviewMapping, snapshot: SpaceSnapshot) {
+    private func sendClick(
+        at location: CGPoint,
+        mapping: PreviewMapping,
+        snapshot: SpaceSnapshot,
+        button: MouseButton
+    ) {
         guard snapshot.acceptsInput else { return }
         guard let point = mapping.displayPoint(viewX: Double(location.x), viewY: Double(location.y)) else {
             // A click on the letterbox. Not an error worth a banner — the user
@@ -397,10 +536,11 @@ struct DesktopViewerView: View {
         }
 
         lastClickPoint = point
-        pendingAction = String(format: NSLocalizedString("click → %1$ld, %2$ld", comment: ""), Int(point.x), Int(point.y))
+        let label = button == .right ? "right click → %1$ld, %2$ld" : "click → %1$ld, %2$ld"
+        pendingAction = String(format: NSLocalizedString(label, comment: ""), Int(point.x), Int(point.y))
 
         let space = snapshot.space
-        let action = InputAction.click(x: point.x, y: point.y, button: .left, count: 1, modifiers: [])
+        let action = InputAction.click(x: point.x, y: point.y, button: button, count: 1, modifiers: [])
         Task { @MainActor in
             let error = await Task.detached(priority: .userInitiated) {
                 SpaceService().input(for: space, actions: [action])
@@ -413,6 +553,62 @@ struct DesktopViewerView: View {
                     spaceName: space.name)
                 stopPreview()
             }
+        }
+    }
+}
+
+/// A transparent AppKit surface is used instead of SwiftUI's `DragGesture` so
+/// the viewer can distinguish a secondary click. The callback fires on mouse
+/// up, matching a native desktop: pressing and releasing outside the image is
+/// not turned into an input action by the image itself.
+private struct MouseInputSurface: NSViewRepresentable {
+    let onLeftClick: (CGPoint) -> Void
+    let onRightClick: (CGPoint) -> Void
+
+    func makeNSView(context: Context) -> MouseInputNSView {
+        MouseInputNSView(onLeftClick: onLeftClick, onRightClick: onRightClick)
+    }
+
+    func updateNSView(_ view: MouseInputNSView, context: Context) {
+        view.onLeftClick = onLeftClick
+        view.onRightClick = onRightClick
+    }
+
+    final class MouseInputNSView: NSView {
+        var onLeftClick: (CGPoint) -> Void
+        var onRightClick: (CGPoint) -> Void
+        private var leftDown: CGPoint?
+        private var rightDown: CGPoint?
+
+        init(onLeftClick: @escaping (CGPoint) -> Void,
+             onRightClick: @escaping (CGPoint) -> Void) {
+            self.onLeftClick = onLeftClick
+            self.onRightClick = onRightClick
+            super.init(frame: .zero)
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.clear.cgColor
+        }
+
+        required init?(coder: NSCoder) { fatalError("not used") }
+
+        override func mouseDown(with event: NSEvent) {
+            leftDown = convert(event.locationInWindow, from: nil)
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            defer { leftDown = nil }
+            guard leftDown != nil else { return }
+            onLeftClick(convert(event.locationInWindow, from: nil))
+        }
+
+        override func rightMouseDown(with event: NSEvent) {
+            rightDown = convert(event.locationInWindow, from: nil)
+        }
+
+        override func rightMouseUp(with event: NSEvent) {
+            defer { rightDown = nil }
+            guard rightDown != nil else { return }
+            onRightClick(convert(event.locationInWindow, from: nil))
         }
     }
 }
@@ -435,6 +631,15 @@ private struct WindowCapture: NSViewRepresentable {
             super.init(frame: .zero)
         }
         required init?(coder: NSCoder) { fatalError("not used") }
-        override func viewDidMoveToWindow() { onChange(window) }
+        override func viewDidMoveToWindow() {
+            if let window {
+                // Sheets inherit the presenting window's sizing policy on some
+                // macOS releases. Make the viewer behave like a native desktop
+                // window and remain resizable after it is presented.
+                window.styleMask.insert(.resizable)
+                window.minSize = NSSize(width: 720, height: 520)
+            }
+            onChange(window)
+        }
     }
 }

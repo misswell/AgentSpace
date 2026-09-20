@@ -147,11 +147,17 @@
 "Input is not available" = "Input is not available";
 "Clicks are disabled: they would land on your own screen. Fast-user-switch back and they resume automatically." = "Clicks are disabled: they would land on your own screen. Fast-user-switch back and they resume automatically.";
 "The worker has not permitted input for this agent." = "The worker has not permitted input for this agent.";
+"Fit" = "Fit";
+"Zoom" = "Zoom";
+"Capture width" = "Capture width";
+"Frame rate" = "Frame rate";
+"Live preview (%ld FPS)" = "Live preview (%ld FPS)";
 "Live preview (1 FPS)" = "Live preview (1 FPS)";
 "updated %@" = "updated %@";
 "Reveal File" = "Reveal File";
 "click outside the desktop: ignored" = "click outside the desktop: ignored";
 "click → %1$ld, %2$ld" = "click → %1$ld, %2$ld";
+"right click → %1$ld, %2$ld" = "right click → %1$ld, %2$ld";
 "key → %@" = "key → %@";
 "type → %@" = "type → %@";
 "the worker wrote a capture to %@ but it could not be read" = "the worker wrote a capture to %@ but it could not be read";
