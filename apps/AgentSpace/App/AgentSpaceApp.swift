@@ -240,10 +240,12 @@ struct SettingsView: View {
                     Slider(value: $statusRefreshSeconds, in: 2...10, step: 1) {
                         Text(String(format: NSLocalizedString("Status refresh: %lds", comment: ""), Int(statusRefreshSeconds)))
                     }
+                    .accessibilityIdentifier("statusRefreshSlider")
                     Picker("Preview width", selection: $previewMaxWidth) {
                         Text("960 px").tag(960); Text("1280 px").tag(1280)
                         Text("1600 px").tag(1600); Text("1920 px").tag(1920)
                     }
+                    .accessibilityIdentifier("previewWidthPicker")
                     TextField("AgentSpace root", text: $advancedRoot)
                         .textFieldStyle(.roundedBorder)
                     Text("Where accounts, runtime sockets and logs live. Empty means /Library/Application Support/AgentSpace. AGENTSPACE_ROOT is read at launch; restart to apply.")

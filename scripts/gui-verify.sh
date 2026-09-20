@@ -29,6 +29,15 @@ esac
 APP_BIN="$APP_BUNDLE/Contents/MacOS/AgentSpace"
 PASS=0; FAIL=0
 
+# Run the management UI against an isolated empty registry. The verification
+# must not inherit a real attached account's runtime (which intentionally shows
+# the account-owner permission hand-off instead of the management dashboard),
+# and it must never inspect or mutate the user's actual registry.
+GUI_ROOT="$(mktemp -d /tmp/gui-verify-root.XXXXXX)"
+mkdir -p "$GUI_ROOT/Spaces"
+printf '%s\n' '{"spaces":[]}' > "$GUI_ROOT/Spaces/index.json"
+export AGENTSPACE_ROOT="$GUI_ROOT"
+
 note() { printf '  %s\n' "$*"; }
 check() { # check <name> <expected> <actual>
   if [ "$2" = "$3" ]; then PASS=$((PASS+1)); note "ok   $1"
@@ -80,7 +89,7 @@ pkill -U "$(id -u)" -f "AgentSpace.app/Contents/MacOS/AgentSpace" 2>/dev/null; s
 "$APP_BIN" >/dev/null 2>&1 &
 APP_PID=$!
 sleep 5
-trap '{ kill $APP_PID 2>/dev/null; [ -n "$WAS_RUNNING_APP" ] && open "$WAS_RUNNING_APP"; } 2>/dev/null' EXIT
+trap '{ kill $APP_PID 2>/dev/null; rm -rf "$GUI_ROOT"; [ -n "$WAS_RUNNING_APP" ] && open "$WAS_RUNNING_APP"; } 2>/dev/null' EXIT
 
 # --- Launch: exactly one window (§41's deep-link window bug) ----------------
 # A binary that predates onOpenURL never consumes queued agentspace:// open
@@ -143,9 +152,9 @@ tell application "System Events"
 end tell
 EOF
 sleep 2
-# The window remembers its last tab; the first toolbar button is General in
-# any language, and clicking it again when already there is a no-op.
-osascript -e 'tell application "System Events" to tell process "AgentSpace" to click button 1 of toolbar 1 of window 1' >/dev/null 2>&1
+# The window remembers its last tab; the fourth toolbar button is Advanced in
+# every language because the settings tabs are declared in a fixed order.
+osascript -e 'tell application "System Events" to tell process "AgentSpace" to click button 4 of toolbar 1 of window 1' >/dev/null 2>&1
 sleep 1
 
 # --- Settings: the polling floor lives in the control (§49) -----------------
