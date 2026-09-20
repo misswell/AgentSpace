@@ -322,6 +322,9 @@ struct SpaceDetailView: View {
                 Text(NSLocalizedString("The connected account does not contain a second AgentSpace app. The background agentspace-worker runs there and uses that account's System Settings permissions.", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text(NSLocalizedString("When you switch to the connected account, its AgentSpace panel is intentionally empty. Use the System Settings opened by these buttons, then switch back to your own account.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 6) {
                     step(1, NSLocalizedString("Open Fast User Switching from the menu bar", comment: ""), done: true)
                     step(2, String(format: NSLocalizedString("Sign in as “%@”", comment: ""), snapshot.space.username), done: snapshot.workerOnline)
@@ -343,14 +346,14 @@ struct SpaceDetailView: View {
                         Label(NSLocalizedString("Open Accessibility settings", comment: ""), systemImage: "person.crop.circle.badge.checkmark")
                     }
                     .accessibilityIdentifier("openAgentAccessibilitySettings")
-                    .disabled(!snapshot.workerOnline || model.openingSystemSettings != nil)
+                    .disabled(!snapshot.workerOnline || model.openingSystemSettings != nil || model.updatingWorker != nil)
                     Button {
                         model.openSystemSettings(snapshot.space, pane: .screenRecording)
                     } label: {
                         Label(NSLocalizedString("Open Screen Recording settings", comment: ""), systemImage: "record.circle")
                     }
                     .accessibilityIdentifier("openAgentScreenRecordingSettings")
-                    .disabled(!snapshot.workerOnline || model.openingSystemSettings != nil)
+                    .disabled(!snapshot.workerOnline || model.openingSystemSettings != nil || model.updatingWorker != nil)
                 }
                 HStack {
                     Button {
@@ -365,7 +368,7 @@ struct SpaceDetailView: View {
                             Text(NSLocalizedString("Finish setup", comment: ""))
                         }
                     }
-                    .disabled(model.finishingSetup != nil)
+                    .disabled(model.finishingSetup != nil || model.updatingWorker != nil)
                     Button(NSLocalizedString("Refresh", comment: "")) { model.reload() }
                 }
                 .controlSize(.small)

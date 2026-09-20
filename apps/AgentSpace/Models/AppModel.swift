@@ -22,7 +22,7 @@ import AgentSpaceCore
 @MainActor
 final class AppModel: ObservableObject {
 
-    /// "0.1.5 (412)" — marketing version plus the build number that
+    /// "0.1.6 (412)" — marketing version plus the build number that
     /// `scripts/bundle-app.sh` stamps from git at bundle time. Shown in the
     /// sidebar so "am I looking at the copy I just built?" is answered on
     /// screen; the About panel reads the same plist keys.
@@ -103,6 +103,7 @@ final class AppModel: ObservableObject {
     private var accountDiscoveryGeneration = 0
     @Published private(set) var finishingSetup: UUID?
     @Published private(set) var openingSystemSettings: UUID?
+    @Published private(set) var updatingWorker: UUID?
 
     init(service: SpaceService = SpaceService()) {
         self.service = service
@@ -210,6 +211,71 @@ final class AppModel: ObservableObject {
             self.installHelper()
             self.runDoctor()
         }
+    }
+
+    /// Bring an attached account's worker up to the version in this app, then
+    /// retry its first-login setup. A LaunchAgent can keep an older worker
+    /// alive after an app update; in that state the new GUI receives
+    /// METHOD_NOT_FOUND for `systemSettings.open`. If the helper is old too,
+    /// swap it first so the install operation copies the current worker.
+    func updateWorker(_ space: AgentAccount) {
+        guard updatingWorker == nil, finishingSetup == nil else { return }
+        updatingWorker = space.id
+        Task {
+            let state = await Task.detached(priority: .userInitiated) {
+                HelperInstallation.inspect()
+            }.value
+            let helperReady: Bool
+            if state.isReachable && !state.isStaleBinary {
+                helperReady = true
+            } else {
+                helperReady = await reinstallHelperForWorker()
+            }
+            self.updatingWorker = nil
+            guard helperReady else { return }
+            self.finishPendingSetup(space)
+        }
+    }
+
+    /// The completion-aware helper swap used by the worker-update fix-it. The
+    /// Doctor button intentionally keeps its older fire-and-forget behaviour;
+    /// this path must wait until the current helper can answer before copying a
+    /// worker from it.
+    private func reinstallHelperForWorker() async -> Bool {
+        isInstallingHelper = true
+        let result: Result<Void, Error> = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let service = SMAppService.daemon(plistName: BundleIdentifiers.helperPlist)
+                    _ = try? service.unregister()
+                    try service.register()
+                    continuation.resume(returning: .success(()))
+                } catch {
+                    continuation.resume(returning: .failure(error))
+                }
+            }
+        }
+        if case .success = result { try? await Task.sleep(nanoseconds: 500_000_000) }
+        let state = await Task.detached(priority: .userInitiated) {
+            HelperInstallation.inspect()
+        }.value
+        helperState = state
+        isInstallingHelper = false
+        if case .failure(let error) = result {
+            lastError = PresentedError(
+                code: "HELPER_UNAVAILABLE",
+                message: error.localizedDescription,
+                fix: HelperInstallation.inspect(ping: false).fix)
+            return false
+        }
+        guard state.isReachable && !state.isStaleBinary else {
+            lastError = PresentedError(
+                code: "HELPER_UNAVAILABLE",
+                message: NSLocalizedString("The helper was reinstalled but is not answering with the current build yet.", comment: ""),
+                fix: state.fix ?? NSLocalizedString("Try Update worker again after a moment.", comment: ""))
+            return false
+        }
+        return true
     }
 
     // MARK: - Attach / detach (V3)
@@ -545,6 +611,17 @@ final class AppModel: ObservableObject {
                 self?.showingDoctor = true
                 self?.runDoctor()
             }
+        case .reinstallWorker:
+            guard let space else { break }
+            presented.code = "WORKER_OUTDATED"
+            presented.message = NSLocalizedString(
+                "The connected account is running an older worker that does not support this permission button.",
+                comment: "")
+            presented.fix = NSLocalizedString(
+                "Click Update worker to install the current worker in the connected account, then try the permission button again.",
+                comment: "")
+            presented.actionTitle = NSLocalizedString("Update worker…", comment: "")
+            presented.action = { [weak self] in self?.updateWorker(space) }
         case nil:
             break
         }

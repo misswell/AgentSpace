@@ -353,6 +353,7 @@
 "An agent account is a real macOS user, so creating one is an administrator operation. AgentSpace does it through a root helper that exposes a closed list of typed operations — it never runs a shell, and it will only ever create or delete users named _agentspace_<6 hex>." = "Agent 账号是真实的 macOS 用户，创建它是管理员级操作。AgentSpace 通过一个 root 助手完成，它只暴露一组封闭的类型化操作——从不运行 shell，也只会创建或删除名为 _agentspace_<6 位十六进制> 的用户。";
 "No agent accounts" = "暂无 Agent 账号";
 "An agent account is a dedicated macOS user with its own desktop, so the agent can browse, code and test without touching your keyboard, mouse or screen." = "Agent 账号是拥有独立桌面的专属 macOS 用户，Agent 可以在其中浏览、编码和测试，而不会碰你的键盘、鼠标或屏幕。";
+"If you are signed in as an attached account, this panel is intentionally empty. Switch back to the account that owns AgentSpace to manage the agent and its permissions." = "如果你登录的是已连接的 Agent 账号，这个面板为空是正常的。请切回拥有 AgentSpace 的账号，在那里管理 Agent 和权限。";
 "New Agent…" = "新建 Agent…";
 "macOS User" = "macOS 用户";
 "Desktop" = "桌面";
@@ -433,11 +434,17 @@
 "The privacy prompts cannot appear before the worker starts. Until the first login and Finish setup are complete, the agent remains in Needs Login; AgentSpace never starts it in your account instead." = "worker 启动前不会出现隐私权限提示。在完成首次登录和「完成设置」前，Agent 会保持「需要登录」；AgentSpace 绝不会在你的主账号中启动它。";
 "The connected account does not contain a second AgentSpace app. That is intentional: only the background agentspace-worker runs there; use that account's built-in System Settings for its permissions." = "已连接的账号中不会有第二个 AgentSpace 应用，这是有意设计的：那里只运行后台 agentspace-worker；请在该账号自带的系统设置中授予权限。";
 "The connected account does not contain a second AgentSpace app. The background agentspace-worker runs there and uses that account's System Settings permissions." = "已连接的账号中不会有第二个 AgentSpace 应用。后台 agentspace-worker 会在那里运行，并使用该账号系统设置中的权限。";
+"When you switch to the connected account, its AgentSpace panel is intentionally empty. Use the System Settings opened by these buttons, then switch back to your own account." = "切换到已连接账号后，那里 AgentSpace 面板为空是正常的。请使用这些按钮打开系统设置，完成授权后再切回你的账号。";
 "Where accounts, runtime sockets and logs live. Empty means /Library/Application Support/AgentSpace. AGENTSPACE_ROOT is read at launch; restart to apply." = "账号、运行时 socket 和日志的存放位置。留空表示 /Library/Application Support/AgentSpace。AGENTSPACE_ROOT 在启动时读取，重启后生效。";
 "In the connected account's session, open System Settings → Privacy & Security → Accessibility and enable agentspace-worker. Then switch back to your account and click Finish setup or Refresh in AgentSpace." = "在已连接账号的会话中，打开「系统设置 → 隐私与安全性 → 辅助功能」，启用 agentspace-worker。然后切回你的账号，在 AgentSpace 中点击「完成设置」或「刷新」。";
 "In the connected account's session, open System Settings → Privacy & Security → Screen & System Audio Recording and enable agentspace-worker. Then switch back to your account and click Finish setup or Refresh in AgentSpace." = "在已连接账号的会话中，打开「系统设置 → 隐私与安全性 → 屏幕与系统声音录制」，启用 agentspace-worker。然后切回你的账号，在 AgentSpace 中点击「完成设置」或「刷新」。";
 "In the connected account's session, open System Settings → Privacy & Security → Accessibility and enable agentspace-worker. Then switch back and click Finish setup in AgentSpace." = "在已连接账号的会话中，打开「系统设置 → 隐私与安全性 → 辅助功能」，启用 agentspace-worker。然后切回你的账号，在 AgentSpace 中点击「完成设置」。";
 "In the connected account's session, open System Settings → Privacy & Security → Screen & System Audio Recording and enable agentspace-worker. Then switch back and click Finish setup in AgentSpace." = "在已连接账号的会话中，打开「系统设置 → 隐私与安全性 → 屏幕与系统声音录制」，启用 agentspace-worker。然后切回你的账号，在 AgentSpace 中点击「完成设置」。";
 "These buttons open the privacy pane inside the connected account's session. If you are currently in your own account, click one first, then fast-switch to the connected account to see System Settings there." = "这些按钮会在已连接账号自己的会话中打开隐私设置。如果你当前在自己的账号中，先点击按钮，再通过快速用户切换进入已连接账号，就能在那里看到系统设置。";
+"The connected account is running an older worker that does not support this permission button." = "已连接账号正在运行旧版 worker，不支持这个权限按钮。";
+"Click Update worker to install the current worker in the connected account, then try the permission button again." = "点击「更新 worker」即可在已连接账号中安装当前版本，然后再次点击权限按钮。";
+"Update worker…" = "更新 worker…";
+"The helper was reinstalled but is not answering with the current build yet." = "助手已重新安装，但当前版本暂时还没有响应。";
+"Try Update worker again after a moment." = "稍等片刻后再次点击「更新 worker」。";
 "Open Accessibility settings" = "打开辅助功能设置";
 "Open Screen Recording settings" = "打开屏幕录制设置";

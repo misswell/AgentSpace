@@ -213,6 +213,7 @@ final class RecoveryHintCodableTests: XCTestCase {
         // wire, so the enum's raw values are the whole contract.
         XCTAssertEqual(RecoveryHint.installCommandLineTools.rawValue, "installCommandLineTools")
         XCTAssertEqual(RecoveryHint.removeOrphanedAccounts.rawValue, "removeOrphanedAccounts")
+        XCTAssertEqual(RecoveryHint.reinstallWorker.rawValue, "reinstallWorker")
     }
 
     func testOrphanHintRoundTrips() throws {
@@ -222,5 +223,25 @@ final class RecoveryHintCodableTests: XCTestCase {
         let data = try JSONEncoder().encode(error)
         let decoded = try JSONDecoder().decode(AgentSpaceError.self, from: data)
         XCTAssertEqual(decoded.recoveryHint, RecoveryHint.removeOrphanedAccounts)
+    }
+}
+
+final class WorkerCompatibilityTests: XCTestCase {
+    func testUnknownMethodFromAnOlderWorkerOffersWorkerReinstall() {
+        let oldWorker = AgentSpaceError(code: .methodNotFound, message: "unknown method 'systemSettings.open'")
+
+        let recovered = WorkerCompatibility.recovery(for: oldWorker, method: Method.openSystemSettings)
+
+        XCTAssertEqual(recovered?.code, .methodNotFound)
+        XCTAssertEqual(recovered?.recoveryHint, .reinstallWorker)
+        XCTAssertTrue(recovered?.recoverable == true)
+    }
+
+    func testOtherErrorsAreNotRewrittenAsVersionProblems() {
+        let denied = AgentSpaceError(code: .accessibilityDenied, message: "not trusted")
+
+        XCTAssertEqual(
+            WorkerCompatibility.recovery(for: denied, method: Method.openSystemSettings),
+            denied)
     }
 }

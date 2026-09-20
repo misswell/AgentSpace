@@ -7938,3 +7938,21 @@ deep links.
 |---|---|---|---|
 | 531 | Restored dashboard duplicates converge to one main window | pass | `OpenLinkDelegate.applicationDidBecomeActive` toolbar-based filtering; `scripts/gui-verify.sh` launch check |
 | 532 | The full release verification remains green with the connected-account permission flow | pass | `scripts/check-all.sh`: stapled dist guard, Swift suite, MCP smoke and GUI verify 7/7 |
+
+## 285. Recover an older worker and explain the connected-account panel (2026-09-20)
+
+The shipped 0.1.5 GUI was able to call `systemSettings.open`, while the
+attached account on the machine was still running the 0.1.3 worker. The worker
+correctly returned `METHOD_NOT_FOUND`; the GUI previously surfaced that raw
+protocol error with no way forward. The error is now recognized as an older
+worker, offers an **Update worker** action, refreshes the helper first when it
+is stale, and then runs the existing Finish setup install/start path. The empty
+AgentSpace panel seen after switching into the attached account is also called
+out explicitly: that account intentionally has no second GUI and management
+continues in the main account.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 533 | `METHOD_NOT_FOUND` for `systemSettings.open` is converted into an in-app worker reinstall recovery | pass | `WorkerCompatibilityTests.testUnknownMethodFromAnOlderWorkerOffersWorkerReinstall`; `SpaceService.openSystemSettings`; `AppModel.updateWorker` |
+| 534 | A stale helper is refreshed before the worker is reinstalled, avoiding another old worker copy | pass | `AppModel.reinstallHelperForWorker`; `HelperInstallation.isStaleBinary`; existing helper CDHash tests |
+| 535 | The connected account's empty GUI panel is explained as intentional and points back to the main account | pass | `EmptyStateView`, `SpaceDetailView` and both localization tables |

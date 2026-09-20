@@ -170,6 +170,10 @@ public enum RecoveryHint: String, Codable, Sendable {
     /// A legacy V1/V2 installation left an AgentSpace-named account behind.
     /// V3 reports it for manual review and never mutates the macOS user.
     case removeOrphanedAccounts
+
+    /// The attached account's LaunchAgent is still running an older worker.
+    /// The app can reinstall the worker from its signed helper bundle.
+    case reinstallWorker
 }
 
 /// The error object inside a failed RPC reply (plan §21).

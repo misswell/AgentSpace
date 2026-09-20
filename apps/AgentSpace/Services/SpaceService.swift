@@ -350,11 +350,12 @@ final class SpaceService {
         pane: SystemSettingsPane,
         timeout: Double = 10
     ) -> AgentSpaceError? {
-        call(
+        let error = call(
             space,
             Method.openSystemSettings,
             ["pane": .string(pane.rawValue)],
             timeout: timeout)
+        return WorkerCompatibility.recovery(for: error, method: Method.openSystemSettings)
     }
 
     private func call(_ space: AgentAccount, _ method: String, _ params: JSONValue, timeout: Double) -> AgentSpaceError? {
