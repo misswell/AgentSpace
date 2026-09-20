@@ -6,8 +6,9 @@ final class WindowStreamManager {
     private var streams: [WindowIdentity: PreviewController] = [:]
 
     func start(window: RemoteWindow, maxFPS: Int) throws -> Int {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
         if let existing = streams[window.identity] {
+            lock.unlock()
             return try existing.start(maxFPS: maxFPS)
         }
 
@@ -15,18 +16,24 @@ final class WindowStreamManager {
         let controller = PreviewController(idleTimeout: 10) { _ in
             WindowCaptureFrameSource(windowID: identity.windowID, pid: identity.pid)
         }
-        // Do not publish a controller until its source is running. Keeping the
-        // manager lock through start also makes concurrent starts for the same
-        // identity linear: a failed starter cannot remove a later successful
-        // stream, and every published stream remains reachable by frame/stop.
-        let configuredFPS = try controller.start(maxFPS: maxFPS)
         streams[identity] = controller
-        return configuredFPS
+        lock.unlock()
+
+        // Publish before starting so frame/stop can find the controller while
+        // ScreenCaptureKit performs its synchronous discovery. PreviewController
+        // serializes concurrent starts for this identity; importantly, a failed
+        // starter does not remove the shared controller after a waiting starter
+        // has successfully brought it up. The empty controller is harmless and
+        // can be retried or removed by stop/stopAll.
+        return try controller.start(maxFPS: maxFPS)
     }
 
     func frame(identity: WindowIdentity, verdict: SessionVerdict) throws -> Data? {
         lock.lock(); let controller = streams[identity]; lock.unlock()
         guard let controller else {
+            throw AgentSpaceError(code: .previewNotRunning, message: "no capture stream is running for this window")
+        }
+        guard controller.isRunning else {
             throw AgentSpaceError(code: .previewNotRunning, message: "no capture stream is running for this window")
         }
         do {
