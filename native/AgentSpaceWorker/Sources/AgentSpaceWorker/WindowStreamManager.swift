@@ -7,17 +7,23 @@ final class WindowStreamManager {
 
     func start(window: RemoteWindow, maxFPS: Int) throws -> Int {
         lock.lock()
-        let existing = streams[window.identity]
-        lock.unlock()
-        if let existing { return try existing.start(maxFPS: maxFPS) }
+        if let existing = streams[window.identity] {
+            lock.unlock()
+            return try existing.start(maxFPS: maxFPS)
+        }
 
         let identity = window.identity
         let controller = PreviewController(idleTimeout: 10) { _ in
             WindowCaptureFrameSource(windowID: identity.windowID, pid: identity.pid)
         }
-        let fps = try controller.start(maxFPS: maxFPS)
-        lock.lock(); streams[identity] = controller; lock.unlock()
-        return fps
+        streams[identity] = controller
+        lock.unlock()
+        do {
+            return try controller.start(maxFPS: maxFPS)
+        } catch {
+            lock.lock(); streams.removeValue(forKey: identity); lock.unlock()
+            throw error
+        }
     }
 
     func frame(identity: WindowIdentity, verdict: SessionVerdict) throws -> Data? {

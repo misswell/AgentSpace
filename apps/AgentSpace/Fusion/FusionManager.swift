@@ -12,6 +12,8 @@ final class FusionManager {
             let session = FusionSession(space: space)
             sessions[space.id] = session
             session.start()
+        } else {
+            sessions[space.id]?.showAll()
         }
         NSApp.activate(ignoringOtherApps: true)
     }

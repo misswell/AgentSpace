@@ -127,7 +127,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         case .noInputTarget:
             return NSLocalizedString("No app is frontmost in the AgentSpace session, so the events would go nowhere. Launch or activate something there first, e.g. `agentspace launch <space> Finder`.", comment: "")
         case .inputBusyByHuman:
-            return NSLocalizedString("A person is controlling an Agent window. Wait five seconds after their last input, or choose Agent Control in the Fusion window.", comment: "")
+            return NSLocalizedString("A person is controlling an Agent window. Wait five seconds after their last input, then retry.", comment: "")
         case .appNotFound:
             return NSLocalizedString("Pass an app name that exists in the AgentSpace session (`agentspace apps <space>`) or an absolute path to a .app bundle.", comment: "")
         case .appLaunchTimeout:

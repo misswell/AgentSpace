@@ -23,6 +23,11 @@ final class FusionSession {
         controllers.removeAll()
     }
 
+    func showAll() {
+        controllers.values.forEach { $0.showAndResume() }
+        refresh()
+    }
+
     private func refresh() {
         guard !refreshInFlight else { return }
         refreshInFlight = true
@@ -46,6 +51,9 @@ final class FusionSession {
             let controller = FusionWindowController(space: space, remoteWindow: remote)
             controllers[remote.identity] = controller
             controller.show()
+        }
+        for identity in incoming {
+            controllers[identity]?.resumeCapture()
         }
     }
 }

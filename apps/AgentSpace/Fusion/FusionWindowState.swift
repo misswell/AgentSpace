@@ -6,5 +6,4 @@ import AgentSpaceCore
 final class FusionWindowState: ObservableObject {
     @Published var image: NSImage?
     @Published var error: AgentSpaceError?
-    @Published var humanHasControl = true
 }

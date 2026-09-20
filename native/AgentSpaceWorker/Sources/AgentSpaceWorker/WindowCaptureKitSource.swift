@@ -51,6 +51,10 @@ final class WindowCaptureFrameSource: NSObject, PreviewFrameSource {
             filter: SCContentFilter(desktopIndependentWindow: window),
             configuration: configuration,
             delegate: self)
+        // Publish ownership before the asynchronous start. If the wait times
+        // out, PreviewController's failure cleanup can still stop this exact
+        // stream even when ScreenCaptureKit completes late.
+        lock.lock(); self.stream = stream; lock.unlock()
         try stream.addStreamOutput(
             self, type: .screen,
             sampleHandlerQueue: DispatchQueue(label: BundleIdentifiers.worker + ".window-capture.\(windowID)"))
@@ -64,7 +68,6 @@ final class WindowCaptureFrameSource: NSObject, PreviewFrameSource {
         if let startError {
             throw AgentSpaceError(code: .screenRecordingDenied, message: "window capture failed: \(startError)")
         }
-        lock.lock(); self.stream = stream; lock.unlock()
     }
 
     func stop() {

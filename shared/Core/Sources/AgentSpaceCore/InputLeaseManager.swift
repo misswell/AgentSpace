@@ -17,11 +17,6 @@ public final class InputLeaseManager: @unchecked Sendable {
         humanUntil = now.addingTimeInterval(duration)
     }
 
-    public func releaseHuman() {
-        lock.lock(); defer { lock.unlock() }
-        humanUntil = nil
-    }
-
     public func automationAllowed(now: Date = Date()) -> Bool {
         lock.lock(); defer { lock.unlock() }
         guard let humanUntil else { return true }

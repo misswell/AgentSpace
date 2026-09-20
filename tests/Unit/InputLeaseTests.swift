@@ -13,12 +13,4 @@ final class InputLeaseTests: XCTestCase {
         XCTAssertFalse(lease.automationAllowed(now: start.addingTimeInterval(8.99)))
         XCTAssertTrue(lease.automationAllowed(now: start.addingTimeInterval(9)))
     }
-
-    func testExplicitAgentControlEndsTheHumanLease() {
-        let lease = InputLeaseManager(duration: 5)
-        let now = Date(timeIntervalSince1970: 100)
-        lease.claimHuman(now: now)
-        lease.releaseHuman()
-        XCTAssertTrue(lease.automationAllowed(now: now))
-    }
 }

@@ -187,9 +187,7 @@ struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @AppStorage("statusRefreshSeconds") private var statusRefreshSeconds = 3.0
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 1600
-    @AppStorage("desktopFPSPolicy") private var desktopFPSPolicy = 0
     @AppStorage("fusionFPSPolicy") private var fusionFPSPolicy = 0
-    @AppStorage("captureQuality") private var captureQuality = "balanced"
     @State private var advancedRoot = AgentSpaceEnvironment.rootOverride ?? ""
 
     var body: some View {
@@ -200,7 +198,8 @@ struct SettingsView: View {
                         HStack {
                             VStack(alignment: .leading) {
                                 Text(snapshot.space.displayName).font(.headline)
-                                Text("UID \(snapshot.space.uid)").font(.caption).foregroundStyle(.secondary)
+                                Text(String(format: NSLocalizedString("UID %ld", comment: ""), snapshot.space.uid))
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
                             Text(snapshot.effectiveState.displayName)
@@ -226,17 +225,11 @@ struct SettingsView: View {
 
             Form {
                 Section {
-                    Picker("Desktop FPS", selection: $desktopFPSPolicy) {
-                        Text("Auto").tag(0); Text("5 FPS").tag(5); Text("10 FPS").tag(10); Text("15 FPS").tag(15)
-                    }
                     Picker("Fusion FPS", selection: $fusionFPSPolicy) {
                         Text("Auto").tag(0); Text("5 FPS").tag(5); Text("10 FPS").tag(10); Text("15 FPS").tag(15)
                     }
-                    Picker("Quality", selection: $captureQuality) {
-                        Text("Balanced").tag("balanced")
-                        Text("Sharper").tag("sharp")
-                        Text("Lower bandwidth").tag("efficient")
-                    }
+                    Text("Auto uses 15 FPS for the key Agent window, 5 FPS for other visible windows, and 0 FPS while minimized.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)

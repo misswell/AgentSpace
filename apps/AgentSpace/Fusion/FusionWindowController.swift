@@ -10,6 +10,7 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private let state = FusionWindowState()
     private let queue: DispatchQueue
     private var timer: DispatchSourceTimer?
+    private var startingCapture = false
     private var closingRemote = false
 
     init(space: AgentAccount, remoteWindow: RemoteWindow) {
@@ -42,8 +43,16 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         startCapture()
     }
 
+    func showAndResume() {
+        window?.orderFrontRegardless()
+        resumeCapture()
+    }
+
+    func resumeCapture() { startCapture() }
+
     func stop() {
         timer?.cancel(); timer = nil
+        startingCapture = false
         let space = self.space, remote = remoteWindow
         queue.async { SpaceService().windowStreamStop(for: space, window: remote) }
     }
@@ -51,6 +60,11 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     func windowDidBecomeKey(_ notification: Notification) {
         let space = self.space, remote = remoteWindow
         queue.async { _ = SpaceService().windowActivate(for: space, window: remote) }
+        if UserDefaults.standard.integer(forKey: "fusionFPSPolicy") == 0 { restartCapture() }
+    }
+
+    func windowDidResignKey(_ notification: Notification) {
+        if UserDefaults.standard.integer(forKey: "fusionFPSPolicy") == 0 { restartCapture() }
     }
 
     func windowDidMiniaturize(_ notification: Notification) { stop() }
@@ -75,23 +89,30 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func startCapture() {
-        guard timer == nil else { return }
+        guard timer == nil, !startingCapture, window?.isMiniaturized != true else { return }
+        startingCapture = true
         let space = self.space, remote = remoteWindow
         let configuredFPS = UserDefaults.standard.integer(forKey: "fusionFPSPolicy")
-        let fps = configuredFPS == 0 ? 15 : configuredFPS
+        let fps = configuredFPS == 0 ? (window?.isKeyWindow == true ? 15 : 5) : configuredFPS
         queue.async { [weak self] in
             switch SpaceService().windowStreamStart(for: space, window: remote, maxFPS: fps) {
             case .failure(let error):
-                Task { @MainActor in self?.state.error = error }
+                Task { @MainActor in self?.startingCapture = false; self?.state.error = error }
             case .success:
                 self?.beginFrameTimer(fps: fps)
             }
         }
     }
 
+    private func restartCapture() {
+        stop()
+        startCapture()
+    }
+
     private nonisolated func beginFrameTimer(fps: Int) {
         Task { @MainActor [weak self] in
             guard let self, self.timer == nil else { return }
+            self.startingCapture = false
             let timer = DispatchSource.makeTimerSource(queue: self.queue)
             timer.schedule(deadline: .now(), repeating: 1.0 / Double(max(1, fps)), leeway: .milliseconds(12))
             timer.setEventHandler { [weak self] in self?.pullFrame() }
