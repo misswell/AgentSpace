@@ -124,6 +124,23 @@ final class CLIHarness {
 
     // MARK: - Live worker
 
+    /// Every worker this harness started, so the suite can put them back down.
+    /// `Process` does not kill its child on dealloc, so a reference that simply
+    /// goes away leaves a live worker reparented to launchd.
+    private var liveWorkers: [Process] = []
+
+    /// Put down every worker still running from this harness. Idempotent.
+    func stopLiveWorkers() {
+        let running = liveWorkers.filter { $0.isRunning }
+        running.forEach { $0.terminate() }
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline, running.contains(where: { $0.isRunning }) {
+            usleep(50_000)
+        }
+        running.filter { $0.isRunning }.forEach { kill($0.processIdentifier, SIGKILL) }
+        liveWorkers.removeAll()
+    }
+
     /// Start a real worker binary in this harness's runtime root, with the token
     /// on disk where the CLI's Core API will look for it. Returns the token so a
     /// test can also prove that the CLI found the *right* one.
@@ -165,6 +182,7 @@ final class CLIHarness {
             stderr += text
         }
         try process.run()
+        liveWorkers.append(process)
 
         // Wait for the socket *and* for it to answer a hello.
         let deadline = Date().addingTimeInterval(20)
@@ -228,7 +246,12 @@ enum WorkerBinaryLocator {
 final class CLIIntegrationTests: XCTestCase {
 
     private var cleanupRoots: [String] = []
+    private var harnesses: [CLIHarness] = []
     override func tearDown() {
+        // Processes before directories: a live worker still holding the runtime
+        // root is the one thing this cleanup must not leave behind.
+        for harness in harnesses { harness.stopLiveWorkers() }
+        harnesses = []
         for root in cleanupRoots {
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -237,6 +260,7 @@ final class CLIIntegrationTests: XCTestCase {
 
     private func harness() throws -> CLIHarness {
         let harness = try CLIHarness()
+        harnesses.append(harness)
         cleanupRoots.append(harness.root)
         return harness
     }
