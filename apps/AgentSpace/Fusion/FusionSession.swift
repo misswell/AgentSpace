@@ -4,16 +4,28 @@ import AgentSpaceCore
 @MainActor
 final class FusionSession {
     let space: AgentAccount
+    /// The link's state and the delay before the next window list. A session
+    /// that is refused is not the same problem as a session that is restarting,
+    /// and the difference is `FusionLinkPolicy`'s to make.
+    private(set) var link: FusionLinkStatus
+    private let policy = FusionLinkPolicy()
+    private var nextPollAt = Date.distantPast
     private var controllers: [WindowIdentity: FusionWindowController] = [:]
     private var timer: Timer?
     private var refreshInFlight = false
 
-    init(space: AgentAccount) { self.space = space }
+    init(space: AgentAccount) {
+        self.space = space
+        link = FusionLinkPolicy().connected
+    }
 
     func start() {
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
+        // The timer is only a clock. When a tick is *not* allowed to poll, the
+        // policy's delay decides it, so the ladder can be finer than a second
+        // of drift in the timer without a second scheduling mechanism.
+        timer = Timer.scheduledTimer(withTimeInterval: policy.pollInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
         }
     }
 
@@ -25,6 +37,14 @@ final class FusionSession {
 
     func showAll() {
         controllers.values.forEach { $0.showAndResume() }
+        // Opening the proxies by hand is worth an immediate poll even inside a
+        // backoff window; it is one request the user asked for, not a loop.
+        nextPollAt = .distantPast
+        refresh()
+    }
+
+    private func tick() {
+        guard Date() >= nextPollAt else { return }
         refresh()
     }
 
@@ -37,9 +57,25 @@ final class FusionSession {
             Task { @MainActor in
                 guard let self else { return }
                 self.refreshInFlight = false
-                if case .success(let windows) = result { self.reconcile(windows) }
+                switch result {
+                case .success(let windows):
+                    self.link = self.policy.connected
+                    self.scheduleNextPoll()
+                    self.reconcile(windows)
+                case .failure(let error):
+                    self.link = self.policy.status(after: error, failures: self.link.failures + 1)
+                    self.scheduleNextPoll()
+                    // A window that cannot be listed cannot be streamed either:
+                    // without this the proxies keep pulling frames from a worker
+                    // that already refused the session, one RPC per window.
+                    self.controllers.values.forEach { $0.suspend(for: error) }
+                }
             }
         }
+    }
+
+    private func scheduleNextPoll() {
+        nextPollAt = Date().addingTimeInterval(link.nextPollInSeconds)
     }
 
     private func reconcile(_ windows: [RemoteWindow]) {
@@ -58,6 +94,9 @@ final class FusionSession {
             controller.show()
         }
         for identity in incoming {
+            // Includes the identities `suspend(for:)` stopped: their timer is
+            // gone, so this is what puts the stream back up after a worker
+            // restart or a trip to the console.
             controllers[identity]?.resumeCapture()
         }
     }

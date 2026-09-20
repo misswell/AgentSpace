@@ -296,18 +296,31 @@ final class SpaceService {
         }
     }
 
-    func windowFrame(for space: AgentAccount, window: RemoteWindow) -> Result<NSImage, AgentSpaceError> {
+    /// Pull the newest frame of a proxy's stream.
+    ///
+    /// `seenSequence` names the frame the proxy already drew. When the worker
+    /// answers that nothing newer has been captured, `image` comes back nil and
+    /// the caller keeps showing what it has — which is the same picture, minus a
+    /// JPEG encode, a base64 round trip and an image decode per idle frame.
+    func windowFrame(
+        for space: AgentAccount, window: RemoteWindow, seenSequence: Int
+    ) -> Result<FusionFrame, AgentSpaceError> {
+        var params = identityParams(window)
+        if seenSequence > 0 { params["seenSequence"] = .int(seenSequence) }
         switch fusionCall(
-            space: space, method: Method.windowStreamFrame,
-            params: .object(identityParams(window))) {
+            space: space, method: Method.windowStreamFrame, params: .object(params)) {
         case .failure(let error): return .failure(error)
         case .success(let value):
+            let sequence = value["sequence"]?.intValue ?? 0
+            if value["unchanged"]?.boolValue == true {
+                return .success(FusionFrame(image: nil, sequence: sequence))
+            }
             guard let encoded = value["inline"]?.stringValue,
                   let data = Data(base64Encoded: encoded),
                   let image = NSImage(data: data) else {
                 return .failure(AgentSpaceError(code: .internalError, message: "the worker returned no decodable Fusion frame"))
             }
-            return .success(image)
+            return .success(FusionFrame(image: image, sequence: sequence))
         }
     }
 
@@ -334,6 +347,20 @@ final class SpaceService {
             params: .object(identityParams(window))) {
         case .failure(let error): return .failure(error)
         case .success: return .success(true)
+        }
+    }
+
+    /// Takes the worker's human lease without performing input, so automation
+    /// pauses the moment a button goes down rather than when the gesture is
+    /// posted. Returns how long the lease now runs.
+    @discardableResult
+    func windowClaimHuman(for space: AgentAccount, window: RemoteWindow) -> Result<TimeInterval, AgentSpaceError> {
+        switch fusionCall(
+            space: space, method: Method.windowHumanClaim,
+            params: .object(identityParams(window))) {
+        case .failure(let error): return .failure(error)
+        case .success(let value):
+            return .success(TimeInterval(value["remainingSeconds"]?.doubleValue ?? 0))
         }
     }
 

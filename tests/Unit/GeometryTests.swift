@@ -88,4 +88,74 @@ final class GeometryTests: XCTestCase {
         XCTAssertFalse(geometry.contains(point: (1920, 1079)))
         XCTAssertFalse(geometry.contains(point: (1919, 1080)))
     }
+    // MARK: - Which display a window is on
+
+    /// The Retina panel is 1440x900 points at 2x; the external panel is
+    /// 1920x1080 points at 1x. A window that is mostly on the Retina panel must
+    /// be encoded at 2x — the first version of this code asked `max(by:)` with a
+    /// "bigger first" comparator and so took the *smallest* overlap, i.e. the 1x
+    /// panel, and shipped a half-resolution capture of a Retina window.
+    func testLargestOverlapDisplayWins() {
+        let retina = DisplayScaleSelection.Candidate(
+            bounds: CGRect(x: 0, y: 0, width: 1440, height: 900), pixelWidth: 2880, pointWidth: 1440)
+        let external = DisplayScaleSelection.Candidate(
+            bounds: CGRect(x: 0, y: 900, width: 1920, height: 1080), pixelWidth: 1920, pointWidth: 1920)
+        // 400x300 with only its bottom 100 points spilling onto the external
+        // panel: 80% Retina, 20% 1x.
+        let window = CGRect(x: 100, y: 700, width: 400, height: 300)
+
+        XCTAssertEqual(
+            DisplayScaleSelection.pixelsPerPoint(windowFrame: window, in: [external, retina]), 2,
+            "the panel holding most of the window decides the scale, whatever the array order")
+        XCTAssertGreaterThan(
+            DisplayScaleSelection.overlap(of: window, on: retina.bounds),
+            DisplayScaleSelection.overlap(of: window, on: external.bounds))
+    }
+
+    func testWindowSpanningTheSeamFollowsTheBulkOfIt() {
+        let left = DisplayScaleSelection.Candidate(
+            bounds: CGRect(x: 0, y: 0, width: 1000, height: 1000), pixelWidth: 1000, pointWidth: 1000)
+        let right = DisplayScaleSelection.Candidate(
+            bounds: CGRect(x: 1000, y: 0, width: 1000, height: 1000), pixelWidth: 2000, pointWidth: 1000)
+        XCTAssertEqual(
+            DisplayScaleSelection.pixelsPerPoint(windowFrame: CGRect(x: 950, y: 100, width: 400, height: 200),
+                                                 in: [left, right]), 2)
+        XCTAssertEqual(
+            DisplayScaleSelection.pixelsPerPoint(windowFrame: CGRect(x: 600, y: 100, width: 400, height: 200),
+                                                 in: [left, right]), 1)
+    }
+
+    /// A window that touches nothing — off-screen, or a display that went to
+    /// sleep between the listing and the capture — must not crash or invent a
+    /// zero scale.
+    func testWindowOnNoDisplayFallsBack() {
+        let panel = DisplayScaleSelection.Candidate(
+            bounds: CGRect(x: 0, y: 0, width: 1440, height: 900), pixelWidth: 2880, pointWidth: 1440)
+        XCTAssertEqual(
+            DisplayScaleSelection.pixelsPerPoint(
+                windowFrame: CGRect(x: 5000, y: 5000, width: 200, height: 100),
+                in: [panel], fallback: 2), 2)
+        XCTAssertEqual(
+            DisplayScaleSelection.pixelsPerPoint(windowFrame: CGRect(x: 0, y: 0, width: 10, height: 10),
+                                                 in: [], fallback: 3), 3)
+        XCTAssertNil(DisplayScaleSelection.candidate(
+            for: CGRect(x: 5000, y: 0, width: 10, height: 10), in: [panel]))
+    }
+
+    func testSingleDisplayAndDegenerateGeometry() {
+        let only = DisplayScaleSelection.Candidate(
+            bounds: CGRect(x: 0, y: 0, width: 512, height: 288), pixelWidth: 512, pointWidth: 256)
+        XCTAssertEqual(only.pixelsPerPoint, 2)
+        XCTAssertEqual(
+            DisplayScaleSelection.pixelsPerPoint(windowFrame: CGRect(x: 10, y: 10, width: 50, height: 50),
+                                                 in: [only]), 2)
+        XCTAssertEqual(
+            DisplayScaleSelection.Candidate(
+                bounds: .zero, pixelWidth: 0, pointWidth: 0).pixelsPerPoint, 1,
+            "a zero-sized mode is not a scale of zero")
+        XCTAssertEqual(
+            DisplayScaleSelection.overlap(of: CGRect(x: 0, y: 0, width: 10, height: 10),
+                                          on: CGRect(x: 100, y: 100, width: 10, height: 10)), 0,
+            "disjoint rects intersect in a null rect, not a negative area")
+    }
 }

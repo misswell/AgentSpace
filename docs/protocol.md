@@ -237,20 +237,42 @@ selected application window rather than the whole agent display. Like Desktop
 preview, every frame pull is fail-closed and the controller retains only the
 latest frame.
 
+`.frame` also answers with `sequence`, the number of frames that stream has
+captured. A client that already drew frame *N* may send `seenSequence: N`; if
+nothing newer has been captured the answer is `{ "unchanged": true, "sequence":
+N }` with no `inline`, so a window that is not moving stops costing a JPEG
+encode, a base64 round trip and an image decode. The pull itself still happens,
+because the pull is what keeps the stream's idle watchdog from reaping it. A
+client that sends no `seenSequence`, and a worker too old to answer one, both
+keep receiving every frame as before.
+
 `window.input` takes the identity plus one action. Pointer actions use
 `xFraction` / `yFraction` in 0...1; the worker re-reads the current global
 window frame immediately before posting the event, so a moved remote window
-does not make a cached coordinate dangerous. `type` and `key` reuse the normal
-input action shapes. Direct Fusion interaction renews a five-second human input
-lease; ordinary `input` calls during that lease fail `INPUT_BUSY_BY_HUMAN`.
+does not make a cached coordinate dangerous. Past the geometry the action is the
+**same** object `input` accepts — `button`, `count`, `modifiers`, `dx`, `dy` —
+because the worker resolves the fractions and hands the result to the same
+parser, rather than maintaining a second dialect. `type` and `key` reuse the
+normal input action shapes. Returns `{ "performed": N }`.
+
+Direct Fusion interaction holds a five-second human input lease; ordinary
+`input` calls during that lease fail `INPUT_BUSY_BY_HUMAN`. The lease is claimed
+by a deliberate gesture, and `window.human.claim` lets a proxy claim it when the
+button goes *down* instead of when the finished gesture is posted. It takes the
+identity and nothing else, performs no input, activates nothing, and answers
+`{ "claimed": true, "remainingSeconds": S }`.
+
+A `move` with no button held — pointer travel across the proxy — is the one
+action that never claims the lease. It is forwarded only while a lease someone
+else already took is still live, and then without activating or raising anything;
+otherwise the answer is `{ "performed": 0, "skipped": "hover" }`. Crossing a
+proxy with the mouse must not change which application the agent is working in.
 
 `window.activate` activates the owning pid. `window.close` maps the CG window to
 exactly one AX window by pid, title and frame (±5 points) and refuses ambiguous
 matches instead of guessing. `window.minimize` is registered for compatible
 clients; the V4 app minimizes its local proxy and stops capture without changing
 the remote window.
-
-Returns `{ "performed": N }`.
 
 **Console refusal covers observation too.** The same `SESSION_IS_CONSOLE`
 verdict gates every method that observes or manipulates the GUI session —

@@ -138,3 +138,78 @@ public enum WindowCoordinateMapper {
             y: frame.y + frame.height * yFraction)
     }
 }
+
+/// One Fusion proxy action, resolved into the vocabulary the desktop input path
+/// already speaks.
+///
+/// A proxy sends pointer geometry as fractions of its own window, because it
+/// knows where that window sits on the agent's desktop and has no idea where
+/// the human moved their copy of it. Everything past the geometry — which button,
+/// how many clicks, which modifiers, how far the wheel turned — is the same
+/// language `agentspace input` uses, so this resolves the geometry and hands the
+/// result to `InputAction.parse` rather than keeping a second dialect alive.
+public enum RemoteWindowInput {
+    /// Pointer types whose coordinates arrive as fractions.
+    private static let pointerTypes: Set<String> = [
+        "move", "click", "doubleClick", "rightClick", "scroll", "drag",
+    ]
+
+    public static func action(from params: JSONValue, window: RemoteWindow) throws -> InputAction {
+        guard let value = params["action"] else {
+            throw AgentSpaceError(code: .invalidAction, message: #"window.input requires an "action" object"#)
+        }
+        guard let object = value.objectValue, let type = object["type"]?.stringValue else {
+            throw AgentSpaceError(code: .invalidAction, message: #"window action requires a "type""#)
+        }
+        if type == "type" || type == "key" {
+            return try parsed(value)
+        }
+        guard pointerTypes.contains(type) else {
+            throw AgentSpaceError(code: .invalidAction, message: "unsupported window action '\(type)'")
+        }
+        guard let xFraction = object["xFraction"]?.doubleValue,
+              let yFraction = object["yFraction"]?.doubleValue else {
+            throw AgentSpaceError(
+                code: .invalidCoordinate,
+                message: "window pointer input requires xFraction and yFraction")
+        }
+        let press = try WindowCoordinateMapper.point(
+            xFraction: xFraction, yFraction: yFraction, in: window.frame)
+        // `drag` names its start `fromX`/`fromY`; every other pointer type uses
+        // `x`/`y`. Sending a drag's press under the wrong key is a malformed
+        // action to the parser, not a drag that starts somewhere else.
+        var absolute: [String: JSONValue] = ["type": .string(type)]
+        if type == "drag" {
+            absolute["fromX"] = .double(press.x)
+            absolute["fromY"] = .double(press.y)
+        } else {
+            absolute["x"] = .double(press.x)
+            absolute["y"] = .double(press.y)
+        }
+        if type == "drag" {
+            // A drag is two normalized points of the same window: the press and
+            // the release. Text selection and slider knobs need the travelled
+            // path, which a `click` followed by moves cannot express.
+            guard let toXFraction = object["toXFraction"]?.doubleValue,
+                  let toYFraction = object["toYFraction"]?.doubleValue else {
+                throw AgentSpaceError(
+                    code: .invalidCoordinate, message: "window drag requires toXFraction and toYFraction")
+            }
+            let release = try WindowCoordinateMapper.point(
+                xFraction: toXFraction, yFraction: toYFraction, in: window.frame)
+            absolute["toX"] = .double(release.x)
+            absolute["toY"] = .double(release.y)
+        }
+        for key in ["button", "count", "modifiers", "dx", "dy"] {
+            if let passed = object[key] { absolute[key] = passed }
+        }
+        return try parsed(.object(absolute))
+    }
+
+    private static func parsed(_ value: JSONValue) throws -> InputAction {
+        switch InputAction.parse(value, index: 0) {
+        case .success(let action): return action
+        case .failure(let error): throw error
+        }
+    }
+}

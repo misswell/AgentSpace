@@ -27,4 +27,23 @@ final class InputLeaseTests: XCTestCase {
         XCTAssertFalse(InputAction.key(combo: "cmd+c").isHover)
         XCTAssertFalse(InputAction.type(text: "hi").isHover)
     }
+
+    /// Pointer travel is decoration, not intent: it is only worth posting while
+    /// a human already holds the lease, and asking about it must not extend the
+    /// lease. Otherwise tracking the mouse across a proxy pauses the agent in
+    /// five-second slices for as long as the cursor happens to sit there.
+    func testHoverRidesAnExistingLeaseAndNeverTakesOne() {
+        let lease = InputLeaseManager(duration: 5)
+        let start = Date(timeIntervalSince1970: 500)
+
+        XCTAssertFalse(lease.deliversHover(now: start), "a passive cursor owns nothing")
+        lease.claimHuman(now: start)
+        XCTAssertTrue(lease.deliversHover(now: start.addingTimeInterval(4)))
+
+        // Asking across the whole lease leaves the expiry untouched.
+        for second in 0..<4 { _ = lease.deliversHover(now: start.addingTimeInterval(Double(second))) }
+        XCTAssertEqual(lease.remaining(now: start.addingTimeInterval(4.99)), 0.01, accuracy: 0.001)
+
+        XCTAssertFalse(lease.deliversHover(now: start.addingTimeInterval(5)))
+    }
 }

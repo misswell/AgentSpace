@@ -97,14 +97,30 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    command such as Claude Code into one Start action. The low-level launch and
    exec RPCs already exist.
 2. **Binary capture migration / Desktop performance pass** — Core framing and
-   back-pressure exist, but Desktop and Fusion still pull base64 JPEG over the
-   JSON socket. Move both to a binary frame socket, then tune toward 15 FPS.
+   back-pressure exist, but Desktop and Fusion still pull JPEG over the JSON
+   socket. Fusion no longer re-pays for a frame it already drew
+   (`seenSequence` → `unchanged`, §298 row 632). The socket itself is the part
+   still owed: the takeover-after-the-token-gate design and why it is not
+   shipped are recorded in §298 row 634. Then tune Desktop toward 15 FPS.
 3. **Real-machine acceptance** — connect a manually created standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the
    worker online, and complete the Desktop and Fusion TextEdit gates while the
    main desktop is unaffected. Two Fusion checks are owed by validation §296:
    input against two overlapping windows of one app, and a text selection or
-   slider driven through a proxy.
+   slider driven through a proxy. Six more are owed by §298, all of them the
+   physical half of a claim its code half already passed:
+   - **A — Desktop isolation:** the agent's desktop opens and operates while the
+     human's own windows never move.
+   - **B — single-window Fusion:** one proxy shows exactly one agent window,
+     never the whole display.
+   - **C — two windows of one app:** two proxies drive their own windows, so
+     input cannot land on a sibling.
+   - **D — drag and scroll:** a TextEdit selection plus a trackpad scroll in the
+     same run (rows 629–630).
+   - **E — worker restart:** proxies rebuild, and a human-held button keeps
+     automation at `INPUT_BUSY_BY_HUMAN` for the whole press (row 624).
+   - **F — fast user switch:** the moment the agent's session is the console,
+     capture and input fail closed instead of following the person.
 4. **Multi-account soak** — two attached accounts working concurrently while
    the human continues normal work.
 5. **Fusion V2 surfaces** — transient windows, explicit clipboard bridging and
@@ -131,11 +147,41 @@ The first Fusion vertical slice is now implemented in this tree:
   in place is a click. Direct proxy interaction owns a renewable five-second
   human input lease, but only deliberate interaction claims it — a cursor
   crossing the window does not pause the agent. Normal automation input returns
-  `INPUT_BUSY_BY_HUMAN` during that interval.
+  `INPUT_BUSY_BY_HUMAN` during that interval. The lease is now taken when the
+  button goes *down*, through the additive `window.human.claim`, and renewed
+  while it is held; the passing cursor sends no request at all, and a hover that
+  does arrive is forwarded only inside someone's live lease and without
+  activating or raising anything (§298 rows 620–624).
+- A gesture's button, click count and modifiers ride the same vocabulary
+  `agentspace input` uses: the fraction→point mapping moved into Core as
+  `RemoteWindowInput` and delegates to `InputAction.parse`, which also caught
+  that a proxy drag was about to be rejected for naming its press `x` instead of
+  `fromX` (§298 row 628). Trackpad deltas are accumulated into whole lines
+  instead of rounding to zero, and the proxy's scroll now carries them at all.
+- Pointer travel is state, not a gesture: `PointerTravelCoalescer` keeps one
+  request in flight and only the newest position behind it, drained by the frame
+  timer, so a wave across a proxy cannot queue a hundred stale positions ahead
+  of the click that ends it.
+- An abandoned stream stops itself. `PreviewController` arms a real idle ticker
+  when the source starts and reaps the stream on its own queue — no second pull
+  required, one stop per stream, no residue after a failed start (§298 rows
+  618–619).
+- The window-list poll is a link with states (`connected`, `reconnecting`,
+  `suspended`, `console`, `permissionRequired`) and a 1→2→5 s ladder in
+  `FusionLinkPolicy`. `SESSION_IS_CONSOLE` and `NO_WINDOW_SERVER` are reported
+  as what they are and are never a reconnect storm; a refused poll suspends
+  every live proxy instead of leaving each one pulling, and `FusionSession`
+  stopped discarding its failures.
+- A window that is not moving costs one short line: `window.stream.frame` takes
+  an optional `seenSequence` and answers `unchanged` + `sequence` when the
+  capture has not advanced, while the pull itself still renews the idle clock.
 - Settings now separates Accounts, Permissions, Performance and Advanced.
 - The fixed binary `FrameHeader` and one-slot back-pressure primitive are in
-  Core and tested. The current first-slice app still pulls JPEG through the
-  compatible JSON RPC; the separate binary socket migration remains P8/P9.
+  Core and tested. The separate binary frame socket is still **not** built: its
+  remaining failure modes are descriptor lifetime and authorization on the
+  worker's most security-relevant path, and this host cannot exercise a second
+  account's session (§269, §272) or the clean GUI run (§297). It stays P8/P9,
+  with the plan recorded in §298 row 634.
 
 The code gates can verify protocol, lifecycle and mapping. The defining
 TextEdit cross-session acceptance still requires the attached account's real

@@ -15,8 +15,19 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private var frameInFlight = false
     private var streamFPS = 5
     private var pullsWithoutFrame = 0
+    /// The frame this proxy last drew, so the worker can answer "unchanged"
+    /// instead of shipping the same JPEG again.
+    private var seenSequence = 0
     private var rebuildWork: DispatchWorkItem?
     private var rebuildAttempt = 0
+    /// Pointer travel is state, not a gesture: one request in flight and only
+    /// the newest position behind it, so a wave across the proxy cannot put a
+    /// hundred stale positions in front of the click that follows. Lazy because
+    /// its sender needs `self`, which the window controller cannot hand out
+    /// before `super.init`.
+    private lazy var travel = PointerTravelCoalescer { [weak self] action in
+        Task { @MainActor in self?.perform(action) }
+    }
     /// Gaps between rebuild attempts, so a worker that is restarting — or a
     /// window that vanished — costs a decaying trickle of RPCs, not one per
     /// frame pull.
@@ -43,9 +54,10 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
             "AgentSpace.Fusion.\(space.id.uuidString).\(remoteWindow.pid).\(remoteWindow.id)")
         super.init(window: window)
         window.delegate = self
-        window.contentView = NSHostingView(rootView: FusionWindowView(state: state) { [weak self] action in
-            self?.send(action)
-        })
+        window.contentView = NSHostingView(rootView: FusionWindowView(
+            state: state,
+            send: { [weak self] action in self?.send(action) },
+            claimHuman: { [weak self] in self?.claimHuman() }))
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -70,8 +82,27 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         rebuildWork?.cancel()
         rebuildWork = nil
         pullsWithoutFrame = 0
+        // A position collected for a window that is no longer being watched must
+        // not be posted to the agent afterwards.
+        travel.reset()
         let space = self.space, remote = remoteWindow
         queue.async { SpaceService().windowStreamStop(for: space, window: remote) }
+    }
+
+    /// The session-level link was refused or went away, so this proxy stops
+    /// polling for as long as the link says the worker will not answer.
+    ///
+    /// Deliberately not `stop()`: the `window.stream.stop` RPC would go to the
+    /// same worker that just refused, and the stream is reaped server-side by
+    /// the idle watchdog the moment this proxy stops pulling.
+    func suspend(for error: AgentSpaceError) {
+        timer?.cancel(); timer = nil
+        startingCapture = false
+        rebuildWork?.cancel()
+        rebuildWork = nil
+        pullsWithoutFrame = 0
+        travel.reset()
+        state.error = error
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
@@ -175,19 +206,27 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
 
     private nonisolated func pullFrame() {
         Task { @MainActor [weak self] in
+            guard let self else { return }
+            // Travel that was rate-limited on the last mouse event gets its turn
+            // here: this pump already runs at the stream's frame rate, so a
+            // position can never be older than one frame.
+            self.travel.pump()
             // One outstanding pull at a time: a slow worker must not turn a
             // 15 FPS timer into an unbounded queue of blocking RPCs.
-            guard let self, !self.frameInFlight else { return }
+            guard !self.frameInFlight else { return }
             self.frameInFlight = true
-            let space = self.space, remote = self.remoteWindow
+            let space = self.space, remote = self.remoteWindow, seen = self.seenSequence
             self.queue.async { [weak self] in
-                let result = SpaceService().windowFrame(for: space, window: remote)
+                let result = SpaceService().windowFrame(for: space, window: remote, seenSequence: seen)
                 Task { @MainActor in
                     guard let self else { return }
                     self.frameInFlight = false
                     switch result {
-                    case .success(let image):
-                        self.state.image = image
+                    case .success(let frame):
+                        // An unchanged answer refreshes the stream's liveness and
+                        // draws nothing new, which is what "nothing new" means.
+                        if let image = frame.image { self.state.image = image }
+                        if frame.sequence > 0 { self.seenSequence = frame.sequence }
                         self.state.error = nil
                         self.pullsWithoutFrame = 0
                         self.rebuildAttempt = 0
@@ -209,11 +248,41 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    /// One action toward the agent.
+    ///
+    /// Deliberate gestures go straight onto the proxy's queue, in order. Pointer
+    /// travel goes through the coalescer first: it is the only input that is
+    /// *state*, and a wave across the window would otherwise put a hundred
+    /// stale positions in front of the click that ended it.
     private func send(_ action: JSONValue) {
+        if action["type"]?.stringValue == "move" {
+            travel.offer(action, now: Date())
+            return
+        }
+        perform(action)
+    }
+
+    /// Claim the human lease without performing input. The button is down, so
+    /// the agent's pause starts now rather than when the gesture is posted.
+    private func claimHuman() {
         let space = self.space, remote = remoteWindow
         queue.async { [weak self] in
-            if case .failure(let error) = SpaceService().windowInput(for: space, window: remote, action: action) {
+            if case .failure(let error) = SpaceService().windowClaimHuman(for: space, window: remote) {
                 Task { @MainActor in self?.state.error = error }
+            }
+        }
+    }
+
+    private func perform(_ action: JSONValue) {
+        let space = self.space, remote = remoteWindow
+        queue.async { [weak self] in
+            let result = SpaceService().windowInput(for: space, window: remote, action: action)
+            Task { @MainActor in
+                guard let self else { return }
+                // The travel slot has to be released whether or not the worker
+                // answered, or one failed hover silences the pointer forever.
+                if action["type"]?.stringValue == "move" { self.travel.finished() }
+                if case .failure(let error) = result { self.state.error = error }
             }
         }
     }

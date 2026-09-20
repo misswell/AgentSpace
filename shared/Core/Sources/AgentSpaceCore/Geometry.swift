@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Display geometry in the two coordinate spaces AgentSpace has to keep
@@ -257,5 +258,67 @@ public struct PreviewMapping: Equatable, Sendable {
         let v = displayY / Double(displayHeight)
         guard u >= 0, u <= 1, v >= 0, v <= 1 else { return nil }
         return (x: rect.x + u * rect.width, y: rect.y + v * rect.height)
+    }
+}
+
+/// Which display a window is really on, and how many pixels that display uses
+/// per point.
+///
+/// A capture buffer sized in points is only correct on a 1x panel: on the Retina
+/// display next to it the same request halves the resolution of everything small
+/// enough to matter. With more than one display attached that choice has to be
+/// made per window, which makes it a pure geometry decision — and therefore
+/// testable without a WindowServer.
+public enum DisplayScaleSelection {
+    /// One attached display: where it sits in the global top-left space the
+    /// window list uses, and its pixel-to-point ratio.
+    public struct Candidate: Equatable, Sendable {
+        public var bounds: CGRect
+        public var pixelsPerPoint: Int
+
+        public init(bounds: CGRect, pixelWidth: Int, pointWidth: Int) {
+            self.bounds = bounds
+            // A zero or negative point width is not a display; treat it as 1x
+            // rather than dividing by it.
+            self.pixelsPerPoint = max(1, pixelWidth / max(1, pointWidth))
+        }
+    }
+
+    /// Area of the rectangle two displays and the window share. Disjoint
+    /// rectangles intersect in a null rect, whose negative extents are clamped.
+    public static func overlap(of frame: CGRect, on bounds: CGRect) -> CGFloat {
+        let shared = frame.intersection(bounds)
+        return max(0, shared.width) * max(0, shared.height)
+    }
+
+    /// The display holding the largest part of the window, or `nil` when the
+    /// window touches none of them.
+    ///
+    /// The scan is explicit and the comparison is `>` on purpose: `max(by:)`
+    /// wants an *increasing* comparator, and reading it as "bigger comes first"
+    /// silently returns the smallest overlap — which is how a window that is
+    /// 80% on a Retina panel came to be encoded at the 1x panel's scale.
+    public static func candidate(for frame: CGRect, in candidates: [Candidate]) -> Candidate? {
+        var best: Candidate?
+        var bestOverlap: CGFloat = 0
+        for candidate in candidates {
+            let overlap = self.overlap(of: frame, on: candidate.bounds)
+            if overlap > bestOverlap {
+                best = candidate
+                bestOverlap = overlap
+            }
+        }
+        return best
+    }
+
+    /// Pixels per point for a window: the display it mostly occupies, and
+    /// `fallback` when it occupies none of the candidates.
+    public static func pixelsPerPoint(
+        windowFrame: CGRect, in candidates: [Candidate], fallback: Int = 1
+    ) -> Int {
+        guard let best = candidate(for: windowFrame, in: candidates) else {
+            return max(1, fallback)
+        }
+        return best.pixelsPerPoint
     }
 }

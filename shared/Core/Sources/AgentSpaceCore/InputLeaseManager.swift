@@ -31,4 +31,15 @@ public final class InputLeaseManager: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         return max(0, humanUntil?.timeIntervalSince(now) ?? 0)
     }
+
+    /// Whether pointer travel is worth posting to the agent right now.
+    ///
+    /// A `move` with no button held is the cursor crossing the window, not a
+    /// person taking control. It is forwarded only while a lease someone else
+    /// already took is still live — mid-gesture inside this very proxy — and
+    /// asking never extends that lease, or a hovering cursor would keep the
+    /// agent paused in five-second slices forever.
+    public func deliversHover(now: Date = Date()) -> Bool {
+        remaining(now: now) > 0
+    }
 }

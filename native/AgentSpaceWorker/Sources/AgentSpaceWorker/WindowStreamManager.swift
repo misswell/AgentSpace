@@ -35,6 +35,14 @@ final class WindowStreamManager {
     }
 
     func frame(identity: WindowIdentity, verdict: SessionVerdict) throws -> Data? {
+        try pull(identity: identity, verdict: verdict).data
+    }
+
+    /// Pull, answering `newerThanSequence` when the caller names the frame it
+    /// has already drawn.
+    func pull(
+        identity: WindowIdentity, verdict: SessionVerdict, newerThanSequence seen: Int? = nil
+    ) throws -> PreviewFrameResult {
         lock.lock(); let controller = streams[identity]; lock.unlock()
         guard let controller else {
             throw AgentSpaceError(code: .previewNotRunning, message: "no capture stream is running for this window")
@@ -43,7 +51,7 @@ final class WindowStreamManager {
             throw AgentSpaceError(code: .previewNotRunning, message: "no capture stream is running for this window")
         }
         do {
-            return try controller.frame(sessionVerdict: verdict)
+            return try controller.pull(sessionVerdict: verdict, newerThanSequence: seen)
         } catch {
             stop(identity: identity)
             throw error

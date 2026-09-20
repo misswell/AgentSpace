@@ -178,10 +178,12 @@ final class ProtocolTests: XCTestCase {
             Method.windowList, Method.windowStreamStart, Method.windowStreamFrame,
             Method.windowStreamStop, Method.windowInput, Method.windowActivate,
             Method.windowClose, Method.windowMinimize, Method.windowSetFrame,
+            Method.windowHumanClaim,
         ], [
             "window.list", "window.stream.start", "window.stream.frame",
             "window.stream.stop", "window.input", "window.activate",
             "window.close", "window.minimize", "window.setFrame",
+            "window.human.claim",
         ])
     }
 

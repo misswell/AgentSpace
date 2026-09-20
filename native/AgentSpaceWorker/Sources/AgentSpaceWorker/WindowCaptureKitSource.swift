@@ -11,6 +11,9 @@ final class WindowCaptureFrameSource: NSObject, PreviewFrameSource {
     private let lock = NSLock()
     private var stream: SCStream?
     private var latest: Data?
+    /// Frames produced since this source started, so a proxy can ask for
+    /// "anything newer" and a static window stops paying for a round trip.
+    private var sequence = 0
     private let context = CIContext(options: [.useSoftwareRenderer: false])
 
     init(windowID: UInt32, pid: Int32) {
@@ -76,23 +79,31 @@ final class WindowCaptureFrameSource: NSObject, PreviewFrameSource {
 
     /// Backing scale of the display this window sits on. `CGDisplayBounds` and
     /// the captured window frame share the top-left global space, so the frame
-    /// can be compared with the displays directly; the busiest overlap wins.
-    /// Same pixel-over-points probe `ScreenCaptureFrameSource` uses, so a
-    /// mirrored or scaled panel reports what it actually encodes.
+    /// can be compared with the displays directly; which one wins is Core's
+    /// `DisplayScaleSelection`, because that decision is geometry rather than
+    /// a WindowServer call. A window touching no active display keeps the main
+    /// display's scale.
     private static func pixelsPerPoint(for frame: CGRect) -> Int {
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return 1 }
         var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
         guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return 1 }
-        let visible = displays.filter { CGDisplayIsActive($0) != 0 }
-        guard let best = (visible.isEmpty ? displays : visible).max(by: {
-            area(CGDisplayBounds($0).intersection(frame)) > area(CGDisplayBounds($1).intersection(frame))
-        }), let mode = CGDisplayCopyDisplayMode(best) else { return 1 }
-        return max(1, mode.pixelWidth / max(1, mode.width))
+        let candidates = displays
+            .filter { CGDisplayIsActive($0) != 0 }
+            .compactMap(candidate)
+        return DisplayScaleSelection.pixelsPerPoint(
+            windowFrame: frame, in: candidates, fallback: pixelsPerPoint(of: CGMainDisplayID()))
     }
 
-    private static func area(_ rect: CGRect) -> CGFloat {
-        max(0, rect.width) * max(0, rect.height)
+    private static func candidate(_ display: CGDirectDisplayID) -> DisplayScaleSelection.Candidate? {
+        guard let mode = CGDisplayCopyDisplayMode(display) else { return nil }
+        return DisplayScaleSelection.Candidate(
+            bounds: CGDisplayBounds(display), pixelWidth: mode.pixelWidth, pointWidth: mode.width)
+    }
+
+    private static func pixelsPerPoint(of display: CGDirectDisplayID) -> Int {
+        guard let mode = CGDisplayCopyDisplayMode(display) else { return 1 }
+        return max(1, mode.pixelWidth / max(1, mode.width))
     }
 
     func stop() {
@@ -111,6 +122,11 @@ final class WindowCaptureFrameSource: NSObject, PreviewFrameSource {
         lock.lock(); defer { lock.unlock() }
         return latest
     }
+
+    var frameSequence: Int {
+        lock.lock(); defer { lock.unlock() }
+        return sequence
+    }
 }
 
 extension WindowCaptureFrameSource: SCStreamOutput {
@@ -121,7 +137,7 @@ extension WindowCaptureFrameSource: SCStreamOutput {
         guard let cgImage = context.createCGImage(image, from: image.extent),
               let data = NSBitmapImageRep(cgImage: cgImage).representation(
                 using: .jpeg, properties: [.compressionFactor: 0.58]) else { return }
-        lock.lock(); latest = data; lock.unlock()
+        lock.lock(); latest = data; sequence += 1; lock.unlock()
     }
 }
 

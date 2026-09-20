@@ -59,6 +59,7 @@ struct Operations {
             case Method.windowStreamFrame: return .success(try windowStreamFrame(params: params))
             case Method.windowStreamStop: return .success(try windowStreamStop(params: params))
             case Method.windowInput: return .success(try windowInput(params: params))
+            case Method.windowHumanClaim: return .success(try windowHumanClaim(params: params))
             case Method.windowActivate: return .success(try windowActivate(params: params))
             case Method.windowClose: return .success(try windowAction(params: params, action: .close))
             case Method.windowMinimize: return .success(try windowAction(params: params, action: .minimize))
@@ -735,11 +736,22 @@ struct Operations {
 
     func windowStreamFrame(params: JSONValue) throws -> JSONValue {
         let identity = try windowIdentity(params)
-        guard let data = try windowStreams.frame(
-            identity: identity, verdict: context.sessionVerdict()) else {
+        let seen = params["seenSequence"]?.intValue
+        let frame = try windowStreams.pull(
+            identity: identity, verdict: context.sessionVerdict(), newerThanSequence: seen)
+        guard !frame.unchanged else {
+            // The proxy is already showing exactly this frame. Saying so without
+            // a payload is the whole point: the pull still kept the stream
+            // alive, and an idle window stops costing a JPEG round trip.
+            return .obj(["unchanged": .bool(true), "sequence": .int(frame.sequence)])
+        }
+        guard let data = frame.data else {
             throw AgentSpaceError(code: .previewNotRunning, message: "the window stream has not produced a frame yet")
         }
-        return .obj(["inline": .string(data.base64EncodedString())])
+        return .obj([
+            "inline": .string(data.base64EncodedString()),
+            "sequence": .int(frame.sequence),
+        ])
     }
 
     func windowStreamStop(params: JSONValue) throws -> JSONValue {
@@ -754,12 +766,36 @@ struct Operations {
         }
         let window = try windowCatalog.window(matching: windowIdentity(params))
         let action = try WindowInputRouter.prepare(params: params, window: window)
+        if action.isHover {
+            // Pointer travel is not a person taking control. Forwarding it
+            // anyway would activate the agent's app and raise its window, so
+            // the cursor crossing a proxy in the main session would change
+            // which app the agent is working in — the opposite of isolation.
+            // It is only meaningful while a human already holds the lease,
+            // i.e. mid-gesture inside this very proxy.
+            guard inputLease.deliversHover() else {
+                return .obj(["performed": .int(0), "skipped": .string("hover")])
+            }
+            return .obj(["performed": .int(try WindowInputRouter.perform(action))])
+        }
         try WindowInputRouter.activate(window: window)
-        // A pointer that only passed over the proxy is not a person taking
-        // control; claiming the lease for every moved event would pause the
-        // agent for five seconds at a time, forever.
-        if !action.isHover { inputLease.claimHuman() }
+        inputLease.claimHuman()
         return .obj(["performed": .int(try WindowInputRouter.perform(action))])
+    }
+
+    /// Claim the human lease for a proxy the person is pressing inside.
+    ///
+    /// Deliberately not an input path: it activates nothing and posts nothing.
+    /// A press must be able to pause automation before the gesture it starts is
+    /// complete, and completing a gesture must not depend on this call
+    /// succeeding — `window.input` claims the lease again on its own.
+    func windowHumanClaim(params: JSONValue) throws -> JSONValue {
+        try requireDesktopSession("take control of a Fusion window")
+        // Resolving the identity is what makes a claim expire with its window:
+        // a proxy whose remote window is gone can no longer hold the lease.
+        _ = try windowCatalog.window(matching: windowIdentity(params))
+        inputLease.claimHuman()
+        return .obj(["claimed": .bool(true), "remainingSeconds": .double(inputLease.remaining())])
     }
 
     func windowActivate(params: JSONValue) throws -> JSONValue {

@@ -44,6 +44,12 @@ public enum Method {
     public static let windowStreamFrame = "window.stream.frame"
     public static let windowStreamStop = "window.stream.stop"
     public static let windowInput = "window.input"
+    /// Take the human input lease without performing anything. A proxy press
+    /// claims the lease when the button goes *down*: the gesture it starts may
+    /// last seconds, and automation that keeps posting input until the click
+    /// finally arrives is exactly what a person holding a mouse button expects
+    /// to have stopped.
+    public static let windowHumanClaim = "window.human.claim"
     public static let windowActivate = "window.activate"
     public static let windowClose = "window.close"
     public static let windowMinimize = "window.minimize"
