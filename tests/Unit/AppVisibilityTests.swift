@@ -35,3 +35,22 @@ final class AppVisibilityTests: XCTestCase {
         XCTAssertFalse(AppVisibility.isVisible(policy: "prohibited", pid: 500, windowPids: [501]))
     }
 }
+
+final class AppBundleCompatibilityTests: XCTestCase {
+    func testAnOldGUIRequestsRelaunchAfterTheAppWasReplacedOnDisk() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AgentSpace-bundle-\(UUID().uuidString)")
+        let contents = root.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let plist: [String: Any] = ["CFBundleShortVersionString": "0.1.11"]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: plist, format: .xml, options: 0)
+        try data.write(to: contents.appendingPathComponent("Info.plist"))
+
+        XCTAssertTrue(AppBundleCompatibility.requiresRelaunch(
+            runningVersion: "0.1.10", bundleURL: root))
+        XCTAssertFalse(AppBundleCompatibility.requiresRelaunch(
+            runningVersion: "0.1.11", bundleURL: root))
+    }
+}

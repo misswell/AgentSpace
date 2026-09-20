@@ -229,6 +229,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
             for directory in [
                 HelperCommand.workerInstallRoot,
                 workerVersionDirectory,
+                HelperCommand.workerExecutionRoot,
                 HelperCommand.workerLaunchAgentRoot,
             ] {
                 var isDirectory: ObjCBool = false
@@ -254,10 +255,32 @@ final class HelperService: NSObject, HelperXPCProtocol {
             try fileManager.setAttributes([.posixPermissions: 0o755, .ownerAccountID: 0, .groupOwnerAccountID: 0],
                                           ofItemAtPath: installedWorker)
 
+            // Launch every release from one stable, root-owned path so macOS
+            // TCC keeps one agentspace-worker identity in Privacy settings.
+            // The versioned hard link remains the immutable archive/evidence;
+            // rename atomically swaps what the stable path names while any old
+            // process safely keeps its already-open inode.
+            let stagedWorker = HelperCommand.workerExecutionPath + ".next.\(UUID().uuidString)"
+            defer { try? fileManager.removeItem(atPath: stagedWorker) }
+            guard link(installedWorker, stagedWorker) == 0 else {
+                throw NSError(domain: "AgentSpace.Helper", code: Int(errno), userInfo: [
+                    NSLocalizedDescriptionKey: "could not stage the active worker: \(String(cString: strerror(errno)))",
+                ])
+            }
+            guard rename(stagedWorker, HelperCommand.workerExecutionPath) == 0 else {
+                throw NSError(domain: "AgentSpace.Helper", code: Int(errno), userInfo: [
+                    NSLocalizedDescriptionKey: "could not activate the current worker: \(String(cString: strerror(errno)))",
+                ])
+            }
+            try fileManager.setAttributes(
+                [.posixPermissions: 0o755, .ownerAccountID: 0, .groupOwnerAccountID: 0],
+                ofItemAtPath: HelperCommand.workerExecutionPath)
+
             let plistURL = URL(fileURLWithPath: "\(launchAgents)/\(HelperCommand.workerLabel(spaceID: spaceID)).plist")
             try refuseSymbolicLink(at: plistURL.path)
             let plist = HelperCommand.workerLaunchAgent(
-                spaceID: spaceID, username: username, workerPath: installedWorker, runtimeRoot: runtimeRoot)
+                spaceID: spaceID, username: username,
+                workerPath: HelperCommand.workerExecutionPath, runtimeRoot: runtimeRoot)
             try refuseSymbolicLink(at: canonicalPlist)
             try plist.write(
                 to: URL(fileURLWithPath: canonicalPlist), atomically: true, encoding: .utf8)
@@ -271,7 +294,8 @@ final class HelperService: NSObject, HelperXPCProtocol {
             log.info("installed worker for \(username) at \(installedWorker)")
             return HelperResponse(id: request.id, result: .obj([
                 "username": .string(username),
-                "workerPath": .string(installedWorker),
+                "workerPath": .string(HelperCommand.workerExecutionPath),
+                "versionedWorkerPath": .string(installedWorker),
                 "launchAgentPath": .string(plistURL.path),
                 "canonicalLaunchAgentPath": .string(canonicalPlist),
                 "label": .string(HelperCommand.workerLabel(spaceID: spaceID)),

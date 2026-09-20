@@ -239,6 +239,10 @@ final class HelperValidationTests: XCTestCase {
             path,
             "/Library/Application Support/AgentSpace/Worker/versions/0.1.0/agentspace-worker")
         XCTAssertFalse(path.hasPrefix("/Users/"))
+        XCTAssertEqual(
+            HelperCommand.workerExecutionPath,
+            "/Library/Application Support/AgentSpace/Worker/active/agentspace-worker")
+        XCTAssertFalse(HelperCommand.workerExecutionPath.contains("0.1.0"))
     }
 
     func testStartingWorkerReloadsTheLaunchAgentBeforeKickstart() {

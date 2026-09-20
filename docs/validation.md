@@ -8030,3 +8030,24 @@ a successful restart of stale configuration as an update.
 | 553 | The 0.1.10 app and DMG are signed, notarized, stapled and accepted by Gatekeeper | pass | `scripts/release.sh`; `scripts/notarize.sh`; `dist/AgentSpace.app` and `dist/AgentSpace-0.1.10.dmg` |
 | 554 | The final gate ran 368 Swift tests and the MCP smoke checks before reaching GUI verification | partial | `scripts/check-all.sh`; GUI automation was blocked because the 0.1.9 app remained open in uid 503 and this Codex host lacks Accessibility access to inspect the replacement process |
 | 555 | In-place installation and the live 0.1.3 → 0.1.10 process-path check require the attached account to quit its open 0.1.9 AgentSpace process first | blocked | uid 503 pid 4501 holds `/Applications/AgentSpace.app`; macOS refused overwriting its signed executable, leaving the verified 0.1.9 installation intact |
+
+## 290. Recover a mixed-version GUI and keep one worker identity (2026-09-20)
+
+The AgentUse session kept its GUI process alive while `/Applications/AgentSpace.app`
+was replaced. The process still executed the old mapped image but loaded resources
+from the new bundle, leaving the target-account panel unresponsive. The same
+inspection found exactly one live worker, already at 0.1.10; the apparent duplicate
+was not two workers serving the runtime. Future mixed-version GUI processes now
+terminate when their session becomes active, so reopening starts one coherent build.
+
+Versioned worker binaries remain as root-owned release archives, but every
+LaunchAgent now executes one atomically replaced root-owned active hard link.
+That stable path prevents each upgrade from introducing another same-named worker
+identity in macOS Privacy settings while retaining auditable versioned binaries.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 556 | The reported machine has one live AgentUse worker rather than two servers | pass | live assertion: one `agentuse` worker PID 27588; `worker.pid` and `status.json.pid` agree; CLI reports one ready account |
+| 557 | A GUI whose on-disk bundle version differs from its compiled version exits on activation instead of continuing in a mixed state | pass | `AppBundleCompatibility`; `OpenLinkDelegate.applicationDidBecomeActive`; `AppBundleCompatibilityTests` |
+| 558 | Worker releases remain root-owned and versioned while LaunchAgents execute one stable path | pass | `HelperCommand.workerInstallPath`, `workerExecutionPath`; helper stages a hard link and atomically renames it |
+| 559 | The stable worker path and stale-GUI detection have focused regression coverage | pass | `HelperValidationTests.testInstalledWorkerPathIsRootOwnedAndOutsideTheAgentHome`; `AppBundleCompatibilityTests.testAnOldGUIRequestsRelaunchAfterTheAppWasReplacedOnDisk` |

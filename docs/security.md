@@ -325,8 +325,10 @@ inheritable ACL entries for exactly the controller and attached users.
 
 Before binding, the worker verifies the directory exists, is a directory, has
 the expected owner and restrictive mode, and carries both named inherited ACL
-entries. A socket ACL failure is fatal. The worker executable is root-owned mode
-0755 beneath `Worker/versions/<version>`, outside every attached user's home.
+entries. A socket ACL failure is fatal. Each worker release is archived as a
+root-owned mode-0755 file beneath `Worker/versions/<version>`. LaunchAgents use
+the atomically replaced root-owned `Worker/active/agentspace-worker` hard link,
+which keeps one stable TCC identity outside every attached user's home.
 
 ### 7. What a reviewer should check first
 

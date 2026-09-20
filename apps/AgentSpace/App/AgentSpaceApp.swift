@@ -138,6 +138,17 @@ final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
+        // An app can remain alive in another Fast User Switching session while
+        // /Applications is replaced. Its old executable then reads new bundle
+        // resources and SwiftUI can wedge. Exit that mixed-version process as
+        // soon as its session becomes active; reopening uses the installed app.
+        if AppBundleCompatibility.requiresRelaunch(
+            runningVersion: agentSpaceVersion,
+            bundleURL: Bundle.main.bundleURL) {
+            NSApp.terminate(nil)
+            return
+        }
+
         // AppKit's fallback for a URL event that no scene claims is to open
         // another WindowGroup instance; a launch-time backlog of agentspace://
         // re-deliveries therefore produced N identical windows before any

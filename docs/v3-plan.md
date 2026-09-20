@@ -75,6 +75,7 @@ Unknown or unprovable state fails closed.
 ```text
 /Library/Application Support/AgentSpace/
   Worker/versions/<version>/agentspace-worker
+  Worker/active/agentspace-worker
   Runtime/<account-id>/
     worker.sock
     token

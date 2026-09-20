@@ -413,6 +413,8 @@ public enum HelperCommand {
     public static let chown = "/usr/sbin/chown"
     public static let mkdir = "/bin/mkdir"
     public static let workerInstallRoot = "/Library/Application Support/AgentSpace/Worker/versions"
+    public static let workerExecutionRoot = "/Library/Application Support/AgentSpace/Worker/active"
+    public static let workerExecutionPath = "\(workerExecutionRoot)/agentspace-worker"
     public static let workerLaunchAgentRoot = "/Library/Application Support/AgentSpace/Worker/LaunchAgents"
 
     /// Root-owned, versioned worker location. The version is a build constant,

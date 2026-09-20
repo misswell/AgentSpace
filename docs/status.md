@@ -60,6 +60,7 @@ The runtime layout is now:
 ```text
 /Library/Application Support/AgentSpace/
   Worker/versions/<version>/agentspace-worker   root:wheel 0755
+  Worker/active/agentspace-worker               root:wheel 0755
   Runtime/<account-id>/                         0700 + inheritable ACL
   Spaces/index.json
   Logs/
