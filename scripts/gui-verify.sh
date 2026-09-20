@@ -69,6 +69,60 @@ on findById(theWindow, wantedId, theClass, theDepth)
 end findById
 APPLESCRIPT
 
+# Every check below reads the accessibility tree of a window the app puts on
+# screen, and a locked console session orders no window on screen for anything:
+# not for the app under test, and not for TextEdit either. Without this guard the
+# run reports seven failures — indistinguishable from seven product regressions —
+# when the machine is simply not presenting windows. It refuses instead, and it
+# refuses before touching the running app, because there is nothing to verify and
+# no reason to disturb the user's session for it. It never tries to unlock.
+#
+# Same probe the worker's own console guard uses, and the same documented trap:
+# the dictionary carries `kCGSSessionOnConsoleKey` (two S's), not the
+# documented-flavoured single-S spelling. Undetermined is refused: a session
+# state nobody can read is exactly when a green check would mean nothing.
+#
+# The values are read as booleans-or-numbers rather than as Swift `Bool`,
+# because CoreGraphics hands back CFBoolean for one key and CFNumber for the
+# other. A flag that cannot be read is treated as "not presenting".
+SESSION_STATE="$(xcrun swift - 2>/dev/null <<'SWIFT'
+import CoreGraphics
+import Foundation
+func flag(_ value: Any?) -> Bool? {
+    if let b = value as? Bool { return b }
+    if let n = value as? NSNumber { return n.intValue != 0 }
+    if let i = value as? Int { return i != 0 }
+    return nil
+}
+guard let d = CGSessionCopyCurrentDictionary() as? [String: Any] else {
+    print("unknown"); exit(0)
+}
+let console = flag(d["kCGSSessionOnConsoleKey"]) ?? flag(d["kCGSessionOnConsoleKey"])
+let locked = flag(d["CGSSessionScreenIsLocked"]) ?? false
+if console != true { print("off-console") } else if locked { print("locked") } else { print("presenting") }
+SWIFT
+)"
+case "${SESSION_STATE:-unknown}" in
+  presenting) ;;
+  locked)
+    rm -rf "$GUI_ROOT"
+    echo "gui-verify: refusing to run — the console session's screen is LOCKED, so no" >&2
+    echo "  app can put a window on screen and every accessibility read would come back" >&2
+    echo "  empty. That is the machine, not the build. Unlock the screen and re-run." >&2
+    exit 1 ;;
+  off-console)
+    rm -rf "$GUI_ROOT"
+    echo "gui-verify: refusing to run — this session is not on the console, so its" >&2
+    echo "  windows are not being presented and nothing here could be observed." >&2
+    exit 1 ;;
+  *)
+    rm -rf "$GUI_ROOT"
+    echo "gui-verify: refusing to run — the session's console state could not be read," >&2
+    echo "  and a verification that cannot say what it observed says nothing." >&2
+    exit 1 ;;
+esac
+note "session presenting windows ($SESSION_STATE)"
+
 # The test replaces the running app; if it was open before, hand it back at
 # the end — as a normal launch, in the user's own system language.
 #

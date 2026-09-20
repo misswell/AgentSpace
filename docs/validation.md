@@ -8170,7 +8170,9 @@ suite, the notarization guard), and the two GUI assertions above are
 environment-dependent — one because a second agent holds the app, one because the
 helper was being reinstalled while the run was in flight. It has not been
 observed 7/7 this round, so the next quiet-machine run must be the one that says
-so.
+so. §297 later found a third cause, harsher than these two: once this host's
+console locked at 19:18:47, *no* run could report anything at all — 0 passed, 7
+failed, for a build with nothing wrong.
 
 ---
 
@@ -8235,3 +8237,24 @@ That cannot be executed on this machine — `Operations.windowInput` refuses a
 console session by design (row 592) and macOS here will not host the second
 account session (§269, §272). It stays on `docs/status.md`'s real-machine
 acceptance list rather than being recorded as passed.
+
+## 297. The GUI gate must refuse a locked console instead of reporting seven product failures (2026-09-20)
+
+`scripts/gui-verify.sh` scores the release build 0 passed / 7 failed on this
+host, and the number is meaningless: every check drives a window through the
+accessibility tree, and a locked console orders no window on screen for any app.
+The gate now says so and exits before it touches anything, because seven empty
+reads in a row are otherwise indistinguishable from seven regressions — this
+round they were traced to the machine, not to 0.1.16.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 615 | The 0/7 run was the console being locked, not the build failing | pass (environment) | `loginwindow[414]` sent `sendScreenLockedNotification` at `2026-09-20 19:18:47.206` and no `sendScreenUnlockedNotification` after it (last unlock 18:51:19.285), so the console was already locked when the gate ran. `CGSessionCopyCurrentDictionary()` reads `kCGSSessionOnConsoleKey = 1, CGSSessionScreenIsLocked = 1`, and `CGWindowListCopyWindowInfo(.optionOnScreenOnly, .excludeDesktopElements)` returns 7 windows for the whole session belonging to Window Server (4), loginwindow's own lock UI (2) and a crash reporter (1) — *zero* for every regular app, Finder included. The same script scored 5/7 at 16:47, before the lock, and its two failures were §293's known "the only window was the account viewer" pair |
+| 616 | The refusal happens before the gate touches the running app, and it never tries to unlock | pass | The probe sits above the `WAS_RUNNING_APP` scan and the uid-scoped `pkill`, so a refused run kills nothing and hands back nothing it displaced. A live `bash scripts/gui-verify.sh` under the locked screen printed the refusal and exited 1, left no `/tmp/gui-verify-root.*` behind, and the only AgentSpace process on the machine afterwards was the attached account's own (`pid 81059`, `/Applications/AgentSpace.app`, uid 503) — untouched, as the uid-scoped kill guarantees. Nothing in the path writes a lock-state API or asks for a password |
+| 617 | Console and lock flags are read regardless of representation, and undetermined fails closed | pass | The session dictionary carries CFBoolean for one key and CFNumber for the other, so `flag(_:)` accepts `Bool`, `NSNumber` and `Int`; an earlier draft that only cast `as? Bool` classified a numeric `kCGSSessionOnConsoleKey = 1` as `off-console`, i.e. refused a healthy session. Both documented key spellings (`kCGSSessionOnConsoleKey` with two S's, and the single-S name that appears in headers) are tried, and a `nil` dictionary or a missing console key yields a refusal, not a green check: `nil` → `unknown` → refuse, `console=1/unlocked` → `presenting` → run, `console=1/locked` → `locked` → refuse, `console=0` → `off-console` → refuse |
+
+Row 615 does not establish that the seven checks pass — only that the locked
+console can never show them passing. The 7/7 run `docs/status.md` still owes is
+gated on the owner unlocking this screen; a run that refuses is now evidence
+about the machine, and a run that reports `ok` seven times will be the first
+that means it.

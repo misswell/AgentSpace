@@ -156,6 +156,14 @@ scripts/check-all.sh
 For official `dist/`, always run `scripts/release.sh` and then
 `scripts/notarize.sh`; `check-all.sh` intentionally rejects an unstapled app.
 
+`scripts/gui-verify.sh` refuses to run when the console is not presenting
+windows — locked screen, fast-user-switched away, or session state it cannot
+read — because all seven of its checks read an accessibility tree that a locked
+session leaves empty. That refusal (`exit 1`, "the console session's screen is
+LOCKED") is validation §297: it is an environment verdict, not a build verdict,
+and it is a different result from seven failures. Establish the 7/7 run on an
+unlocked console.
+
 ## Compatibility rules
 
 - Registry top-level key remains `"spaces"`; existing records decode without
