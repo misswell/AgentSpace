@@ -8039,15 +8039,21 @@ from the new bundle, leaving the target-account panel unresponsive. The same
 inspection found exactly one live worker, already at 0.1.10; the apparent duplicate
 was not two workers serving the runtime. Future mixed-version GUI processes now
 terminate when their session becomes active, so reopening starts one coherent build.
+The already-running pre-0.1.11 GUI cannot execute this new recovery code: quit it
+from the AgentUse session (or log that account out) once, then reopen AgentSpace.
 
 Versioned worker binaries remain as root-owned release archives, but every
 LaunchAgent now executes one atomically replaced root-owned active hard link.
 That stable path prevents each upgrade from introducing another same-named worker
 identity in macOS Privacy settings while retaining auditable versioned binaries.
+The first move to the stable path may create one new Privacy entry. AgentSpace never
+edits the TCC database, so historical entries for versioned paths can remain visible;
+after 0.1.11 is installed, remove or disable obsolete entries in System Settings and
+authorize the active worker entry once.
 
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
 | 556 | The reported machine has one live AgentUse worker rather than two servers | pass | live assertion: one `agentuse` worker PID 27588; `worker.pid` and `status.json.pid` agree; CLI reports one ready account |
-| 557 | A GUI whose on-disk bundle version differs from its compiled version exits on activation instead of continuing in a mixed state | pass | `AppBundleCompatibility`; `OpenLinkDelegate.applicationDidBecomeActive`; `AppBundleCompatibilityTests` |
+| 557 | Starting with 0.1.11, a GUI whose on-disk bundle version differs from its compiled version exits on activation instead of continuing in a mixed state; an already-running older GUI requires one manual quit or logout | pass | `AppBundleCompatibility`; `OpenLinkDelegate.applicationDidBecomeActive`; `AppBundleCompatibilityTests`; recovery limitation recorded above |
 | 558 | Worker releases remain root-owned and versioned while LaunchAgents execute one stable path | pass | `HelperCommand.workerInstallPath`, `workerExecutionPath`; helper stages a hard link and atomically renames it |
 | 559 | The stable worker path and stale-GUI detection have focused regression coverage | pass | `HelperValidationTests.testInstalledWorkerPathIsRootOwnedAndOutsideTheAgentHome`; `AppBundleCompatibilityTests.testAnOldGUIRequestsRelaunchAfterTheAppWasReplacedOnDisk` |

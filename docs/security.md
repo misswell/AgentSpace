@@ -328,7 +328,10 @@ the expected owner and restrictive mode, and carries both named inherited ACL
 entries. A socket ACL failure is fatal. Each worker release is archived as a
 root-owned mode-0755 file beneath `Worker/versions/<version>`. LaunchAgents use
 the atomically replaced root-owned `Worker/active/agentspace-worker` hard link,
-which keeps one stable TCC identity outside every attached user's home.
+which gives releases from 0.1.11 onward one stable execution path outside every
+attached user's home. Moving to that path may create a new TCC entry once. Older
+versioned-path entries are macOS-owned history and may remain visible until the
+user removes or disables them in System Settings; AgentSpace never edits TCC.
 
 ### 7. What a reviewer should check first
 
