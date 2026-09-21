@@ -4,12 +4,15 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-21 on `master`. Current public release: `0.1.22`
-(`v0.1.22`, annotated at the `Release: 0.1.22` commit; notarized DMG attached to
-the GitHub Release, its uploaded digest verified against the gated file at §308
-row 748). `0.1.23` is in the tree and gated only by its automated half: the frame
-engine has a **second** bug behind the first one, and fixing the name only moved
-the error to `shared frame notice does not match its mapping` (§309 row 749).
+Last updated: 2026-09-21 on `master`. Current public release: `0.1.23`
+(`v0.1.23`, annotated at the last commit of the tree the bundle was built from;
+notarized DMG attached to the GitHub Release, its uploaded digest verified byte
+for byte against the gated file — §310 row 773). It was published **with the
+physical frame gates still open**, on the owner's instruction, and the release
+notes say so in their own section rather than implying a desktop that had been
+looked at. The previous release, `0.1.22`, fixed the shared-memory name and left
+the picture broken one step later: fixing the name only moved the error to
+`shared frame notice does not match its mapping` (§309 row 749).
 Two causes, both recorded in §309: a shared frame buffer has two sizes — the
 logical layout both ends must agree on, and Darwin's page-rounded `st_size` the
 kernel reports for the same object — and v0.1.22's viewer laid the region out
