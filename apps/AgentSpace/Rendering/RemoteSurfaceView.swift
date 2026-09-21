@@ -150,7 +150,7 @@ class RemoteSurfaceNSView: NSView {
                 let sourceOffset = Int(patch.payloadOffset)
                 let patchRowBytes = Int(patch.bytesPerRow)
                 guard sourceOffset >= 0,
-                      sourceOffset + Int(patch.payloadLength) <= mapping.size,
+                      sourceOffset + Int(patch.payloadLength) <= mapping.mappedSize,
                       Int(patch.x + patch.width) <= width,
                       Int(patch.y + patch.height) <= height else { return false }
                 for row in 0..<Int(patch.height) {

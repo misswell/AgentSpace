@@ -23,4 +23,20 @@ final class SharedFrameLayoutTests: XCTestCase {
     func testRejectsMalformedDescriptorBytes() {
         XCTAssertThrowsError(try SharedPatchDescriptor(decoding: Data(repeating: 0, count: 3)))
     }
+
+    /// The reader's half of a fact this engine learned from a real desktop: the
+    /// size of the object it was handed is the writer's size *rounded up* by the
+    /// kernel, so the layout can only be recovered from the number the writer
+    /// put in the notice.
+    func testPayloadCapacityIsTheExactInverseOfRegionSize() {
+        for capacity in [0, 1, 4096, 1_112_960, 3024 * 1964 * 4] {
+            XCTAssertEqual(SharedFrameLayout.payloadCapacity(forRegionSize: SharedFrameLayout.regionSize(payloadCapacity: capacity)), capacity)
+        }
+    }
+
+    func testRejectsASizeThatIsNotTwoIdenticalSlots() {
+        XCTAssertNil(SharedFrameLayout.payloadCapacity(forRegionSize: SharedFrameLayout.regionSize(payloadCapacity: 0) + 1), "an odd region cannot split into two equal slots")
+        XCTAssertNil(SharedFrameLayout.payloadCapacity(forRegionSize: 0))
+        XCTAssertNil(SharedFrameLayout.payloadCapacity(forRegionSize: 4), "two slots' worth of metadata does not fit, so this is not a region")
+    }
 }

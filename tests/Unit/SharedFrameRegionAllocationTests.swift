@@ -151,6 +151,29 @@ final class SharedFrameRegionAllocationTests: XCTestCase {
         }
     }
 
+    /// What the viewer lays a region out by, measured on a region the real
+    /// allocator made.
+    ///
+    /// `st_size` on the descriptor is the requested size *rounded up* (measured
+    /// here: a 4 KiB request reports 16 KiB), so a reader that derived the slot
+    /// layout from it would compute a second slot the writer never wrote — a
+    /// corrupted picture rather than an error. This is the pairing the Desktop
+    /// viewer died on once the name itself was short enough to open.
+    func testARealRegionIsLaidOutByItsOwnSizeNotByWhatTheKernelReported() throws {
+        let region = try SharedFrameRegion(width: 1, height: 1, surfaceGeneration: 1)
+        var info = stat()
+        XCTAssertEqual(fstat(region.fd, &info), 0)
+        let objectSize = Int(info.st_size)
+        XCTAssertGreaterThanOrEqual(objectSize, region.size, "the kernel never gives less than was asked for")
+        XCTAssertEqual(SharedFrameLayout.payloadCapacity(forRegionSize: region.size), region.payloadCapacity,
+                       "the writer's capacity has to survive the round trip through the notice")
+        guard objectSize != region.size else {
+            return XCTFail("this region's size happened not to be rounded up, so it cannot show what rounding does — pick a width and height whose region is not 16 KiB aligned")
+        }
+        XCTAssertNotEqual(SharedFrameLayout.payloadCapacity(forRegionSize: objectSize), region.payloadCapacity,
+                          "deriving the layout from st_size is the bug, not a second opinion")
+    }
+
     /// Create a name and keep it busy, so a later `O_EXCL` on it answers EEXIST.
     private func hold(_ name: String) throws -> Int32 {
         let attempt = shmOpen(name, O_CREAT | O_EXCL | O_RDWR)
