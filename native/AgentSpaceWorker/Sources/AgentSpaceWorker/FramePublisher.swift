@@ -71,6 +71,7 @@ private final class FrameSurfaceRouter {
         }
         let area = max(1, surface.width * surface.height)
         let ratio = min(1, Double(surface.dirtyRects.reduce(UInt64(0)) { $0 + $1.area }) / Double(area))
+        shared.noteCaptured(damageRatio: ratio)
         let now = FrameClock.uptime(); let elapsed = now - lastTime; lastTime = now
         let requested: FrameDeliveryMode
         switch preference { case .delta: requested = .delta; case .video: requested = .video; case .auto: requested = mode.observe(damageRatio: ratio, elapsed: elapsed) }

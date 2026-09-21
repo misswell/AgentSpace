@@ -133,13 +133,24 @@ final class SharedFramePublisher {
             let now = FrameClock.uptime()
             let replaced = self.latest.storeReplacing(surface)
             self.damage.merge(surface.dirtyRects, frameWidth: UInt32(surface.width), frameHeight: UInt32(surface.height))
-            self.captureRate.record(now)
-            self.stats.framesCaptured &+= 1
             if replaced { self.stats.framesDropped &+= 1; self.stats.framesMerged &+= 1 }
-            let full = max(1, surface.width * surface.height)
-            let ratio = min(1, Double(surface.dirtyRects.reduce(UInt64(0)) { $0 + $1.area }) / Double(full))
-            self.stats.dirtyRatio = self.stats.dirtyRatio == 0 ? ratio : (0.8 * self.stats.dirtyRatio + 0.2 * ratio)
             self.publishIfPossible(capturedAt: now)
+        }
+    }
+
+    /// A surface arrived from the capture, whichever path its pixels take next.
+    ///
+    /// This counter used to sit inside `receive`, which is only the shared-pixel
+    /// path, so a stream that switched to H.264 kept publishing, kept being
+    /// acknowledged, and reported `framesCaptured` and `captureFPS` frozen at the
+    /// last delta frame. The capture rate belongs to the capture, so the router
+    /// records it before it chooses a path — and hands over the damage ratio it
+    /// already measured rather than deriving it a second time.
+    func noteCaptured(damageRatio: Double) {
+        queue.async {
+            self.captureRate.record(FrameClock.uptime())
+            self.stats.framesCaptured &+= 1
+            self.stats.dirtyRatio = self.stats.dirtyRatio == 0 ? damageRatio : (0.8 * self.stats.dirtyRatio + 0.2 * damageRatio)
         }
     }
 
