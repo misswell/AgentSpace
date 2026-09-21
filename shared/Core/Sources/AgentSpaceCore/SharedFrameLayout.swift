@@ -70,19 +70,6 @@ public enum SharedFrameLayout {
     public static func regionSize(payloadCapacity: Int) -> Int { slotCount * slotSize(payloadCapacity: payloadCapacity) }
     public static func slotOffset(_ slot: Int, payloadCapacity: Int) -> Int { slot * slotSize(payloadCapacity: payloadCapacity) }
 
-    /// The inverse of `regionSize(payloadCapacity:)`.
-    ///
-    /// This is how a viewer recovers the layout of a region it did not allocate:
-    /// the size it can read off the descriptor is the number the writer asked for
-    /// *rounded up* by the kernel, so deriving a layout from it puts slot 1 at an
-    /// offset the writer never wrote. The writer's own number travels in every
-    /// notice, and this is what turns it back into a capacity.
-    public static func payloadCapacity(forRegionSize size: Int) -> Int? {
-        guard size % slotCount == 0 else { return nil }
-        let capacity = (size / slotCount) - slotMetadataSize
-        return capacity >= 0 ? capacity : nil
-    }
-
     public static func validate(header: SharedFrameSlotHeader, patches: [SharedPatchDescriptor], regionSize: Int) throws {
         guard patches.count == Int(header.patchCount), patches.count <= maximumPatchCount else { throw AgentSpaceError(code: .badRequest, message: "shared frame patch count mismatch") }
         for patch in patches {

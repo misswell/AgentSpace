@@ -53,8 +53,12 @@ public final class SharedFrameRegion {
 
     public let fd: Int32
     public let pointer: UnsafeMutableRawPointer
-    public let size: Int
-    public let payloadCapacity: Int
+    /// The layout both ends agree on, computed once and carried by the object.
+    /// `fstat` on `fd` reports a *larger* number than `geometry.regionSize`
+    /// whenever the kernel rounded the object up; nothing here is derived from it.
+    public let geometry: SharedFrameGeometry
+    public var size: Int { geometry.regionSize }
+    public var payloadCapacity: Int { geometry.payloadCapacity }
     public let surfaceGeneration: UInt64
 
     public convenience init(width: Int, height: Int, surfaceGeneration: UInt64) throws {
@@ -67,16 +71,11 @@ public final class SharedFrameRegion {
     /// stream leaks an object into the global namespace, and nothing short of
     /// handing the allocator a name reaches them.
     init(width: Int, height: Int, surfaceGeneration: UInt64, makeName: () -> String) throws {
-        let pixels = width.multipliedReportingOverflow(by: height)
-        let bytes = pixels.partialValue.multipliedReportingOverflow(by: 4)
-        guard width > 0, height > 0, !pixels.overflow, !bytes.overflow else {
-            throw AgentSpaceError(code: .badRequest, message: "invalid shared surface dimensions")
-        }
-        let regionSize = SharedFrameLayout.regionSize(payloadCapacity: bytes.partialValue)
+        let geometry = try SharedFrameGeometry.make(width: width, height: height)
+        let regionSize = geometry.regionSize
         let allocation = try Self.allocate(regionSize: regionSize, makeName: makeName)
         self.fd = allocation.fd
-        self.size = regionSize
-        self.payloadCapacity = bytes.partialValue
+        self.geometry = geometry
         self.surfaceGeneration = surfaceGeneration
         let mapped = mmap(nil, regionSize, PROT_READ | PROT_WRITE, MAP_SHARED, allocation.fd, 0)
         guard mapped != MAP_FAILED else {
@@ -94,7 +93,7 @@ public final class SharedFrameRegion {
     deinit { munmap(pointer, size); Darwin.close(fd) }
 
     public func slotPointer(_ slot: Int) -> UnsafeMutableRawPointer {
-        pointer.advanced(by: SharedFrameLayout.slotOffset(slot, payloadCapacity: payloadCapacity))
+        pointer.advanced(by: geometry.slotOffset(slot))
     }
 
     // MARK: Allocation

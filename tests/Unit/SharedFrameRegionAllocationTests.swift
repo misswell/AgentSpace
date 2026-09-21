@@ -72,22 +72,26 @@ final class SharedFrameRegionAllocationTests: XCTestCase {
         XCTAssertEqual(attempts, 3, "the budget is the number of names tried")
     }
 
-    /// The rule this file exists around: a failure must not leave a named object
-    /// behind. Reached here with a size the kernel will let a name exist for and
-    /// refuse to map — one pebibyte — so `mmap` really fails, and what is asserted
-    /// afterwards is what the namespace looks like afterwards.
-    func testMappingFailureUnlinksTheNameItOpened() {
+    /// The rule this file exists around — a failure must not leave a named object
+    /// behind — at the stage a too-large frame now fails at.
+    ///
+    /// Its premise moved with the layout. This used to reach `mmap` with a region
+    /// sized by the caller and let the kernel refuse it (measured here: `ftruncate`
+    /// accepts a 1 PiB object, `mmap` answers `ENOMEM`). Now the size comes from
+    /// `SharedFrameGeometry`, which refuses anything the notice could not name
+    /// before the first syscall — so the object is never created, and the namespace
+    /// assertion is the same one as before while the stage that earns it is earlier.
+    func testAMappingTheWireCannotNameNeverReachesTheNamespace() {
         let probe = "/as-test-mapfailure"
         shm_unlink(probe)
         let pixels = 1 << 24
         XCTAssertThrowsError(try SharedFrameRegion(width: pixels, height: pixels, surfaceGeneration: 1, makeName: { probe })) { error in
-            guard let failure = error as? SharedFrameAllocationError else { return XCTFail("not an allocation failure: \(error)") }
-            XCTAssertEqual(failure.operation, .map)
-            XCTAssertEqual(failure.systemErrorCode, ENOMEM, "expected the kernel to refuse a 1 PiB mapping")
-            XCTAssertEqual(failure.requestedBytes, SharedFrameLayout.regionSize(payloadCapacity: pixels &* pixels &* 4))
+            guard let refusal = error as? AgentSpaceError else { return XCTFail("not a geometry refusal: \(error)") }
+            XCTAssertEqual(refusal.code, .badRequest)
+            XCTAssertEqual(refusal.message, "shared frame mapping is too large")
         }
         let reopened = shmOpen(probe, O_RDWR)
-        XCTAssertLessThan(reopened.descriptor, 0, "a failed allocation left its name in the namespace")
+        XCTAssertLessThan(reopened.descriptor, 0, "a refused stream left an object nobody owns")
         XCTAssertEqual(reopened.code, ENOENT)
     }
 
@@ -159,19 +163,20 @@ final class SharedFrameRegionAllocationTests: XCTestCase {
     /// layout from it would compute a second slot the writer never wrote — a
     /// corrupted picture rather than an error. This is the pairing the Desktop
     /// viewer died on once the name itself was short enough to open.
-    func testARealRegionIsLaidOutByItsOwnSizeNotByWhatTheKernelReported() throws {
+    func testARealRegionIsLaidOutByItsGeometryNotByWhatTheKernelReported() throws {
         let region = try SharedFrameRegion(width: 1, height: 1, surfaceGeneration: 1)
         var info = stat()
         XCTAssertEqual(fstat(region.fd, &info), 0)
         let objectSize = Int(info.st_size)
         XCTAssertGreaterThanOrEqual(objectSize, region.size, "the kernel never gives less than was asked for")
-        XCTAssertEqual(SharedFrameLayout.payloadCapacity(forRegionSize: region.size), region.payloadCapacity,
-                       "the writer's capacity has to survive the round trip through the notice")
+        XCTAssertEqual(region.geometry, try SharedFrameGeometry.make(width: 1, height: 1),
+                       "the writer's layout has to be exactly what the reader derives from the same dimensions")
         guard objectSize != region.size else {
             return XCTFail("this region's size happened not to be rounded up, so it cannot show what rounding does — pick a width and height whose region is not 16 KiB aligned")
         }
-        XCTAssertNotEqual(SharedFrameLayout.payloadCapacity(forRegionSize: objectSize), region.payloadCapacity,
-                          "deriving the layout from st_size is the bug, not a second opinion")
+        let offsetFromRoundedSize = SharedFrameLayout.slotOffset(1, payloadCapacity: objectSize / SharedFrameLayout.slotCount - SharedFrameLayout.slotMetadataSize)
+        XCTAssertGreaterThan(offsetFromRoundedSize, region.geometry.slotOffset(1),
+                             "a layout derived from st_size points at bytes the writer never wrote, which is the bug rather than a second opinion")
     }
 
     /// Create a name and keep it busy, so a later `O_EXCL` on it answers EEXIST.

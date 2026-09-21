@@ -7,6 +7,11 @@ public struct SharedFrameNotice: Equatable, Sendable {
     public var frameKind: SharedFrameKind
     public var patchCount: UInt16
     public var baseSequence: UInt64
+    /// The writer's *logical* region size — `SharedFrameGeometry.regionSize`, the
+    /// number the layout is computed from. This is deliberately not what `fstat`
+    /// reports for the same object: Darwin may round a POSIX shm object up, so the
+    /// mapping a viewer ends up with can be larger than this and still be the
+    /// right one. Comparing the two is what made a healthy stream look corrupt.
     public var mappingSize: UInt32
 
     public init(surfaceGeneration: UInt64, slotIndex: UInt16, frameKind: SharedFrameKind, patchCount: UInt16, baseSequence: UInt64, mappingSize: UInt32) {

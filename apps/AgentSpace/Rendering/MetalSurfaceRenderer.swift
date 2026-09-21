@@ -76,7 +76,7 @@ final class MetalSurfaceRenderer {
         defer { FrameSignpost.end(upload) }
         for patch in patches {
             let offset = Int(patch.payloadOffset), length = Int(patch.payloadLength)
-            guard offset >= 0, length >= 0, offset + length <= mapping.mappedSize else { return .refused }
+            guard offset >= 0, length >= 0, offset + length <= mapping.mappedCapacity else { return .refused }
             texture.replace(region: MTLRegionMake2D(Int(patch.x), Int(patch.y), Int(patch.width), Int(patch.height)), mipmapLevel: 0, withBytes: mapping.pointer.advanced(by: offset), bytesPerRow: Int(patch.bytesPerRow))
         }
         // Returning from that loop is the point at which the slot stopped being
