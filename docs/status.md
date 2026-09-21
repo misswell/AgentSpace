@@ -6,7 +6,8 @@ Read this first when resuming AgentSpace. The binding product direction is
 
 Last updated: 2026-09-21 on `master`. Current public release: `0.1.22`
 (`v0.1.22`, annotated at the `Release: 0.1.22` commit; notarized DMG attached to
-the GitHub Release). It is a one-bug release with a diagnostics tail: the frame
+the GitHub Release, its uploaded digest verified against the gated file at §308
+row 748). It is a one-bug release with a diagnostics tail: the frame
 engine named each shared buffer `/agentspace-<full UUID>` — 48 bytes against
 Darwin's **measured 31-byte** `shm_open` limit — so every Desktop window and
 Fusion pane failed at the first syscall with `shm_open failed: File name too
@@ -15,7 +16,7 @@ and did not move (§308 rows 730/736/741). It also carries the encoder-fallback,
 key-frame, stale-ACK and refused-resize fixes recorded in §308 rows 737–740.
 **The fix is in the worker, not the app**: this Mac's `/Applications` copy is
 0.1.22 while its installed worker is still 0.1.21, and the Desktop window still
-shows the old failure verbatim (§308 row 731), so the physical frame gates stay
+shows the old failure verbatim (§308 row 747), so the physical frame gates stay
 open until 「重新安装助手…」 swaps the root helper and re-installs the worker
 (§308 row 746). Publishing never replaces that worker by itself.
 
@@ -159,7 +160,7 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    and unit evidence are recorded in §304 and §306.
    **That machine exists and then moved again**: §307 row 728 had this Mac on app
    0.1.21 + worker 0.1.21 with `preview AgentUse --stats` answering real fields;
-   §308 row 731 has the app at 0.1.22 and the worker still at 0.1.21, which is
+   §308 row 747 has the app at 0.1.22 and the worker still at 0.1.21, which is
    the pairing that reproduces the shm-name failure on screen. So the benchmark's
    blocker is no longer "no frame stream is open" — a Desktop window opens, and
    the worker refuses to give it a buffer. Pressing 「重新安装助手…」 is what puts
