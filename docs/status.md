@@ -37,8 +37,11 @@ benchmark measures (row 765); a frame stream outlived its viewer and kept its
 shared region mapped — `openStreams: 4` and 30 MB held for one window (row 766);
 and the per-connection log line the gates read printed its numbers as `<private>`
 (row 767). All three code fixes are in this tree with 545 unit/integration tests
-green (row 770); the physical gates are still pending, now for a second reason —
-the owner's console is locked, so there is nothing to screenshot (row 769).
+green (row 770); `0.1.23` build 365 is notarized, stapled and installed in
+`/Applications` (row 771). The physical gates are still pending, now for a second
+reason — the owner's console is locked, so there is nothing to screenshot and the
+accessibility tree vends no windows at all, which is why `scripts/check-all.sh`
+stops at its own fourth layer (rows 769, 771).
 
 ## Product in one sentence
 
