@@ -280,7 +280,15 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
   # diagnostic immediately after it — so one reading is not yet evidence about
   # the build. A count that *stays* at 2 is exactly what this check exists to
   # catch, and requiring agreement still catches it.
-  [ "$WINDOWS" = "$PREV_WINDOWS" ] && break
+  #
+  # A count that stays at 0 is not the same fact: 0 is what a window that has
+  # not been ordered on screen yet reads as, and agreement does not make a
+  # launch any further along. A run on 0.1.19 settled on `0,0` at five and six
+  # seconds and reported four failures, while the same bundle polled from the
+  # moment of its exec showed its window 0.4s in, three times out of three. So
+  # 0 spends the whole retry budget before it is believed; a window that really
+  # never arrives still fails, fifteen seconds later.
+  [ "$WINDOWS" = "$PREV_WINDOWS" ] && [ "$WINDOWS" != "0" ] && break
   PREV_WINDOWS="$WINDOWS"
   sleep 1
 done

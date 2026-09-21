@@ -7,8 +7,10 @@ Read this first when resuming AgentSpace. The binding product direction is
 Last updated: 2026-09-21 on `master`. Current release: `0.1.18` (`v0.1.18`,
 notarized DMG attached to the GitHub Release, digest verified in §301). It
 carries §300's two GUI fixes and §299's gate-identity fix; `0.1.17` did not.
-The tree has one capability the published release does not: the in-app online
-update channel below (§302).
+`0.1.19` — the in-app online update channel below (§302) — is committed,
+built, notarized and stapled, and staged behind one thing: the aggregate gate's
+fourth layer has never been observed on an unlocked console (§303 rows 673,
+679). Publishing is that run, then tag and Release.
 
 ## Product in one sentence
 
