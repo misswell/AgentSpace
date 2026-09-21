@@ -6,6 +6,7 @@ Read this first when resuming AgentSpace. The binding product direction is
 
 Last updated: 2026-09-21 on `master`. Current release: `0.1.17` (`v0.1.17`,
 notarized DMG attached to the GitHub Release, digest verified in §298/§299).
+§300's two GUI fixes are on `master` and are not in that release.
 
 ## Product in one sentence
 
@@ -205,24 +206,33 @@ For official `dist/`, always run `scripts/release.sh` and then
 
 `scripts/gui-verify.sh` refuses to run when the console is not presenting
 windows — locked screen, fast-user-switched away, or session state it cannot
-read — because all seven of its checks read an accessibility tree that a locked
+read — because all of its checks read an accessibility tree that a locked
 session leaves empty. That refusal (`exit 1`, "the console session's screen is
 LOCKED") is validation §297: it is an environment verdict, not a build verdict,
-and it is a different result from seven failures.
+and it is a different result from failing every check.
 
-The unlocked run is now established: 7/7 on the published 0.1.17 bundle, twice
-consecutively (§299 row 643), and getting there exposed two identity defects in
-the gate itself — it addressed the app by *process name*, so an installed copy
+The unlocked run is established: 8/8 on a temporary verification bundle, with
+the wizard reaching `step 2` (§300 row 652). Getting there exposed three defects
+in the gate itself. It addressed the app by *process name*, so an installed copy
 in `/Applications` let it score 0.1.12 while claiming to test the build under
 test, and it resolved controls against `window 1`, whose order the window server
-chooses. Both now bind to the launched pid and to the window that actually
-contains the identifier (§299 rows 639-640). One reading still disagrees: with
-the final script in place it passed twice in a row and then settled at two
-windows on the third run — six of the sixteen runs it took to get here produced
-that reading — while ten cold launches measured outside the gate gave one window
-every time (§299 row 642) and the queued-deep-link theory was tested and
-rejected (row 643). That residual is open, and the check now prints its sample
-trace rather than a bare number.
+chooses (§299 rows 639-640). And its EXIT hand-back relaunched the owner's own
+copy with `open`, which passes the caller's environment — so their window read
+the gate's throwaway registry and reported their attached Agent as deleted
+(§300 row 646, which overturns §48 row 150). Every `open` in the script now runs
+with `AGENTSPACE_ROOT` and `AGENTSPACE_GUI_APP` removed, and the hand-back is
+followed by a sweep that names any surviving copy still carrying them.
+
+One reading still disagrees: the gate has settled at two windows on some runs
+while ten cold launches measured outside it gave one window every time (§299 row
+642). §300 row 651 names the candidate mechanisms — a second copy of the shared
+bundle id on the desktop, and `keystroke` being focus-targeted — without yet
+reproducing them; the check prints its sample trace rather than a bare number.
+
+The gate now also asserts the two product behaviours §300 fixed: the empty
+dashboard names the registry file it read when `AGENTSPACE_ROOT` is set, and the
+New Agent wizard waits for Directory Service instead of claiming no standard
+users exist. Those fixes are on `master`, not in the published 0.1.17.
 
 ## Compatibility rules
 

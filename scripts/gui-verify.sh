@@ -203,7 +203,24 @@ APP_PID=$!
 # Every query below addresses the app by pid for the same reason.
 PT="first application process whose unix id is $APP_PID"
 sleep 5
-trap '{ kill $APP_PID 2>/dev/null; rm -rf "$GUI_ROOT"; [ -n "$WAS_RUNNING_APP" ] && open "$WAS_RUNNING_APP"; } 2>/dev/null' EXIT
+# `open` hands its own environment to the application it launches — measured,
+# not assumed: the copy this script returned to the owner carried
+# `AGENTSPACE_ROOT=/tmp/gui-verify-root.a6EBZu` in its process environment, so
+# their real window read the throwaway registry and reported their attached
+# Agent as missing (§300). Every `open` below therefore runs with the test
+# variables removed, and the hand-back is checked afterwards.
+cleanup() {
+  kill $APP_PID 2>/dev/null
+  rm -rf "$GUI_ROOT"
+  [ -n "$WAS_RUNNING_APP" ] && env -u AGENTSPACE_ROOT -u AGENTSPACE_GUI_APP open "$WAS_RUNNING_APP"
+  sleep 2
+  for survivor in $(pgrep -U "$(id -u)" -f "AgentSpace.app/Contents/MacOS/AgentSpace"); do
+    if ps eww -p "$survivor" 2>/dev/null | tr ' ' '\n' | grep -q '^AGENTSPACE_ROOT='; then
+      echo "gui-verify: WARNING pid $survivor still carries AGENTSPACE_ROOT — quit it and reopen AgentSpace" >&2
+    fi
+  done
+}
+trap cleanup EXIT
 
 # --- Launch: exactly one window (§41's deep-link window bug) ----------------
 # A binary that predates onOpenURL never consumes queued agentspace:// open
@@ -275,6 +292,31 @@ done
 case "$BUILD_TEXT" in
   *"$SHORT ($BUILDN)"*) check "sidebar build stamp matches the bundle" "found" "found";;
   *) check "sidebar build stamp matches the bundle" "$SHORT ($BUILDN) in [$BUILD_TEXT]" "missing";;
+esac
+
+# --- The empty state names the registry it actually read (§300) --------------
+# This run's whole premise is a throwaway AGENTSPACE_ROOT, and an owner looking
+# at that window concluded their Agent had been deleted. The panel has to say
+# which file it read before it offers any theory about why it is empty.
+NOTICE=""
+for attempt in 1 2 3; do
+  NOTICE="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	tell ($PT)
+		set _out to \"\"
+		repeat with _w in windows
+			set _e to my findById(_w, \"registryRootOverrideNotice\", static text, 0)
+			if _e is not missing value then set _out to (value of _e) as text
+		end repeat
+		return _out
+	end tell
+end tell" 2>/dev/null | tr -d '\n')"
+  case "$NOTICE" in *"$GUI_ROOT"*) break;; esac
+  sleep 1
+done
+case "$NOTICE" in
+  *"$GUI_ROOT"*) check "empty state names the registry it read" "found" "found";;
+  *) check "empty state names the registry it read" "[$NOTICE] to contain $GUI_ROOT" "missing";;
 esac
 
 # --- Settings: open it the way every language names it: ⌘, ------------------
@@ -374,7 +416,17 @@ tell application \"System Events\"
 	end repeat
 	if _f is missing value then return \"no name field\"
 	set value of _f to \"gui verify\"
-	set _pkr to my findById(_w, \"macOSUserPicker\", radio group, 0)
+	-- The account list is filled asynchronously by Directory Service. Reading the
+	-- card once caught it mid-flight and reported \"empty account state\" on a
+	-- machine that does have an attachable user, so wait for either answer
+	-- before deciding which state the wizard is really in (§300).
+	set _pkr to missing value
+	repeat 6 times
+		set _pkr to my findById(_w, \"macOSUserPicker\", radio group, 0)
+		if _pkr is not missing value then exit repeat
+		if my findById(_w, \"openUsersGroupsButton\", button, 0) is not missing value then exit repeat
+		delay 1
+	end repeat
 	if _pkr is not missing value then
 		-- The first radio item is the unselected placeholder; choose the
 		-- first real account so this check exercises the enabled path too.
@@ -467,7 +519,10 @@ sleep 4
 DEAD_ID="11111111-2222-4333-8444-555555555555"
 # Always target the bundle under test.  A bare scheme open can route to an
 # older copy in /Applications, making this assertion inspect the wrong app.
-open -a "$APP_BUNDLE" "agentspace://space/$DEAD_ID"
+# The test root is stripped so that a misroute cannot hand a foreign copy an
+# empty registry (§300); if it does misroute, the check below fails loudly
+# instead of quietly poisoning the owner's window.
+env -u AGENTSPACE_ROOT -u AGENTSPACE_GUI_APP open -a "$APP_BUNDLE" "agentspace://space/$DEAD_ID"
 sleep 3
 # the alert's first static text is the error code, which is never localized
 ALERT=""
