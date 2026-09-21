@@ -1,12 +1,13 @@
 #!/bin/bash
 # check-all.sh — everything a release needs, in the order that fails fast.
 #
-# Aggregates the three independent verification layers into one command:
-#   1. scripts/test.sh      — the Swift unit/safety suite (fastest, most signal)
-#   2. scripts/mcp-smoke.sh — the MCP server speaks to a live worker
-#   3. scripts/gui-verify.sh — the UI properties, through the accessibility tree
+# Aggregates the four independent verification layers into one command:
+#   1. scripts/test.sh          — the Swift unit/safety suite (fastest, most signal)
+#   2. scripts/updater-e2e.sh   — the self-update install step, offline and hermetic
+#   3. scripts/mcp-smoke.sh     — the MCP server speaks to a live worker
+#   4. scripts/gui-verify.sh    — the UI properties, through the accessibility tree
 #
-# Layers 2 and 3 need a live worker and an Accessibility-authorized terminal
+# Layers 3 and 4 need a live worker and an Accessibility-authorized terminal
 # respectively; if their prerequisites are missing they fail with their own
 # diagnostics, which is exactly what should stop a release.
 #
@@ -51,7 +52,7 @@ if [ -d dist/AgentSpace.app ]; then
   fi
 fi
 
-LAYERS=(scripts/test.sh scripts/mcp-smoke.sh scripts/gui-verify.sh)
+LAYERS=(scripts/test.sh scripts/updater-e2e.sh scripts/mcp-smoke.sh scripts/gui-verify.sh)
 FAILED=()
 
 for layer in "${LAYERS[@]}"; do

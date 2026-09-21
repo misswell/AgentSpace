@@ -4,6 +4,8 @@ import AgentSpaceCore
 /// The window's layout shell — plan §27's two-pane dashboard, native macOS.
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var updater: SoftwareUpdater
+    @AppStorage("automaticallyChecksForUpdates") private var checksAutomatically = true
 
     var body: some View {
         NavigationSplitView {
@@ -43,6 +45,12 @@ struct RootView: View {
                 dismissButton: dismiss)
         }
         .onAppear { model.reload() }
+        // One quiet check per launch. Failures are logged, not shown: a banner
+        // for a request the user never made is worse than no banner, and the
+        // Update tab says the same thing on demand.
+        .task {
+            if checksAutomatically { await updater.checkForUpdates(automatic: true) }
+        }
         // Running-app delivery goes through the scene modifier; the delegate
         // below handles only the launch-storm dedup.
         .onOpenURL { model.handleDeepLink($0) }
@@ -52,6 +60,7 @@ struct RootView: View {
 @main
 struct AgentSpaceApp: App {
     @StateObject private var model = AppModel()
+    @StateObject private var updater = SoftwareUpdater()
 
     /// Bring the main window forward, optionally selecting one account.
     /// The menu bar must not rely on SwiftUI's window-management APIs here:
@@ -80,6 +89,7 @@ struct AgentSpaceApp: App {
         WindowGroup("AgentSpace") {
             RootView()
                 .environmentObject(model)
+                .environmentObject(updater)
                 .frame(minWidth: 860, minHeight: 560)
         }
         .windowToolbarStyle(.unified)
@@ -102,6 +112,16 @@ struct AgentSpaceApp: App {
                 showMainWindow()
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             }
+            // Only after a check has actually found something. The menu bar is
+            // where an app-level fact belongs; the Update tab is where the user
+            // decides, so this opens Settings rather than downloading anything.
+            if let available = updater.state.availableRelease {
+                Button(String(format: NSLocalizedString("Update to AgentSpace %@…", comment: ""),
+                              available.version.description)) {
+                    UserDefaults.standard.set("update", forKey: "settingsTab")
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
+            }
             Divider()
             Button(NSLocalizedString("Quit AgentSpace", comment: "")) { NSApp.terminate(nil) }
         } label: {
@@ -122,7 +142,7 @@ struct AgentSpaceApp: App {
         }
 
         Settings {
-            SettingsView().environmentObject(model)
+            SettingsView().environmentObject(model).environmentObject(updater)
         }
     }
 }
@@ -188,10 +208,11 @@ struct SettingsView: View {
     @AppStorage("statusRefreshSeconds") private var statusRefreshSeconds = 3.0
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 1600
     @AppStorage("fusionFPSPolicy") private var fusionFPSPolicy = 0
+    @AppStorage("settingsTab") private var selectedTab = "accounts"
     @State private var advancedRoot = AgentSpaceEnvironment.rootOverride ?? ""
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             Form {
                 Section {
                     ForEach(model.snapshots) { snapshot in
@@ -210,6 +231,7 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
             .tabItem { Label("Accounts", systemImage: "person.2") }
+            .tag("accounts")
 
             Form {
                 ForEach(model.snapshots) { snapshot in
@@ -222,6 +244,7 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
             .tabItem { Label("Permissions", systemImage: "lock.shield") }
+            .tag("permissions")
 
             Form {
                 Section {
@@ -234,6 +257,7 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
             .tabItem { Label("Performance", systemImage: "gauge.with.dots.needle.67percent") }
+            .tag("performance")
 
             Form {
                 Section {
@@ -261,6 +285,12 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
             .tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
+            .tag("advanced")
+
+            // Declared last: `scripts/gui-verify.sh` finds the Advanced tab as the
+            // fourth toolbar button, so the tab order is a gate contract.
+            SoftwareUpdateView()
+                .tag("update")
         }
         .frame(width: 620, height: 420)
     }

@@ -44,7 +44,7 @@ echo "== 2. signatures =="
 # and the worker are the two whose signature is a *security* boundary — the helper
 # checks the caller's team identifier, so a re-signed app silently breaks every
 # Space creation.
-for target in "$APP" "$APP/Contents/Library/LaunchDaemons/agentspace-helper" "$APP/Contents/MacOS/agentspace-worker" "$APP/Contents/Helpers/agentspace"; do
+for target in "$APP" "$APP/Contents/Library/LaunchDaemons/agentspace-helper" "$APP/Contents/MacOS/agentspace-worker" "$APP/Contents/Helpers/agentspace" "$APP/Contents/Helpers/agentspace-updater"; do
   codesign --verify --strict --verbose=0 "$target" \
     || { echo "signature invalid: $target" >&2; exit 1; }
   echo "  ok  $(basename "$target")"

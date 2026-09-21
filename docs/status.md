@@ -7,6 +7,8 @@ Read this first when resuming AgentSpace. The binding product direction is
 Last updated: 2026-09-21 on `master`. Current release: `0.1.18` (`v0.1.18`,
 notarized DMG attached to the GitHub Release, digest verified in §301). It
 carries §300's two GUI fixes and §299's gate-identity fix; `0.1.17` did not.
+The tree has one capability the published release does not: the in-app online
+update channel below (§302).
 
 ## Product in one sentence
 
@@ -90,6 +92,31 @@ the V3 root.
   desktop, optional Full Disk Access gates this account's own protected folders.
   Each is detectable without prompting, has its own in-app authorization button,
   and is reported by GUI, `agentspace status` and `agentspace doctor`.
+
+## Online update
+
+Settings' last tab, *Update* (`SoftwareUpdateView`), over
+`apps/AgentSpace/Services/SoftwareUpdate.swift` and two new SwiftPM products:
+`AgentSpaceUpdaterSupport` (every decision, as testable functions) and
+`agentspace-updater` (the only step that cannot run inside the app being
+replaced). `docs/UPDATE_CHANNEL.md` states the whole contract; validation §302
+records what was measured.
+
+The shape a reviewer needs:
+
+- Release metadata comes from GitHub only — the version, the archive URL, and
+  GitHub's own `sha256:` digest for the asset.
+- Nine checks run before anything is replaced, ending at the designated
+  requirement (so a release cannot silently cost the user their TCC grants) and
+  `spctl`. A failure at any of them leaves the running app untouched.
+- Only `/Applications/AgentSpace.app` may self-replace. A copy running from
+  `dist/` or a translocated path says so and stops.
+- The updater cannot be handed a bundle that is not AgentSpace: after the swap
+  it re-reads what landed and puts the backup back if it is not the app.
+- An update changes the bundle, never the root helper or the installed worker.
+  Those move only when the user presses 「重新安装助手…」.
+- `scripts/updater-e2e.sh` gates the install step offline; a test instance
+  launched with `AGENTSPACE_ROOT` set makes no network call at all.
 
 ## Still missing
 
@@ -198,6 +225,7 @@ Use the repository gates, not a remembered test count:
 env PATH=/usr/bin:/bin:/usr/sbin:/sbin swift test
 (cd packages/agentspace-mcp && npm test)
 scripts/mcp-smoke.sh
+scripts/updater-e2e.sh
 scripts/check-all.sh
 ```
 
@@ -228,11 +256,25 @@ while ten cold launches measured outside it gave one window every time (§299 ro
 642). §300 row 651 names the candidate mechanisms — a second copy of the shared
 bundle id on the desktop, and `keystroke` being focus-targeted — without yet
 reproducing them; the check prints its sample trace rather than a bare number.
+The same class produced a second reading while §302 was checked: a *temporary*
+bundle in `/tmp` that shares the installed copy's bundle id settled at **zero**
+main windows on two runs, while `dist/AgentSpace.app` on the identical script
+gave one. Only the Settings-window checks were scored there, so the update-pane
+result stands and the four main-window checks in that run are unproven rather
+than failed (§302 rows 663-664).
 
 The gate now also asserts the two product behaviours §300 fixed: the empty
 dashboard names the registry file it read when `AGENTSPACE_ROOT` is set, and the
 New Agent wizard waits for Directory Service instead of claiming no standard
 users exist. Both shipped in 0.1.18 (§301); they are not in 0.1.17 or earlier.
+
+§302 adds five checks for the update pane: the tab is reachable, the check
+control is present and enabled, and the control that could replace the running
+app is **not on screen at all** until a release has been verified. They pass
+against a bundle built from this tree and fail against 0.1.18's `dist/`, which
+is the correct verdict for an artifact that has no such tab — so `check-all.sh`
+now assumes `dist/` was built from the tree it is gating, which is what
+`scripts/release.sh` produces.
 
 ## Compatibility rules
 
@@ -267,4 +309,5 @@ users exist. Both shipped in 0.1.18 (§301); they are not in 0.1.17 or earlier.
 - MCP: `packages/agentspace-mcp`
 - Security model: `docs/security.md`
 - Wire protocol: `docs/protocol.md`
+- Update channel: `docs/UPDATE_CHANNEL.md`
 - Validation evidence: `docs/validation.md`

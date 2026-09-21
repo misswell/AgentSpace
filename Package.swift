@@ -32,6 +32,9 @@ let package = Package(
         .executable(name: "AgentSpaceApp", targets: ["AgentSpaceApp"]),
         .executable(name: "agentspace-session-test", targets: ["SessionAcceptanceTest"]),
         .executable(name: "agentspace-helper", targets: ["AgentSpacePrivilegedHelper"]),
+        // The in-app updater: a nested tool that swaps a verified bundle in and
+        // relaunches it. Shipped inside the app, never installed on its own.
+        .executable(name: "agentspace-updater", targets: ["AgentSpaceUpdater"]),
     ],
     targets: [
         .target(
@@ -53,7 +56,7 @@ let package = Package(
         // proper .app with an Info.plist, which is what TCC and the Dock need.
         .executableTarget(
             name: "AgentSpaceApp",
-            dependencies: ["AgentSpaceCore"],
+            dependencies: ["AgentSpaceCore", "AgentSpaceUpdaterSupport"],
             path: "apps/AgentSpace",
             // Both plists are consumed by scripts/bundle-app.sh, which copies them
             // to the places macOS requires (Contents/Info.plist and
@@ -85,6 +88,20 @@ let package = Package(
             dependencies: ["AgentSpaceCore"],
             path: "native/AgentSpacePrivilegedHelper/Sources/AgentSpacePrivilegedHelper"
         ),
+        // Everything the online update decides that is not a security boundary
+        // and not a wire format: version ordering, GitHub release metadata,
+        // download sources, and the argument contract with the updater tool.
+        // Foundation only, so the unit tests assert it with no network, no
+        // bundle and no GUI session.
+        .target(
+            name: "AgentSpaceUpdaterSupport",
+            path: "native/AgentSpaceUpdaterSupport/Sources/AgentSpaceUpdaterSupport"
+        ),
+        .executableTarget(
+            name: "AgentSpaceUpdater",
+            dependencies: ["AgentSpaceUpdaterSupport"],
+            path: "native/AgentSpaceUpdater/Sources/AgentSpaceUpdater"
+        ),
         .executableTarget(
             name: "SessionAcceptanceTest",
             dependencies: ["AgentSpaceCore"],
@@ -92,7 +109,7 @@ let package = Package(
         ),
         .testTarget(
             name: "AgentSpaceUnitTests",
-            dependencies: ["AgentSpaceCore"],
+            dependencies: ["AgentSpaceCore", "AgentSpaceUpdaterSupport"],
             path: "tests/Unit"
         ),
         .testTarget(

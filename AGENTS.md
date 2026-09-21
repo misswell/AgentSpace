@@ -50,6 +50,14 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
    key must exist in **both** `apps/AgentSpace/Resources/{en,zh-Hans}.lproj/Localizable.strings`;
    `tests/Unit/LocalizationTests.swift` fails the build otherwise.
    `scripts/bundle-app.sh` copies the `.lproj` folders into the bundle.
+6. **Online update.** The channel and its limits are
+   [`docs/UPDATE_CHANNEL.md`](docs/UPDATE_CHANNEL.md). An in-app update replaces
+   **only** `/Applications/AgentSpace.app`: never make an update touch the root
+   helper or the installed worker (those move only when the user presses
+   「重新安装助手…」), never relax the verification chain to make an update
+   succeed, and remember that releases before 0.1.19 ship no updater — the first
+   one after this feature must be installed from the DMG by hand, and a release
+   note that does not say so is a broken promise (§302 row 662).
 
 ## Vocabulary (old → new; both spellings work in code and interface)
 

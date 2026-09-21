@@ -29,7 +29,7 @@ echo "== building ($CONFIGURATION) =="
 # are the actual gate.
 swift build -c "$CONFIGURATION"
 
-for binary in AgentSpaceApp agentspace agentspace-worker agentspace-helper; do
+for binary in AgentSpaceApp agentspace agentspace-worker agentspace-helper agentspace-updater; do
   [[ -x "$BIN_DIR/$binary" ]] || { echo "missing $BIN_DIR/$binary" >&2; exit 1; }
 done
 
@@ -55,6 +55,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" \
 cp "$BIN_DIR/AgentSpaceApp"     "$APP/Contents/MacOS/AgentSpace"
 cp "$BIN_DIR/agentspace-worker" "$APP/Contents/MacOS/agentspace-worker"
 cp "$BIN_DIR/agentspace"        "$APP/Contents/Helpers/agentspace"
+# The updater travels with the app it updates: the GUI copies it to a scratch
+# directory before running it, because the bundle it lives in is the bundle being
+# replaced. UpdaterLaunchPlan.updaterURL(in:) names this exact path.
+cp "$BIN_DIR/agentspace-updater" "$APP/Contents/Helpers/agentspace-updater"
 cp apps/AgentSpace/Resources/Info.plist "$APP/Contents/Info.plist"
 # Stamp the build number from git rather than editing the plist by hand:
 # every bundle produced since is distinguishable in the UI (for example,
@@ -133,6 +137,9 @@ sign() {
 
 sign "$APP/Contents/MacOS/agentspace-worker" "com.agentspace.AgentSpace.Worker"
 sign "$APP/Contents/Helpers/agentspace"      "com.agentspace.AgentSpace.CLI"
+# Its own identifier: the updater is a separate Mach-O that runs as its own
+# process, and an update candidate is checked for carrying it before it installs.
+sign "$APP/Contents/Helpers/agentspace-updater" "com.agentspace.AgentSpace.Updater"
 # The helper carries its own identifier: it is a separate Mach-O with a separate
 # privilege level, and the requirement it enforces names it explicitly.
 sign "$APP/Contents/Library/LaunchDaemons/agentspace-helper" "com.agentspace.AgentSpace.Helper"

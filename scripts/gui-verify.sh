@@ -77,6 +77,27 @@ on windowWithId(theProcess, wantedId, theClass)
 	return missing value
 end windowWithId
 
+on findAny(theWindow, wantedId, theDepth)
+	-- Identifier-only lookup, for controls whose AppKit class is SwiftUI's choice
+	-- rather than ours: a Toggle reports as a checkbox, a Form as a group, and
+	-- neither is spelled in the source.
+	if theDepth > 8 then return missing value
+	tell application "System Events"
+		try
+			repeat with _e in (UI elements of theWindow)
+				try
+					if ((value of attribute "AXIdentifier" of _e) as text) is wantedId then return _e
+				end try
+			end repeat
+		end try
+		repeat with _e in (UI elements of theWindow)
+			set _found to my findAny(_e, wantedId, theDepth + 1)
+			if _found is not missing value then return _found
+		end repeat
+	end tell
+	return missing value
+end findAny
+
 on advancedSettingsWindow(theProcess)
 	-- Which window is Settings cannot be answered by `window 1`: the dashboard
 	-- and the Settings window are both on screen and the order the accessibility
@@ -99,6 +120,26 @@ on advancedSettingsWindow(theProcess)
 	end tell
 	return missing value
 end advancedSettingsWindow
+
+on updateSettingsWindow(theProcess)
+	-- The LAST toolbar button, not "button 5": the tab order is a contract this
+	-- script already depends on (button 4 is Advanced), and Update is declared
+	-- after it. Reading the count rather than hard-coding an index keeps this
+	-- check pointing at a real tab if a sixth one ever appears.
+	tell application "System Events"
+		repeat with _w in (windows of theProcess)
+			try
+				set _n to count of (buttons of toolbar 1 of _w)
+				if _n > 0 then
+					click button _n of toolbar 1 of _w
+					delay 1
+					if my findAny(_w, "updateCheckButton", 0) is not missing value then return _w
+				end if
+			end try
+		end repeat
+	end tell
+	return missing value
+end updateSettingsWindow
 APPLESCRIPT
 
 # Every check below reads the accessibility tree of a window the app puts on
@@ -377,6 +418,48 @@ end tell" 2>/dev/null)"
 done
 check "preview tiers" "960px|1280px|1600px|1920px" "$TIERS"
 osascript -e 'key code 53' >/dev/null 2>&1
+
+# --- Settings: the Update pane exists and starts in a safe state -------------
+# The claim worth gating is not "the tab is there" but "the destructive control
+# is not on screen yet". `updateInstallButton` lives only in the `.available`
+# state, which requires a download that matched GitHub's digest and passed
+# signature, team, identity and Gatekeeper — so before any of that the pane
+# offers a check and a preference, and nothing that could replace the app.
+# AGENTSPACE_ROOT is set for this run, which suppresses the automatic check, so
+# this is genuinely the untouched state rather than a result.
+UPDATE_PANE="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	set _p to ($PT)
+	set _w to my updateSettingsWindow(_p)
+	if _w is missing value then return \"n|n|?|n|n\"
+	set _out to \"\"
+	repeat with _id in {\"softwareUpdatePane\", \"updateCheckButton\", \"automaticUpdateCheckToggle\"}
+		if my findAny(_w, (_id as text), 0) is missing value then
+			set _out to _out & \"n|\"
+		else
+			set _out to _out & \"y|\"
+		end if
+	end repeat
+	set _c to my findAny(_w, \"updateCheckButton\", 0)
+	if _c is missing value then
+		set _out to _out & \"?|\"
+	else if (enabled of _c) as boolean then
+		set _out to _out & \"enabled|\"
+	else
+		set _out to _out & \"disabled|\"
+	end if
+	if my findAny(_w, \"updateInstallButton\", 0) is missing value then
+		set _out to _out & \"absent\"
+	else
+		set _out to _out & \"present\"
+	end if
+	return _out
+end tell" 2>/dev/null)"
+check "update pane reachable"       "y" "$(echo "$UPDATE_PANE" | cut -d'|' -f1)"
+check "update check control"        "y" "$(echo "$UPDATE_PANE" | cut -d'|' -f2)"
+check "update preference control"   "y" "$(echo "$UPDATE_PANE" | cut -d'|' -f3)"
+check "checking is possible"        "enabled" "$(echo "$UPDATE_PANE" | cut -d'|' -f4)"
+check "install control before a release is verified" "absent" "$(echo "$UPDATE_PANE" | cut -d'|' -f5)"
 # close the Settings window so the deep-link phase below sees one window again
 osascript -e "tell application \"System Events\" to tell ($PT) to keystroke \"w\" using command down" >/dev/null 2>&1
 sleep 1

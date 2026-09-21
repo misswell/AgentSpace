@@ -519,3 +519,31 @@
 "The first two are required. Full Disk Access is optional and covers this account's Desktop, Documents, Downloads and other apps' data; without it the agent simply keeps out of those folders." = "The first two are required. Full Disk Access is optional and covers this account's Desktop, Documents, Downloads and other apps' data; without it the agent simply keeps out of those folders.";
 "macOS-protected folders were left out of this figure, not counted as zero. Grant Full Disk Access to include them." = "macOS-protected folders were left out of this figure, not counted as zero. Grant Full Disk Access to include them.";
 "Optional. Lets agentspace-worker read this account's Desktop, Documents, Downloads and other apps' data. Without it those folders stay closed and the agent works normally everywhere else." = "Optional. Lets agentspace-worker read this account's Desktop, Documents, Downloads and other apps' data. Without it those folders stay closed and the agent works normally everywhere else.";
+
+/* Online update (in-app) */
+
+"Update to AgentSpace %@…" = "Update to AgentSpace %@…";
+"Software Update" = "Software Update";
+"This copy" = "This copy";
+"Running %@ from %@" = "Running %@ from %@";
+"This window is %@, which is not where an installed AgentSpace lives, so it cannot replace itself. Install the release DMG to update." = "This window is %@, which is not where an installed AgentSpace lives, so it cannot replace itself. Install the release DMG to update.";
+"Check for Updates" = "Check for Updates";
+"Check Again" = "Check Again";
+"Try Again" = "Try Again";
+"Checking for updates…" = "Checking for updates…";
+"%@ is the latest version." = "%@ is the latest version.";
+"AgentSpace %@ is available." = "AgentSpace %@ is available.";
+"Release notes" = "Release notes";
+"Download and Update" = "Download and Update";
+"Downloading the update…" = "Downloading the update…";
+"Preparing the update…" = "Preparing the update…";
+"Check for updates when AgentSpace opens" = "Check for updates when AgentSpace opens";
+"Open Release Page" = "Open Release Page";
+"Updates come from AgentSpace's GitHub releases. The download is checked against the SHA-256 GitHub stores for it, then the unpacked app is checked for its signature, its developer team, its identity against this running copy, and Gatekeeper's approval. AgentSpace then quits, installs itself and relaunches." = "Updates come from AgentSpace's GitHub releases. The download is checked against the SHA-256 GitHub stores for it, then the unpacked app is checked for its signature, its developer team, its identity against this running copy, and Gatekeeper's approval. AgentSpace then quits, installs itself and relaunches.";
+"The published release could not be read, or it carries no verified archive." = "The published release could not be read, or it carries no verified archive.";
+"The download did not match the checksum GitHub published for it." = "The download did not match the checksum GitHub published for it.";
+"The update failed signature or identity verification, so it was not installed." = "The update failed signature or identity verification, so it was not installed.";
+"This copy of AgentSpace cannot be replaced from here." = "This copy of AgentSpace cannot be replaced from here.";
+"This copy of AgentSpace ships no updater, so it cannot install one." = "This copy of AgentSpace ships no updater, so it cannot install one.";
+"The network refused the update request." = "The network refused the update request.";
+"A step of the installation failed." = "A step of the installation failed.";

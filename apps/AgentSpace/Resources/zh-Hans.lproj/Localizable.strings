@@ -519,3 +519,31 @@
 "The first two are required. Full Disk Access is optional and covers this account's Desktop, Documents, Downloads and other apps' data; without it the agent simply keeps out of those folders." = "前两项是必需的。完全磁盘访问权限是可选的，它涵盖该账号的桌面、文稿、下载以及其他 App 的数据；没有它，Agent 只是不会进入这些文件夹。";
 "macOS-protected folders were left out of this figure, not counted as zero. Grant Full Disk Access to include them." = "这个数值不包含 macOS 保护的文件夹，它们也没有被算作 0。授予完全磁盘访问权限后即可包含进来。";
 "Optional. Lets agentspace-worker read this account's Desktop, Documents, Downloads and other apps' data. Without it those folders stay closed and the agent works normally everywhere else." = "可选。允许 agentspace-worker 读取该账号的桌面、文稿、下载以及其他 App 的数据。没有它，这些文件夹保持关闭，Agent 在其他方面仍然正常工作。";
+
+/* Online update (in-app) */
+
+"Update to AgentSpace %@…" = "更新到 AgentSpace %@…";
+"Software Update" = "软件更新";
+"This copy" = "当前这份";
+"Running %@ from %@" = "正在运行 %@，位于 %@";
+"This window is %@, which is not where an installed AgentSpace lives, so it cannot replace itself. Install the release DMG to update." = "此窗口位于 %@，这不是已安装 AgentSpace 所在的位置，因此它无法自我替换。请安装发布版 DMG 来更新。";
+"Check for Updates" = "检查更新";
+"Check Again" = "再次检查";
+"Try Again" = "重试";
+"Checking for updates…" = "正在检查更新…";
+"%@ is the latest version." = "%@ 已是最新版本。";
+"AgentSpace %@ is available." = "AgentSpace %@ 可供更新。";
+"Release notes" = "版本说明";
+"Download and Update" = "下载并更新";
+"Downloading the update…" = "正在下载更新…";
+"Preparing the update…" = "正在准备更新…";
+"Check for updates when AgentSpace opens" = "AgentSpace 启动时自动检查更新";
+"Open Release Page" = "打开发布页面";
+"Updates come from AgentSpace's GitHub releases. The download is checked against the SHA-256 GitHub stores for it, then the unpacked app is checked for its signature, its developer team, its identity against this running copy, and Gatekeeper's approval. AgentSpace then quits, installs itself and relaunches." = "更新来自 AgentSpace 的 GitHub 发布版。下载内容会先与 GitHub 为该文件保存的 SHA-256 比对；解包出的应用还要通过签名、开发者团队、与当前运行副本的身份一致性，以及 Gatekeeper 审核。之后 AgentSpace 会退出、自行安装并重新启动。";
+"The published release could not be read, or it carries no verified archive." = "无法读取已发布的版本，或其中没有经过校验的安装包。";
+"The download did not match the checksum GitHub published for it." = "下载内容与 GitHub 公布的校验和不一致。";
+"The update failed signature or identity verification, so it was not installed." = "更新未通过签名或身份校验，因此没有安装。";
+"This copy of AgentSpace cannot be replaced from here." = "当前这份 AgentSpace 无法在此处被替换。";
+"This copy of AgentSpace ships no updater, so it cannot install one." = "当前这份 AgentSpace 未附带更新工具，因此无法安装更新。";
+"The network refused the update request." = "网络拒绝了更新请求。";
+"A step of the installation failed." = "安装步骤之一失败。";
