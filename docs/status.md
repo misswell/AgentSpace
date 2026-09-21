@@ -28,10 +28,14 @@ immutable mapping — a resize ends the connection and the reconnect gets a new
 descriptor. Neither cause is a Screen Recording, Accessibility, session, socket
 permission or Metal problem, and the wire did not move (32-byte notice, 52-byte
 header, `protocolVersion 1`).
-**Both fixes are in the worker as well as the app**, so the physical gates
-(Gates A–I, the 60-minute soak, the benchmark) stay open until an app *and* an
-installed worker report the current release, which needs 「重新安装助手…」 and its
-password (§309 row 762). Publishing never replaces that worker by itself.
+**Both fixes are in the worker as well as the app**, and publishing never replaces
+that worker by itself — the owner's 「重新安装助手…」 did at 18:30 today, so the
+installed worker is `0.1.23` while the app is `0.1.24`. That one-version gap costs
+nothing measured here: the two tags differ in the worker by a version string and
+nothing else (§312 row 783), so §27's "same newest build" pair is in place in
+substance. What keeps Gates B–I, the 60-minute soak and the benchmark open is the
+console: when it locks, `screencapture` refuses, System Events vends no windows,
+and `scripts/check-all.sh` stops at its own fourth layer (rows 779, 783).
 
 The layout fix then reached real pixels — a 0.1.23 app over the *old* 0.1.22
 worker drew the AgentUse desktop with no mapping error, because root cause 1 lived
@@ -64,8 +68,12 @@ outright with the present result discarded (row 775). Gate A now passes on real
 pixels: the fixed build over the same worker measures mean `0.1188` against the
 installed `0.0355`, draws the menu bar at the top and the Dock at the bottom, and
 changes when the agent's pointer moves (row 776). Resizing keeps real pixels at
-every width and still leaves the superseded publisher registered — row 766's leak,
-which lives in the worker and so cannot be closed from an app-only build (row 777).
+every width (row 777) — but what that row read as row 766's leak surviving was a
+close-then-reopen with a short overlap, not an orphan: its own stream IDs were both
+fresh at every step, which is only possible if the previous pair was released, and
+the release is the code path (`FrameServer.swift:106`). §312 row 782 retires that
+conclusion and puts Gate E back to "not recorded", and row 781 retires the
+`0.1.22`-worker labelling that made it sound unfixable.
 The automated half of §26 is green for `0.1.24` (row 778) and `check-all` passes
 three of four layers, the fourth having passed standalone on this same tree
 twenty minutes before the console locked itself again (row 779).
