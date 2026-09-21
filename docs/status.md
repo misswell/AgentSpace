@@ -9,9 +9,10 @@ Last updated: 2026-09-21 on `master`. Current public release: `0.1.21`
 Release, digest verified locally and against a real download in §307 rows
 719/724). It includes the binary frame engine, the §306 correctness work, and
 the online updater. The installed-worker cross-session run remains explicitly
-pending in §304 row 687 and §306 rows 704/710/714; publishing never silently
-replaces that worker, and this release's notes say so in the product's own
-language (§307 row 726).
+pending in §304 row 687 and §306 rows 704/710/714 — but its precondition is met
+as of §307 row 728, where this Mac's app and installed worker are both 0.1.21,
+so §307 row 729 is now the list of what to measure rather than a list of
+blockers. Publishing never replaces that worker by itself.
 
 ## Product in one sentence
 
@@ -151,6 +152,12 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    numbers. What is still owed is the physical half — the measurement below, on
    a machine whose app *and* installed worker both speak for this build; code
    and unit evidence are recorded in §304 and §306.
+   **That machine now exists**: as of §307 row 728 this Mac runs app 0.1.21 and
+   worker 0.1.21, and `preview AgentUse --stats` answers with real fields. The
+   benchmark's blocker moved from "the worker predates the frame engine" to "no
+   frame stream is open", which one Desktop window fixes — so §13's static
+   numbers, §27's old-vs-new table and the soak's drift numbers are now
+   obtainable, and §307 row 729 lists what each still owes.
 3. **Real-machine acceptance** — install the new worker into the already
    connected standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the
