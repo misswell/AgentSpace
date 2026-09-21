@@ -90,9 +90,15 @@ final class FrameServer {
                 socket?.abort()
             })
         } catch { return }
-        guard (try? socket.sendFileDescriptor(mapping.fd)) != nil else { publisher.shared.detach(); return }
+        guard (try? socket.sendFileDescriptor(mapping.fd)) != nil else { manager.close(publisher.streamID); return }
         publisher.shared.requestFull()
-        defer { publisher.shared.detach() }
+        // The stream ends with the connection that reads it. Detaching alone left
+        // it registered, mapped and capturing: the only way back for a viewer is
+        // `frame.open`, which builds a *new* publisher, so nothing could ever
+        // attach to this one again — and a viewer that was killed rather than
+        // closed took its `frame.close` call with it, leaving a capture engine and
+        // a shared region behind for the rest of the worker's life.
+        defer { manager.close(publisher.streamID) }
         while let commandLine = try? socket.readLine(),
               let command = try? JSONDecoder().decode(FrameClientCommand.self, from: commandLine) {
             switch command.kind {
