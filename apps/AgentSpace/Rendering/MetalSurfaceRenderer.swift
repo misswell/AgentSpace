@@ -101,6 +101,13 @@ final class MetalSurfaceRenderer {
             budget.end(); FrameSignpost.end(interval); return false
         }
         let destination = CGRect(origin: .zero, size: layer.drawableSize)
+        // `CIImage(mtlTexture:)` reads row 0 of a texture as its *bottom* row, while
+        // every writer here — the capture, the shared region, the CPU fallback —
+        // puts row 0 at the *top*, because that is what a screen is. Unflipped, the
+        // desktop draws with its menu bar along the bottom of the window, and the
+        // two render paths disagree with each other, since
+        // `CALayer.contents = CGImage` needs no such flip.
+        image = image.transformed(by: CGAffineTransform(scaleX: 1, y: -1).translatedBy(x: 0, y: CGFloat(height)))
         let scale = min(destination.width / CGFloat(width), destination.height / CGFloat(height))
         image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         let dx = (destination.width - image.extent.width) / 2, dy = (destination.height - image.extent.height) / 2
