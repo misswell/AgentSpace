@@ -4,13 +4,17 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-21 on `master`. Current public release: `0.1.23`
-(`v0.1.23`, annotated at the last commit of the tree the bundle was built from;
+Last updated: 2026-09-21 on `master`. Current public release: `0.1.24`
+(`v0.1.24`, annotated at the last commit of the tree the bundle was built from;
 notarized DMG attached to the GitHub Release, its uploaded digest verified byte
-for byte against the gated file — §310 row 773). It was published **with the
-physical frame gates still open**, on the owner's instruction, and the release
-notes say so in their own section rather than implying a desktop that had been
-looked at. The previous release, `0.1.22`, fixed the shared-memory name and left
+for byte against the gated file — §311 row 780). `0.1.24` exists because
+`0.1.23`'s live view was **black**: the flip §310 row 764 asked for composed its
+matrix in the wrong order and drew the desktop *below* the drawable, so the
+window showed nothing while every counter the frame engine publishes reported a
+healthy stream (§311 rows 774–776). `0.1.23` had been published **with the
+physical frame gates still open**, on the owner's instruction, and its notes said
+so in their own section rather than implying a desktop that had been looked at.
+The previous release, `0.1.22`, fixed the shared-memory name and left
 the picture broken one step later: fixing the name only moved the error to
 `shared frame notice does not match its mapping` (§309 row 749).
 Two causes, both recorded in §309: a shared frame buffer has two sizes — the
@@ -26,8 +30,8 @@ permission or Metal problem, and the wire did not move (32-byte notice, 52-byte
 header, `protocolVersion 1`).
 **Both fixes are in the worker as well as the app**, so the physical gates
 (Gates A–I, the 60-minute soak, the benchmark) stay open until an app *and* an
-installed worker report 0.1.23, which needs 「重新安装助手…」 and its password
-(§309 row 762). Publishing never replaces that worker by itself.
+installed worker report the current release, which needs 「重新安装助手…」 and its
+password (§309 row 762). Publishing never replaces that worker by itself.
 
 The layout fix then reached real pixels — a 0.1.23 app over the *old* 0.1.22
 worker drew the AgentUse desktop with no mapping error, because root cause 1 lived
@@ -45,6 +49,26 @@ green (row 770); `0.1.23` build 365 is notarized, stapled and installed in
 reason — the owner's console is locked, so there is nothing to screenshot and the
 accessibility tree vends no windows at all, which is why `scripts/check-all.sh`
 stops at its own fourth layer (rows 769, 771).
+
+That build then showed the owner a **black** window, and §311 is that story. The
+vertical flip row 764 called for was right and its arithmetic was wrong:
+`scale(1,-1).translatedBy(0,h)` prepends the translation, so it maps
+`y → -(y+h)` and moves a 1280×720 frame to `y ∈ [-1440,-720]` — outside a drawable
+that spans `[0,720]`, where `CIContext.render` draws nothing. The written matrix
+and the intended one are compared by extent in a scratch program (row 774), so the
+claim does not rest on the screenshot. What makes it a lesson rather than a typo is
+that no instrument in the frame engine could have caught it: the worker published,
+the client received and acknowledged, and `rendered` climbed — because `.uploaded`
+means "the command buffer was committed", and on the H.264 path it is asserted
+outright with the present result discarded (row 775). Gate A now passes on real
+pixels: the fixed build over the same worker measures mean `0.1188` against the
+installed `0.0355`, draws the menu bar at the top and the Dock at the bottom, and
+changes when the agent's pointer moves (row 776). Resizing keeps real pixels at
+every width and still leaves the superseded publisher registered — row 766's leak,
+which lives in the worker and so cannot be closed from an app-only build (row 777).
+The automated half of §26 is green for `0.1.24` (row 778) and `check-all` passes
+three of four layers, the fourth having passed standalone on this same tree
+twenty minutes before the console locked itself again (row 779).
 
 ## Product in one sentence
 
