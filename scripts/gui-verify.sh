@@ -67,6 +67,38 @@ on findById(theWindow, wantedId, theClass, theDepth)
 	end tell
 	return missing value
 end findById
+
+on windowWithId(theProcess, wantedId, theClass)
+	tell application "System Events"
+		repeat with _w in (windows of theProcess)
+			if my findById(_w, wantedId, theClass, 0) is not missing value then return _w
+		end repeat
+	end tell
+	return missing value
+end windowWithId
+
+on advancedSettingsWindow(theProcess)
+	-- Which window is Settings cannot be answered by `window 1`: the dashboard
+	-- and the Settings window are both on screen and the order the accessibility
+	-- API reports them in is the window server's, not the app's. A run that read
+	-- `window 1` sometimes looked at the dashboard and reported the Advanced
+	-- controls as missing — six passed, one inexplicably empty. So the tab is
+	-- chosen by walking every window for a toolbar whose fourth button reveals
+	-- the slider this tab owns. Fourth because the settings tabs are declared in
+	-- a fixed order, which holds in every language.
+	tell application "System Events"
+		repeat with _w in (windows of theProcess)
+			try
+				if (count of (buttons of toolbar 1 of _w)) > 3 then
+					click button 4 of toolbar 1 of _w
+					delay 1
+					if my findById(_w, "statusRefreshSlider", slider, 0) is not missing value then return _w
+				end if
+			end try
+		end repeat
+	end tell
+	return missing value
+end advancedSettingsWindow
 APPLESCRIPT
 
 # Every check below reads the accessibility tree of a window the app puts on
@@ -139,9 +171,37 @@ while IFS= read -r running; do
 			break ;;
 	esac
 done < <(ps -U "$(id -u)" -o comm=)
-pkill -U "$(id -u)" -f "AgentSpace.app/Contents/MacOS/AgentSpace" 2>/dev/null; sleep 1
-"$APP_BIN" >/dev/null 2>&1 &
+pkill -U "$(id -u)" -f "AgentSpace.app/Contents/MacOS/AgentSpace" 2>/dev/null
+# Wait for the slate to actually be clear. The human's own copy in
+# /Applications has the same process name as the build under test, and a
+# name-based accessibility query binds to whichever System Events resolves
+# first — so a run that starts while the old copy is still dying reads the
+# *old* app's windows and reports the build under test as broken. It also
+# refuses rather than escalating: killing a process this script does not own
+# twice in a row means something is holding it, and that is worth seeing.
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  pgrep -U "$(id -u)" -f "AgentSpace.app/Contents/MacOS/AgentSpace" >/dev/null 2>&1 || break
+  sleep 1
+done
+if pgrep -U "$(id -u)" -f "AgentSpace.app/Contents/MacOS/AgentSpace" >/dev/null 2>&1; then
+  echo "gui-verify: refusing to run — an AgentSpace instance this uid still will not" >&2
+  echo "  exit after 10s:" >&2
+  pgrep -U "$(id -u)" -lf "AgentSpace.app/Contents/MacOS/AgentSpace" | sed 's/^/    /' >&2
+  rm -rf "$GUI_ROOT"
+  exit 1
+fi
+# `-NSQuitAlwaysKeepsWindows NO` is an argv-domain override: it writes nothing
+# and changes nothing the user sees. It removes one known source of extra
+# windows — AppKit restoring what a previous verification run left in the shared
+# `com.agentspace.*` defaults (the installed copy shares that domain, and its
+# window autosave names run up to AppWindow-4). It is not claimed to explain the
+# whole of this check's history: with the flag in place a run still settled at
+# two windows once (§299 row 643). The §41 defect the check exists for is queued
+# deep-link re-delivery, and those windows still arrive with restoration off.
+"$APP_BIN" -NSQuitAlwaysKeepsWindows NO >/dev/null 2>&1 &
 APP_PID=$!
+# Every query below addresses the app by pid for the same reason.
+PT="first application process whose unix id is $APP_PID"
 sleep 5
 trap '{ kill $APP_PID 2>/dev/null; rm -rf "$GUI_ROOT"; [ -n "$WAS_RUNNING_APP" ] && open "$WAS_RUNNING_APP"; } 2>/dev/null' EXIT
 
@@ -151,11 +211,39 @@ trap '{ kill $APP_PID 2>/dev/null; rm -rf "$GUI_ROOT"; [ -n "$WAS_RUNNING_APP" ]
 # spawns a WindowGroup window — three identical windows, and every sheet
 # flag then presents in all of them at once. One launch, one window.
 WINDOWS=""
-for attempt in 1 2 3 4 5; do
-  WINDOWS="$(osascript -e 'tell application "System Events" to tell process "AgentSpace" to return count of windows' 2>/dev/null)"
-  [ "${WINDOWS:-?}" = "1" ] && break
+PREV_WINDOWS=""
+SAMPLES=""
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  WINDOWS="$(osascript -e "tell application \"System Events\" to tell ($PT) to return count of windows" 2>/dev/null)"
+  SAMPLES="$SAMPLES${SAMPLES:+,}${WINDOWS:-?}"
+  # Two equal readings in a row, not the first reading. Single samples have been
+  # observed to disagree with themselves a second apart on this machine — one
+  # failing run reported a settled `2,2` and then an empty window list from the
+  # diagnostic immediately after it — so one reading is not yet evidence about
+  # the build. A count that *stays* at 2 is exactly what this check exists to
+  # catch, and requiring agreement still catches it.
+  [ "$WINDOWS" = "$PREV_WINDOWS" ] && break
+  PREV_WINDOWS="$WINDOWS"
   sleep 1
 done
+if [ "${WINDOWS:-?}" != "1" ]; then
+  # A bare `expected 1 got 2` has three possible causes and they need different
+  # fixes: a queued deep link re-delivered at launch (§41), AppKit restoring a
+  # window another run left behind, or a genuinely second window from this
+  # build. Naming the windows here is what tells them apart later, so the
+  # failure carries them instead of just the count.
+  osascript -e "tell application \"System Events\" to tell ($PT)
+set _o to \"\"
+repeat with _w in windows
+	set _o to _o & (count of (UI elements of _w) as text) & \" elements; \"
+end repeat
+return _o" 2>/dev/null > /tmp/gui-verify-windows.txt
+  note "  windows seen: $(cat /tmp/gui-verify-windows.txt 2>/dev/null)"
+  OTHERS="$(pgrep -U "$(id -u)" -lf "AgentSpace.app/Contents/MacOS" | grep -v "^$APP_PID " || true)"
+  note "  window count samples: $SAMPLES"
+  note "  bundle under test: $APP_BUNDLE (pid $APP_PID)"
+  note "  other AgentSpace processes: ${OTHERS:-none}"
+fi
 check "launch opens exactly one window" "1" "${WINDOWS:-?}"
 
 # --- Version stamp: the sidebar shows what the bundle actually carries -------
@@ -171,7 +259,7 @@ BUILD_TEXT=""
 for attempt in 1 2 3 4 5; do
   BUILD_TEXT="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
-	tell process \"AgentSpace\"
+	tell ($PT)
 		set frontmost to true
 		set _t to \"\"
 		repeat with _w in windows
@@ -190,9 +278,9 @@ case "$BUILD_TEXT" in
 esac
 
 # --- Settings: open it the way every language names it: ⌘, ------------------
-osascript >/dev/null 2>&1 <<'EOF'
+osascript >/dev/null 2>&1 <<EOF
 tell application "System Events"
-	tell process "AgentSpace"
+	tell ($PT)
 		set frontmost to true
 		repeat with _mi in menu items of menu 1 of menu bar item "AgentSpace" of menu bar 1
 			try
@@ -206,19 +294,16 @@ tell application "System Events"
 end tell
 EOF
 sleep 2
-# The window remembers its last tab; the fourth toolbar button is Advanced in
-# every language because the settings tabs are declared in a fixed order.
-osascript -e 'tell application "System Events" to tell process "AgentSpace" to click button 4 of toolbar 1 of window 1' >/dev/null 2>&1
-sleep 1
 
 # --- Settings: the polling floor lives in the control (§49) -----------------
 SLIDER="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
-	tell process \"AgentSpace\"
-		set _s to my findById(window 1, \"statusRefreshSlider\", slider, 0)
-		if _s is missing value then return \"\"
-		return (value of attribute \"AXMinValue\" of _s) & \"|\" & (value of attribute \"AXMaxValue\" of _s)
-	end tell
+	set _p to ($PT)
+	set _w to my advancedSettingsWindow(_p)
+	if _w is missing value then return \"\"
+	set _s to my findById(_w, \"statusRefreshSlider\", slider, 0)
+	if _s is missing value then return \"\"
+	return (value of attribute \"AXMinValue\" of _s) & \"|\" & (value of attribute \"AXMaxValue\" of _s)
 end tell" 2>/dev/null)"
 SLIDER="$(echo "$SLIDER" | tr -d ' ,')"
 check "refresh slider min=2.0"  "2.0" "${SLIDER%%|*}"
@@ -231,17 +316,18 @@ TIERS=""
 for attempt in 1 2; do
   TIERS="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
-	tell process \"AgentSpace\"
-		set _p to my findById(window 1, \"previewWidthPicker\", pop up button, 0)
-		if _p is missing value then return \"\"
-		click _p
-		delay 1
-		set _out to \"\"
-		repeat with _mi in (menu items of menu 1 of _p)
-			set _out to _out & ((title of _mi) as text) & \"|\"
-		end repeat
-		return _out
-	end tell
+	set _p to ($PT)
+	set _w to my windowWithId(_p, \"previewWidthPicker\", pop up button)
+	if _w is missing value then return \"\"
+	set _pp to my findById(_w, \"previewWidthPicker\", pop up button, 0)
+	if _pp is missing value then return \"\"
+	click _pp
+	delay 1
+	set _out to \"\"
+	repeat with _mi in (menu items of menu 1 of _pp)
+		set _out to _out & ((title of _mi) as text) & \"|\"
+	end repeat
+	return _out
 end tell" 2>/dev/null)"
   TIERS="$(echo "$TIERS" | sed 's/|$//; s/ //g')"
   [ "$TIERS" = "960px|1280px|1600px|1920px" ] && break
@@ -250,7 +336,7 @@ done
 check "preview tiers" "960px|1280px|1600px|1920px" "$TIERS"
 osascript -e 'key code 53' >/dev/null 2>&1
 # close the Settings window so the deep-link phase below sees one window again
-osascript -e 'tell application "System Events" to tell process "AgentSpace" to keystroke "w" using command down' >/dev/null 2>&1
+osascript -e "tell application \"System Events\" to tell ($PT) to keystroke \"w\" using command down" >/dev/null 2>&1
 sleep 1
 
 # --- The wizard: account selection and helper readiness ----------------------
@@ -265,35 +351,49 @@ sleep 1
 # never opened.
 WIZARD="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
-	tell process \"AgentSpace\"
-		set frontmost to true
-		keystroke \"n\" using command down
-		delay 2
-		set _f to my findById(window 1, \"agentNameField\", text field, 0)
-		if _f is missing value then return \"no name field\"
-		set value of _f to \"gui verify\"
-		set _p to my findById(window 1, \"macOSUserPicker\", radio group, 0)
-		if _p is not missing value then
-			-- The first radio item is the unselected placeholder; choose the
-			-- first real account so this check exercises the enabled path too.
-			tell _p to click radio button 2
-			delay 1
-		end if
+	set _p to ($PT)
+	set frontmost of _p to true
+	keystroke \"n\" using command down
+	-- ⌘N swaps the dashboard window for the wizard window, and during that
+	-- transition the window list is briefly empty. Reading once after a fixed
+	-- delay used to land in that gap and report a healthy wizard as
+	-- \"no name field\", so poll for the field and keep the window that has it.
+	set _f to missing value
+	set _w to missing value
+	repeat 8 times
 		delay 1
-		set _c to my findById(window 1, \"wizardContinue\", button, 0)
-		if _c is missing value then return \"no continue button\"
-		if (enabled of _c) as boolean then
-			click _c
-			delay 2
-			set _review to my findById(window 1, \"createAgentButton\", button, 0)
-			if _review is missing value then return \"continue did not reach review\"
-			return \"step 2\"
-		end if
-		set _open to my findById(window 1, \"openUsersGroupsButton\", button, 0)
-		set _refresh to my findById(window 1, \"refreshAccountsButton\", button, 0)
-		if _open is not missing value and _refresh is not missing value then return \"empty account state\"
-		return \"account selection required\"
-	end tell
+		repeat with _cand in (windows of _p)
+			set _try to my findById(_cand, \"agentNameField\", text field, 0)
+			if _try is not missing value then
+				set _f to _try
+				set _w to _cand
+				exit repeat
+			end if
+		end repeat
+		if _f is not missing value then exit repeat
+	end repeat
+	if _f is missing value then return \"no name field\"
+	set value of _f to \"gui verify\"
+	set _pkr to my findById(_w, \"macOSUserPicker\", radio group, 0)
+	if _pkr is not missing value then
+		-- The first radio item is the unselected placeholder; choose the
+		-- first real account so this check exercises the enabled path too.
+		tell _pkr to click radio button 2
+		delay 1
+	end if
+	delay 1
+	set _c to my findById(_w, \"wizardContinue\", button, 0)
+	if _c is missing value then return \"no continue button\"
+	if (enabled of _c) as boolean then
+		click _c
+		delay 2
+		if my windowWithId(_p, \"createAgentButton\", button) is missing value then return \"continue did not reach review\"
+		return \"step 2\"
+	end if
+	set _open to my findById(_w, \"openUsersGroupsButton\", button, 0)
+	set _refresh to my findById(_w, \"refreshAccountsButton\", button, 0)
+	if _open is not missing value and _refresh is not missing value then return \"empty account state\"
+	return \"account selection required\"
 end tell" 2>&1)"
 CARDS="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 on textsOf(theWindow, theDepth, theAcc)
@@ -312,7 +412,7 @@ on textsOf(theWindow, theDepth, theAcc)
 end textsOf
 
 tell application \"System Events\"
-	tell process \"AgentSpace\"
+	tell ($PT)
 		set _acc to {}
 		repeat with _w in windows
 			set _acc to my textsOf(_w, 0, _acc)
@@ -330,11 +430,12 @@ case "$CARDS" in
 esac
 CREATE_ENABLED="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
-	tell process \"AgentSpace\"
-		set _b to my findById(window 1, \"createAgentButton\", button, 0)
-		if _b is missing value then return \"missing\"
-		return (enabled of _b) as text
-	end tell
+	set _p to ($PT)
+	set _w to my windowWithId(_p, \"createAgentButton\", button)
+	if _w is missing value then return \"missing\"
+	set _b to my findById(_w, \"createAgentButton\", button, 0)
+	if _b is missing value then return \"missing\"
+	return (enabled of _b) as text
 end tell" 2>&1 | tr -d ' ,')"
 if [ "$WIZARD" = "empty account state" ]; then
   check "wizard explains how to add an account" "empty account state" "$WIZARD"
@@ -351,7 +452,7 @@ fi
 note "wizard: $WIZARD"
 # Close the wizard rather than create anything: this test reads, it does not
 # change the machine.
-osascript -e 'tell application "System Events" to tell process "AgentSpace" to key code 53' >/dev/null 2>&1
+osascript -e "tell application \"System Events\" to tell ($PT) to key code 53" >/dev/null 2>&1
 sleep 1
 
 # --- Deep link: dead Space raises SPACE_NOT_FOUND (§46) ---------------------
@@ -359,8 +460,9 @@ TMPROOT="$(mktemp -d /tmp/gui-verify.XXXXXX)"
 mkdir -p "$TMPROOT/Spaces"
 echo '{"spaces":[]}' > "$TMPROOT/Spaces/index.json"
 kill $APP_PID 2>/dev/null; sleep 1
-AGENTSPACE_ROOT="$TMPROOT" "$APP_BIN" >/dev/null 2>&1 &
+AGENTSPACE_ROOT="$TMPROOT" "$APP_BIN" -NSQuitAlwaysKeepsWindows NO >/dev/null 2>&1 &
 APP_PID=$!
+PT="first application process whose unix id is $APP_PID"
 sleep 4
 DEAD_ID="11111111-2222-4333-8444-555555555555"
 # Always target the bundle under test.  A bare scheme open can route to an
@@ -368,11 +470,25 @@ DEAD_ID="11111111-2222-4333-8444-555555555555"
 open -a "$APP_BUNDLE" "agentspace://space/$DEAD_ID"
 sleep 3
 # the alert's first static text is the error code, which is never localized
-ALERT="$(osascript -e 'tell application "System Events" to tell process "AgentSpace" to return value of static text 1 of sheet 1 of window 1' 2>/dev/null | head -c 16)"
+ALERT=""
+for attempt in 1 2 3 4 5 6 7 8; do
+  ALERT="$(osascript -e "tell application \"System Events\" to tell ($PT) to return value of static text 1 of sheet 1 of window 1" 2>/dev/null | head -c 16)"
+  [ -n "$ALERT" ] && break
+  sleep 1
+done
 check "dead link alert" "SPACE_NOT_FOUND" "$ALERT"
 
+# Leave no pending open event behind. An app killed while a deep-link alert is
+# still up hands that URL back to LaunchServices, and the next launch of any
+# copy sharing this bundle id opens a second window from it — which is this
+# script's own first check tripping over this script's own residue.
+osascript -e "tell application \"System Events\" to tell ($PT) to key code 53" >/dev/null 2>&1
+sleep 1
+osascript -e "tell application \"System Events\" to tell ($PT) to keystroke \"w\" using command down" >/dev/null 2>&1
+sleep 1
+
 # --- report ------------------------------------------------------------------
-rm -rf "$TMPROOT" /tmp/gui-verify-lib.applescript
+rm -rf "$TMPROOT" /tmp/gui-verify-lib.applescript /tmp/gui-verify-windows.txt
 echo
 echo "gui-verify: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

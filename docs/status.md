@@ -4,7 +4,8 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-20 on `master`.
+Last updated: 2026-09-21 on `master`. Current release: `0.1.17` (`v0.1.17`,
+notarized DMG attached to the GitHub Release, digest verified in §298/§299).
 
 ## Product in one sentence
 
@@ -207,8 +208,21 @@ windows — locked screen, fast-user-switched away, or session state it cannot
 read — because all seven of its checks read an accessibility tree that a locked
 session leaves empty. That refusal (`exit 1`, "the console session's screen is
 LOCKED") is validation §297: it is an environment verdict, not a build verdict,
-and it is a different result from seven failures. Establish the 7/7 run on an
-unlocked console.
+and it is a different result from seven failures.
+
+The unlocked run is now established: 7/7 on the published 0.1.17 bundle, twice
+consecutively (§299 row 643), and getting there exposed two identity defects in
+the gate itself — it addressed the app by *process name*, so an installed copy
+in `/Applications` let it score 0.1.12 while claiming to test the build under
+test, and it resolved controls against `window 1`, whose order the window server
+chooses. Both now bind to the launched pid and to the window that actually
+contains the identifier (§299 rows 639-640). One reading still disagrees: with
+the final script in place it passed twice in a row and then settled at two
+windows on the third run — six of the sixteen runs it took to get here produced
+that reading — while ten cold launches measured outside the gate gave one window
+every time (§299 row 642) and the queued-deep-link theory was tested and
+rejected (row 643). That residual is open, and the check now prints its sample
+trace rather than a bare number.
 
 ## Compatibility rules
 
