@@ -44,7 +44,7 @@ struct ParsedArgs {
 let valueFlags: Set<String> = [
     "root", "out", "max-width", "display", "cwd", "timeout", "env",
     "file", "pid", "role", "title", "identifier", "action", "reason",
-    "max-depth", "max-nodes",
+    "max-depth", "max-nodes", "fps",
     // Attach workspace flags. Declared here or the parser refuses them as
     // unknown before the command ever sees them.
     "repo", "branch", "share", "share-rw", "config",
@@ -55,7 +55,7 @@ let valueFlags: Set<String> = [
 let booleanFlags: Set<String> = [
     "help", "version", "json", "double", "right", "force", "inline",
     "interesting", "no-interesting", "all", "resources", "quiet",
-    "remove-home", "install", "start", "frame", "stop",
+    "remove-home", "install", "start", "frame", "stop", "stats",
 ]
 
 /// Flags that may appear more than once.
@@ -270,8 +270,11 @@ func usage() -> String {
       screenshot <account>            Capture the agent's desktop
       open <account>                  Open the agent's desktop in the app
                                       (alias: desktop)
-      preview <account> --start|frame|stop
+      preview <account> --start | --frame | --stats | --stop
                                       Drive the live preview stream (§52 debug)
+                                      --start [--fps N] opens the screenshot
+                                      preview, --stats asks the frame engine
+                                      what its open streams are doing
       apps <account>                  Apps running in the agent session
       ax <account> snapshot           Accessibility tree of the frontmost app
       ax <account> frontmost          Frontmost app and focused element
@@ -872,9 +875,10 @@ case "desktop":
 
 case "preview":
     // §52's live preview from the command line: --start opens the stream,
-    // --frame pulls the newest frame (base64), --stop closes it. The GUI runs
-    // the same three methods directly over the socket; the CLI exists so the
-    // stream can be exercised and debugged without the app.
+    // --frame pulls the newest frame (base64), --stop closes it, and --stats asks
+    // the frame engine what its open streams are doing. The GUI runs the same
+    // methods directly over the socket; the CLI exists so the stream can be
+    // exercised and debugged without the app.
     let (_, connection) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)
     if parsed.bool("start") {
         let fps = parsed.int("fps") ?? 5
@@ -886,8 +890,18 @@ case "preview":
     } else if parsed.bool("stop") {
         let result = callJSON(emitter, connection, Method.previewStop, .obj([:]))
         emitter.success(result, human: "preview stopped")
+    } else if parsed.bool("stats") {
+        // The frame engine's own report, for the streams this worker has open —
+        // which are normally the app's, not the terminal's. No stream ID means
+        // "all of them", because a UUID belonging to somebody else's window is
+        // not something a diagnosis should have to guess.
+        let result = callJSON(emitter, connection, Method.frameStats, .obj([:]))
+        let streams = result["streams"]?.arrayValue ?? []
+        emitter.success(result, human: streams.isEmpty
+            ? "no frame stream is open (\(result["openStreams"]?.intValue ?? 0))"
+            : "\(streams.count) frame stream(s): " + streams.map { "\($0["frameMode"]?.stringValue ?? "?") \($0["publishFPS"]?.doubleValue ?? 0)fps" }.joined(separator: ", "))
     } else {
-        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace preview <space> --start [--fps N] | --frame | --stop"))
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace preview <space> --start [--fps N] | --frame | --stats | --stop"))
     }
 
 case "input":

@@ -21,6 +21,7 @@ npm-debug.log*
 # Test and probe output
 *.log
 /tmp-probe
+/artifacts
 
 # Built app bundles
 dist/

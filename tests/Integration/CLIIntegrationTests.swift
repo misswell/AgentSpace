@@ -324,6 +324,48 @@ final class CLIIntegrationTests: XCTestCase {
 
     // MARK: - Through a live worker
 
+    /// `--help` is the contract a shell caller reads, and the parser checks every
+    /// flag against its own whitelist — so a flag documented in the usage text but
+    /// missing there is a command nobody can run. `preview --stats` and
+    /// `preview --start --fps` both shipped that way once.
+    func testEveryFlagDocumentedInUsageIsAcceptedByTheParser() throws {
+        let cli = try harness()
+        let usage = cli.run(["--help"])
+        XCTAssertEqual(usage.exitCode, 0, usage.output)
+        guard let expression = try? NSRegularExpression(pattern: "--([a-z][a-z0-9-]*)") else {
+            return XCTFail("could not build the flag pattern")
+        }
+        let text = usage.stdout
+        var documented = Set<String>()
+        for match in expression.matches(in: text, range: NSRange(location: 0, length: text.count)) {
+            guard let range = Range(match.range(at: 1), in: text) else { continue }
+            documented.insert(String(text[range]))
+        }
+        XCTAssertFalse(documented.isEmpty, "the usage text documents no flags at all")
+        var refused: [String] = []
+        for flag in documented.sorted() {
+            // A value flag consumes the positional after it, so the command
+            // below may never run either way. The only outcome that matters is
+            // that the parser got past the whitelist.
+            if cli.run(["--\(flag)", "list", "--json"]).output.contains("unknown flag") {
+                refused.append(flag)
+            }
+        }
+        XCTAssertTrue(refused.isEmpty,
+            "flags documented in --help but refused by the parser: \(refused.joined(separator: ", "))")
+    }
+
+    /// The same two flags one level further in: an unknown account answers with
+    /// the documented not-found exit code, which is proof the flag reached
+    /// command dispatch instead of dying in argument parsing.
+    func testPreviewStatsAndFPSReachCommandDispatch() throws {
+        let cli = try harness()
+        let stats = cli.run(["preview", "NoSuchAccount", "--stats", "--json"])
+        XCTAssertEqual(stats.exitCode, 66, stats.output)
+        let start = cli.run(["preview", "NoSuchAccount", "--start", "--fps", "10", "--json"])
+        XCTAssertEqual(start.exitCode, 66, start.output)
+    }
+
     /// Seed a registry entry and start a real worker for it. Returns (cli, token).
     private func liveSpace(_ name: String) throws -> (CLIHarness, SessionToken, AgentAccount) {
         let cli = try harness()

@@ -195,6 +195,7 @@
 "Fast user switch into the AgentSpace user once (System Settings → Control Center → Fast User Switching), then switch back. The session stays alive afterwards." = "用快速用户切换登录一次 AgentSpace 用户（系统设置 → 控制中心 → 快速用户切换），再切回你自己的账号。此后该会话会一直保持。";
 "The AgentSpace desktop is on your physical display right now. Switch back to your own account; input resumes automatically and is refused until then." = "AgentSpace 桌面此刻就在你的物理显示器上。请切回你自己的账号；在此之前输入会被拒绝，切回后自动恢复。";
 "Start the preview first (`preview.start`); a stream also stops itself after 10 seconds with no frame pulls." = "请先启动预览（`preview.start`）；流在 10 秒内没有帧拉取时也会自行停止。";
+"The capture stream ended on its own, so the picture on screen is the last one taken, not the desktop now. AgentSpace reconnects on the next frame request; if it repeats, the window or display being watched closed or went to sleep." = "捕获流已自行结束，因此屏幕上显示的是最后一帧，而不是当前的桌面。AgentSpace 会在下一次帧请求时重连；如果反复出现，说明被观察的窗口或显示器已关闭或进入睡眠。";
 "The AgentSpace session has no window server. Log the AgentSpace user in through the GUI (not ssh) and retry." = "该 AgentSpace 会话没有窗口服务器。请通过图形界面（而非 ssh）登录 AgentSpace 用户后重试。";
 "Start the agent's worker: `agentspace start <space>`, or check `agentspace doctor`." = "启动该 Agent 的 worker：`agentspace start <space>`，或运行 `agentspace doctor` 检查。";
 "The worker refuses to run as root. It must run as the AgentSpace user inside that user's Aqua session." = "worker 拒绝以 root 运行。它必须以 AgentSpace 用户身份在该用户的 Aqua 会话内运行。";

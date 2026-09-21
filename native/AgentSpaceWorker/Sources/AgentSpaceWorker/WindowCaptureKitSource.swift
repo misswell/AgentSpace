@@ -48,8 +48,10 @@ final class WindowCaptureFrameSource: NSObject, PreviewFrameSource {
         configuration.showsCursor = true
         // `SCWindow.frame` is in points, so a 1:1 buffer on a Retina panel
         // halves the resolution of everything small enough to matter — menu
-        // text, 12 pt body copy. Ask for the panel's pixel size instead.
-        let backingScale = Self.pixelsPerPoint(for: window.frame)
+        // text, 12 pt body copy. Ask for the panel's pixel size instead, from
+        // `DisplayScales`, which the binary frame engine shares so the two
+        // capture paths cannot disagree about what a point is worth.
+        let backingScale = DisplayScales.pixelsPerPoint(for: window.frame)
         configuration.width = max(1, Int(window.frame.width) * backingScale)
         configuration.height = max(1, Int(window.frame.height) * backingScale)
         configuration.scalesToFit = true
@@ -75,35 +77,6 @@ final class WindowCaptureFrameSource: NSObject, PreviewFrameSource {
         if let startError {
             throw AgentSpaceError(code: .screenRecordingDenied, message: "window capture failed: \(startError)")
         }
-    }
-
-    /// Backing scale of the display this window sits on. `CGDisplayBounds` and
-    /// the captured window frame share the top-left global space, so the frame
-    /// can be compared with the displays directly; which one wins is Core's
-    /// `DisplayScaleSelection`, because that decision is geometry rather than
-    /// a WindowServer call. A window touching no active display keeps the main
-    /// display's scale.
-    private static func pixelsPerPoint(for frame: CGRect) -> Int {
-        var count: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return 1 }
-        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return 1 }
-        let candidates = displays
-            .filter { CGDisplayIsActive($0) != 0 }
-            .compactMap(candidate)
-        return DisplayScaleSelection.pixelsPerPoint(
-            windowFrame: frame, in: candidates, fallback: pixelsPerPoint(of: CGMainDisplayID()))
-    }
-
-    private static func candidate(_ display: CGDirectDisplayID) -> DisplayScaleSelection.Candidate? {
-        guard let mode = CGDisplayCopyDisplayMode(display) else { return nil }
-        return DisplayScaleSelection.Candidate(
-            bounds: CGDisplayBounds(display), pixelWidth: mode.pixelWidth, pointWidth: mode.width)
-    }
-
-    private static func pixelsPerPoint(of display: CGDirectDisplayID) -> Int {
-        guard let mode = CGDisplayCopyDisplayMode(display) else { return 1 }
-        return max(1, mode.pixelWidth / max(1, mode.width))
     }
 
     func stop() {

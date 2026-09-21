@@ -27,6 +27,14 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     case accessibilityDenied = "ACCESSIBILITY_DENIED"
     case screenRecordingDenied = "SCREEN_RECORDING_DENIED"
 
+    // --- Capture ------------------------------------------------------------
+    /// A capture stream that was running stopped by itself: the window closed,
+    /// the display went away, or the session lost the WindowServer. The socket
+    /// carrying it is still open and the viewer is still showing its last
+    /// picture, so without this code the failure looks like a frozen desktop
+    /// rather than a ended stream.
+    case captureStreamFailed = "CAPTURE_STREAM_FAILED"
+
     // --- Input --------------------------------------------------------------
     case invalidCoordinate = "INVALID_COORDINATE"
     case invalidAction = "INVALID_ACTION"
@@ -83,7 +91,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         switch self {
         case .sessionNotReady, .workerOffline, .noWindowServer,
              .sessionIsConsole, .appLaunchTimeout, .commandTimeout,
-             .helperUnavailable, .previewNotRunning,
+             .helperUnavailable, .previewNotRunning, .captureStreamFailed,
              .appNotFound, .appNotRunning, .noInputTarget, .inputBusyByHuman:
             return true
         case .accessibilityDenied, .screenRecordingDenied,
@@ -110,6 +118,8 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
             return NSLocalizedString("The AgentSpace desktop is on your physical display right now. Switch back to your own account; input resumes automatically and is refused until then.", comment: "")
         case .previewNotRunning:
             return NSLocalizedString("Start the preview first (`preview.start`); a stream also stops itself after 10 seconds with no frame pulls.", comment: "")
+        case .captureStreamFailed:
+            return NSLocalizedString("The capture stream ended on its own, so the picture on screen is the last one taken, not the desktop now. AgentSpace reconnects on the next frame request; if it repeats, the window or display being watched closed or went to sleep.", comment: "")
         case .noWindowServer:
             return NSLocalizedString("The AgentSpace session has no window server. Log the AgentSpace user in through the GUI (not ssh) and retry.", comment: "")
         case .workerOffline:

@@ -95,4 +95,15 @@ public final class DirtyRegionAccumulator: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         let result = damage; damage = .none; return result
     }
+
+    /// Pixels waiting to be sent. Read without emptying, so a report can say how
+    /// much damage has piled up behind a viewer that is not acknowledging.
+    public func pendingArea() -> UInt64 {
+        lock.lock(); defer { lock.unlock() }
+        switch damage {
+        case .none: return 0
+        case .regions(let regions): return regions.reduce(0) { $0 + $1.area }
+        case .fullFrame(let width, let height): return UInt64(width) * UInt64(height)
+        }
+    }
 }

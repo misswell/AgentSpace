@@ -67,13 +67,21 @@ class RemoteSurfaceNSView: NSView {
         cpuLayer.backgroundColor = NSColor.black.cgColor
         cpuLayer.isHidden = true
         layer?.addSublayer(cpuLayer)
-        client.handleSharedFrame = { [weak self] mapping, _, _, slot, patches in
-            guard let self else { return false }
-            if self.renderer?.apply(mapping: mapping, slot: slot, patches: patches) == true {
+        client.handleSharedFrame = { [weak self] mapping, _, _, slot, patches, presented in
+            guard let self else { return .refused }
+            let outcome = self.renderer?.apply(mapping: mapping, slot: slot, patches: patches, presented: presented) ?? .refused
+            switch outcome {
+            case .uploaded, .uploadedWithoutPresent:
                 DispatchQueue.main.async { self.cpuLayer.isHidden = true }
-                return true
+                return outcome
+            case .refused:
+                // No Metal, or a texture this view could not build: the CPU layer is
+                // the renderer now, and a frame it also refuses is the one case
+                // where the viewer asks the worker for a baseline. The CPU path
+                // reports no present timestamp — a stamped guess is worse than no
+                // sample, because it is the flattering kind.
+                return self.applyCPU(mapping: mapping, slot: slot, patches: patches) ? .uploaded : .refused
             }
-            return self.applyCPU(mapping: mapping, slot: slot, patches: patches)
         }
         client.handleVideoFrame = { [weak self] buffer in
             guard let self else { return }

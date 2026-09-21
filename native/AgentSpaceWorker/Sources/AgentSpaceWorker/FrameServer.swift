@@ -3,6 +3,11 @@ import Foundation
 import AgentSpaceCore
 
 final class FrameServer {
+    /// How long a frame may sit in the kernel buffer before the worker calls the
+    /// viewer dead. Above the ~16 ms a frame wants, below the second at which a
+    /// frozen window stops being a hiccup and starts being a stall.
+    static let sendTimeout: TimeInterval = 1
+
     private let context: WorkerContext
     private let manager: FrameManager
     private let allowSameUserPeer: Bool
@@ -39,13 +44,26 @@ final class FrameServer {
         while listenFD >= 0 {
             let client = accept(listenFD, nil, nil)
             if client < 0 { if errno == EINTR { continue }; break }
+            // One block per viewer, and each viewer drives a publisher of its own.
+            // That is what keeps a frozen Fusion window from holding up Desktop:
+            // nothing is shared across connections except the capture, which
+            // never waits for a viewer.
             queue.async { [weak self] in self?.handle(client) }
         }
     }
 
     private func handle(_ fd: Int32) {
-        let connection = FrameConnection(fd: fd)
-        guard let line = connection.readLine(), let hello = try? JSONDecoder().decode(FrameHello.self, from: line), let publisher = manager.publisher(hello.streamID) else { return }
+        // Every send carries the deadline above. The *read* side deliberately
+        // carries none: a still desktop is a viewer that sends nothing for
+        // minutes and is perfectly alive, so a read timeout on this side would be
+        // a false positive. Judgment of silence flows the other way — the viewer
+        // watches for the worker's heartbeats, because a silent worker is the one
+        // that would leave a picture on screen pretending to be current.
+        let socket = FrameSocket(fd: fd, sendTimeout: Self.sendTimeout, receiveTimeout: 0)
+        defer { socket.close() }
+        guard let line = try? socket.readLine(),
+              let hello = try? JSONDecoder().decode(FrameHello.self, from: line),
+              let publisher = manager.publisher(hello.streamID) else { return }
         var peerUID: uid_t = 0, peerGID: gid_t = 0
         guard getpeereid(fd, &peerUID, &peerGID) == 0 else { return }
         let expectedUID: uid_t
@@ -59,19 +77,24 @@ final class FrameServer {
         let expectation = FrameHandshakeExpectation(spaceID: context.spaceID, streamID: publisher.streamID, token: context.token.hex, protocolVersion: agentSpaceProtocolVersion, peerUID: expectedUID, workerInstanceID: manager.workerInstanceID, sessionGeneration: manager.sessionGeneration)
         guard (try? expectation.validate(hello, actualPeerUID: peerUID)) != nil else { return }
         let ack = FrameHelloAck(workerInstanceID: manager.workerInstanceID, sessionGeneration: manager.sessionGeneration, supportedFrameModes: [.sharedBGRA, .h264])
-        guard connection.sendLine(ack) else { return }
+        guard (try? socket.sendLine(ack)) != nil else { return }
         let mapping: (fd: Int32, size: Int, generation: UInt64)
-        do { mapping = try publisher.shared.attach(sender: { [weak self, weak connection] header, payload in
-            guard self?.context.sessionVerdict() == .usable else {
-                connection?.closeConnection()
-                return false
-            }
-            return connection?.sendFrame(header: header, payload: payload) ?? false
-        }, onDisconnect: { [weak connection] in connection?.closeConnection() }) } catch { return }
-        guard connection.sendFileDescriptor(mapping.fd) else { publisher.shared.detach(); return }
+        do {
+            mapping = try publisher.shared.attach(sender: { [weak self, weak socket] header, payload in
+                guard let socket, self?.context.sessionVerdict() == .usable else { return false }
+                return (try? socket.sendFrame(header: header, payload: payload)) != nil
+            }, onDisconnect: { [weak socket] in
+                // `abort`, not `close`: this runs on the publisher queue, and the
+                // descriptor belongs to this method. Shutdown wakes the blocked
+                // read below; the `defer` above is what releases it.
+                socket?.abort()
+            })
+        } catch { return }
+        guard (try? socket.sendFileDescriptor(mapping.fd)) != nil else { publisher.shared.detach(); return }
         publisher.shared.requestFull()
         defer { publisher.shared.detach() }
-        while let commandLine = connection.readLine(), let command = try? JSONDecoder().decode(FrameClientCommand.self, from: commandLine) {
+        while let commandLine = try? socket.readLine(),
+              let command = try? JSONDecoder().decode(FrameClientCommand.self, from: commandLine) {
             switch command.kind {
             case .acknowledge:
                 if let slot = command.slotIndex, let sequence = command.sequence { publisher.shared.acknowledge(slot: slot, sequence: sequence) }

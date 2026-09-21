@@ -761,10 +761,68 @@ struct Operations {
         publisher.shared.requestFull(); return .obj(["requested": .bool(true)])
     }
 
+    /// Everything the worker knows about one stream, or about all of them when no
+    /// stream is named.
+    ///
+    /// The unnamed form exists because the streams worth diagnosing are not the
+    /// reader's own: a Desktop window is opened by the app, and its UUID is not
+    /// discoverable from a terminal. `frameMode`, `encoderActive` and the
+    /// activation counters say which path the pixels took; the drop and
+    /// termination counters say what was thrown away on the way; the percentile is
+    /// capture→publish, which is the only segment this process can measure end to
+    /// end. Arrival→screen belongs to the viewer, and this reply does not pretend
+    /// to know it.
     func frameStats(params: JSONValue) throws -> JSONValue {
-        guard let publisher = frames.publisher(try frameStreamID(params)) else { throw AgentSpaceError(code: .previewNotRunning, message: "frame stream is not running") }
-        let value = publisher.shared.stats
-        return .obj(["framesPublished": .int(Int(value.framesPublished)), "fullFrames": .int(Int(value.fullFrames)), "deltaFrames": .int(Int(value.deltaFrames)), "sharedBytes": .int(Int(value.sharedBytes))])
+        if let raw = params["streamID"]?.stringValue {
+            guard let id = UUID(uuidString: raw), let publisher = frames.publisher(id) else {
+                throw AgentSpaceError(code: .previewNotRunning, message: "frame stream is not running")
+            }
+            return frameStatsJSON(publisher.stats())
+        }
+        let live = frames.live()
+        return .obj([
+            "workerInstanceID": .string(frames.workerInstanceID.uuidString),
+            "sessionGeneration": .int(Int(frames.sessionGeneration)),
+            "openStreams": .int(live.count),
+            "streams": .array(live.map { publisher in frameStatsJSON(publisher.stats(), extra: [
+                "streamID": .string(publisher.streamID.uuidString),
+                "target": publisher.target.jsonValue,
+            ])}),
+        ])
+    }
+
+    private func frameStatsJSON(_ value: FrameStats, extra: [String: JSONValue] = [:]) -> JSONValue {
+        var fields: [String: JSONValue] = [
+            "workerInstanceID": .string(frames.workerInstanceID.uuidString),
+            "sessionGeneration": .int(Int(frames.sessionGeneration)),
+            "framesCaptured": .int(Int(value.framesCaptured)),
+            "framesPublished": .int(Int(value.framesPublished)),
+            "framesDropped": .int(Int(value.framesDropped)),
+            "framesMerged": .int(Int(value.framesMerged)),
+            "fullFrames": .int(Int(value.fullFrames)),
+            "deltaFrames": .int(Int(value.deltaFrames)),
+            "unacknowledgedDrops": .int(Int(value.unacknowledgedDrops)),
+            "heartbeatsSent": .int(Int(value.heartbeatsSent)),
+            "captureTerminations": .int(Int(value.captureTerminations)),
+            "modeSwitchCount": .int(Int(value.modeSwitchCount)),
+            "socketReconnects": .int(Int(value.socketReconnects)),
+            "sharedBytes": .int(Int(value.sharedBytes)),
+            "videoBytes": .int(Int(value.videoBytes)),
+            "captureFPS": .double(value.captureFPS),
+            "publishFPS": .double(value.publishFPS),
+            "dirtyRatio": .double(value.dirtyRatio),
+            "fullFrameRatio": .double(value.fullFrameRatio),
+            "pendingDamageArea": .int(Int(value.pendingDamageArea)),
+            "mappingBytes": .int(value.mappingBytes),
+            "frameMode": .string(value.frameMode),
+            "encoderActive": .bool(value.encoderActive),
+            "videoEncoderActivations": .int(Int(value.videoEncoderActivations)),
+            "videoEncoderInvalidations": .int(Int(value.videoEncoderInvalidations)),
+            "captureToPublishP50": .double(value.captureToPublishP50),
+            "captureToPublishP95": .double(value.captureToPublishP95),
+        ]
+        for (key, field) in extra { fields[key] = field }
+        return .obj(fields)
     }
 
     private func frameStreamID(_ params: JSONValue) throws -> UUID {
