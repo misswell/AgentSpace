@@ -12,7 +12,7 @@ public let helperMachServiceName = BundleIdentifiers.helper
 /// One source of truth for the native GUI/helper/worker build. Keeping the
 /// worker's hello version separate previously made a partial version bump look
 /// exactly like a worker that launchd had failed to update.
-public let agentSpaceVersion = "0.1.23"
+public let agentSpaceVersion = "0.1.24"
 public let helperVersion = agentSpaceVersion
 
 /// The XPC surface, as Objective-C sees it.
