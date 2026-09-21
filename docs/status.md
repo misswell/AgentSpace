@@ -4,9 +4,9 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-21 on `master`. Current release: `0.1.17` (`v0.1.17`,
-notarized DMG attached to the GitHub Release, digest verified in §298/§299).
-§300's two GUI fixes are on `master` and are not in that release.
+Last updated: 2026-09-21 on `master`. Current release: `0.1.18` (`v0.1.18`,
+notarized DMG attached to the GitHub Release, digest verified in §301). It
+carries §300's two GUI fixes and §299's gate-identity fix; `0.1.17` did not.
 
 ## Product in one sentence
 
@@ -211,8 +211,8 @@ session leaves empty. That refusal (`exit 1`, "the console session's screen is
 LOCKED") is validation §297: it is an environment verdict, not a build verdict,
 and it is a different result from failing every check.
 
-The unlocked run is established: 8/8 on a temporary verification bundle, with
-the wizard reaching `step 2` (§300 row 652). Getting there exposed three defects
+The unlocked run is established: 8/8, with the wizard reaching `step 2`, on the
+published 0.1.18 bundle (§301 row 654). Getting there exposed three defects
 in the gate itself. It addressed the app by *process name*, so an installed copy
 in `/Applications` let it score 0.1.12 while claiming to test the build under
 test, and it resolved controls against `window 1`, whose order the window server
@@ -232,7 +232,7 @@ reproducing them; the check prints its sample trace rather than a bare number.
 The gate now also asserts the two product behaviours §300 fixed: the empty
 dashboard names the registry file it read when `AGENTSPACE_ROOT` is set, and the
 New Agent wizard waits for Directory Service instead of claiming no standard
-users exist. Those fixes are on `master`, not in the published 0.1.17.
+users exist. Both shipped in 0.1.18 (§301); they are not in 0.1.17 or earlier.
 
 ## Compatibility rules
 
