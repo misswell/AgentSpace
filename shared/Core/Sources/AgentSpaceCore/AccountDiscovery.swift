@@ -35,20 +35,40 @@ public struct LocalAccount: Equatable, Sendable, Identifiable {
 /// Discovers existing standard users. It is read-only: attachment is a
 /// separate, explicit operation through the helper.
 public enum AccountDiscovery {
+    /// The predicates that decide eligibility without asking anything about a
+    /// single account. `discover` applies these to every passwd record first and
+    /// only then asks Directory Service about the survivors: a Mac carries
+    /// hundreds of system records, and probing each one used to mean hundreds of
+    /// `/usr/bin/id` processes before the first candidate was known (§300).
+    static func passesCheapFilters(
+        _ account: LocalAccount,
+        currentUsername: String
+    ) -> Bool {
+        account.uid >= 500
+            && account.username != currentUsername
+            && !account.isHidden
+            && account.homeDirectory.hasPrefix("/Users/")
+    }
+
     public static func candidates(
         from accounts: [LocalAccount],
         currentUsername: String = NSUserName()
     ) -> [LocalAccount] {
         accounts.filter {
-            $0.uid >= 500
-                && $0.username != currentUsername
-                && !$0.isAdministrator
-                && !$0.isHidden
-                && $0.homeDirectory.hasPrefix("/Users/")
+            passesCheapFilters($0, currentUsername: currentUsername) && !$0.isAdministrator
         }.sorted { $0.username.localizedCaseInsensitiveCompare($1.username) == .orderedAscending }
     }
 
     public static func discover(currentUsername: String = NSUserName()) -> [LocalAccount] {
+        discover(currentUsername: currentUsername, administratorProbe: isAdministrator(_:))
+    }
+
+    /// Seam for the test that proves the privilege probe is not asked about
+    /// records the cheap filters already rejected.
+    static func discover(
+        currentUsername: String = NSUserName(),
+        administratorProbe: (String) -> Bool
+    ) -> [LocalAccount] {
         guard let hiddenUsernames = hiddenUsernames() else { return [] }
         var found: [LocalAccount] = []
         setpwent()
@@ -65,15 +85,23 @@ public enum AccountDiscovery {
             } else {
                 displayName = username
             }
-            found.append(LocalAccount(
+            let account = LocalAccount(
                 username: username,
                 uid: value.pw_uid,
                 displayName: displayName.isEmpty ? username : displayName,
                 homeDirectory: home,
-                isAdministrator: isAdministrator(username),
-                isHidden: hiddenUsernames.contains(username)))
+                isAdministrator: false,
+                isHidden: hiddenUsernames.contains(username))
+            if passesCheapFilters(account, currentUsername: currentUsername) {
+                found.append(account)
+            }
         }
-        return candidates(from: found, currentUsername: currentUsername)
+        let resolved = found.map { account in
+            var probed = account
+            probed.isAdministrator = administratorProbe(account.username)
+            return probed
+        }
+        return candidates(from: resolved, currentUsername: currentUsername)
     }
 
     /// Resolve one user without walking every directory-service record. This is
