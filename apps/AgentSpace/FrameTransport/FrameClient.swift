@@ -269,7 +269,7 @@ final class FrameClient: ObservableObject {
         case .display(let id): label = "display:\(id.map(String.init) ?? "main")"
         case .window(let identity): label = "window:\(identity.windowID)"
         }
-        Self.log.notice("frame stream \(label, privacy: .public) ended: received=\(value.framesReceived) rendered=\(value.framesRendered) slots=\(value.sharedFramesPerSlot) dropped=\(value.framesDropped) heartbeats=\(value.heartbeatsReceived) gaps=\(value.sequenceGaps) reconnects=\(value.socketReconnects) endToEnd p50=\(String(format: "%.1f", value.endToEndP50))ms p95=\(String(format: "%.1f", value.endToEndP95))ms")
+        Self.log.notice("frame stream \(label, privacy: .public) ended: received=\(value.framesReceived, privacy: .public) rendered=\(value.framesRendered, privacy: .public) slots=\(value.sharedFramesPerSlot, privacy: .public) dropped=\(value.framesDropped, privacy: .public) heartbeats=\(value.heartbeatsReceived, privacy: .public) gaps=\(value.sequenceGaps, privacy: .public) reconnects=\(value.socketReconnects, privacy: .public) endToEnd p50=\(String(format: "%.1f", value.endToEndP50), privacy: .public)ms p95=\(String(format: "%.1f", value.endToEndP95), privacy: .public)ms")
     }
 
     /// A stream is over. Counted here rather than in `FrameReconnectState`
