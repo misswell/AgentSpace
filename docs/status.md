@@ -83,8 +83,12 @@ the V3 root.
 - Unix-socket JSON RPC with session-token authentication.
 - Fail-closed session ownership checks; input is refused on the physical
   console and never redirected to the human session.
-- ScreenCaptureKit desktop stream with screenshot fallback, keyboard/mouse
-  input, application control and guarded command execution.
+- ScreenCaptureKit desktop and window capture streamed over the binary frame
+  engine (shared-memory damage plus adaptive H.264). The live view has no
+  screenshot fallback: if the stream is gone the view says so instead of
+  quietly showing an old picture. `screenshot` stays a separate one-shot
+  capability for agents and for the manual snapshot button.
+  Keyboard/mouse input, application control and guarded command execution.
 - CLI and MCP account/status/desktop/app/exec surfaces. Old wire method names,
   `agentspace_*` MCP tools, registry keys and deep-link compatibility remain.
 - English and Simplified Chinese localization with automated key parity.
@@ -133,9 +137,18 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    sustained high damage may switch to low-latency H.264. The hot path no
    longer polls JPEG/base64 over JSON or writes frames to disk. Resize and zoom
    reopen a debounced stream at the requested pixel size, and a Metal renderer
-   keeps one texture with an in-memory BGRA fallback. The remaining debt is the
-   installed-worker, cross-session measurement below; code-only validation is
-   recorded in §304.
+   keeps one texture with an in-memory BGRA fallback. §305's frame-engine round
+   closed the failure and measurement halves of that sentence: a capture that
+   stops by itself now ends the connection instead of freezing the last frame,
+   an idle stream is distinguished from a lost one by a 2-second heartbeat with
+   an 8-second stale deadline, the H.264 encoder is created only when a frame
+   actually needs it, a viewer that stops reading is dropped after a one-second
+   send deadline rather than blocking the worker, and `frame.stats` reports
+   measured counts, rates and percentiles for each open stream.
+   `scripts/frame-benchmark.sh` and `scripts/frame-soak.sh` turn that into
+   numbers. What is still owed is the physical half — the measurement below, on
+   a machine whose app *and* installed worker both speak for this build; code
+   and unit evidence are recorded in §304 and §306.
 3. **Real-machine acceptance** — install the new worker into the already
    connected standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the
@@ -224,6 +237,22 @@ The code gates can verify protocol, lifecycle and mapping. The defining
 TextEdit cross-session acceptance still requires the attached account's real
 Aqua session and TCC grants, and must not be represented as passed until that
 manual run is recorded in `docs/validation.md`.
+
+## Measuring the frame engine
+
+`scripts/frame-benchmark.sh` samples a live stream for a window (default 60 s):
+CPU and resident size of both processes, descriptor counts, every `frame.stats`
+field, and the byte totals of the directories a frame path could plausibly write
+into. `scripts/frame-soak.sh` is the same sampler at hour scale, with drift
+verdicts. Both write JSON under `artifacts/` and end in one verdict per property
+— §13's quiet desktop, the lazy encoder, back-pressure, the shared-memory budget,
+whether the CPU copy is the hotspot.
+
+They need a real stream: no app running, no frame stream open, or a worker too
+old to answer `frame.stats` each exits 3 with the reason, because "not measured"
+must not be readable as "passed". `--mode static` is §13's claim as a gate, and
+`--seconds`/`--minutes` are the short runs that check the arithmetic without
+spending an hour.
 
 ## Required verification
 
