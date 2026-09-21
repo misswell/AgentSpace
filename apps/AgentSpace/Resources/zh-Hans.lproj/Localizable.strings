@@ -556,3 +556,6 @@
 "Could not create the shared frame buffer. Reconnect; if it keeps happening, update AgentSpace." = "无法创建共享画面缓冲区。请重新连接；如果问题持续，请更新 AgentSpace。";
 "Connecting frame stream…" = "正在连接画面流…";
 "Reconnecting frame stream…" = "正在重新连接画面流…";
+"Frame stream is out of sync" = "画面流状态不同步";
+"AgentSpace is reconnecting the shared picture." = "AgentSpace 正在重新连接共享画面。";
+"The shared picture could not be recovered. Reconnect, and if it keeps happening, update AgentSpace." = "共享画面连接无法恢复。请重新连接；如果问题持续，请更新 AgentSpace。";

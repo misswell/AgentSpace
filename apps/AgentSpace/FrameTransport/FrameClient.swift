@@ -17,6 +17,11 @@ final class FrameClient: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published private(set) var surfaceSize: CGSize = .zero
     @Published private(set) var lastError: AgentSpaceError?
+    /// What the overlay says about a stream that will not come up. Kept separate
+    /// from `lastError` because the two audiences are different: the error carries
+    /// the protocol's own words for Diagnostics and the log, and the notice is the
+    /// one thing a person looking at a black window can act on.
+    @Published private(set) var streamNotice: FrameStreamNotice = .none
     /// One line per connection, on the same channel as the frame signposts, so a
     /// stream that "felt slow" can be answered with what it actually did.
     private static let log = Logger(FrameSignpost.log)
@@ -35,6 +40,11 @@ final class FrameClient: ObservableObject {
     private var mapping: SharedFrameMapping?
     private var sequence = FrameSequenceValidator()
     private var reconnect = FrameReconnectState()
+    /// Consecutive connections that died on an untrustworthy mapping, behind the
+    /// same lock as `stopped` — `start` resets it on the main thread while the
+    /// reconnect loop increments it on `queue`, and a count that only sometimes
+    /// agrees with itself is worse than no count.
+    private var recovery = FrameStreamRecovery()
     private var renderStats = FrameRenderStats()
     private var renderRate = RateMeter()
     private var latency = FrameLatency()
@@ -51,14 +61,15 @@ final class FrameClient: ObservableObject {
     }
 
     func start() {
-        lock.lock(); guard !running else { lock.unlock(); return }; stopped = false; running = true; lock.unlock()
+        lock.lock(); guard !running else { lock.unlock(); return }; stopped = false; running = true; recovery = FrameStreamRecovery(); lock.unlock()
+        publishNotice(.none)
         publishState(.connecting)
         queue.async { [weak self] in self?.runReconnectLoop() }
     }
 
     func stop() {
         configureWork?.cancel()
-        lock.lock(); stopped = true; running = false; let socket = self.socket; let id = streamID; self.socket = nil; streamID = nil; mapping = nil; lock.unlock()
+        lock.lock(); stopped = true; running = false; let socket = self.socket; let id = streamID; self.socket = nil; streamID = nil; mapping = nil; recovery = FrameStreamRecovery(); lock.unlock()
         try? socket?.sendLine(FrameClientCommand(kind: .close))
         // Shutdown without waiting: the read thread is parked in `read` until the
         // worker hangs up, and the worker hangs up because it read the line above.
@@ -67,6 +78,7 @@ final class FrameClient: ObservableObject {
         socket?.abort()
         if let id { closeControlStream(id) }
         publishState(.stopped)
+        publishNotice(.none)
     }
 
     /// Debounces live view resizing. A dimension change deliberately reopens
@@ -94,6 +106,16 @@ final class FrameClient: ObservableObject {
         while !isStopped {
             do {
                 try openAndRead(); attempt = 0
+            } catch let fault as SharedFrameMappingFault {
+                // The buffer itself is what this connection could not lay out, so
+                // there is no baseline to ask for on it: the next frame written
+                // into a mapping whose geometry is in question is a picture built
+                // from the wrong offsets. End the connection, say which two numbers
+                // disagreed to the log, and let the handshake choose a descriptor
+                // both ends measured the same way.
+                noteDisconnected()
+                Self.log.error("\(fault.logLine, privacy: .public)")
+                publishNotice(noteMappingFault())
             } catch let error as AgentSpaceError {
                 noteDisconnected(); publishError(error)
             } catch let error as FrameSocketFailure {
@@ -260,6 +282,21 @@ final class FrameClient: ObservableObject {
         _ = try? connection.client.call(method: Method.frameClose, params: .obj(["streamID": .string(id.uuidString)]), token: connection.token)
     }
     private func publishState(_ value: State) { DispatchQueue.main.async { self.state = value } }
-    private func publishSize(_ value: CGSize) { DispatchQueue.main.async { self.surfaceSize = value; self.lastError = nil } }
+    private func publishSize(_ value: CGSize) {
+        // Pixels arrived, so whatever the mapping count was carrying up to here is
+        // history. Without this, a stream that had three bad seconds and then
+        // recovered would go on reporting itself unrecoverable while on screen.
+        lock.lock(); recovery.noteStreaming(); lock.unlock()
+        DispatchQueue.main.async { self.surfaceSize = value; self.lastError = nil; self.streamNotice = .none }
+    }
     private func publishError(_ value: AgentSpaceError) { DispatchQueue.main.async { self.lastError = value } }
+    private func publishNotice(_ value: FrameStreamNotice) { DispatchQueue.main.async { self.streamNotice = value } }
+
+    /// One more connection that could not read its buffer. Returns what the window
+    /// should now say, which is the same fact the reconnect loop is acting on: the
+    /// count describes the stream, and the wording follows from it.
+    private func noteMappingFault() -> FrameStreamNotice {
+        lock.lock(); defer { lock.unlock() }
+        return recovery.noteMappingFault()
+    }
 }

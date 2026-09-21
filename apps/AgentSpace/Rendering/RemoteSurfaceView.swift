@@ -28,29 +28,51 @@ struct FrameClientStatusOverlay: View {
 
     var body: some View {
         Group {
-            if let error = client.lastError {
+            switch client.streamNotice {
+            case .unrecoverable:
+                // Connections have failed the same way repeatedly, so a fourth
+                // "reconnecting…" would be reporting the app's patience instead of
+                // the picture's absence. This one names the step that can actually
+                // change the answer.
                 VStack(alignment: .leading, spacing: 5) {
-                    if SharedFrameAllocation.classify(message: error.message) != nil {
-                        // The syscall's own words belong in the log and in
-                        // Diagnostics, which carry the full message. Over a
-                        // desktop that is simply not appearing, what this viewer
-                        // owes the person is the one thing they can still do.
-                        //
-                        // Read from the message because that is all that crosses
-                        // the socket: a refusal is an ordinary internal error with
-                        // this shape of text, and a structured field for it would
-                        // make every older viewer fail to decode the error at all.
-                        Text("Frame stream failed to start").font(.headline)
-                        Text("Could not create the shared frame buffer. Reconnect; if it keeps happening, update AgentSpace.").font(.caption)
-                    } else {
-                        Text("Frame stream unavailable").font(.headline)
-                        Text(error.message).font(.caption)
-                    }
+                    Text("Frame stream unavailable").font(.headline)
+                    Text("The shared picture could not be recovered. Reconnect, and if it keeps happening, update AgentSpace.").font(.caption)
                 }
-            } else if client.state == .connecting || client.state == .reconnecting {
-                Label(client.state == .connecting ? NSLocalizedString("Connecting frame stream…", comment: "") : NSLocalizedString("Reconnecting frame stream…", comment: ""),
-                      systemImage: "arrow.triangle.2.circlepath")
-                    .font(.callout)
+            case .resynchronising:
+                // The protocol's own words for this — "logical mapping size
+                // mismatch", "descriptor outside the region" — name a bookkeeping
+                // disagreement between two binaries, which is not something a
+                // person watching a desktop can repair. The sizes are in the unified
+                // log; the window says what is being done about it.
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Frame stream is out of sync").font(.headline)
+                    Text("AgentSpace is reconnecting the shared picture.").font(.caption)
+                }
+            case .none:
+                if let error = client.lastError {
+                    VStack(alignment: .leading, spacing: 5) {
+                        if SharedFrameAllocation.classify(message: error.message) != nil {
+                            // The syscall's own words belong in the log and in
+                            // Diagnostics, which carry the full message. Over a
+                            // desktop that is simply not appearing, what this viewer
+                            // owes the person is the one thing they can still do.
+                            //
+                            // Read from the message because that is all that crosses
+                            // the socket: a refusal is an ordinary internal error with
+                            // this shape of text, and a structured field for it would
+                            // make every older viewer fail to decode the error at all.
+                            Text("Frame stream failed to start").font(.headline)
+                            Text("Could not create the shared frame buffer. Reconnect; if it keeps happening, update AgentSpace.").font(.caption)
+                        } else {
+                            Text("Frame stream unavailable").font(.headline)
+                            Text(error.message).font(.caption)
+                        }
+                    }
+                } else if client.state == .connecting || client.state == .reconnecting {
+                    Label(client.state == .connecting ? NSLocalizedString("Connecting frame stream…", comment: "") : NSLocalizedString("Reconnecting frame stream…", comment: ""),
+                          systemImage: "arrow.triangle.2.circlepath")
+                        .font(.callout)
+                }
             }
         }
         .padding(10)
@@ -150,7 +172,7 @@ class RemoteSurfaceNSView: NSView {
                 let sourceOffset = Int(patch.payloadOffset)
                 let patchRowBytes = Int(patch.bytesPerRow)
                 guard sourceOffset >= 0,
-                      sourceOffset + Int(patch.payloadLength) <= mapping.mappedSize,
+                      sourceOffset + Int(patch.payloadLength) <= mapping.mappedCapacity,
                       Int(patch.x + patch.width) <= width,
                       Int(patch.y + patch.height) <= height else { return false }
                 for row in 0..<Int(patch.height) {

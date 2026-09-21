@@ -556,3 +556,6 @@
 "Could not create the shared frame buffer. Reconnect; if it keeps happening, update AgentSpace." = "Could not create the shared frame buffer. Reconnect; if it keeps happening, update AgentSpace.";
 "Connecting frame stream…" = "Connecting frame stream…";
 "Reconnecting frame stream…" = "Reconnecting frame stream…";
+"Frame stream is out of sync" = "Frame stream is out of sync";
+"AgentSpace is reconnecting the shared picture." = "AgentSpace is reconnecting the shared picture.";
+"The shared picture could not be recovered. Reconnect, and if it keeps happening, update AgentSpace." = "The shared picture could not be recovered. Reconnect, and if it keeps happening, update AgentSpace.";
