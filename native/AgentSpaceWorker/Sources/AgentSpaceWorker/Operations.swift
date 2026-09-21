@@ -780,7 +780,7 @@ struct Operations {
             return frameStatsJSON(publisher.stats())
         }
         let live = frames.live()
-        return .obj([
+        var reply: [String: JSONValue] = [
             "workerInstanceID": .string(frames.workerInstanceID.uuidString),
             "sessionGeneration": .int(Int(frames.sessionGeneration)),
             "openStreams": .int(live.count),
@@ -788,7 +788,14 @@ struct Operations {
                 "streamID": .string(publisher.streamID.uuidString),
                 "target": publisher.target.jsonValue,
             ])}),
-        ])
+        ]
+        // The case this exists for: `openStreams` is zero and no stream below
+        // carries a failure, because the stream that was asked for never got far
+        // enough to own one. This is the only place that answer can come from.
+        if let failure = frames.recentAllocationFailure() {
+            reply["recentAllocationFailure"] = Self.allocationFailureJSON(failure)
+        }
+        return .obj(reply)
     }
 
     private func frameStatsJSON(_ value: FrameStats, extra: [String: JSONValue] = [:]) -> JSONValue {
@@ -818,10 +825,33 @@ struct Operations {
             "encoderActive": .bool(value.encoderActive),
             "videoEncoderActivations": .int(Int(value.videoEncoderActivations)),
             "videoEncoderInvalidations": .int(Int(value.videoEncoderInvalidations)),
+            "videoEncoderFailures": .int(Int(value.videoEncoderFailures)),
             "captureToPublishP50": .double(value.captureToPublishP50),
             "captureToPublishP95": .double(value.captureToPublishP95),
         ]
+        // Omitted rather than answered as null when nothing has failed: this
+        // reply is read by a person comparing two of them, and a key that is
+        // always present is a key that says nothing about the one time it matters.
+        if let failure = value.allocationFailure { fields["allocationFailure"] = Self.allocationFailureJSON(failure) }
         for (key, field) in extra { fields[key] = field }
+        return .obj(fields)
+    }
+
+    /// A shared buffer the kernel refused, as a value. Which call, which errno,
+    /// and what was asked for — never the name, whose only content is random.
+    static func allocationFailureJSON(_ failure: SharedFrameAllocationFailure) -> JSONValue {
+        var fields: [String: JSONValue] = [
+            "operation": .string(failure.operation.rawValue),
+            "systemErrorCode": .int(Int(failure.systemErrorCode)),
+            "systemErrorName": .string(failure.systemErrorName),
+            "message": .string(failure.message),
+        ]
+        if failure.requestedBytes > 0 {
+            fields["requestedBytes"] = .int(failure.requestedBytes)
+        }
+        if let attemptedNameBytes = failure.attemptedNameBytes {
+            fields["attemptedNameBytes"] = .int(Int(attemptedNameBytes))
+        }
         return .obj(fields)
     }
 

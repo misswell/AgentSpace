@@ -8,6 +8,15 @@ import AgentSpaceCore
 /// the two-slot protocol safe: a slot is only ever marked free by an ACK that
 /// names both the slot and the sequence written into it, and the write, the
 /// notice and the slot bookkeeping are one step on one serial timeline.
+///
+/// Slot ownership, stated as the rule the code follows: a slot may be written
+/// again only after the viewer has acknowledged it exactly — same slot, same
+/// sequence. The single exception is a connection that has already been
+/// terminated, at which point the whole mapping is dead and the viewer must
+/// reconnect and be given a baseline. There is deliberately no third case: a
+/// slot whose ACK is late is not reclaimed while its connection lives, because
+/// the only thing that proves the viewer has finished reading is the ACK, and
+/// overwriting on a timeout races the reader inside shared memory.
 final class SharedFramePublisher {
     typealias Sender = (FrameHeader, Data) -> Bool
 
@@ -16,7 +25,19 @@ final class SharedFramePublisher {
     private let latest = LatestFrameBuffer<CapturedSurface>()
     private let damage = DirtyRegionAccumulator()
     private var region: SharedFrameRegion?
+    /// Bumped for every mapping this stream has made, including one it lost. The
+    /// count cannot come from the region itself: a region reallocated after a
+    /// failure would otherwise hand out the same generation a viewer may still be
+    /// holding, and "same generation" is what tells a reader to keep its pixels.
+    private var generation: UInt64 = 0
     private var dimensions: (Int, Int)?
+    /// The size this stream needs and could not get a mapping for.
+    ///
+    /// Held so the next reconnect can ask again. Retrying per captured frame
+    /// would turn a full memory pool into a syscall storm sixty times a second on
+    /// the capture thread; a client that comes back is the only event that makes
+    /// another attempt worth making.
+    private var unavailableAt: (Int, Int)?
     private var freeSlots = [true, true]
     private var slotSequences: [UInt64?] = [nil, nil]
     private var sender: Sender?
@@ -27,8 +48,13 @@ final class SharedFramePublisher {
     private var liveness = FrameStreamLiveness(policy: .init(), at: FrameClock.uptime())
     /// Slots the viewer has been told about and has not given back, with the
     /// moment each was sent. A viewer that dies holding both slots would
-    /// otherwise park the stream forever: no ACK, no free slot, no frame.
+    /// otherwise park the stream forever: no ACK, no free slot, no frame — and
+    /// the answer is to end the connection, not to write over its reads.
     private var awaitingAcknowledgement: [(slot: Int, sequence: UInt64, sentAt: TimeInterval)] = []
+    /// Whether the viewer watching this stream has a decodable H.264 sequence.
+    /// Owned by this queue because `sendVideo` is the only thing that can answer
+    /// it, and the answer is a socket result.
+    private var keyFrame = FrameKeyFrameState()
     private var timer: DispatchSourceTimer?
     private var captureRate = RateMeter()
     private var publishRate = RateMeter()
@@ -41,11 +67,63 @@ final class SharedFramePublisher {
         self.queue = DispatchQueue(label: BundleIdentifiers.worker + ".frame-publisher.\(streamID.uuidString)")
     }
 
+    /// The mapping the first frame will be drawn into.
+    ///
+    /// Throws the allocation failure rather than a plain internal error, because
+    /// the one caller that can report it to a client converts it at the socket
+    /// boundary — and the typed form is what `frame.open` records as this
+    /// worker's most recent refusal.
     func prepare(width: Int, height: Int) throws {
-        try queue.sync {
-            region = try SharedFrameRegion(width: width, height: height, surfaceGeneration: (region?.surfaceGeneration ?? 0) &+ 1)
-            dimensions = (width, height); freeSlots = [true, true]; slotSequences = [nil, nil]; forceFull = true; baselineSequence = 0
+        try queue.sync { try self.allocate(width: width, height: height) }
+    }
+
+    /// Create the mapping a surface of this size needs, resetting everything that
+    /// was measured against the old one. Must already be on `queue`.
+    ///
+    /// A refusal is recorded before it is thrown, so the two callers below — the
+    /// open, and a resize mid-stream — report the same way, and so a stream that
+    /// cannot be started still answers `frame.stats` with the call and the errno
+    /// instead of only a log line nobody can query.
+    private func allocate(width: Int, height: Int) throws {
+        do {
+            generation &+= 1
+            region = try SharedFrameRegion(width: width, height: height, surfaceGeneration: generation)
+        } catch let failure as SharedFrameAllocationError {
+            // The log gets the whole story — call, errno name, size. What it never
+            // gets is the name's token: the name is random, so a record carrying it
+            // would identify nothing while carrying its length names the bug.
+            Log.capture.error("frame stream \(streamID) \(failure.message)")
+            stats.allocationFailure = failure.failure
+            unavailableAt = (width, height)
+            throw failure
         }
+        dimensions = (width, height); unavailableAt = nil
+        freeSlots = [true, true]; slotSequences = [nil, nil]; forceFull = true; baselineSequence = 0
+        keyFrame.require()
+    }
+
+    /// Replace the mapping when the capture changes size.
+    ///
+    /// A refusal is not handed back to the caller, because the caller is a
+    /// captured frame and a frame can do nothing with "there is no buffer that
+    /// fits me". It is answered by `loseRegion`.
+    private func ensureRegion(for surface: CapturedSurface) {
+        guard region != nil else { return }
+        if dimensions?.0 == surface.width, dimensions?.1 == surface.height { return }
+        do { try allocate(width: surface.width, height: surface.height) } catch { loseRegion() }
+    }
+
+    /// A mapping that could not be created, and everything that depended on it.
+    ///
+    /// The old buffer goes with it: after a resize it is the wrong size for every
+    /// surface that arrives, so writing into it yields a frame no viewer can lay
+    /// out, and writing nothing yields a frozen desktop behind a heartbeat that
+    /// still looks alive. Ending the connection is the honest third answer — the
+    /// client sees an EOF, and re-attaching is what asks the kernel again.
+    private func loseRegion() {
+        region = nil
+        dimensions = nil
+        connectionLost()
     }
 
     func receive(_ surface: CapturedSurface) {
@@ -68,10 +146,17 @@ final class SharedFramePublisher {
 
     func attach(sender: @escaping Sender, onDisconnect: @escaping () -> Void) throws -> (fd: Int32, size: Int, generation: UInt64) {
         try queue.sync {
+            // A stream that lost its mapping to a refusal asks the kernel again
+            // here, on the one path a client can drive. The failure is thrown
+            // rather than swallowed so the peer is told there is no picture, and
+            // `unavailableAt` stays set so the next attempt asks once more.
+            if region == nil, let size = unavailableAt {
+                try allocate(width: size.0, height: size.1)
+            }
+            guard region != nil else { throw AgentSpaceError(code: .previewNotRunning, message: "shared frame region is not ready") }
             self.sender = sender; self.disconnectSender = onDisconnect; self.forceFull = true
             self.awaitingAcknowledgement.removeAll()
             self.startWatchdog()
-            guard region != nil else { throw AgentSpaceError(code: .previewNotRunning, message: "shared frame region is not ready") }
             return (region!.fd, region!.size, region!.surfaceGeneration)
         }
     }
@@ -81,6 +166,7 @@ final class SharedFramePublisher {
             sender = nil; disconnectSender = nil
             freeSlots = [true, true]; slotSequences = [nil, nil]; forceFull = true
             awaitingAcknowledgement.removeAll()
+            keyFrame.require()
             timer?.cancel(); timer = nil
         }
     }
@@ -94,12 +180,31 @@ final class SharedFramePublisher {
             self.sender = nil; self.disconnectSender = nil
             self.freeSlots = [true, true]; self.slotSequences = [nil, nil]; self.forceFull = true
             self.awaitingAcknowledgement.removeAll()
+            self.keyFrame.require()
             self.timer?.cancel(); self.timer = nil
         }
     }
 
     func requestFull() { queue.async { self.forceFull = true; self.publishIfPossible(capturedAt: FrameClock.uptime()) } }
 
+    /// What the next video frame has to be. The router asks this instead of
+    /// remembering: the answer depends on a socket result, and a second copy of
+    /// it in another object is a second place to be wrong.
+    var needsKeyFrame: Bool { queue.sync { keyFrame.forceKeyFrame } }
+
+    /// The viewer cannot be continued from an ordinary frame — it is new, or it
+    /// has spent a stretch of time on shared pixels.
+    func requireKeyFrame() { queue.async { self.keyFrame.require() } }
+
+    /// A captured frame that never reached either path. An encoder still working
+    /// on the previous frame is the common case, and a frame that quietly
+    /// vanished is exactly what `framesDropped` exists to make visible.
+    func noteFrameDropped() { queue.async { self.stats.framesDropped &+= 1 } }
+
+    /// The only path by which a slot comes back: an acknowledgement that names
+    /// both the slot and the sequence written into it. A late or wrong ACK is
+    /// ignored rather than trusted, because accepting one would let the next
+    /// frame land on pixels the viewer is still reading.
     func acknowledge(slot: Int, sequence: UInt64) {
         queue.async {
             guard self.freeSlots.indices.contains(slot), self.slotSequences[slot] == sequence else { return }
@@ -109,20 +214,32 @@ final class SharedFramePublisher {
         }
     }
 
-    func sendVideo(_ data: Data, width: Int, height: Int, capturedAt: UInt64) {
+    /// Send an encoded sample. The return value says whether the viewer got it,
+    /// and the key frame bookkeeping below is decided by exactly that: a payload
+    /// that never reached a socket has not given anyone a decodable sequence.
+    @discardableResult
+    func sendVideo(_ data: Data, width: Int, height: Int, capturedAt: UInt64, isKeyFrame: Bool) -> Bool {
         queue.sync {
-            guard let sender = self.sender else { return }
+            guard let sender = self.sender else {
+                keyFrame.noteOutput(isKeyFrame: isKeyFrame, delivered: false)
+                return false
+            }
             self.publishSequence &+= 1
             let now = FrameClock.uptime()
             let header = FrameHeader(streamID: self.streamID, sequence: self.publishSequence, timestampNanoseconds: capturedAt, codec: .h264, width: UInt32(width), height: UInt32(height), payloadSize: UInt32(data.count))
             let send = FrameSignpost.begin("FrameSend")
             let delivered = sender(header, data)
             FrameSignpost.end(send)
+            // Decided by the send, not by the submission that led to it: a key
+            // frame the socket refused is one the viewer does not have, and the
+            // next one still has to be forced.
+            keyFrame.noteOutput(isKeyFrame: isKeyFrame, delivered: delivered)
             if delivered {
                 self.notePublished(at: now, capturedAt: capturedAt, bytes: UInt64(data.count), full: false, video: true)
             } else {
                 self.connectionLost()
             }
+            return delivered
         }
     }
 
@@ -177,7 +294,10 @@ final class SharedFramePublisher {
     private func tick() {
         guard sender != nil else { return }
         let now = FrameClock.uptime()
-        expireAcknowledgements(before: now - liveness.policy.staleAfter, at: now)
+        expireAcknowledgements(before: now - liveness.policy.staleAfter)
+        // Expiring an acknowledgement ends the connection, and a dead
+        // connection has no one to send a heartbeat to.
+        guard sender != nil else { return }
         guard liveness.heartbeatDue(at: now) else { return }
         let header = FrameHeader.heartbeat(streamID: streamID, timestampNanoseconds: UInt64(now * 1_000_000_000))
         if sender?(header, Data()) == true {
@@ -188,20 +308,21 @@ final class SharedFramePublisher {
         }
     }
 
-    private func expireAcknowledgements(before deadline: TimeInterval, at now: TimeInterval) {
+    /// A viewer that has not given a slot back within the stale window has not
+    /// read anything off the socket for that long, which makes it a lost viewer
+    /// rather than a slow one.
+    ///
+    /// So the slots are not reclaimed. Freeing one here would let the worker
+    /// write over pixels a disconnected client may still be reading — the one
+    /// race the two-slot protocol exists to prevent, and the ACK is the only
+    /// evidence that the read finished. Ending the connection instead makes the
+    /// whole mapping dead at once: the client reconnects, handshakes again, and
+    /// is given a baseline it cannot be missing.
+    private func expireAcknowledgements(before deadline: TimeInterval) {
         let expired = awaitingAcknowledgement.filter { $0.sentAt < deadline }
         guard !expired.isEmpty else { return }
-        awaitingAcknowledgement.removeAll { $0.sentAt < deadline }
-        for entry in expired where slotSequences[entry.slot] == entry.sequence {
-            freeSlots[entry.slot] = true
-            slotSequences[entry.slot] = nil
-            stats.unacknowledgedDrops &+= 1
-        }
-        // A viewer that never answered has probably missed more than this one
-        // frame, so the stream resumes from a baseline rather than a delta built
-        // on pixels nobody is holding.
-        forceFull = true
-        publishIfPossible(capturedAt: now)
+        stats.unacknowledgedDrops &+= UInt64(expired.count)
+        connectionLost()
     }
 
     private func connectionLost() {
@@ -210,6 +331,9 @@ final class SharedFramePublisher {
         sender = nil; disconnectSender = nil
         freeSlots = [true, true]; slotSequences = [nil, nil]; forceFull = true
         awaitingAcknowledgement.removeAll()
+        // Whoever reconnects has not seen a key frame from this connection, and
+        // a decoder with neither SPS/PPS nor an IDR cannot be resumed into.
+        keyFrame.require()
         timer?.cancel(); timer = nil
     }
 
@@ -224,6 +348,11 @@ final class SharedFramePublisher {
 
     func noteModeSwitch() { queue.async { self.stats.modeSwitchCount &+= 1 } }
 
+    /// Times the machine was asked for an H.264 encoder and could not produce
+    /// one. Without it a stream that has always been on deltas is
+    /// indistinguishable from one that tried to switch and failed.
+    func noteEncoderFailure() { queue.async { self.stats.videoEncoderFailures &+= 1 } }
+
     func setFrameMode(_ mode: FrameDeliveryMode) { queue.async { self.stats.frameMode = mode.rawValue } }
 
     /// Which side of the encoder line the stream is on, counted in both
@@ -237,16 +366,9 @@ final class SharedFramePublisher {
         }
     }
 
-    private func ensureRegion(for surface: CapturedSurface) throws {
-        if dimensions?.0 == surface.width, dimensions?.1 == surface.height, region != nil { return }
-        let nextGeneration = (region?.surfaceGeneration ?? 0) &+ 1
-        region = try SharedFrameRegion(width: surface.width, height: surface.height, surfaceGeneration: nextGeneration)
-        dimensions = (surface.width, surface.height); freeSlots = [true, true]; slotSequences = [nil, nil]; forceFull = true; baselineSequence = 0
-    }
-
     private func publishIfPossible(capturedAt: TimeInterval) {
         guard let sender, let slot = freeSlots.firstIndex(of: true), let surface = latest.take() else { return }
-        do { try ensureRegion(for: surface) } catch { latest.store(surface); return }
+        ensureRegion(for: surface)
         guard let region else { return }
         let accumulated = damage.take()
         let rects: [DirtyRect]

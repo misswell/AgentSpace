@@ -8,11 +8,14 @@ import AgentSpaceCore
 /// reconnected viewer can build a decoder without out-of-band codec state.
 final class VideoToolboxEncoder {
     private var session: VTCompressionSession?
-    private let output: (Data, UInt64) -> Void
+    /// Payload bytes, the capture time they belong to, and whether this sample
+    /// starts a decodable sequence. The last one is measured on the way out:
+    /// `forceKeyFrame` says what was asked, and only the sample says what came.
+    private let output: (Data, UInt64, Bool) -> Void
     private let lock = NSLock()
     private var frameInFlight = false
 
-    init(output: @escaping (Data, UInt64) -> Void) {
+    init(output: @escaping (Data, UInt64, Bool) -> Void) {
         self.output = output
     }
 
@@ -40,17 +43,25 @@ final class VideoToolboxEncoder {
         VTCompressionSessionPrepareToEncodeFrames(created)
     }
 
-    func encode(_ buffer: CVPixelBuffer, timestamp: UInt64, forceKeyFrame: Bool) {
-        guard let session else { return }
+    /// Hand a frame to the codec and say what happened to it.
+    ///
+    /// `.busy` is a real outcome rather than a dropped one: the session is still
+    /// working on the frame before this, and a caller that assumed submission
+    /// would count a frame nobody encoded as video.
+    func encode(_ buffer: CVPixelBuffer, timestamp: UInt64, forceKeyFrame: Bool) -> FrameEncodeSubmission {
+        guard let session else { return .failed(kVTInvalidSessionErr) }
         lock.lock()
-        guard !frameInFlight else { lock.unlock(); return }
+        guard !frameInFlight else { lock.unlock(); return .busy }
         frameInFlight = true
         lock.unlock()
         let time = CMTime(value: CMTimeValue(timestamp), timescale: 1_000_000_000)
         let properties: CFDictionary? = forceKeyFrame ? [kVTEncodeFrameOptionKey_ForceKeyFrame: true] as CFDictionary : nil
-        if VTCompressionSessionEncodeFrame(session, imageBuffer: buffer, presentationTimeStamp: time, duration: .invalid, frameProperties: properties, sourceFrameRefcon: nil, infoFlagsOut: nil) != noErr {
+        let status = VTCompressionSessionEncodeFrame(session, imageBuffer: buffer, presentationTimeStamp: time, duration: .invalid, frameProperties: properties, sourceFrameRefcon: nil, infoFlagsOut: nil)
+        guard status == noErr else {
             lock.lock(); frameInFlight = false; lock.unlock()
+            return .failed(status)
         }
+        return .submitted
     }
 
     func invalidate() { if let session { VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid); VTCompressionSessionInvalidate(session) }; session = nil }
@@ -75,7 +86,7 @@ final class VideoToolboxEncoder {
         var length = 0, pointer: UnsafeMutablePointer<Int8>?
         guard CMBlockBufferGetDataPointer(block, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &length, dataPointerOut: &pointer) == kCMBlockBufferNoErr, let pointer else { return }
         payload.appendUInt32(UInt32(length)); payload.append(Data(bytes: pointer, count: length))
-        output(payload, UInt64(max(0, CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sample))) * 1_000_000_000))
+        output(payload, UInt64(max(0, CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sample))) * 1_000_000_000), key)
     }
 
     private func finishFrame() { lock.lock(); frameInFlight = false; lock.unlock() }

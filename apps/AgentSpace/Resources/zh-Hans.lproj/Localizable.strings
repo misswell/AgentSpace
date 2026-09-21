@@ -551,5 +551,7 @@
 "Reconnect" = "重新连接";
 "Save Snapshot" = "保存快照";
 "Frame stream unavailable" = "画面流不可用";
+"Frame stream failed to start" = "画面流初始化失败";
+"Could not create the shared frame buffer. Reconnect; if it keeps happening, update AgentSpace." = "无法创建共享画面缓冲区。请重新连接；如果问题持续，请更新 AgentSpace。";
 "Connecting frame stream…" = "正在连接画面流…";
 "Reconnecting frame stream…" = "正在重新连接画面流…";

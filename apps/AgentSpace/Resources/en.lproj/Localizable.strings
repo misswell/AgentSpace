@@ -551,5 +551,7 @@
 "Reconnect" = "Reconnect";
 "Save Snapshot" = "Save Snapshot";
 "Frame stream unavailable" = "Frame stream unavailable";
+"Frame stream failed to start" = "Frame stream failed to start";
+"Could not create the shared frame buffer. Reconnect; if it keeps happening, update AgentSpace." = "Could not create the shared frame buffer. Reconnect; if it keeps happening, update AgentSpace.";
 "Connecting frame stream…" = "Connecting frame stream…";
 "Reconnecting frame stream…" = "Reconnecting frame stream…";

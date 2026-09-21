@@ -45,8 +45,12 @@ private final class FrameSurfaceRouter {
     /// them to encode nothing at all.
     private var videoFormat: (width: Int, height: Int)?
     private var lastTime = FrameClock.uptime()
-    private var lastSelected: FrameDeliveryMode?
-    private var firstVideo = true
+    private var lastTaken: FrameDeliveryMode?
+    /// What the video path can offer right now: the fallback to delta, the
+    /// cooldown after a failure, and the count of them. See `FrameEncoderAccess`
+    /// — an encoder that cannot be created is a reason to send pixels, not a
+    /// reason to stop the stream.
+    private var encoderAccess = FrameEncoderAccess()
     private let sessionVerdict: () -> SessionVerdict
     var invalidSession: (() -> Void)?
     private var invalidated = false
@@ -68,42 +72,74 @@ private final class FrameSurfaceRouter {
         let area = max(1, surface.width * surface.height)
         let ratio = min(1, Double(surface.dirtyRects.reduce(UInt64(0)) { $0 + $1.area }) / Double(area))
         let now = FrameClock.uptime(); let elapsed = now - lastTime; lastTime = now
-        let selected: FrameDeliveryMode
-        switch preference { case .delta: selected = .delta; case .video: selected = .video; case .auto: selected = mode.observe(damageRatio: ratio, elapsed: elapsed) }
-        if selected != lastSelected {
-            lastSelected = selected
+        let requested: FrameDeliveryMode
+        switch preference { case .delta: requested = .delta; case .video: requested = .video; case .auto: requested = mode.observe(damageRatio: ratio, elapsed: elapsed) }
+        // Which path this frame actually takes. The two can differ: a video frame
+        // with no usable encoder is a delta frame, and pretending otherwise is how
+        // a stream ends up with neither — no H.264, no shared pixels, a frozen
+        // picture behind a heartbeat that looks alive.
+        let taken = encoderAccess.path(for: requested, opening: createEncoder, at: now)
+        if taken != lastTaken {
+            let previous = lastTaken
+            lastTaken = taken
             shared.noteModeSwitch()
-            shared.setFrameMode(selected)
+            shared.setFrameMode(taken)
+            // A sequence resumed after a stretch of shared pixels has nothing to
+            // continue from; the delta side needs its own baseline for the same
+            // reason, because the shared buffer has been holding whatever was
+            // written before the video stretch, not what is on screen now.
+            if previous == .video { shared.requireKeyFrame(); shared.requestFull() }
         }
-        if selected == .video {
-            ensureEncoder()
+        if taken == .video, let encoder {
             // The encoder call itself is asynchronous; what this interval can
             // honestly measure is the cost of handing a frame to VideoToolbox,
             // which is the part that sits on the capture callback's thread.
             let encode = FrameSignpost.begin("H264Encode")
-            encoder?.encode(surface.pixelBuffer, timestamp: surface.timestampNanoseconds, forceKeyFrame: firstVideo)
+            switch encoder.encode(surface.pixelBuffer, timestamp: surface.timestampNanoseconds, forceKeyFrame: shared.needsKeyFrame) {
+            case .submitted: break
+            case .busy:
+                // The frame never entered the codec. Counting it is the point:
+                // without this the video path can drop half of a desktop's
+                // frames while every number that describes it keeps rising.
+                shared.noteFrameDropped()
+            case let .failed(status):
+                // VideoToolbox said no to this frame, which says something about
+                // the session that produced it. It is not retried per frame — the
+                // next failure of the same kind is what the cooldown counts.
+                Log.capture.error("frame stream \(shared.streamID) could not encode a frame (OSStatus \(status))")
+            }
             FrameSignpost.end(encode)
-            firstVideo = false
         } else {
-            if !firstVideo { shared.requestFull(); firstVideo = true }
             releaseEncoder()
             shared.receive(surface)
         }
     }
 
-    private func ensureEncoder() {
-        guard encoder == nil, let format = videoFormat else { return }
-        let created = VideoToolboxEncoder { [weak shared] data, timestamp in
-            shared?.sendVideo(data, width: format.width, height: format.height, capturedAt: timestamp)
+    /// Creates the encoder the video path asked for and says whether it exists.
+    ///
+    /// `false` carries a consequence the caller acts on: `FrameEncoderAccess`
+    /// turns the frame into a delta one and the surface goes down the shared path
+    /// instead, so a machine without a usable VideoToolbox still shows its
+    /// desktop. An error message and a comment about the fallback being available
+    /// are not the fallback.
+    private func createEncoder() -> Bool {
+        if encoder != nil { return true }
+        guard let format = videoFormat else { return false }
+        let created = VideoToolboxEncoder { [weak shared] data, timestamp, isKeyFrame in
+            shared?.sendVideo(data, width: format.width, height: format.height, capturedAt: timestamp, isKeyFrame: isKeyFrame)
         }
         do {
             try created.activate(width: format.width, height: format.height, fps: fps)
             encoder = created
             shared.noteEncoder(active: true)
+            return true
         } catch {
-            // The delta path stays available: an encoder that cannot start is a
-            // reason to keep sending pixels, not a reason to stop the stream.
-            encoder = nil
+            // Counted rather than absorbed: a stream that never once encodes
+            // looks identical to one that does not need to, and only this number
+            // says the machine was asked and could not.
+            shared.noteEncoderFailure()
+            Log.capture.error("frame stream \(shared.streamID) could not activate the H.264 encoder (\(error)), delivering shared frames until it can be asked again")
+            return false
         }
     }
 
@@ -125,16 +161,36 @@ final class FrameManager {
     private let memoryBudget = 256 * 1024 * 1024
     let workerInstanceID = UUID()
     let sessionGeneration = DispatchTime.now().uptimeNanoseconds
+    /// The most recent frame stream this worker could not open, and why.
+    ///
+    /// Kept on the manager rather than on the stream because a stream that never
+    /// started has nothing to ask. Without it, `frame.stats` on a desktop with no
+    /// picture answers "zero streams, nothing failed", and the one number that
+    /// explains the empty window is in a log file the GUI cannot read.
+    private var lastAllocationFailure: SharedFrameAllocationFailure?
 
     init(context: WorkerContext) { self.context = context }
 
     func open(_ configuration: FrameOpenConfiguration) throws -> FramePublisher {
-        let publisher = try FramePublisher(configuration: configuration, context: context)
+        let publisher: FramePublisher
+        do {
+            publisher = try FramePublisher(configuration: configuration, context: context)
+        } catch let failure as SharedFrameAllocationError {
+            lock.lock(); lastAllocationFailure = failure.failure; lock.unlock()
+            throw failure.agentSpaceError
+        }
         lock.lock()
         let total = streams.values.reduce(publisher.mappingBytes) { $0 + $1.mappingBytes }
         guard total <= memoryBudget else { lock.unlock(); publisher.stop(); throw AgentSpaceError(code: .internalError, message: "frame streams would exceed the 256 MB shared-memory budget") }
         streams[publisher.streamID] = publisher; lock.unlock()
         return publisher
+    }
+
+    /// Read under the manager's lock, never written after this point in the
+    /// stream's life — the value a diagnostic reader wants is the last one.
+    func recentAllocationFailure() -> SharedFrameAllocationFailure? {
+        lock.lock(); defer { lock.unlock() }
+        return lastAllocationFailure
     }
 
     func publisher(_ id: UUID) -> FramePublisher? { lock.lock(); defer { lock.unlock() }; return streams[id] }

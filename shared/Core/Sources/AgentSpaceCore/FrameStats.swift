@@ -40,6 +40,18 @@ public struct FrameStats: Codable, Equatable, Sendable {
     public var encoderActive: Bool = false
     public var videoEncoderActivations: UInt64 = 0
     public var videoEncoderInvalidations: UInt64 = 0
+    /// Times the machine was asked for an H.264 encoder and could not produce
+    /// one. A stream that has always been on deltas and one that has tried to
+    /// leave them and failed look identical in every other field here.
+    public var videoEncoderFailures: UInt64 = 0
+    /// The most recent shared buffer the kernel refused, if any.
+    ///
+    /// A value rather than a message so a viewer can decide what to show without
+    /// reading English. It survives the failure on purpose: the stream that
+    /// cannot be opened is exactly the one being asked about, and a
+    /// `frame.stats` reply that answers "nothing has gone wrong" about a desktop
+    /// with no picture is worse than one that repeats the errno.
+    public var allocationFailure: SharedFrameAllocationFailure?
 
     // Capture → publish, in milliseconds, because the worker owns both ends.
     public var captureToPublishP50: Double = 0
