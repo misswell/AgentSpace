@@ -80,10 +80,10 @@ final class SharedFramePublisher {
     /// Create the mapping a surface of this size needs, resetting everything that
     /// was measured against the old one. Must already be on `queue`.
     ///
-    /// A refusal is recorded before it is thrown, so the two callers below — the
-    /// open, and a resize mid-stream — report the same way, and so a stream that
-    /// cannot be started still answers `frame.stats` with the call and the errno
-    /// instead of only a log line nobody can query.
+    /// A refusal is recorded before it is thrown, so both callers — the stream open,
+    /// and a reconnect after a size the last mapping could not hold — report the same
+    /// way, and so a stream that cannot be started still answers `frame.stats` with
+    /// the call and the errno instead of only a log line nobody can query.
     private func allocate(width: Int, height: Int) throws {
         do {
             generation &+= 1
@@ -102,28 +102,27 @@ final class SharedFramePublisher {
         keyFrame.require()
     }
 
-    /// Replace the mapping when the capture changes size.
+    /// Whether this surface still fits the mapping the connection was handed — and
+    /// if not, why that connection is now over.
     ///
-    /// A refusal is not handed back to the caller, because the caller is a
-    /// captured frame and a frame can do nothing with "there is no buffer that
-    /// fits me". It is answered by `loseRegion`.
-    private func ensureRegion(for surface: CapturedSurface) {
-        guard region != nil else { return }
-        if dimensions?.0 == surface.width, dimensions?.1 == surface.height { return }
-        do { try allocate(width: surface.width, height: surface.height) } catch { loseRegion() }
-    }
-
-    /// A mapping that could not be created, and everything that depended on it.
-    ///
-    /// The old buffer goes with it: after a resize it is the wrong size for every
-    /// surface that arrives, so writing into it yields a frame no viewer can lay
-    /// out, and writing nothing yields a frozen desktop behind a heartbeat that
-    /// still looks alive. Ending the connection is the honest third answer — the
-    /// client sees an EOF, and re-attaching is what asks the kernel again.
-    private func loseRegion() {
+    /// A size change used to be answered by allocating a new region right here and
+    /// carrying on. That was the second bug: the viewer holds the descriptor
+    /// `attach` returned, and nothing re-sends a new one, so the worker wrote frame
+    /// B into buffer B while the viewer kept reading buffer A and decoded B's
+    /// metadata through A's layout — which reads as corrupt pixels, not as an
+    /// error. One connection, one mapping. The way to change the mapping is to end
+    /// the connection; the client's own reconnect reaches `attach` again, and
+    /// `unavailableAt` is what makes that attempt size the buffer for the capture
+    /// the stream has now, with a fresh generation and a full baseline.
+    private func ensureRegion(for surface: CapturedSurface) -> Bool {
+        guard region != nil, let dimensions else { return false }
+        if dimensions.0 == surface.width, dimensions.1 == surface.height { return true }
+        Log.capture.info("frame stream \(streamID) is capturing \(surface.width)x\(surface.height) into a mapping for \(dimensions.0)x\(dimensions.1); ending the connection so the next one gets its own buffer")
+        unavailableAt = (surface.width, surface.height)
         region = nil
-        dimensions = nil
+        self.dimensions = nil
         connectionLost()
+        return false
     }
 
     func receive(_ surface: CapturedSurface) {
@@ -368,7 +367,7 @@ final class SharedFramePublisher {
 
     private func publishIfPossible(capturedAt: TimeInterval) {
         guard let sender, let slot = freeSlots.firstIndex(of: true), let surface = latest.take() else { return }
-        ensureRegion(for: surface)
+        guard ensureRegion(for: surface) else { return }
         guard let region else { return }
         let accumulated = damage.take()
         let rects: [DirtyRect]
@@ -412,12 +411,12 @@ final class SharedFramePublisher {
         var descriptors: [SharedPatchDescriptor] = []
         for rect in rects.prefix(SharedFrameLayout.maximumPatchCount) {
             let rowBytes = Int(rect.width) * 4, length = rowBytes * Int(rect.height)
-            guard payloadOffset + length <= SharedFrameLayout.slotSize(payloadCapacity: region.payloadCapacity) else { return false }
+            guard payloadOffset + length <= region.geometry.slotSize else { return false }
             let destination = slotBase.advanced(by: payloadOffset)
             for row in 0..<Int(rect.height) {
                 memcpy(destination.advanced(by: row * rowBytes), source.advanced(by: (Int(rect.y) + row) * sourceRow + Int(rect.x) * 4), rowBytes)
             }
-            descriptors.append(.init(x: rect.x, y: rect.y, width: rect.width, height: rect.height, bytesPerRow: UInt32(rowBytes), payloadOffset: UInt32(SharedFrameLayout.slotOffset(slot, payloadCapacity: region.payloadCapacity) + payloadOffset), payloadLength: UInt32(length)))
+            descriptors.append(.init(x: rect.x, y: rect.y, width: rect.width, height: rect.height, bytesPerRow: UInt32(rowBytes), payloadOffset: UInt32(region.geometry.slotOffset(slot) + payloadOffset), payloadLength: UInt32(length)))
             payloadOffset += length
         }
         let header = SharedFrameSlotHeader(surfaceGeneration: region.surfaceGeneration, sequence: publishSequence &+ 1, baseSequence: kind == .fullBGRA ? 0 : baselineSequence, timestampNanoseconds: surface.timestampNanoseconds, width: UInt32(surface.width), height: UInt32(surface.height), frameKind: kind, patchCount: UInt16(descriptors.count), payloadSize: UInt32(payloadOffset - SharedFrameLayout.slotMetadataSize))
