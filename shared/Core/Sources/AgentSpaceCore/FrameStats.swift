@@ -77,6 +77,15 @@ public struct FrameRenderStats: Codable, Equatable, Sendable {
     /// surface — and forced a baseline request.
     public var sequenceGaps: UInt64 = 0
     public var socketReconnects: UInt64 = 0
+    /// Accepted frames per shared slot, indexed by slot number, counted where the
+    /// acknowledgement goes out.
+    ///
+    /// Back-pressure releases a frame only once the frame before it in that slot
+    /// has been acknowledged, so a stream that keeps its rate is necessarily a
+    /// stream cycling every slot it has. The first frame cannot show that: it is
+    /// always slot 0, and the bug worth catching is the one that puts slot 1 at
+    /// the wrong offset.
+    public var sharedFramesPerSlot: [UInt64] = []
     public var renderFPS: Double = 0
     public var receiveToRenderP50: Double = 0
     public var receiveToRenderP95: Double = 0

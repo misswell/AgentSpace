@@ -202,6 +202,7 @@ final class FrameClient: ObservableObject {
                     FrameSignpost.end(handling)
                     noteApplied(outcome: outcome)
                     try feedback(socket, slot: slotIndex, sequence: header.sequence, acceptance: .applied(outcome))
+                    noteSlotAcknowledged(slotIndex)
                     if outcome != .refused { publishSize(CGSize(width: Int(header.width), height: Int(header.height))) }
                 }
             case .h264:
@@ -268,13 +269,22 @@ final class FrameClient: ObservableObject {
         case .display(let id): label = "display:\(id.map(String.init) ?? "main")"
         case .window(let identity): label = "window:\(identity.windowID)"
         }
-        Self.log.notice("frame stream \(label, privacy: .public) ended: received=\(value.framesReceived) rendered=\(value.framesRendered) dropped=\(value.framesDropped) heartbeats=\(value.heartbeatsReceived) gaps=\(value.sequenceGaps) reconnects=\(value.socketReconnects) endToEnd p50=\(String(format: "%.1f", value.endToEndP50))ms p95=\(String(format: "%.1f", value.endToEndP95))ms")
+        Self.log.notice("frame stream \(label, privacy: .public) ended: received=\(value.framesReceived) rendered=\(value.framesRendered) slots=\(value.sharedFramesPerSlot) dropped=\(value.framesDropped) heartbeats=\(value.heartbeatsReceived) gaps=\(value.sequenceGaps) reconnects=\(value.socketReconnects) endToEnd p50=\(String(format: "%.1f", value.endToEndP50))ms p95=\(String(format: "%.1f", value.endToEndP95))ms")
     }
 
     /// A stream is over. Counted here rather than in `FrameReconnectState`
     /// because "the socket closed" and "the viewer gave up" are different events
     /// for anyone reading the log above.
     private func noteDisconnected() { renderStats.socketReconnects &+= 1 }
+
+    /// One more frame read out of slot `n` and acknowledged on the line above.
+    /// See `FrameRenderStats.sharedFramesPerSlot` — this is the count that answers
+    /// "does the second slot work" with two numbers instead of one good frame.
+    private func noteSlotAcknowledged(_ slot: Int) {
+        guard slot >= 0 else { return }
+        while renderStats.sharedFramesPerSlot.count <= slot { renderStats.sharedFramesPerSlot.append(0) }
+        renderStats.sharedFramesPerSlot[slot] &+= 1
+    }
 
     private var isStopped: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
     private func closeControlStream(_ id: UUID) {
