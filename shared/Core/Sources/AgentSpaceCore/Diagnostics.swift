@@ -85,7 +85,7 @@ public enum Diagnostics {
         let release = withUnsafeBytes(of: &system.release) { bytes in
             String(cString: bytes.baseAddress!.assumingMemoryBound(to: CChar.self))
         }
-        lines.append("system: \(machine) macOS(\(release)) agentspace-core 0.1.20")
+        lines.append("system: \(machine) macOS(\(release)) agentspace-core 0.1.21")
 
         // Doctor — its checks are about states and binaries; no secrets by
         // construction, but it goes through the redactor with everything else.
