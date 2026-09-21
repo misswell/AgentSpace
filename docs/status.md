@@ -7,18 +7,24 @@ Read this first when resuming AgentSpace. The binding product direction is
 Last updated: 2026-09-21 on `master`. Current public release: `0.1.22`
 (`v0.1.22`, annotated at the `Release: 0.1.22` commit; notarized DMG attached to
 the GitHub Release, its uploaded digest verified against the gated file at §308
-row 748). It is a one-bug release with a diagnostics tail: the frame
-engine named each shared buffer `/agentspace-<full UUID>` — 48 bytes against
-Darwin's **measured 31-byte** `shm_open` limit — so every Desktop window and
-Fusion pane failed at the first syscall with `shm_open failed: File name too
-long`. The transport, the wire and the adaptive H.264 path were not the problem
-and did not move (§308 rows 730/736/741). It also carries the encoder-fallback,
-key-frame, stale-ACK and refused-resize fixes recorded in §308 rows 737–740.
-**The fix is in the worker, not the app**: this Mac's `/Applications` copy is
-0.1.22 while its installed worker is still 0.1.21, and the Desktop window still
-shows the old failure verbatim (§308 row 747), so the physical frame gates stay
-open until 「重新安装助手…」 swaps the root helper and re-installs the worker
-(§308 row 746). Publishing never replaces that worker by itself.
+row 748). `0.1.23` is in the tree and gated only by its automated half: the frame
+engine has a **second** bug behind the first one, and fixing the name only moved
+the error to `shared frame notice does not match its mapping` (§309 row 749).
+Two causes, both recorded in §309: a shared frame buffer has two sizes — the
+logical layout both ends must agree on, and Darwin's page-rounded `st_size` the
+kernel reports for the same object — and v0.1.22's viewer laid the region out
+from the second one; separately, the worker could allocate a new buffer under a
+live connection that never re-sends its descriptor, so the viewer kept reading
+the old one. Now one `SharedFrameGeometry` computes every offset at both ends,
+`mappedCapacity` is only a read bound, and one `frame.sock` connection carries one
+immutable mapping — a resize ends the connection and the reconnect gets a new
+descriptor. Neither cause is a Screen Recording, Accessibility, session, socket
+permission or Metal problem, and the wire did not move (32-byte notice, 52-byte
+header, `protocolVersion 1`).
+**Both fixes are in the worker as well as the app**, so the physical gates
+(Gates A–I, the 60-minute soak, the benchmark) stay open until an app *and* an
+installed worker report 0.1.23, which needs 「重新安装助手…」 and its password
+(§309 row 762). Publishing never replaces that worker by itself.
 
 ## Product in one sentence
 
@@ -158,15 +164,17 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    numbers. What is still owed is the physical half — the measurement below, on
    a machine whose app *and* installed worker both speak for this build; code
    and unit evidence are recorded in §304 and §306.
-   **That machine exists and then moved again**: §307 row 728 had this Mac on app
-   0.1.21 + worker 0.1.21 with `preview AgentUse --stats` answering real fields;
-   §308 row 747 has the app at 0.1.22 and the worker still at 0.1.21, which is
-   the pairing that reproduces the shm-name failure on screen. So the benchmark's
-   blocker is no longer "no frame stream is open" — a Desktop window opens, and
-   the worker refuses to give it a buffer. Pressing 「重新安装助手…」 is what puts
-   a 0.1.22 worker under this app; §13's static numbers, §27's old-vs-new table
-   and the soak's drift numbers come after it, and §308 row 746 is where they get
-   recorded rather than promised.
+   **That machine exists and then moved twice more**: §307 row 728 had this Mac on
+   app 0.1.21 + worker 0.1.21 with `preview AgentUse --stats` answering real
+   fields; §308 row 747 had app 0.1.22 over a 0.1.21 worker, which reproduces the
+   shm-name failure on screen. The owner's 「重新安装助手…」 then put a **0.1.22
+   worker** under the app, and the Desktop's line changed to
+   `shared frame notice does not match its mapping` — §309 row 749, and §309's
+   whole subject. So the benchmark's blocker is no longer "the worker cannot name
+   its buffer"; it is "the two ends must read one buffer the same way", which is
+   what 0.1.23 changes. §13's static numbers, §27's old-vs-new table and the
+   soak's drift numbers come after an app *and* worker at 0.1.23, and §309 row 762
+   is where they get recorded rather than promised.
 3. **Real-machine acceptance** — install the new worker into the already
    connected standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the
