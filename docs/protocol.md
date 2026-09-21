@@ -201,10 +201,47 @@ scaled Retina display, so the scale comes from
 | `key` | `key` (`"cmd+l"`) **or** `keys` (`["cmd","l"]`) |
 | `sleep` | `ms` (0–30000; alias `wait`) |
 
-### Live preview — `preview.start`, `preview.frame`, `preview.stop`
+### Binary Frame Engine — `frame.*` + `frame.sock`
 
-Plan §52's ScreenCaptureKit upgrade, as a pull model that fits the one-request-
-per-connection protocol. `preview.start { maxFPS }` → `{ streaming, fps }`;
+Current Desktop and Fusion clients call additive protocol-v1 methods
+`frame.open`, `frame.close`, `frame.configure`, `frame.requestFull` and
+`frame.stats`. `frame.open` names a `display` or `(pid, windowId, generation)`
+window target plus FPS and target pixel dimensions; it returns a stream UUID
+and the per-account `Runtime/<id>/frame.sock` path.
+
+The frame socket is one persistent Unix connection. Its first line is a
+`FrameHello` containing protocol version, account UUID, stream UUID, token,
+client pid and capabilities. The worker checks all of those plus `getpeereid()`
+against the configured controller UID before returning its instance UUID,
+session generation and modes. A wrong token, UID, account, stream or protocol
+closes the connection without a frame.
+
+For the normal `sharedBGRA` mode the worker creates a random POSIX shared-memory
+object at mode 0600, maps and immediately unlinks it, then passes the only
+controller descriptor with `SCM_RIGHTS`. The socket carries fixed 52-byte
+`FrameHeader`s and small `SharedFrameNotice`s; pixels never enter JSON or the
+socket. Two slots are owned by socket ACKs. If both are busy, the worker keeps
+only the newest CVPixelBuffer and unions damage; it never overwrites a reader
+or queues historical frames. A delta names `baseSequence`; mismatch requests a
+full frame. New connection, resolution, worker instance or session generation
+also requires a full baseline and a new mapping.
+
+ScreenCaptureKit supplies BGRA CVPixelBuffers and dirty rectangles to the same
+CaptureEngine for displays and windows. Static frames publish no pixel payload.
+Sustained high damage switches to low-latency VideoToolbox H.264 (no frame
+reordering); the app decodes to a Metal-compatible CVPixelBuffer. Returning to
+delta always begins with a full BGRA baseline. Desktop and Fusion both render
+through one persistent Metal texture and never create an NSImage per frame.
+
+Every captured/published frame re-checks the live session verdict. Console,
+indeterminate or missing-WindowServer state stops capture and refuses output;
+there is no fallback to the controller's desktop or to a disk screenshot loop.
+
+### Legacy live preview — `preview.start`, `preview.frame`, `preview.stop`
+
+Compatibility surface for clients predating the Frame Engine. It remains a pull
+model that fits the one-request-per-connection protocol. The current GUI does
+not call it. `preview.start { maxFPS }` → `{ streaming, fps }`;
 `preview.frame` → `{ inline }` (base64 JPEG of the newest frame — frames captured
 faster than the client pulls are dropped, newest wins); `preview.stop` closes it.
 
@@ -231,7 +268,7 @@ cannot prove replacement that begins and ends entirely between two catalog
 snapshots; destructive AX actions therefore also require a unique live
 pid/title/frame match and refuse ambiguity.
 
-`window.stream.start`, `.frame` and `.stop` use that identity. Capture uses
+The legacy `window.stream.start`, `.frame` and `.stop` use that identity. Capture uses
 `SCContentFilter(desktopIndependentWindow:)`, so the returned JPEG is the
 selected application window rather than the whole agent display. Like Desktop
 preview, every frame pull is fail-closed and the controller retains only the

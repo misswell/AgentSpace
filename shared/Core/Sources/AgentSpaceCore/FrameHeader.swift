@@ -3,6 +3,7 @@ import Foundation
 public enum FrameCodec: UInt8, Codable, Sendable {
     case jpeg = 1
     case h264 = 2
+    case sharedBGRA = 3
 }
 
 /// Fixed-width framing for the binary capture channel. Integer fields are

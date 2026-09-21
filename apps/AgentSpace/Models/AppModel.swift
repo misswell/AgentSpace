@@ -29,10 +29,9 @@ struct CurrentAccountAuthorization: Equatable, Sendable {
 /// polling, prefers event notifications outright, and forbids the 100 ms loop
 /// that makes a management app cost more than the thing it manages. Nothing
 /// polls on a timer at all: refreshes happen on foreground, selection and
-/// explicit request, and the only repeating timer in the app is the desktop
-/// preview — the §52 stream at 5 FPS while the viewer is open, falling back to
-/// 1 FPS screenshots when the stream is refused. Idle, measured in
-/// docs/validation.md §27: 0.0% CPU.
+/// explicit request. Live surfaces are event-driven over the persistent frame
+/// socket and stop when their windows close; they never fall back to a timed
+/// screenshot loop. Idle, measured in docs/validation.md §27: 0.0% CPU.
 ///
 /// **Input is gated on `acceptsInput`.** The buttons that drive the agent's
 /// desktop are disabled unless the worker itself said input is permitted. The GUI

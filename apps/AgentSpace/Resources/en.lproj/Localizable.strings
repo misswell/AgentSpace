@@ -547,3 +547,8 @@
 "This copy of AgentSpace ships no updater, so it cannot install one." = "This copy of AgentSpace ships no updater, so it cannot install one.";
 "The network refused the update request." = "The network refused the update request.";
 "A step of the installation failed." = "A step of the installation failed.";
+"Reconnect" = "Reconnect";
+"Save Snapshot" = "Save Snapshot";
+"Frame stream unavailable" = "Frame stream unavailable";
+"Connecting frame stream…" = "Connecting frame stream…";
+"Reconnecting frame stream…" = "Reconnecting frame stream…";

@@ -13,6 +13,12 @@ final class FrameHeaderTests: XCTestCase {
         XCTAssertEqual(try FrameHeader(decoding: encoded), header)
     }
 
+    func testSharedBGRACodecIsAdditive() {
+        XCTAssertEqual(FrameCodec.sharedBGRA.rawValue, 3)
+        XCTAssertEqual(FrameCodec(rawValue: 1), .jpeg)
+        XCTAssertEqual(FrameCodec(rawValue: 2), .h264)
+    }
+
     func testHeaderRejectsWrongMagicAndTruncation() {
         XCTAssertThrowsError(try FrameHeader(decoding: Data(repeating: 0, count: FrameHeader.byteCount)))
         XCTAssertThrowsError(try FrameHeader(decoding: Data([0x41, 0x53])))

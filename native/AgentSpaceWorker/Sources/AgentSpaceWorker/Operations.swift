@@ -16,10 +16,11 @@ struct Operations {
     let windowCatalog: WindowCatalog
     let windowStreams: WindowStreamManager
     let inputLease: InputLeaseManager
+    let frames: FrameManager
 
     static let workerVersion = agentSpaceVersion
 
-    init(context: WorkerContext, preview: PreviewController? = nil) {
+    init(context: WorkerContext, preview: PreviewController? = nil, frames: FrameManager? = nil) {
         self.context = context
         self.preview = preview ?? PreviewController(idleTimeout: 10) { fps in
             ScreenCaptureFrameSource()
@@ -27,6 +28,7 @@ struct Operations {
         self.windowCatalog = WindowCatalog()
         self.windowStreams = WindowStreamManager()
         self.inputLease = InputLeaseManager(duration: 5)
+        self.frames = frames ?? FrameManager(context: context)
     }
 
     // MARK: - Dispatch
@@ -54,6 +56,11 @@ struct Operations {
             case Method.previewStart: return .success(try previewStart(params: params))
             case Method.previewFrame: return .success(try previewFrame())
             case Method.previewStop: return .success(try previewStop())
+            case Method.frameOpen: return .success(try frameOpen(params: params))
+            case Method.frameClose: return .success(try frameClose(params: params))
+            case Method.frameConfigure: return .success(try frameConfigure(params: params))
+            case Method.frameRequestFull: return .success(try frameRequestFull(params: params))
+            case Method.frameStats: return .success(try frameStats(params: params))
             case Method.windowList: return .success(try windowList())
             case Method.windowStreamStart: return .success(try windowStreamStart(params: params))
             case Method.windowStreamFrame: return .success(try windowStreamFrame(params: params))
@@ -714,6 +721,55 @@ struct Operations {
     func previewStop() throws -> JSONValue {
         preview.stop()
         return .obj(["streaming": .bool(false)])
+    }
+
+    // MARK: - Binary frame engine
+
+    func frameOpen(params: JSONValue) throws -> JSONValue {
+        try requireDesktopSession("open a frame stream")
+        guard ScreenCapture.permissionGranted() else { throw AgentSpaceError(code: .screenRecordingDenied, message: "Screen Recording is not granted to agentspace-worker in this session.") }
+        guard let targetValue = params["target"] else { throw AgentSpaceError(code: .badRequest, message: "frame.open requires a target") }
+        let target = try CaptureTarget(jsonValue: targetValue)
+        if case .window(let identity) = target { _ = try windowCatalog.window(matching: identity) }
+        let preference = FramePreference(rawValue: params["preferredMode"]?.stringValue ?? "auto") ?? .auto
+        let config = FrameOpenConfiguration(target: target, maxFPS: max(1, min(60, params["maxFPS"]?.intValue ?? 15)), targetPixelWidth: max(0, params["targetPixelWidth"]?.intValue ?? 0), targetPixelHeight: max(0, params["targetPixelHeight"]?.intValue ?? 0), preferredMode: preference)
+        let publisher = try frames.open(config)
+        return .obj([
+            "streamID": .string(publisher.streamID.uuidString),
+            "frameSocketPath": .string(context.paths.frameSocketPath),
+            "surfaceGeneration": .int(1),
+            "actualFPS": .int(config.maxFPS),
+            "availableModes": .array([.string("sharedBGRA"), .string("h264")]),
+            "workerInstanceID": .string(frames.workerInstanceID.uuidString),
+            "sessionGeneration": .int(Int(truncatingIfNeeded: frames.sessionGeneration)),
+        ])
+    }
+
+    func frameClose(params: JSONValue) throws -> JSONValue {
+        frames.close(try frameStreamID(params)); return .obj(["streaming": .bool(false)])
+    }
+
+    func frameConfigure(params: JSONValue) throws -> JSONValue {
+        // Configuration changes currently rebuild through close/open at the UI
+        // debounce boundary. Keep the additive method explicit and honest.
+        _ = try frameStreamID(params)
+        return .obj(["reopenRequired": .bool(true)])
+    }
+
+    func frameRequestFull(params: JSONValue) throws -> JSONValue {
+        guard let publisher = frames.publisher(try frameStreamID(params)) else { throw AgentSpaceError(code: .previewNotRunning, message: "frame stream is not running") }
+        publisher.shared.requestFull(); return .obj(["requested": .bool(true)])
+    }
+
+    func frameStats(params: JSONValue) throws -> JSONValue {
+        guard let publisher = frames.publisher(try frameStreamID(params)) else { throw AgentSpaceError(code: .previewNotRunning, message: "frame stream is not running") }
+        let value = publisher.shared.stats
+        return .obj(["framesPublished": .int(Int(value.framesPublished)), "fullFrames": .int(Int(value.fullFrames)), "deltaFrames": .int(Int(value.deltaFrames)), "sharedBytes": .int(Int(value.sharedBytes))])
+    }
+
+    private func frameStreamID(_ params: JSONValue) throws -> UUID {
+        guard let raw = params["streamID"]?.stringValue, let id = UUID(uuidString: raw) else { throw AgentSpaceError(code: .badRequest, message: "a valid streamID is required") }
+        return id
     }
 
     // MARK: - Fusion windows

@@ -187,6 +187,14 @@ final class ProtocolTests: XCTestCase {
         ])
     }
 
+    func testBinaryFrameMethodsAreAdditiveAtProtocolVersionOne() {
+        XCTAssertEqual(agentSpaceProtocolVersion, 1)
+        XCTAssertEqual([
+            Method.frameOpen, Method.frameClose, Method.frameConfigure,
+            Method.frameRequestFull, Method.frameStats,
+        ], ["frame.open", "frame.close", "frame.configure", "frame.requestFull", "frame.stats"])
+    }
+
     func testSystemSettingsPaneRoutesOnlyToPrivacyPanels() {
         XCTAssertEqual(
             SystemSettingsPane.accessibility.urlString,

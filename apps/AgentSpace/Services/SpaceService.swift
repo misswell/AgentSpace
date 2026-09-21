@@ -218,11 +218,10 @@ final class SpaceService {
         }
     }
 
-    // MARK: - Live preview (§52)
+    // MARK: - Legacy live preview compatibility (§52)
 
-    /// Open the Space's live capture stream. Typed error untouched on failure —
-    /// in particular a console-session Space refuses, and this view falls back
-    /// to the screenshot MVP rather than trying anything local.
+    /// Kept for pre-frame-engine clients. Current Desktop/Fusion UI uses
+    /// `frame.open` + frame.sock and never calls this JPEG/Base64 path.
     func previewStart(for space: AgentAccount, maxFPS: Int = 5) -> Result<Int, AgentSpaceError> {
         let connection = SpaceConnection(space: space)
         do {

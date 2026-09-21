@@ -251,10 +251,10 @@ final class SocketServer {
     private var listenFD: Int32 = -1
     private let queue = DispatchQueue(label: BundleIdentifiers.worker + ".connections", attributes: .concurrent)
 
-    init(socketPath: String, context: WorkerContext, serveOnce: Bool) {
+    init(socketPath: String, context: WorkerContext, serveOnce: Bool, frames: FrameManager? = nil) {
         self.socketPath = socketPath
         self.context = context
-        self.operations = Operations(context: context)
+        self.operations = Operations(context: context, frames: frames)
         self.serveOnce = serveOnce
     }
 
@@ -532,7 +532,9 @@ case .success(let arguments):
         exit(77)
     }
 
-    let server = SocketServer(socketPath: socketPath, context: context, serveOnce: arguments.once)
+    let frameManager = FrameManager(context: context)
+    let server = SocketServer(socketPath: socketPath, context: context, serveOnce: arguments.once, frames: frameManager)
+    let frameServer = FrameServer(context: context, manager: frameManager)
 
     // Create the runtime directory if this is a development/first run. In
     // production the helper has already made it with the right ACL.
@@ -545,6 +547,8 @@ case .success(let arguments):
 
     do {
         try server.bind()
+        try frameServer.bind()
+        frameServer.start()
     } catch SocketServer.BindError.alreadyRunning {
         let message = "another worker is already serving this agent"
         Log.worker.error(message)
@@ -588,6 +592,8 @@ case .success(let arguments):
     // Clean shutdown: remove the socket so the next start does not trip over it
     // and so the GUI can tell the worker is gone.
     let cleanup = {
+        frameServer.stop()
+        frameManager.stopAll()
         writeStatusSnapshot(.stopped)
         unlink(socketPath)
         try? FileManager.default.removeItem(atPath: paths.pidPath)

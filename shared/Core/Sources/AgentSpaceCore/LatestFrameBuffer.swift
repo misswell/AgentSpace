@@ -9,8 +9,16 @@ public final class LatestFrameBuffer<Value>: @unchecked Sendable {
     public init() {}
 
     public func store(_ value: Value) {
+        _ = storeReplacing(value)
+    }
+
+    /// Returns true when an unconsumed value was replaced.
+    @discardableResult
+    public func storeReplacing(_ value: Value) -> Bool {
         lock.lock(); defer { lock.unlock() }
+        let replaced = self.value != nil
         self.value = value
+        return replaced
     }
 
     public func take() -> Value? {

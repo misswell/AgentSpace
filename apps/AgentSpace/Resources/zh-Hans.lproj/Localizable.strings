@@ -547,3 +547,8 @@
 "This copy of AgentSpace ships no updater, so it cannot install one." = "当前这份 AgentSpace 未附带更新工具，因此无法安装更新。";
 "The network refused the update request." = "网络拒绝了更新请求。";
 "A step of the installation failed." = "安装步骤之一失败。";
+"Reconnect" = "重新连接";
+"Save Snapshot" = "保存快照";
+"Frame stream unavailable" = "画面流不可用";
+"Connecting frame stream…" = "正在连接画面流…";
+"Reconnecting frame stream…" = "正在重新连接画面流…";

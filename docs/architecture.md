@@ -134,7 +134,11 @@ native/AgentSpaceWorker/                  the daemon that lives in a session
   Operations.swift      method dispatch — where the fail-closed order lives
   InputSynthesizer.swift  CGEvent posting, session tap only
   ScreenCapture.swift   preflight, screencapture, IHDR parsing, sips
-  ScreenCaptureKitSource.swift  the SCStream behind the live preview (§52)
+  CaptureEngine.swift     shared display/window SCStream → BGRA surface + damage
+  FrameServer.swift       authenticated persistent frame.sock and peer UID gate
+  SharedFrameRegion.swift anonymous mmap passed to the controller with SCM_RIGHTS
+  VideoToolboxEncoder.swift adaptive low-latency H.264 path
+  ScreenCaptureKitSource.swift  legacy JPEG preview compatibility only (§52)
   AppControl.swift      resolve, launch-and-wait-for-registration, quit, activate
   ShellExec.swift       posix_spawn, process group, timeout, stream capture
   AccessibilityBridge.swift  bounded AX tree walk and actions
@@ -146,6 +150,8 @@ packages/agentspace-mcp/                  stdio MCP server (TypeScript) — spaw
                                           CLI, so §49's one-implementation rule holds
 apps/AgentSpace/                          the SwiftUI app — dashboard, create wizard,
                                           desktop viewer, settings, deep-link entry
+  FrameTransport/       persistent frame client, fd receive, mmap and H.264 decode
+  Rendering/            CAMetalLayer renderer with persistent texture + patch upload
 native/AgentSpacePrivilegedHelper/        the root helper — typed XPC intents only (§6)
 ```
 

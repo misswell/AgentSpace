@@ -9,8 +9,13 @@ struct FusionWindowView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            FusionSurface(image: state.image, send: send, claimHuman: claimHuman)
-                .background(Color.black)
+            if let client = state.frameClient {
+                FusionSurface(client: client, send: send, claimHuman: claimHuman)
+                    .background(Color.black)
+                VStack { HStack { FrameClientStatusOverlay(client: client); Spacer() }; Spacer() }
+            } else {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.black)
+            }
             if let error = state.error {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(error.code.rawValue).font(.headline)
@@ -25,25 +30,24 @@ struct FusionWindowView: View {
 }
 
 private struct FusionSurface: NSViewRepresentable {
-    var image: NSImage?
+    let client: FrameClient
     let send: (JSONValue) -> Void
     let claimHuman: () -> Void
 
     func makeNSView(context: Context) -> RemoteWindowSurface {
-        let view = RemoteWindowSurface()
+        let view = RemoteWindowSurface(client: client)
         view.send = send
         view.claimHuman = claimHuman
         return view
     }
 
     func updateNSView(_ view: RemoteWindowSurface, context: Context) {
-        view.image = image
         view.send = send
         view.claimHuman = claimHuman
     }
 }
 
-private final class RemoteWindowSurface: NSImageView {
+private final class RemoteWindowSurface: RemoteSurfaceNSView {
     var send: ((JSONValue) -> Void)?
     /// Takes the worker's human lease without performing any input.
     var claimHuman: (() -> Void)?
@@ -66,10 +70,8 @@ private final class RemoteWindowSurface: NSImageView {
     /// out, so a long drag stays the agent's pause rather than its resume.
     private static let renewalInterval: TimeInterval = 2
 
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        imageScaling = .scaleProportionallyUpOrDown
-        imageAlignment = .alignCenter
+    override init(client: FrameClient) {
+        super.init(client: client)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -188,9 +190,10 @@ private final class RemoteWindowSurface: NSImageView {
     }
 
     private func position(_ event: NSEvent, strict: Bool) -> (x: Double, y: Double)? {
-        guard let image, bounds.width > 0, bounds.height > 0 else { return nil }
+        let surface = client.surfaceSize
+        guard surface.width > 0, surface.height > 0, bounds.width > 0, bounds.height > 0 else { return nil }
         let point = convert(event.locationInWindow, from: nil)
-        let imageAspect = image.size.width / max(1, image.size.height)
+        let imageAspect = surface.width / max(1, surface.height)
         let viewAspect = bounds.width / max(1, bounds.height)
         let fitted: NSRect
         if imageAspect > viewAspect {

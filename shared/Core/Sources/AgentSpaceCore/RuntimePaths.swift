@@ -58,6 +58,7 @@ public struct RuntimePaths: Sendable {
     }
 
     public var socketPath: String { explicitSocketPath ?? (directory + "/worker.sock") }
+    public var frameSocketPath: String { directory + "/frame.sock" }
     public var pidPath: String { directory + "/worker.pid" }
     public var tokenPath: String { directory + "/token" }
     public var statusPath: String { directory + "/status.json" }
@@ -76,6 +77,7 @@ public struct RuntimePaths: Sendable {
     }
 
     public var socketPathFits: Bool { RuntimePaths.socketPathFits(socketPath) }
+    public var frameSocketPathFits: Bool { RuntimePaths.socketPathFits(frameSocketPath) }
 
     // MARK: Directory preparation
 

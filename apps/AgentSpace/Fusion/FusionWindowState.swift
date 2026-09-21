@@ -4,7 +4,7 @@ import AgentSpaceCore
 
 @MainActor
 final class FusionWindowState: ObservableObject {
-    @Published var image: NSImage?
+    @Published var frameClient: FrameClient?
     @Published var error: AgentSpaceError?
 }
 

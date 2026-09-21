@@ -36,6 +36,11 @@ public enum Method {
     public static let previewStart = "preview.start"
     public static let previewFrame = "preview.frame"
     public static let previewStop = "preview.stop"
+    public static let frameOpen = "frame.open"
+    public static let frameClose = "frame.close"
+    public static let frameConfigure = "frame.configure"
+    public static let frameRequestFull = "frame.requestFull"
+    public static let frameStats = "frame.stats"
 
     /// Fusion window surfaces. These are additive protocol-v1 methods: old
     /// clients and workers keep speaking the same envelope and method names.

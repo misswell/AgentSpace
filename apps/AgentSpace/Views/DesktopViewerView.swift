@@ -9,14 +9,10 @@ import AgentSpaceCore
 /// Three properties are worth naming, because each is a decision rather than an
 /// implementation detail.
 ///
-/// 1. **The preview polls at 1 FPS, and only while this view exists.** §52 asks
-///    for playback that costs nothing when nobody is watching, so the timer is
-///    tied to the view's lifetime: `onDisappear` stops it, and closing the window
-///    ends the captures.
-/// 2. **A click is translated, never forwarded.** The click's position in this
-///    window has nothing to do with the agent's screen. `PreviewMapping` converts
-///    it through the image's fraction and the *display's* point size, and a click
-///    on the letterbox is dropped rather than clamped to an edge.
+/// 1. **The binary frame stream exists only while this view exists.** Closing
+///    the window releases capture, the persistent socket, mmap and Metal state.
+/// 2. **A click is translated, never forwarded.** The local normalized point is
+///    mapped through the worker-reported remote display geometry.
 /// 3. **It is disabled unless the worker says input is permitted.** When the agent
 ///    desktop is on the physical console, the overlay says so and the surface stops
 ///    accepting clicks, because the alternative is clicking on the user's own
@@ -72,13 +68,10 @@ struct DesktopViewerView: View {
 
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @State private var image: NSImage?
     @State private var result: ScreenshotResult?
     @State private var lastCapture: Date?
     @State private var captureError: AppModel.PresentedError?
-    @State private var timer: Timer?
-    /// True while the worker's ScreenCaptureKit stream is serving frames.
-    @State private var previewStreaming = false
+    @State private var frameClient: FrameClient?
     @State private var lastClickPoint: (x: Double, y: Double)?
     @State private var pendingAction: String?
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 1600
@@ -96,7 +89,6 @@ struct DesktopViewerView: View {
         .frame(minWidth: 720, idealWidth: 1120, minHeight: 520, idealHeight: 760)
         .background(WindowCapture { hostWindow = $0 })
         .onAppear {
-            capture()
             startPreview()
             syncKeyboardState()
         }
@@ -114,10 +106,7 @@ struct DesktopViewerView: View {
         .onChange(of: hostWindow) { _ in syncKeyboardState() }
         .onChange(of: previewFPS) { _ in restartPreviewIfNeeded() }
         .onChange(of: previewMaxWidth) { _ in
-            // A live SCK stream is native-sized; the capture-width picker
-            // applies to the screenshot fallback and is picked up on its next
-            // tick. Capture immediately when that is the active mode.
-            if timer != nil, !previewStreaming { capture() }
+            restartPreviewIfNeeded()
         }
     }
 
@@ -251,43 +240,17 @@ struct DesktopViewerView: View {
                 .padding(16)
                 Spacer()
             }
-        } else if let image, let result, let snapshot {
-            GeometryReader { proxy in
-                let geometry = snapshot.display ?? DisplayGeometry(
-                    width: result.pixelWidth, height: result.pixelHeight,
-                    pixelWidth: result.pixelWidth, pixelHeight: result.pixelHeight, scale: result.scale)
-                let fitted = fittedImageSize(
-                    imageWidth: result.width,
-                    imageHeight: result.height,
-                    in: proxy.size)
-                let imageSize = CGSize(
-                    width: max(1, fitted.width * zoom.factor),
-                    height: max(1, fitted.height * zoom.factor))
-                let mapping = PreviewMapping.fitting(
-                    imageWidth: result.width,
-                    imageHeight: result.height,
-                    geometry: geometry,
-                    viewWidth: imageSize.width,
-                    viewHeight: imageSize.height)
-
-                ZStack {
-                    Color.black
-                    if zoom == .fit {
-                        previewImage(image, size: imageSize, mapping: mapping, snapshot: snapshot)
-                    } else {
-                        ScrollView([.horizontal, .vertical]) {
-                            previewImage(image, size: imageSize, mapping: mapping, snapshot: snapshot)
-                                .frame(
-                                    width: max(imageSize.width, proxy.size.width),
-                                    height: max(imageSize.height, proxy.size.height))
-                        }
-                        .scrollIndicators(.automatic)
-                    }
-
-                    if !snapshot.acceptsInput {
-                        inputBlockedOverlay(snapshot)
-                    }
-                }
+        } else if let frameClient, let snapshot {
+            ZStack {
+                Color.black
+                RemoteSurfaceView(
+                    client: frameClient,
+                    captureWidthLimit: previewMaxWidth,
+                    captureMagnification: zoom.factor,
+                    onMouseDown: { x, y in sendNormalizedClick(x: x, y: y, snapshot: snapshot, button: .left) },
+                    onRightMouseDown: { x, y in sendNormalizedClick(x: x, y: y, snapshot: snapshot, button: .right) })
+                if !snapshot.acceptsInput { inputBlockedOverlay(snapshot) }
+                VStack { HStack { FrameClientStatusOverlay(client: frameClient); Spacer() }; Spacer() }
             }
         } else {
             VStack(spacing: 10) {
@@ -328,14 +291,14 @@ struct DesktopViewerView: View {
         VStack(spacing: 6) {
             HStack(spacing: 10) {
                 Button {
-                    capture()
+                    restartPreviewIfNeeded()
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label("Reconnect", systemImage: "arrow.clockwise")
                 }
                 .disabled(snapshot == nil)
 
                 Toggle(livePreviewLabel, isOn: Binding(
-                    get: { timer != nil },
+                    get: { frameClient != nil },
                     set: { $0 ? startPreview() : stopPreview() }))
                     .toggleStyle(.switch)
                     .controlSize(.small)
@@ -356,11 +319,14 @@ struct DesktopViewerView: View {
                 }
 
                 Button {
-                    if let result { NSWorkspace.shared.selectFile(result.path, inFileViewerRootedAtPath: "") }
+                    capture()
                 } label: {
-                    Label("Reveal File", systemImage: "folder")
+                    Label("Save Snapshot", systemImage: "camera")
                 }
-                .disabled(result == nil)
+                .disabled(snapshot == nil)
+                if let result {
+                    Button { NSWorkspace.shared.selectFile(result.path, inFileViewerRootedAtPath: "") } label: { Label("Reveal File", systemImage: "folder") }
+                }
             }
 
             HStack(spacing: 12) {
@@ -398,109 +364,24 @@ struct DesktopViewerView: View {
     // MARK: - Capture
 
     private func startPreview() {
-        guard timer == nil else { return }
-        // §52: the live stream runs at 5 FPS while the viewer is open, and the
-        // worker auto-stops it if this window goes away without a clean close.
-        // When the stream is refused (console session, missing grant), the
-        // viewer falls back to the 1 FPS screenshot MVP — the verified path —
-        // rather than showing nothing.
+        guard frameClient == nil else { return }
         guard let space = snapshot?.space else { return }
-        if case .success = SpaceService().previewStart(for: space, maxFPS: previewFPS) {
-            previewStreaming = true
-        }
-        let interval: TimeInterval = previewStreaming ? 1.0 / Double(max(1, previewFPS)) : 1.0
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
-            Task { @MainActor in
-                if previewStreaming {
-                    pullPreviewFrame()
-                } else {
-                    capture()
-                }
-            }
-        }
+        let client = FrameClient(space: space, target: .display(displayID: nil), maxFPS: previewFPS, targetWidth: previewMaxWidth)
+        frameClient = client; client.start()
     }
 
     private func stopPreview() {
-        timer?.invalidate()
-        timer = nil
-        if previewStreaming {
-            previewStreaming = false
-            if let snapshot {
-                _ = SpaceService().previewStop(for: snapshot.space)
-            }
-        }
+        frameClient?.stop(); frameClient = nil
     }
 
     private func restartPreviewIfNeeded() {
-        guard timer != nil else { return }
+        guard frameClient != nil else { return }
         stopPreview()
         startPreview()
     }
 
     private var livePreviewLabel: String {
         String(format: NSLocalizedString("Live preview (%ld FPS)", comment: ""), previewFPS)
-    }
-
-    private func fittedImageSize(imageWidth: Int, imageHeight: Int, in viewport: CGSize) -> CGSize {
-        guard imageWidth > 0, imageHeight > 0, viewport.width > 0, viewport.height > 0 else {
-            return .zero
-        }
-        let imageAspect = CGFloat(imageWidth) / CGFloat(imageHeight)
-        let viewportAspect = viewport.width / viewport.height
-        if imageAspect > viewportAspect {
-            return CGSize(width: viewport.width, height: viewport.width / imageAspect)
-        }
-        return CGSize(width: viewport.height * imageAspect, height: viewport.height)
-    }
-
-    /// The image owns the gesture so a zoomed, scrolled surface reports local
-    /// image coordinates. This keeps click mapping correct without guessing a
-    /// ScrollView offset, and it makes black letterbox bars non-interactive.
-    private func previewImage(
-        _ image: NSImage,
-        size: CGSize,
-        mapping: PreviewMapping,
-        snapshot: SpaceSnapshot
-    ) -> some View {
-        Image(nsImage: image)
-            .resizable()
-            .interpolation(.medium)
-            .frame(width: size.width, height: size.height)
-            .contentShape(Rectangle())
-            .overlay {
-                if let point = lastClickPoint,
-                   let view = mapping.viewPoint(displayX: point.x, displayY: point.y) {
-                    Circle()
-                        .stroke(Color.accentColor, lineWidth: 2)
-                        .frame(width: 18, height: 18)
-                        .position(x: view.x, y: view.y)
-                        .allowsHitTesting(false)
-                }
-            }
-            .overlay {
-                MouseInputSurface(
-                    onLeftClick: { point in
-                        sendClick(at: point, mapping: mapping, snapshot: snapshot, button: .left)
-                    },
-                    onRightClick: { point in
-                        sendClick(at: point, mapping: mapping, snapshot: snapshot, button: .right)
-                    })
-            }
-    }
-
-    /// One pull of the live stream. A frame updates the image in place; a
-    /// failure (including the stream's own idle-stop) falls back to the 1 FPS
-    /// screenshot loop rather than ending the preview.
-    private func pullPreviewFrame() {
-        guard let snapshot else { return }
-        switch SpaceService().previewFrame(for: snapshot.space) {
-        case .success(let frame):
-            image = frame
-        case .failure:
-            previewStreaming = false
-            stopPreview()
-            startPreview()
-        }
     }
 
     private func capture() {
@@ -516,121 +397,25 @@ struct DesktopViewerView: View {
                 message: error.message,
                 fix: error.code.remediation,
                 spaceName: snapshot.space.name)
-            stopPreview()
         case .success(let shot):
             captureError = nil
             result = shot
             lastCapture = Date()
-            if let loaded = NSImage(contentsOfFile: shot.path) {
-                image = loaded
-            } else {
-                captureError = AppModel.PresentedError(
-                    code: "INTERNAL_ERROR",
-                    message: String(format: NSLocalizedString("the worker wrote a capture to %@ but it could not be read", comment: ""), shot.path),
-                    fix: NSLocalizedString("Check the agent's runtime directory permissions.", comment: ""),
-                    spaceName: snapshot.space.name)
-                stopPreview()
-            }
         }
     }
 
-    // MARK: - Input
-
-    private func sendClick(
-        at location: CGPoint,
-        mapping: PreviewMapping,
-        snapshot: SpaceSnapshot,
-        button: MouseButton
-    ) {
-        guard snapshot.acceptsInput else { return }
-        // MouseInputNSView reports its native AppKit (bottom-left) coordinates;
-        // PreviewMapping owns the bridge back to the SwiftUI (top-left) space.
-        // Keeping this conversion at the boundary prevents an upper-half click
-        // from being delivered to the lower half of the agent's desktop.
-        guard let point = mapping.displayPoint(
-            appKitX: Double(location.x), appKitY: Double(location.y)) else {
-            // A click on the letterbox. Not an error worth a banner — the user
-            // aimed at the black bar — but it must not become a click at the edge.
-            pendingAction = NSLocalizedString("click outside the desktop: ignored", comment: "")
-            return
-        }
-
+    private func sendNormalizedClick(x: Double, y: Double, snapshot: SpaceSnapshot, button: MouseButton) {
+        guard snapshot.acceptsInput, let display = snapshot.display else { return }
+        let point = (x: x * Double(display.width), y: y * Double(display.height))
         lastClickPoint = point
-        let label = button == .right ? "right click → %1$ld, %2$ld" : "click → %1$ld, %2$ld"
-        pendingAction = String(format: NSLocalizedString(label, comment: ""), Int(point.x), Int(point.y))
-
-        let space = snapshot.space
         let action = InputAction.click(x: point.x, y: point.y, button: button, count: 1, modifiers: [])
         Task { @MainActor in
-            let error = await Task.detached(priority: .userInitiated) {
-                SpaceService().input(for: space, actions: [action])
-            }.value
-            if let error {
-                captureError = AppModel.PresentedError(
-                    code: error.code.rawValue,
-                    message: error.message,
-                    fix: error.code.remediation,
-                    spaceName: space.name)
-                stopPreview()
+            if let error = await Task.detached(priority: .userInitiated, operation: { SpaceService().input(for: snapshot.space, actions: [action]) }).value {
+                captureError = AppModel.PresentedError(code: error.code.rawValue, message: error.message, fix: error.code.remediation, spaceName: snapshot.space.name)
             }
         }
     }
-}
 
-/// A transparent AppKit surface is used instead of SwiftUI's `DragGesture` so
-/// the viewer can distinguish a secondary click. The callback fires on mouse
-/// up, matching a native desktop: pressing and releasing outside the image is
-/// not turned into an input action by the image itself.
-private struct MouseInputSurface: NSViewRepresentable {
-    let onLeftClick: (CGPoint) -> Void
-    let onRightClick: (CGPoint) -> Void
-
-    func makeNSView(context: Context) -> MouseInputNSView {
-        MouseInputNSView(onLeftClick: onLeftClick, onRightClick: onRightClick)
-    }
-
-    func updateNSView(_ view: MouseInputNSView, context: Context) {
-        view.onLeftClick = onLeftClick
-        view.onRightClick = onRightClick
-    }
-
-    final class MouseInputNSView: NSView {
-        var onLeftClick: (CGPoint) -> Void
-        var onRightClick: (CGPoint) -> Void
-        private var leftDown: CGPoint?
-        private var rightDown: CGPoint?
-
-        init(onLeftClick: @escaping (CGPoint) -> Void,
-             onRightClick: @escaping (CGPoint) -> Void) {
-            self.onLeftClick = onLeftClick
-            self.onRightClick = onRightClick
-            super.init(frame: .zero)
-            wantsLayer = true
-            layer?.backgroundColor = NSColor.clear.cgColor
-        }
-
-        required init?(coder: NSCoder) { fatalError("not used") }
-
-        override func mouseDown(with event: NSEvent) {
-            leftDown = convert(event.locationInWindow, from: nil)
-        }
-
-        override func mouseUp(with event: NSEvent) {
-            defer { leftDown = nil }
-            guard leftDown != nil else { return }
-            onLeftClick(convert(event.locationInWindow, from: nil))
-        }
-
-        override func rightMouseDown(with event: NSEvent) {
-            rightDown = convert(event.locationInWindow, from: nil)
-        }
-
-        override func rightMouseUp(with event: NSEvent) {
-            defer { rightDown = nil }
-            guard rightDown != nil else { return }
-            onRightClick(convert(event.locationInWindow, from: nil))
-        }
-    }
 }
 
 /// Captures the SwiftUI host window so the keyboard monitor can tell which

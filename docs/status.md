@@ -4,13 +4,11 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-21 on `master`. Current release: `0.1.18` (`v0.1.18`,
-notarized DMG attached to the GitHub Release, digest verified in §301). It
-carries §300's two GUI fixes and §299's gate-identity fix; `0.1.17` did not.
-`0.1.19` — the in-app online update channel below (§302) — is committed,
-built, notarized and stapled, and staged behind one thing: the aggregate gate's
-fourth layer has never been observed on an unlocked console (§303 rows 673,
-679). Publishing is that run, then tag and Release.
+Last updated: 2026-09-21 on `master`. Current public release: `0.1.18`
+(`v0.1.18`, notarized DMG attached to the GitHub Release, digest verified in
+§301). The `0.1.20` candidate combines the staged 0.1.19 online updater with
+the binary frame engine in §304; it must pass the release/notarize/aggregate
+gate before its tag and GitHub Release are created.
 
 ## Product in one sentence
 
@@ -127,13 +125,18 @@ V3 does not make the later roadmap appear by renaming Phase 1:
 1. **Agent runtime manager / profiles** — compose startup apps, workspace and a
    command such as Claude Code into one Start action. The low-level launch and
    exec RPCs already exist.
-2. **Binary capture migration / Desktop performance pass** — Core framing and
-   back-pressure exist, but Desktop and Fusion still pull JPEG over the JSON
-   socket. Fusion no longer re-pays for a frame it already drew
-   (`seenSequence` → `unchanged`, §298 row 632). The socket itself is the part
-   still owed: the takeover-after-the-token-gate design and why it is not
-   shipped are recorded in §298 row 634. Then tune Desktop toward 15 FPS.
-3. **Real-machine acceptance** — connect a manually created standard account,
+2. **Binary frame-engine real-machine acceptance** — Desktop and Fusion now
+   share one persistent, authenticated `frame.sock` client. Local display and
+   window capture use ScreenCaptureKit; sparse damage travels through a
+   two-slot anonymous shared-memory region with exact-sequence ACKs, while
+   sustained high damage may switch to low-latency H.264. The hot path no
+   longer polls JPEG/base64 over JSON or writes frames to disk. Resize and zoom
+   reopen a debounced stream at the requested pixel size, and a Metal renderer
+   keeps one texture with an in-memory BGRA fallback. The remaining debt is the
+   installed-worker, cross-session measurement below; code-only validation is
+   recorded in §304.
+3. **Real-machine acceptance** — install the new worker into the already
+   connected standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the
    worker online, and complete the Desktop and Fusion TextEdit gates while the
    main desktop is unaffected. Two Fusion checks are owed by validation §296:
@@ -165,8 +168,9 @@ The first Fusion vertical slice is now implemented in this tree:
   down on console, indeterminate or no-WindowServer transitions.
 - `RemoteWindow` uses `pid + windowID + generation`; `window.list` exposes only
   visible layer-0 regular-app windows discovered through public APIs.
-- `window.stream.*` captures one desktop-independent `SCWindow` at the panel's
-  pixel size, retaining only the newest JPEG. `window.input` accepts
+- `window.stream.*` remains available for compatibility, while the GUI captures
+  one desktop-independent `SCWindow` through the binary frame engine at the
+  panel's pixel size. `window.input` accepts
   window-relative fractions and maps them against the worker's current global
   window frame, after raising *that* window so input cannot land on a sibling.
 - **Open Apps** creates one native proxy `NSWindow` per remote window. Proxy
@@ -207,12 +211,13 @@ The first Fusion vertical slice is now implemented in this tree:
   an optional `seenSequence` and answers `unchanged` + `sequence` when the
   capture has not advanced, while the pull itself still renews the idle clock.
 - Settings now separates Accounts, Permissions, Performance and Advanced.
-- The fixed binary `FrameHeader` and one-slot back-pressure primitive are in
-  Core and tested. The separate binary frame socket is still **not** built: its
-  remaining failure modes are descriptor lifetime and authorization on the
-  worker's most security-relevant path, and this host cannot exercise a second
-  account's session (§269, §272) or the clean GUI run (§297). It stays P8/P9,
-  with the plan recorded in §298 row 634.
+- The fixed `FrameHeader`, `frame.open|close|configure|requestFull|stats`
+  additions, authenticated binary socket, SCM_RIGHTS mapping handoff, anonymous
+  two-slot shared memory, exact ACK back-pressure, dirty-region coalescing,
+  adaptive H.264 path and reconnect generation checks are implemented and
+  tested. Production peer authorization fails closed when the root-authored
+  controller identity is absent. The physical cross-session and fast-user-
+  switch acceptance remains pending until the new worker is installed (§304).
 
 The code gates can verify protocol, lifecycle and mapping. The defining
 TextEdit cross-session acceptance still requires the attached account's real
