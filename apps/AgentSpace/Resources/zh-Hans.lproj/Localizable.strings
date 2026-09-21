@@ -361,6 +361,7 @@
 "No agent accounts" = "暂无 Agent 账号";
 "An agent account is a dedicated macOS user with its own desktop, so the agent can browse, code and test without touching your keyboard, mouse or screen." = "Agent 账号是拥有独立桌面的专属 macOS 用户，Agent 可以在其中浏览、编码和测试，而不会碰你的键盘、鼠标或屏幕。";
 "If you are signed in as an attached account, this panel is intentionally empty. Switch back to the account that owns AgentSpace to manage the agent and its permissions." = "如果你登录的是已连接的 Agent 账号，这个面板为空是正常的。请切回拥有 AgentSpace 的账号，在那里管理 Agent 和权限。";
+"This window reads %@ because AGENTSPACE_ROOT was set when AgentSpace launched. Clear it to read the normal registry." = "此窗口读取的是 %@，因为 AgentSpace 启动时设置了 AGENTSPACE_ROOT。清除它即可读取常规注册表。";
 "New Agent…" = "新建 Agent…";
 "macOS User" = "macOS 用户";
 "Desktop" = "桌面";
@@ -435,6 +436,7 @@
 "Disconnect Account…" = "断开账号连接…";
 "Disconnecting %@" = "正在断开 %@";
 "Disconnecting removes the AgentSpace worker and runtime. The existing macOS account and its home are always kept." = "断开连接会移除 AgentSpace worker 和运行时；现有 macOS 账号及其家目录始终保留。";
+"Looking for standard users…" = "正在查找标准用户…";
 "No unattached standard users were found. Add one in System Settings → Users & Groups, then return here." = "未找到尚未连接的标准用户。请先在「系统设置 → 用户与群组」中添加，然后返回这里。";
 "Open Users & Groups" = "打开“用户与群组”";
 "Refresh accounts" = "刷新账号列表";

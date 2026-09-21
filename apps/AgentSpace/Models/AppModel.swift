@@ -72,6 +72,10 @@ final class AppModel: ObservableObject {
     /// Set when something was copied, so the UI can confirm without an alert.
     @Published var copiedMessage: String?
     @Published private(set) var availableAccounts: [LocalAccount] = []
+    /// True while an account enumeration is in flight. The wizard's empty branch
+    /// states that no unattached standard users exist, and until Directory
+    /// Service has answered that is a claim the screen cannot make (§300).
+    @Published private(set) var isDiscoveringAccounts = false
     /// The attached account represented by this login session, when this
     /// process is running inside that account. It is intentionally separate
     /// from `snapshots`: the controller's registry is not readable by the
@@ -358,12 +362,14 @@ final class AppModel: ObservableObject {
         accountDiscoveryGeneration += 1
         let generation = accountDiscoveryGeneration
         let attached = Set(service.loadRegistry().spaces.map { $0.username })
+        isDiscoveringAccounts = true
         Task {
             let accounts = await Task.detached(priority: .userInitiated) {
                 AccountDiscovery.discover().filter { !attached.contains($0.username) }
             }.value
             guard generation == self.accountDiscoveryGeneration else { return }
             self.availableAccounts = accounts
+            self.isDiscoveringAccounts = false
         }
     }
 

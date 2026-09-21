@@ -361,6 +361,7 @@
 "No agent accounts" = "No agent accounts";
 "An agent account is a dedicated macOS user with its own desktop, so the agent can browse, code and test without touching your keyboard, mouse or screen." = "An agent account is a dedicated macOS user with its own desktop, so the agent can browse, code and test without touching your keyboard, mouse or screen.";
 "If you are signed in as an attached account, this panel is intentionally empty. Switch back to the account that owns AgentSpace to manage the agent and its permissions." = "If you are signed in as an attached account, this panel is intentionally empty. Switch back to the account that owns AgentSpace to manage the agent and its permissions.";
+"This window reads %@ because AGENTSPACE_ROOT was set when AgentSpace launched. Clear it to read the normal registry." = "This window reads %@ because AGENTSPACE_ROOT was set when AgentSpace launched. Clear it to read the normal registry.";
 "New Agent…" = "New Agent…";
 "macOS User" = "macOS User";
 "Desktop" = "Desktop";
@@ -435,6 +436,7 @@
 "Disconnect Account…" = "Disconnect Account…";
 "Disconnecting %@" = "Disconnecting %@";
 "Disconnecting removes the AgentSpace worker and runtime. The existing macOS account and its home are always kept." = "Disconnecting removes the AgentSpace worker and runtime. The existing macOS account and its home are always kept.";
+"Looking for standard users…" = "Looking for standard users…";
 "No unattached standard users were found. Add one in System Settings → Users & Groups, then return here." = "No unattached standard users were found. Add one in System Settings → Users & Groups, then return here.";
 "Open Users & Groups" = "Open Users & Groups";
 "Refresh accounts" = "Refresh accounts";

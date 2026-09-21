@@ -179,6 +179,17 @@ struct EmptyStateView: View {
             if let current = model.currentAccountAuthorization {
                 CurrentAccountPermissionCard(current: current)
                     .environmentObject(model)
+            } else if let root = AgentSpaceEnvironment.rootOverride {
+                // An installation override reads a different registry, and that
+                // looks exactly like an empty machine. Say which file was read
+                // before offering any theory about why it is empty (§300).
+                Text(String(format: NSLocalizedString("This window reads %@ because AGENTSPACE_ROOT was set when AgentSpace launched. Clear it to read the normal registry.", comment: ""), root))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("registryRootOverrideNotice")
             } else {
                 Text(NSLocalizedString("If you are signed in as an attached account, this panel is intentionally empty. Switch back to the account that owns AgentSpace to manage the agent and its permissions.", comment: ""))
                     .font(.caption)

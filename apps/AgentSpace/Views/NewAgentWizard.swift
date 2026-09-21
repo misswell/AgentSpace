@@ -173,7 +173,15 @@ struct NewAgentWizard: View {
 
     private var nameStep: some View {
         Card(title: NSLocalizedString("Available macOS Accounts", comment: "")) {
-            if model.availableAccounts.isEmpty {
+            if model.isDiscoveringAccounts {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(NSLocalizedString("Looking for standard users…", comment: ""))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityIdentifier("accountDiscoveryProgress")
+            } else if model.availableAccounts.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(NSLocalizedString("No unattached standard users were found. Add one in System Settings → Users & Groups, then return here.", comment: ""))
                         .font(.callout)
@@ -192,7 +200,7 @@ struct NewAgentWizard: View {
             }
 
             HStack(spacing: 8) {
-                if model.availableAccounts.isEmpty {
+                if !model.isDiscoveringAccounts && model.availableAccounts.isEmpty {
                     Button(NSLocalizedString("Open Users & Groups", comment: "")) {
                         openUsersAndGroups()
                     }
