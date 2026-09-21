@@ -387,7 +387,15 @@ EOF
 sleep 2
 
 # --- Settings: the polling floor lives in the control (§49) -----------------
-SLIDER="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+# Poll for the control, then assert its values. A single read two seconds after
+# ⌘, reported both Advanced controls as missing on a build that answered them
+# correctly one run later (§307) — the same disagreement between two runs of
+# this script that §299 and §302 recorded for window counts. Retrying the
+# *lookup* keeps the assertion exact: a slider that really never arrives still
+# fails, five seconds later.
+SLIDER=""
+for attempt in 1 2 3 4 5; do
+  SLIDER="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
 	set _p to ($PT)
 	set _w to my advancedSettingsWindow(_p)
@@ -396,15 +404,19 @@ tell application \"System Events\"
 	if _s is missing value then return \"\"
 	return (value of attribute \"AXMinValue\" of _s) & \"|\" & (value of attribute \"AXMaxValue\" of _s)
 end tell" 2>/dev/null)"
-SLIDER="$(echo "$SLIDER" | tr -d ' ,')"
+  SLIDER="$(echo "$SLIDER" | tr -d ' ,')"
+  [ -n "$SLIDER" ] && [ "$SLIDER" != "|" ] && break
+  sleep 1
+done
 check "refresh slider min=2.0"  "2.0" "${SLIDER%%|*}"
 check "refresh slider max=10.0" "10.0" "${SLIDER##*|}"
 
 # --- Settings: Preview width tiers (§53) -------------------------------------
 # The tier labels ("960 px" …) are deliberately untranslated, so the titles
-# compare equal in both languages.
+# compare equal in both languages. Same §307 cause as the slider above: this
+# reads the Advanced tab, so it gets the same budget for the tab to appear.
 TIERS=""
-for attempt in 1 2; do
+for attempt in 1 2 3 4 5; do
   TIERS="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
 	set _p to ($PT)
@@ -525,7 +537,18 @@ tell application \"System Events\"
 		delay 1
 	end if
 	delay 1
-	set _c to my findById(_w, \"wizardContinue\", button, 0)
+	-- Selecting an account re-lays the footer (the hint text appears beside the
+	-- button), and reading the footer once in that window reported
+	-- \"no continue button\" on a build whose wizard advanced fine one run
+	-- later (§307, the same two-runs-disagree class as the Advanced reads).
+	-- Poll for the button; the enabled/disabled verdict below is unchanged, so
+	-- a wizard that really has no way forward still fails.
+	set _c to missing value
+	repeat 5 times
+		set _c to my findById(_w, \"wizardContinue\", button, 0)
+		if _c is not missing value then exit repeat
+		delay 1
+	end repeat
 	if _c is missing value then return \"no continue button\"
 	if (enabled of _c) as boolean then
 		click _c
