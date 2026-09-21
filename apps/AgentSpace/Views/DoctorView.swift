@@ -152,8 +152,11 @@ private struct CheckRow: View {
                             }
                             .disabled(model.isInstallingHelper)
                             .help(Text("macOS keeps the old helper running after an app update; this swaps it for the one in this app. macOS will ask for your password."))
+                            .accessibilityIdentifier("reinstallHelperButton")
                         }
                         .padding(.top, 2)
+                        HelperFailureBanner()
+                            .padding(.top, 6)
                     }
                 }
             }

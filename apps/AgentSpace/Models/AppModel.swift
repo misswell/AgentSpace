@@ -62,6 +62,12 @@ final class AppModel: ObservableObject {
     /// so the UI never offers a button that cannot work.
     @Published var helperState: HelperInstallation.State = HelperInstallation.inspect(ping: false)
     @Published var isInstallingHelper = false
+    /// The last helper attempt's failure, kept where a sheet can show it.
+    ///
+    /// Both helper buttons live inside sheets, and §269 already established that no
+    /// alert presents over an open sheet — so routing a failed swap to `lastError`
+    /// meant the person who pressed it watched nothing happen at all.
+    @Published private(set) var helperFailure: PresentedError?
     /// An attach or detach in flight, with its steps, so the UI can show exactly
     /// what is happening to the machine rather than a spinner.
     @Published var provisioning: Provisioning?
@@ -149,19 +155,22 @@ final class AppModel: ObservableObject {
     ///
     /// On success the helper is *registered*, not necessarily *answering*: launchd
     /// starts it on demand, so the state is re-read rather than assumed.
-    func installHelper() {
+    func installHelper() { installHelper(retryTransientRefusals: false) }
+
+    /// The registration, asked again while the refusal is ours to retry.
+    ///
+    /// Only the reinstall path retries: it is the only one that has just
+    /// unregistered a daemon, which is what makes launchd answer `error: 1` the
+    /// first time. See ``HelperRegistrationRetry`` for the measurement.
+    private func installHelper(retryTransientRefusals: Bool) {
         guard !isInstallingHelper else { return }
         isInstallingHelper = true
+        helperFailure = nil
         Task {
             let result: Result<Void, Error> = await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
-                    do {
-                        let service = SMAppService.daemon(plistName: BundleIdentifiers.helperPlist)
-                        try service.register()
-                        continuation.resume(returning: .success(()))
-                    } catch {
-                        continuation.resume(returning: .failure(error))
-                    }
+                    continuation.resume(returning: Self.registerDaemon(
+                        attempts: retryTransientRefusals ? HelperRegistrationRetry.maximumAttempts : 1))
                 }
             }
             // Give launchd a moment, then ask the helper directly rather than
@@ -170,7 +179,7 @@ final class AppModel: ObservableObject {
             self.helperState = HelperInstallation.inspect()
             self.isInstallingHelper = false
             if case .failure(let error) = result {
-                self.lastError = PresentedError(
+                self.helperFailure = PresentedError(
                     code: "HELPER_UNAVAILABLE",
                     message: error.localizedDescription,
                     fix: HelperInstallation.inspect(ping: false).fix)
@@ -178,10 +187,37 @@ final class AppModel: ObservableObject {
                 // Registered but silent is a real state (approval pending, or a
                 // signature mismatch) and silently reporting success would send the
                 // user to a Create button that then fails.
-                self.lastError = PresentedError(
+                self.helperFailure = PresentedError(
                     code: "HELPER_UNAVAILABLE",
                     message: NSLocalizedString("The helper was registered with launchd but is not answering yet.", comment: ""),
                     fix: self.helperState.fix ?? NSLocalizedString("Try again in a moment, or look for com.agentspace.app in Console.", comment: ""))
+            }
+            // Both helper buttons live inside sheets, and a sheet swallows an
+            // alert (§269) — which is why a failed swap used to look like a button
+            // that did nothing. `helperFailure` is the same fact with a surface that
+            // can show it; the checks are re-read here so the row stops offering
+            // the fix once the machine no longer needs it.
+            if self.showingDoctor { self.runDoctor() }
+        }
+    }
+
+    /// `SMAppService.register()`, asked again while the refusal is ours to retry.
+    ///
+    /// `nonisolated` because it runs on the caller's background queue and touches
+    /// no state this actor owns — which is the whole reason the prompt can be
+    /// waiting on it without the window going unresponsive.
+    nonisolated private static func registerDaemon(attempts: Int) -> Result<Void, Error> {
+        var attempt = 0
+        while true {
+            attempt += 1
+            do {
+                try SMAppService.daemon(plistName: BundleIdentifiers.helperPlist).register()
+                return .success(())
+            } catch {
+                guard HelperRegistrationRetry.shouldRetry(error, attempt: attempt, attempts: attempts) else {
+                    return .failure(error)
+                }
+                Thread.sleep(forTimeInterval: HelperRegistrationRetry.interval)
             }
         }
     }
@@ -200,6 +236,7 @@ final class AppModel: ObservableObject {
 
     func uninstallHelper() {
         isInstallingHelper = true
+        helperFailure = nil
         Task {
             let service = SMAppService.daemon(plistName: BundleIdentifiers.helperPlist)
             let error: Error? = await withCheckedContinuation { continuation in
@@ -211,7 +248,7 @@ final class AppModel: ObservableObject {
             self.helperState = HelperInstallation.inspect()
             self.isInstallingHelper = false
             if let error {
-                self.lastError = PresentedError(
+                self.helperFailure = PresentedError(
                     code: "HELPER_REJECTED",
                     message: String(format: NSLocalizedString("Could not remove the helper: %@", comment: ""), error.localizedDescription))
             }
@@ -237,8 +274,7 @@ final class AppModel: ObservableObject {
                 }
             }
             self.isInstallingHelper = false
-            self.installHelper()
-            self.runDoctor()
+            self.installHelper(retryTransientRefusals: true)
         }
     }
 

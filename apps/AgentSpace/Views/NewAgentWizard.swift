@@ -362,6 +362,7 @@ struct HelperCard: View {
                     .help(Text("macOS will ask for your password: only an administrator can add a LaunchDaemon."))
                 }
             }
+            HelperFailureBanner()
         }
     }
 }

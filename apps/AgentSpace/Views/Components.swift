@@ -151,6 +151,26 @@ struct RefusalBanner: View {
     }
 }
 
+/// What the last helper attempt said, rendered where it was pressed.
+///
+/// Both helper buttons live inside sheets, and §269 already settled that no alert
+/// presents over an open sheet — so before this existed, a refused `register()`
+/// produced a fully populated failure that nowhere on screen could show, and the
+/// person who clicked watched a button do nothing.
+struct HelperFailureBanner: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        if let failure = model.helperFailure {
+            RefusalBanner(
+                title: NSLocalizedString("The helper was not changed", comment: ""),
+                code: failure.code,
+                message: failure.message,
+                fix: failure.fix)
+        }
+    }
+}
+
 /// The empty state before any agent account exists. It has to explain the one
 /// fact that makes AgentSpace different from every other tool with a "New"
 /// button: making an agent account makes a real macOS user, which needs an
