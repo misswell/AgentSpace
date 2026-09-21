@@ -8401,7 +8401,8 @@ release that is therefore still owed.
 
 ## 304. The GUI frame path leaves JSON/JPEG behind (2026-09-21)
 
-This change implements the binary frame-engine design on top of `0c7aa7c`.
+This change implements the binary frame-engine design on top of `0c7aa7c` and
+is published as `v0.1.20` from `d559534`.
 The old preview and window-stream methods remain registered for old clients and
 debugging, but neither Desktop Viewer nor Fusion calls them for live rendering.
 The physical verdict is deliberately split from the code verdict: this tree's
@@ -8421,6 +8422,7 @@ worker has not replaced AgentUse's installed 0.1.19 worker yet.
 | 695 | The complete release gate is green on the signed candidate | pass (measured) | `scripts/check-all.sh` → `check-all: all 4 layers passed`: `scripts/test.sh` **472 tests, 0 failures**, `scripts/updater-e2e.sh` **19 checks passed**, `scripts/mcp-smoke.sh` all checks passed, and `scripts/gui-verify.sh` **13 passed, 0 failed** on an unlocked presenting console |
 | 696 | The shipped bundle carries the new frame code and localized stream-state UI | pass (measured) | Release bundle contains `AgentSpace`, `agentspace-worker`, helper and updater; nested Developer ID signatures verify with team `U8U443D7ZL`. The localization suite passed parity/no-empty checks for `Frame stream unavailable`, `Connecting frame stream…` and `Reconnecting frame stream…` in both `en` and `zh-Hans` |
 | 697 | Publishing does not claim that an installed worker was silently replaced | pass (scope) | `scripts/release.sh` and `scripts/notarize.sh` only write `dist/`; they do not touch `/Applications/AgentSpace.app`, the root helper or AgentUse's installed worker. Row 687 remains pending until the user explicitly chooses the documented Reinstall Helper action and performs the interactive cross-session run |
+| 698 | The binary frame-engine candidate is the public `v0.1.20` release and its downloaded asset matches the stapled local DMG | pass (measured) | Annotated tag `v0.1.20` points to `d559534`; GitHub Release is non-draft/non-prerelease at [releases/tag/v0.1.20](https://github.com/misswell/AgentSpace/releases/tag/v0.1.20). Asset `AgentSpace-0.1.20.dmg` is 5,171,168 bytes with GitHub digest `sha256:09dfe7624f41d692bf50ddca887c8db4a3c0aa402d328402409b1bfcc7cdd513`, equal to local `shasum -a 256 dist/AgentSpace-0.1.20.dmg`; direct asset: [AgentSpace-0.1.20.dmg](https://github.com/misswell/AgentSpace/releases/download/v0.1.20/AgentSpace-0.1.20.dmg) |
 
 ## 305. 0.1.19 released: the updater ships, and the gate that went red for the machine went green for the build (2026-09-21)
 
