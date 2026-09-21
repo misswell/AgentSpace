@@ -107,7 +107,12 @@ final class MetalSurfaceRenderer {
         // desktop draws with its menu bar along the bottom of the window, and the
         // two render paths disagree with each other, since
         // `CALayer.contents = CGImage` needs no such flip.
-        image = image.transformed(by: CGAffineTransform(scaleX: 1, y: -1).translatedBy(x: 0, y: CGFloat(height)))
+        //
+        // Written as a matrix rather than composed with `translatedBy`, because
+        // `translatedBy` prepends: `scale(1,-1).translatedBy(0,h)` is
+        // `y -> -(y+h)`, which moves the picture below the drawable and shows
+        // nothing at all. `d: -1, ty: h` is the flip that was meant — `y -> h-y`.
+        image = image.transformed(by: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: CGFloat(height)))
         let scale = min(destination.width / CGFloat(width), destination.height / CGFloat(height))
         image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         let dx = (destination.width - image.extent.width) / 2, dy = (destination.height - image.extent.height) / 2
