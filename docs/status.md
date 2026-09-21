@@ -4,11 +4,14 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-21 on `master`. Current public release: `0.1.18`
-(`v0.1.18`, notarized DMG attached to the GitHub Release, digest verified in
-§301). The `0.1.20` candidate combines the staged 0.1.19 online updater with
-the binary frame engine in §304; it must pass the release/notarize/aggregate
-gate before its tag and GitHub Release are created.
+Last updated: 2026-09-21 on `master`. Current public release: `0.1.19`
+(`v0.1.19`, annotated, pointing at `0c7aa7c`; notarized DMG attached to the
+GitHub Release, digest verified in §305). It is the first release that can
+update itself — and the last one that has to be installed by hand from that
+DMG, because 0.1.18 and earlier ship no updater (§302 row 662). `master`'s tip
+carries §304's binary frame engine and is stamped `0.1.20`; none of it is in
+the published 0.1.19 artifact, and that candidate still owes its own
+release/notarize/aggregate gate before a tag and Release are created.
 
 ## Product in one sentence
 
