@@ -4,12 +4,14 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-21 on `master`. Current public release: `0.1.20`
-(`v0.1.20`, annotated at `d559534`; notarized DMG attached to the GitHub
-Release, digest verified in §304 row 698). It includes the binary frame engine
-and the online updater. The installed-worker cross-session run remains
-explicitly pending in §304 row 687; publishing never silently replaces that
-worker.
+Last updated: 2026-09-21 on `master`. Current public release: `0.1.21`
+(`v0.1.21`, annotated at `a92ce0d`; notarized DMG attached to the GitHub
+Release, digest verified locally and against a real download in §307 rows
+719/724). It includes the binary frame engine, the §306 correctness work, and
+the online updater. The installed-worker cross-session run remains explicitly
+pending in §304 row 687 and §306 rows 704/710/714; publishing never silently
+replaces that worker, and this release's notes say so in the product's own
+language (§307 row 726).
 
 ## Product in one sentence
 
@@ -287,6 +289,15 @@ the gate's throwaway registry and reported their attached Agent as deleted
 (§300 row 646, which overturns §48 row 150). Every `open` in the script now runs
 with `AGENTSPACE_ROOT` and `AGENTSPACE_GUI_APP` removed, and the hand-back is
 followed by a sweep that names any surviving copy still carrying them.
+
+A fourth defect class showed up while 0.1.21 was being gated: two runs of
+`scripts/gui-verify.sh` on the *same notarized bytes* failed two *different*
+checks. Both were single looks taken right after an asynchronous re-layout (the
+Settings window building its tabs, the wizard re-flowing its footer once an
+account is chosen), and the same artifact answered correctly the next time it
+was asked. The rule that came out of it: **a `gui-verify` failure that moves on
+a re-run was the verifier, not the build** — so those lookups now poll for the
+control and still assert the exact value (§307 rows 721-722).
 
 One reading still disagrees: the gate has settled at two windows on some runs
 while ten cold launches measured outside it gave one window every time (§299 row
