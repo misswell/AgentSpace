@@ -26,6 +26,20 @@ header, `protocolVersion 1`).
 installed worker report 0.1.23, which needs 「重新安装助手…」 and its password
 (§309 row 762). Publishing never replaces that worker by itself.
 
+The layout fix then reached real pixels — a 0.1.23 app over the *old* 0.1.22
+worker drew the AgentUse desktop with no mapping error, because root cause 1 lived
+in Core and so in the app (§310 row 763). Having a picture to look at turned up
+four more findings, all in §310: the Metal path had been drawing the desktop
+**upside down** since the renderer was introduced, and the earlier rows that
+recorded a desktop appearing were looking at it (row 764); a stream that switched
+to H.264 stopped counting its own capture, so `captureFPS` read 0 on the path the
+benchmark measures (row 765); a frame stream outlived its viewer and kept its
+shared region mapped — `openStreams: 4` and 30 MB held for one window (row 766);
+and the per-connection log line the gates read printed its numbers as `<private>`
+(row 767). All three code fixes are in this tree with 545 unit/integration tests
+green (row 770); the physical gates are still pending, now for a second reason —
+the owner's console is locked, so there is nothing to screenshot (row 769).
+
 ## Product in one sentence
 
 AgentSpace connects an AI agent to an existing standard macOS account and its
