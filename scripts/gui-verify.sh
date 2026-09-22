@@ -520,7 +520,7 @@ tell application \"System Events\"
 	-- channel the Settings opener above had to stop using. So ask the menu bar
 	-- directly, and find the item by its ⌘-char rather than by title — this
 	-- machine's UI is Chinese (「文件」/「新建 Agent…」), where a title would
-	-- not match. Re-asking is free: `showingNewSpace` is a Bool, so a second
+	-- not match. Re-asking is free: 'showingNewSpace' is a Bool, so a second
 	-- pick opens nothing new.
 	set _f to missing value
 	set _w to missing value
