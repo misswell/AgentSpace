@@ -322,15 +322,20 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    the scroll bar first when the caller supplied a point, with the step derived
    from those two attributes (`ScrollMechanics`, 6 tests) rather than a guessed
    pixel count, and keeps the wheel post for a session that is the console.
-   **Three things are owed before this item closes**, and 0.1.26 was published
-   saying so: the worker on this machine still carries the `0.1.23` stamp, so the
-   shipped path is unverified until 「重新安装助手…」 replaces it — installing the new
-   App does not by itself make the wheel work (`§316 row 808`); a scroll call that
-   names no point is not covered at all, because `agentspace scroll <space> DX DY`
-   puts only `dx`/`dy` on the wire and so still takes the legacy wheel post and still
-   moves 0 px (`§316 row 809`); and a delta counted in *lines* against a
+   **The shipped path now works, measured through the product's own binaries**:
+   after the owner updated the App and pressed 「重新安装助手…」, the active worker
+   stamps `0.1.26`, and a scroll that names a point moved the document
+   **149,740 px** where the idle floor is 36–38 px (`§317 row 811`, which retires
+   row 808's PENDING). **Two things are owed before this item closes**: a scroll
+   call that names no point is not covered at all, because `agentspace scroll
+   <space> DX DY` puts only `dx`/`dy` on the wire and so still takes the legacy
+   wheel post — measured on those same shipped binaries at **38 px**, i.e. the
+   floor (`§317 row 812`); and a delta counted in *lines* against a
    fraction of a *document* is an approximation — the feel needs a human hand on
-   a trackpad, not another frame diff.
+   a trackpad, not another frame diff. The same session's report that the
+   reinstall needed two presses is `§317 row 813`: the worker-update swap site
+   registered a daemon fifteen milliseconds after taking it away, which is the
+   race `44dd9d3` measured and paid for at only one of its two call sites.
 5. **Multi-account soak** — two attached accounts working concurrently while
    the human continues normal work.
 6. **Fusion V2 surfaces** — transient windows, explicit clipboard bridging and
