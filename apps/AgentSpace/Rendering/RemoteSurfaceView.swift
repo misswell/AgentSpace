@@ -6,19 +6,29 @@ struct RemoteSurfaceView: NSViewRepresentable {
     let client: FrameClient
     var captureWidthLimit: Int = 0
     var captureMagnification: Double = 1
-    var onMouseDown: ((Double, Double) -> Void)? = nil
-    var onRightMouseDown: ((Double, Double) -> Void)? = nil
+    /// Whether pointer gestures may be turned into input at all. The caller's
+    /// answer to "does the worker permit input right now"; a surface that is not
+    /// an input target collects no press, claims no lease and emits nothing.
+    var acceptsInput = false
+    /// The remote surface's size in the unit `onGesture` positions are converted
+    /// into — display points for the desktop viewer. Fractions do not need it,
+    /// so a proxy that only sends fractions leaves it alone.
+    var remoteContentSize: CGSize = .zero
+    var onGesture: ((RemotePointerGesture) -> Void)? = nil
+    var onClaimHuman: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> RemoteSurfaceNSView {
         let view = RemoteSurfaceNSView(client: client)
         view.captureWidthLimit = captureWidthLimit; view.captureMagnification = captureMagnification
-        view.onMouseDown = onMouseDown; view.onRightMouseDown = onRightMouseDown
+        view.acceptsInput = acceptsInput; view.remoteContentSize = remoteContentSize
+        view.onGesture = onGesture; view.onClaimHuman = onClaimHuman
         return view
     }
 
     func updateNSView(_ view: RemoteSurfaceNSView, context: Context) {
         view.captureWidthLimit = captureWidthLimit; view.captureMagnification = captureMagnification
-        view.onMouseDown = onMouseDown; view.onRightMouseDown = onRightMouseDown
+        view.acceptsInput = acceptsInput; view.remoteContentSize = remoteContentSize
+        view.onGesture = onGesture; view.onClaimHuman = onClaimHuman
         view.needsLayout = true
     }
 }
@@ -81,12 +91,50 @@ struct FrameClientStatusOverlay: View {
     }
 }
 
+extension RemotePointerGesture {
+    /// Which button was held and which command modifiers came with the event.
+    ///
+    /// These are the names `InputAction.parse` already accepts, so a shift-click
+    /// here means what a shift-click means from `agentspace input`.
+    static func attributes(of event: NSEvent) -> (button: MouseButton, modifiers: [Modifier]) {
+        var modifiers: [Modifier] = []
+        let flags = event.modifierFlags
+        if flags.contains(.command) { modifiers.append(.cmd) }
+        if flags.contains(.control) { modifiers.append(.ctrl) }
+        if flags.contains(.option) { modifiers.append(.alt) }
+        if flags.contains(.shift) { modifiers.append(.shift) }
+        // `fn` is left out deliberately: on a Mac keyboard it is not held as a
+        // modifier for mouse gestures, and reporting it would send a flag the
+        // remote cannot honour.
+        return (button(event.buttonNumber) ?? .left, modifiers)
+    }
+
+    static func button(_ number: Int) -> MouseButton? {
+        switch number {
+        case 0: return .left
+        case 1: return .right
+        case 2: return .middle
+        default: return nil
+        }
+    }
+}
+
 class RemoteSurfaceNSView: NSView {
     let client: FrameClient
-    var onMouseDown: ((Double, Double) -> Void)?
-    var onRightMouseDown: ((Double, Double) -> Void)?
     var captureWidthLimit = 0
     var captureMagnification = 1.0
+    /// See `RemoteSurfaceView.acceptsInput`. Revoking input drops the gesture in
+    /// progress: a press collected while input was permitted must not become a
+    /// click after the worker said stop.
+    var acceptsInput = false {
+        didSet { if !acceptsInput { gestures.reset() } }
+    }
+    var remoteContentSize: CGSize = .zero
+    var onGesture: ((RemotePointerGesture) -> Void)?
+    /// Takes the worker's human lease without performing any input.
+    var onClaimHuman: (() -> Void)?
+    private var gestures = RemotePointerGestureTracker()
+    private var trackingArea: NSTrackingArea?
     private let renderer: MetalSurfaceRenderer?
     private let cpuLayer = CALayer()
     private let cpuLock = NSLock()
@@ -137,6 +185,27 @@ class RemoteSurfaceNSView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override var acceptsFirstResponder: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.acceptsMouseMovedEvents = true
+        if window == nil { gestures.reset() }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        // `.activeInKeyWindow`: travel is only worth forwarding to a surface the
+        // person is actually working in. An inactive picture of another session
+        // is the main cursor passing over it, and moving the agent's pointer
+        // because of that is the opposite of isolation.
+        let area = NSTrackingArea(rect: bounds,
+                                  options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
     override func layout() {
         super.layout()
         let scale = window?.backingScaleFactor ?? 2
@@ -148,14 +217,82 @@ class RemoteSurfaceNSView: NSView {
         let targetHeight = max(1, Int(Double(targetWidth) * Double(bounds.height / max(1, bounds.width))))
         client.configure(width: targetWidth, height: targetHeight)
     }
-    override func mouseDown(with event: NSEvent) {
-        emit(event, to: onMouseDown)
+
+    // MARK: - Pointer gestures
+
+    // What the hand did is decided once, by `RemotePointerGestureTracker`. What
+    // it means on the wire belongs to whoever hosts the surface: a Fusion proxy
+    // forwards the fractions, the desktop viewer converts them to display points.
+
+    override func mouseMoved(with event: NSEvent) {
+        forward(gestures.pointerMoved(to: viewPoint(of: event), in: surfaceMapping(), now: Date()))
     }
-    override func rightMouseDown(with event: NSEvent) { emit(event, to: onRightMouseDown) }
-    private func emit(_ event: NSEvent, to callback: ((Double, Double) -> Void)?) {
-        guard bounds.width > 0, bounds.height > 0 else { return }
-        let point = convert(event.locationInWindow, from: nil)
-        callback?(Double(point.x / bounds.width), Double(1 - point.y / bounds.height))
+    override func mouseDown(with event: NSEvent) { beganPress(event) }
+    override func rightMouseDown(with event: NSEvent) { beganPress(event) }
+    override func otherMouseDown(with event: NSEvent) { beganPress(event) }
+    override func mouseDragged(with event: NSEvent) { dragged(event) }
+    override func rightMouseDragged(with event: NSEvent) { dragged(event) }
+    override func otherMouseDragged(with event: NSEvent) { dragged(event) }
+    override func mouseUp(with event: NSEvent) { endPress(event, clickCount: event.clickCount) }
+    override func rightMouseUp(with event: NSEvent) { endPress(event, clickCount: 1) }
+    override func otherMouseUp(with event: NSEvent) { endPress(event, clickCount: 1) }
+    override func scrollWheel(with event: NSEvent) {
+        guard acceptsInput else { return }
+        forward(gestures.scrolled(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY,
+                                 at: viewPoint(of: event), in: surfaceMapping(), now: Date()))
+    }
+
+    private func beganPress(_ event: NSEvent) {
+        guard acceptsInput, onGesture != nil else { return }
+        window?.makeFirstResponder(self)
+        let attributes = RemotePointerGesture.attributes(of: event)
+        let claimed = gestures.beganPress(at: viewPoint(of: event), button: attributes.button,
+                                          modifiers: attributes.modifiers,
+                                          in: surfaceMapping(), now: Date())
+        // The pause on automation starts with the press, not with the gesture it
+        // eventually produces.
+        if claimed { onClaimHuman?() }
+    }
+
+    private func dragged(_ event: NSEvent) {
+        guard acceptsInput else { return }
+        if gestures.dragged(to: viewPoint(of: event), now: Date()) { onClaimHuman?() }
+    }
+
+    private func endPress(_ event: NSEvent, clickCount: Int) {
+        guard acceptsInput else { return }
+        window?.makeFirstResponder(self)
+        forward(gestures.endedPress(at: viewPoint(of: event), clickCount: clickCount,
+                                    in: surfaceMapping(), now: Date()))
+    }
+
+    private func forward(_ gesture: RemotePointerGesture?) {
+        guard acceptsInput, let gesture, let onGesture else { return }
+        onGesture(gesture)
+    }
+
+    /// Marks a deliberate interaction the subclass handled itself — for a proxy
+    /// that is the keyboard — so the pointer travel that follows it still means
+    /// something. Takes no lease: a keystroke is not a person holding the mouse.
+    func noteEngagement() {
+        gestures.noteEngagement(now: Date())
+    }
+
+    private func viewPoint(of event: NSEvent) -> NSPoint {
+        convert(event.locationInWindow, from: nil)
+    }
+
+    /// Where the remote image actually sits inside this view. The renderer fits
+    /// the image into the view rather than stretching it, so the letterbox bars
+    /// belong to the window, not to the desktop — and `PreviewMapping` is the one
+    /// place that arithmetic is written down.
+    private func surfaceMapping() -> PreviewMapping {
+        PreviewMapping(imageWidth: Int(client.surfaceSize.width),
+                       imageHeight: Int(client.surfaceSize.height),
+                       displayWidth: Int(remoteContentSize.width),
+                       displayHeight: Int(remoteContentSize.height),
+                       viewWidth: bounds.width,
+                       viewHeight: bounds.height)
     }
 
     private func applyCPU(mapping: SharedFrameMapping, slot: SharedFrameSlotHeader, patches: [SharedPatchDescriptor]) -> Bool {

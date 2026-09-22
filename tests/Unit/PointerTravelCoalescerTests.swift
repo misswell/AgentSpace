@@ -9,8 +9,8 @@ final class PointerTravelCoalescerTests: XCTestCase {
     private var sent: [Int] = []
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
 
-    private func makeCoalescer(minimumInterval: TimeInterval = 1.0 / 30.0) -> PointerTravelCoalescer {
-        PointerTravelCoalescer(minimumInterval: minimumInterval) { [weak self] value in
+    private func makeCoalescer(minimumInterval: TimeInterval = 1.0 / 30.0) -> PointerTravelCoalescer<JSONValue> {
+        PointerTravelCoalescer<JSONValue>(minimumInterval: minimumInterval) { [weak self] value in
             guard let index = value["index"]?.intValue else {
                 XCTFail("travel payload lost its index"); return
             }

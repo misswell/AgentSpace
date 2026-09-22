@@ -221,17 +221,12 @@ public struct PreviewMapping: Equatable, Sendable {
     /// turning it into a click at the very edge would move the agent's pointer
     /// somewhere the user did not ask for.
     public func displayPoint(viewX: Double, viewY: Double) -> (x: Double, y: Double)? {
-        guard let rect = fittedRect, rect.contains(x: viewX, y: viewY) else { return nil }
-        let u = (viewX - rect.x) / rect.width
-        let v = (viewY - rect.y) / rect.height
-        // `floor`, not `round`: a click in the last pixel of the image is a click
-        // on the last point of the display, and rounding would produce
-        // `displayWidth`, which is off the screen by one and would come back as
-        // INVALID_COORDINATE.
-        let x = (u * Double(displayWidth)).rounded(.down)
-        let y = (v * Double(displayHeight)).rounded(.down)
-        return (x: min(x, Double(max(0, displayWidth - 1))),
-                y: min(y, Double(max(0, displayHeight - 1))))
+        guard let rect = fittedRect,
+              viewX >= rect.x, viewX < rect.x + rect.width,
+              viewY >= rect.y, viewY < rect.y + rect.height else { return nil }
+        return displayPoint(
+            u: (viewX - rect.x) / rect.width,
+            v: (viewY - rect.y) / rect.height)
     }
 
     /// Where a point reported by an AppKit `NSView` lands on the display.
@@ -248,6 +243,66 @@ public struct PreviewMapping: Equatable, Sendable {
         // half-open view boundary at y == viewHeight.
         let insideTopLeftY = topLeftY == viewHeight ? viewHeight.nextDown : topLeftY
         return displayPoint(viewX: appKitX, viewY: insideTopLeftY)
+    }
+
+    /// Where a fraction across the fitted image lands on the display, in points.
+    ///
+    /// `displayPoint(viewX:viewY:)` resolves the letterbox and then comes here,
+    /// and a viewer's pointer machinery calls here directly because it has
+    /// already resolved the letterbox for its own reasons: a Fusion proxy puts
+    /// the *fraction* on the wire, and the desktop viewer multiplies it out.
+    /// Both therefore share one rounding rule.
+    ///
+    /// `floor`, not `round`: a point in the last pixel of the image is a point on
+    /// the last point of the display, and rounding would produce `displayWidth`,
+    /// which is off the screen by one and would come back as INVALID_COORDINATE.
+    public func displayPoint(u: Double, v: Double) -> (x: Double, y: Double) {
+        Self.displayPoint(u: u, v: v, displayWidth: displayWidth, displayHeight: displayHeight)
+    }
+
+    /// As above, for a caller that only knows the display and has already
+    /// resolved the letterbox elsewhere — the desktop viewer's surface reports a
+    /// gesture as a fraction, and the input call needs the point.
+    public static func displayPoint(u: Double, v: Double,
+                                    displayWidth: Int, displayHeight: Int) -> (x: Double, y: Double) {
+        let x = (u * Double(displayWidth)).rounded(.down)
+        let y = (v * Double(displayHeight)).rounded(.down)
+        return (x: min(x, Double(max(0, displayWidth - 1))),
+                y: min(y, Double(max(0, displayHeight - 1))))
+    }
+
+    /// How far across the captured image an AppKit event point is: the inverse of
+    /// `viewPoint`, with the same lower-left-origin flip that
+    /// `displayPoint(appKitX:appKitY:)` applies.
+    ///
+    /// `nil` in the letterbox. A gesture that started on the black bar has no
+    /// meaning on the remote surface, and clamping it to the nearest edge would
+    /// move the agent's pointer somewhere the person did not point.
+    public func fraction(appKitX: Double, appKitY: Double) -> (u: Double, v: Double)? {
+        resolvedFraction(appKitX: appKitX, appKitY: appKitY)
+    }
+
+    /// As `fraction`, but a point that drifted into the letterbox is pulled back
+    /// onto the image. A drag whose release landed on the black bar still started
+    /// inside the remote window, and the travelled path is what the remote app
+    /// needs — dropping the release would leave its button held down.
+    public func fractionClamped(appKitX: Double, appKitY: Double) -> (u: Double, v: Double)? {
+        resolvedFraction(appKitX: appKitX, appKitY: appKitY, clamped: true)
+    }
+
+    private func resolvedFraction(appKitX: Double, appKitY: Double, clamped: Bool = false) -> (u: Double, v: Double)? {
+        guard let rect = fittedRect else { return nil }
+        let viewY = viewHeight - appKitY
+        // An AppKit event on the lower edge reports y == 0, i.e. top-left y ==
+        // viewHeight, one past the half-open image rect. It is the bottom row of
+        // the image, not outside it.
+        let resolved = viewY == viewHeight ? viewHeight.nextDown : viewY
+        if !clamped, !rect.contains(x: appKitX, y: resolved) { return nil }
+        func axis(_ value: Double, _ origin: Double, _ extent: Double) -> Double {
+            max(0, min(1, (value - origin) / extent))
+        }
+        return (u: axis(appKitX, rect.x, rect.width),
+                v: axis(resolved, rect.y, rect.height))
     }
 
     /// The inverse, for drawing an indicator at the agent's last known pointer

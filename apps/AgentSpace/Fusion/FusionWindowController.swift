@@ -17,7 +17,7 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     /// hundred stale positions in front of the click that follows. Lazy because
     /// its sender needs `self`, which the window controller cannot hand out
     /// before `super.init`.
-    private lazy var travel = PointerTravelCoalescer { [weak self] action in
+    private lazy var travel = PointerTravelCoalescer<JSONValue> { [weak self] action in
         Task { @MainActor in self?.perform(action) }
     }
     /// Gaps between rebuild attempts, so a worker that is restarting — or a

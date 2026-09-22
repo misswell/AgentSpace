@@ -72,7 +72,9 @@ struct DesktopViewerView: View {
     @State private var lastCapture: Date?
     @State private var captureError: AppModel.PresentedError?
     @State private var frameClient: FrameClient?
-    @State private var lastClickPoint: (x: Double, y: Double)?
+    /// The viewer's own input path: gestures in, `input` calls out, with the
+    /// pointer-travel coalescing a proxy uses.
+    @StateObject private var input = DesktopViewerInput()
     @State private var pendingAction: String?
     @AppStorage("previewMaxWidth") private var previewMaxWidth = 1600
     @AppStorage("previewFPS") private var previewFPS = 5
@@ -117,6 +119,9 @@ struct DesktopViewerView: View {
     private func syncKeyboardState() {
         let permitted = snapshot?.workerOnline == true && snapshot?.acceptsInput == true
         if permitted { syncKeyboardMonitor() } else { removeKeyboardMonitor() }
+        // Travel collected while input was permitted must not reach the agent
+        // after it was revoked — the same rule the monitor follows, one level up.
+        if !permitted { input.reset() }
     }
 
     private var snapshot: SpaceSnapshot? {
@@ -247,8 +252,10 @@ struct DesktopViewerView: View {
                     client: frameClient,
                     captureWidthLimit: previewMaxWidth,
                     captureMagnification: zoom.factor,
-                    onMouseDown: { x, y in sendNormalizedClick(x: x, y: y, snapshot: snapshot, button: .left) },
-                    onRightMouseDown: { x, y in sendNormalizedClick(x: x, y: y, snapshot: snapshot, button: .right) })
+                    acceptsInput: snapshot.acceptsInput,
+                    remoteContentSize: CGSize(width: snapshot.display?.width ?? 0,
+                                              height: snapshot.display?.height ?? 0),
+                    onGesture: { gesture in send(gesture, snapshot: snapshot) })
                 if !snapshot.acceptsInput { inputBlockedOverlay(snapshot) }
                 VStack { HStack { FrameClientStatusOverlay(client: frameClient); Spacer() }; Spacer() }
             }
@@ -303,7 +310,16 @@ struct DesktopViewerView: View {
                     .toggleStyle(.switch)
                     .controlSize(.small)
 
-                if let pendingAction {
+                if let refusal = input.refusal {
+                    // A gesture the worker refused is said where the desktop stays
+                    // visible: the refusal is about one click, and replacing a live
+                    // desktop with a banner would make it about nothing.
+                    Text(refusal.message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                        .help(refusal.message)
+                } else if let pendingAction {
                     Text(pendingAction)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -372,6 +388,9 @@ struct DesktopViewerView: View {
 
     private func stopPreview() {
         frameClient?.stop(); frameClient = nil
+        // Nothing collected for a desktop that is no longer being watched may
+        // still be posted afterwards.
+        input.reset()
     }
 
     private func restartPreviewIfNeeded() {
@@ -404,16 +423,16 @@ struct DesktopViewerView: View {
         }
     }
 
-    private func sendNormalizedClick(x: Double, y: Double, snapshot: SpaceSnapshot, button: MouseButton) {
+    /// One gesture from the surface, sent to the account this viewer is pinned to.
+    ///
+    /// The snapshot travels with the gesture rather than being stored, so the
+    /// worker's answer always applies to the desktop the person was looking at —
+    /// and a click is translated through the geometry that desktop reported, never
+    /// forwarded as a local point.
+    private func send(_ gesture: RemotePointerGesture, snapshot: SpaceSnapshot) {
         guard snapshot.acceptsInput, let display = snapshot.display else { return }
-        let point = (x: x * Double(display.width), y: y * Double(display.height))
-        lastClickPoint = point
-        let action = InputAction.click(x: point.x, y: point.y, button: button, count: 1, modifiers: [])
-        Task { @MainActor in
-            if let error = await Task.detached(priority: .userInitiated, operation: { SpaceService().input(for: snapshot.space, actions: [action]) }).value {
-                captureError = AppModel.PresentedError(code: error.code.rawValue, message: error.message, fix: error.code.remediation, spaceName: snapshot.space.name)
-            }
-        }
+        input.configure(space: snapshot.space, display: display)
+        input.send(gesture)
     }
 
 }

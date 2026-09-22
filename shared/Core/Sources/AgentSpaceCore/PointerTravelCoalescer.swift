@@ -13,25 +13,28 @@ import Foundation
 /// anything older is dropped. Deliberate gestures (press, click, drag, scroll,
 /// keys) never come through here — they are distinct events the remote app has
 /// to see each of, and they must not be rate-limited away.
-public final class PointerTravelCoalescer {
+///
+/// The payload is whatever the caller sends: a Fusion proxy carries the wire
+/// object, the desktop viewer carries the parsed `InputAction`.
+public final class PointerTravelCoalescer<Value> {
     private let lock = NSLock()
     private let minimumInterval: TimeInterval
-    private let send: (JSONValue) -> Void
-    private var pending: JSONValue?
+    private let send: (Value) -> Void
+    private var pending: Value?
     private var lastSent: Date?
     private var inFlight = false
 
     /// - Parameter minimumInterval: shortest gap between two travel requests.
     ///   The default caps hover at 30 Hz, which is above what a preview running
     ///   at 5-15 FPS can show anyway.
-    public init(minimumInterval: TimeInterval = 1.0 / 30.0, send: @escaping (JSONValue) -> Void) {
+    public init(minimumInterval: TimeInterval = 1.0 / 30.0, send: @escaping (Value) -> Void) {
         self.minimumInterval = max(0, minimumInterval)
         self.send = send
     }
 
     /// A new position. Replaces any position still waiting; sends immediately
     /// when nothing is in flight and the rate allows it.
-    public func offer(_ position: JSONValue, now: Date = Date()) {
+    public func offer(_ position: Value, now: Date = Date()) {
         lock.lock(); pending = position; lock.unlock()
         pump(now: now)
     }

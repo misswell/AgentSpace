@@ -200,4 +200,79 @@ final class PreviewMappingTests: XCTestCase {
         XCTAssertEqual(point?.y, 0)
         XCTAssertNil(mapping.viewPoint(displayX: 0, displayY: 0))
     }
+
+    // MARK: - Fractions of the captured image
+
+    /// The unit a remote surface reports a gesture in. The centre of the picture
+    /// is half across and half down it, and AppKit's bottom-left origin must be
+    /// flipped on the way, or a hover near the menu bar moves the agent's pointer
+    /// to the Dock.
+    func testFractionIsAcrossTheImageWithTheTopEdgeAtZero() {
+        let mapping = exactFit()
+        let centre = mapping.fraction(appKitX: 480, appKitY: 270)
+        XCTAssertEqual(centre?.u ?? -1, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(centre?.v ?? -1, 0.5, accuracy: 0.0001)
+
+        let topEdge = mapping.fraction(appKitX: 0, appKitY: 539.999)
+        XCTAssertEqual(topEdge?.u ?? -1, 0, accuracy: 0.0001)
+        XCTAssertEqual(topEdge?.v ?? -1, 0, accuracy: 0.001, "the visual top edge is v 0")
+
+        let bottomEdge = mapping.fraction(appKitX: 959.999, appKitY: 0)
+        XCTAssertEqual(bottomEdge?.u ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(bottomEdge?.v ?? -1, 1, accuracy: 0.001, "the visual bottom edge is v 1")
+    }
+
+    /// Same refusal as a click: a gesture over the black bar is not a gesture over
+    /// the desktop. This is what keeps a cursor crossing the letterbox from moving
+    /// the agent's pointer to the nearest screen edge.
+    func testFractionInALetterboxBarIsRefused() {
+        let mapping = wideView()
+        // Top-left y 10 of a 1080-tall view is AppKit y 1070.
+        XCTAssertNil(mapping.fraction(appKitX: 480, appKitY: 1070), "top letterbox bar")
+        XCTAssertNil(mapping.fraction(appKitX: 480, appKitY: 10), "bottom letterbox bar")
+        let inside = mapping.fraction(appKitX: 480, appKitY: 540)
+        XCTAssertEqual(inside?.u ?? -1, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(inside?.v ?? -1, 0.5, accuracy: 0.0001)
+    }
+
+    /// The clamped form exists for a gesture that *started* inside the image and
+    /// drifted out: a drag whose release landed on the black bar still has to
+    /// let go, so it ends at the edge rather than nowhere.
+    func testClampedFractionPullsADriftedReleaseBackOntoTheImage() {
+        let mapping = wideView()
+        let release = mapping.fractionClamped(appKitX: 480, appKitY: 1070)
+        XCTAssertEqual(release?.u ?? -1, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(release?.v ?? -1, 0, accuracy: 0.0001, "the top edge, not outside it")
+        XCTAssertEqual(mapping.fractionClamped(appKitX: -50, appKitY: 540)?.u, 0)
+    }
+
+    /// A fraction and a view point are two routes to the same display point, so
+    /// the surface's letterbox arithmetic and the input conversion cannot
+    /// disagree about where the hand was.
+    func testFractionAndViewPointResolveToTheSameDisplayPoint() {
+        let mapping = wideView()
+        for u in stride(from: 0.0, through: 1.0, by: 0.1) {
+            for v in stride(from: 0.0, through: 1.0, by: 0.1) {
+                let expected = mapping.displayPoint(u: u, v: v)
+                let drawn = mapping.viewPoint(displayX: expected.x, displayY: expected.y)!
+                let through = mapping.fraction(appKitX: drawn.x, appKitY: mapping.viewHeight - drawn.y)
+                XCTAssertNotNil(through, "a point produced by the mapping left the image")
+                XCTAssertEqual(through?.u ?? -1, u, accuracy: 0.001)
+                XCTAssertEqual(through?.v ?? -1, v, accuracy: 0.001)
+            }
+        }
+    }
+
+    /// The last fraction of the display is its last point: `1.0` multiplied out is
+    /// one past the edge, which the worker answers with INVALID_COORDINATE and a
+    /// person experiences as "the bottom row of the desktop cannot be clicked".
+    func testFractionOfOneMapsToTheLastPointAndNotPastIt() {
+        let mapping = exactFit()
+        let corner = mapping.displayPoint(u: 1, v: 1)
+        XCTAssertEqual(corner.x, 1919)
+        XCTAssertEqual(corner.y, 1079)
+        let origin = mapping.displayPoint(u: 0, v: 0)
+        XCTAssertEqual(origin.x, 0)
+        XCTAssertEqual(origin.y, 0)
+    }
 }
