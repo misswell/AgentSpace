@@ -4,14 +4,24 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-22 on `master`. Current public release: `0.1.25`
-(`v0.1.25`, annotated at `7f9bbb2` — the commit whose tree the bundle was built
-from; the notarized DMG is attached to the GitHub Release, and both a
-re-download's hash and the release's own `assets[].digest`, which is what the
-in-app updater compares against, equal the gated file — §313 row 793). It ships
-one change: the viewer was destroying and rebuilding its hardware H.264 decoder
-on every keyframe, twice a second per stream, and it now rebuilds only when the
-parameter sets differ (§313 rows 788–790). The previous release, `0.1.24`, exists
+Last updated: 2026-09-22 on `master`. Current public release: `0.1.26`
+(`v0.1.26`, annotated at `644b9dc` — the commit whose tree the bundle was built
+from; the notarized DMG is attached to the GitHub Release, and its
+`assets[].digest` and size equal the gated file byte for byte, which is what the
+in-app updater compares against — §316 row 806). It ships three things: the
+viewer's hover, drag and scroll now share one Core gesture state machine, first
+release to contain it (§314 rows 794–799); wheel scrolling in the worker drives
+the Accessibility scroll bar, because a synthetic wheel event enters the
+session's stream and is never dispatched to an app (§315 rows 800–804); and the
+viewer's default capture width is the source's own pixel size instead of a 1600
+resample of a 1920 desktop (§315 row 805). Its note names what is *not*
+verified: the shipped scroll path waits on 「重新安装助手…」, because the fix is in
+the worker and this machine's active worker still stamps `0.1.23` (§316 row
+808), and a scroll call that names no point is not covered by it at all (§316
+row 809). The previous release, `0.1.25`, ships one change: the viewer was
+destroying and rebuilding its hardware H.264 decoder on every keyframe, twice a
+second per stream, and it now rebuilds only when the parameter sets differ
+(§313 rows 788–790). The previous release, `0.1.24`, exists
 because `0.1.23`'s live view was **black**: the flip §310 row 764 asked for composed its
 matrix in the wrong order and drew the desktop *below* the drawable, so the
 window showed nothing while every counter the frame engine publishes reported a
@@ -312,9 +322,13 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    the scroll bar first when the caller supplied a point, with the step derived
    from those two attributes (`ScrollMechanics`, 6 tests) rather than a guessed
    pixel count, and keeps the wheel post for a session that is the console.
-   **Two things are owed before this item closes**: the worker on this machine
-   still carries the `0.1.23` stamp, so the shipped path is unverified until
-   「重新安装助手…」 replaces it; and a delta counted in *lines* against a
+   **Three things are owed before this item closes**, and 0.1.26 was published
+   saying so: the worker on this machine still carries the `0.1.23` stamp, so the
+   shipped path is unverified until 「重新安装助手…」 replaces it — installing the new
+   App does not by itself make the wheel work (`§316 row 808`); a scroll call that
+   names no point is not covered at all, because `agentspace scroll <space> DX DY`
+   puts only `dx`/`dy` on the wire and so still takes the legacy wheel post and still
+   moves 0 px (`§316 row 809`); and a delta counted in *lines* against a
    fraction of a *document* is an approximation — the feel needs a human hand on
    a trackpad, not another frame diff.
 5. **Multi-account soak** — two attached accounts working concurrently while
