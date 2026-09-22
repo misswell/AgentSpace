@@ -126,6 +126,15 @@ enum InputSynthesizer {
             post(mouseEvent(up, tx, ty, button.cgButton), flags: flags)
 
         case .scroll(let x, let y, let dx, let dy):
+            // Where the caller said *where*, scroll that place through
+            // accessibility, because a wheel event does not reach an app in a
+            // session that is not on the console (`docs/validation.md` §315).
+            // Without a point there is nothing to hit-test, and when the agent
+            // session *is* the console the wheel event is the better path
+            // anyway, so both fall through to the post below.
+            if let x, let y, AccessibilityBridge.scrollArea(atX: x, y: y, linesX: dx, linesY: dy) {
+                return
+            }
             if let x, let y { post(mouseEvent(.mouseMoved, x, y, .left)) }
             // wheel1 = vertical, wheel2 = horizontal. `dy` is passed straight
             // through, so positive dy is what a natural trackpad swipe down does.

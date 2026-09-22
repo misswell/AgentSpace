@@ -311,4 +311,73 @@ enum AccessibilityBridge {
             "point": .obj(["x": .double(point.x), "y": .double(point.y)]),
         ])
     }
+
+    // MARK: Scrolling
+
+    /// Move the scroll bar of the scroll area under a point.
+    ///
+    /// A wheel event posted into a session that is not on the console does
+    /// enter that session's event stream — a listen-only tap sees every field
+    /// of it — but the window server never dispatches it to an app. Measured
+    /// across eight event shapes, with `CGWarpMouseCursorPosition` confirming
+    /// the cursor really was over the content: zero pixels moved, while a key
+    /// press in the same window moved 59,576. The scroll bar is the channel
+    /// that does work in a background session, so scroll drives it directly.
+    ///
+    /// `false` means "this place cannot be scrolled through accessibility" —
+    /// the point is outside any scroll area, or the area reports nothing to
+    /// scroll — and the caller still posts the wheel event, which is the path
+    /// that works when the agent session *is* the console.
+    static func scrollArea(atX x: Double, y: Double, linesX: Int, linesY: Int) -> Bool {
+        guard AXIsProcessTrusted(),
+              let hit = try? elementAt(x: Float(x), y: Float(y)).element,
+              let area = scrollArea(ancestorOf: hit),
+              let viewport = frame(area)?.size,
+              let content = sizeAttribute(area, "AXContentSize")
+        else { return false }
+        var moved = false
+        if linesY != 0 {
+            moved = scroll(barOf: area, named: "AXVerticalScrollBar", lines: Double(linesY),
+                           viewport: Double(viewport.height), content: Double(content.height)) || moved
+        }
+        if linesX != 0 {
+            moved = scroll(barOf: area, named: "AXHorizontalScrollBar", lines: Double(linesX),
+                           viewport: Double(viewport.width), content: Double(content.width)) || moved
+        }
+        return moved
+    }
+
+    private static func scroll(barOf area: AXUIElement, named attribute: String,
+                               lines: Double, viewport: Double, content: Double) -> Bool {
+        guard let bar = copyAttribute(area, attribute) as! AXUIElement?,
+              let current = (copyAttribute(bar, kAXValueAttribute as String) as? NSNumber)?.doubleValue,
+              let target = ScrollMechanics.value(current: current, lines: lines,
+                                                 viewport: viewport, content: content),
+              target != current
+        else { return false }
+        return AXUIElementSetAttributeValue(bar, kAXValueAttribute as CFString,
+                                            NSNumber(value: target)) == .success
+    }
+
+    /// The nearest ancestor that actually scrolls, which is where the wheel
+    /// event would have landed. Text views, browser lists and web content all
+    /// sit inside one; a hit on the window frame or the wallpaper has none.
+    private static func scrollArea(ancestorOf element: AXUIElement) -> AXUIElement? {
+        var current: AXUIElement? = element
+        for _ in 0..<12 {
+            guard let candidate = current else { return nil }
+            if stringAttribute(candidate, kAXRoleAttribute as String) == "AXScrollArea" { return candidate }
+            current = copyAttribute(candidate, kAXParentAttribute as String) as! AXUIElement?
+        }
+        return nil
+    }
+
+    private static func sizeAttribute(_ element: AXUIElement, _ attribute: String) -> CGSize? {
+        guard let value = copyAttribute(element, attribute),
+              CFGetTypeID(value) == AXValueGetTypeID(),
+              AXValueGetType(value as! AXValue) == .cgSize else { return nil }
+        var size = CGSize.zero
+        guard AXValueGetValue(value as! AXValue, .cgSize, &size) else { return nil }
+        return size
+    }
 }
