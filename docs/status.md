@@ -6,10 +6,12 @@ Read this first when resuming AgentSpace. The binding product direction is
 
 Last updated: 2026-09-22 on `master`. Current public release: `0.1.28`
 (`v0.1.28`, annotated at `b690162` — the commit whose tree the bundle was built
-from; `check-all.sh` gated `dist/AgentSpace-0.1.28.dmg` at
+from; the GitHub Release asset reports
 `sha256:4417e9395066d61315797866e5630221c8110dd594ca835c25171c788178fd23` over
-`5548467` bytes, and the published asset must report those same bytes because
-that is what the in-app updater compares against — §319 rows 821–828). It ships one change,
+`5548467` bytes, byte-for-byte the file `check-all.sh` gated and pulled back from
+the download URL to prove it, and `releases/latest` — the product's own update
+channel — answered the new tag on the first sample without a write (§319 rows
+821–831). It ships one change,
 and the change is in the CLI that travels inside the bundle. `agentspace scroll
 <account> DX DY` named **no point**, so it took the legacy wheel post and moved
 exactly as far as doing nothing — while Core, the worker's parser,
