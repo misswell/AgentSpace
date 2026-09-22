@@ -9,6 +9,9 @@ import AgentSpaceCore
 final class VideoFrameDecoder {
     private var session: VTDecompressionSession?
     private var format: CMVideoFormatDescription?
+    /// The parameter sets the session above was built for, so a keyframe that
+    /// announces what is already configured is not a reason to rebuild it.
+    private var configuredParameterSets: [Data] = []
     private let output: (CVPixelBuffer) -> Void
 
     init(output: @escaping (CVPixelBuffer) -> Void) { self.output = output }
@@ -20,7 +23,14 @@ final class VideoFrameDecoder {
         let parameterCount = Int(try reader.byte()); _ = try reader.bytes(2)
         var parameters: [Data] = []
         for _ in 0..<parameterCount { parameters.append(try reader.bytes(Int(try reader.uint32()))) }
-        if !parameters.isEmpty { try configure(parameterSets: parameters) }
+        // The encoder rides SPS/PPS with every IDR so a viewer that joins
+        // mid-stream needs no out-of-band codec state. It does that every
+        // `MaxKeyFrameInterval` — two seconds — and an IDR restarts the sequence
+        // cleanly in a session that is already running, so only different
+        // parameter sets are a reason to build a new one. Rebuilding on each
+        // keyframe discarded a working hardware decoder twice a second per open
+        // stream, which is GPU work and decode latency nobody asked for.
+        if !parameters.isEmpty, parameters != configuredParameterSets { try configure(parameterSets: parameters) }
         let sampleData = try reader.bytes(Int(try reader.uint32()))
         guard let format, let session else { throw AgentSpaceError(code: .badRequest, message: "H.264 stream has no decoder configuration") }
         var block: CMBlockBuffer?
@@ -53,8 +63,9 @@ final class VideoFrameDecoder {
         }, decompressionOutputRefCon: opaque)
         guard VTDecompressionSessionCreate(allocator: kCFAllocatorDefault, formatDescription: video, decoderSpecification: nil, imageBufferAttributes: attributes, outputCallback: &callback, decompressionSessionOut: &created) == noErr, let created else { throw AgentSpaceError(code: .internalError, message: "could not create H.264 decoder") }
         session = created
+        configuredParameterSets = parameterSets
     }
-    func invalidate() { if let session { VTDecompressionSessionInvalidate(session) }; session = nil }
+    func invalidate() { if let session { VTDecompressionSessionInvalidate(session) }; session = nil; configuredParameterSets = [] }
     deinit { invalidate() }
 }
 

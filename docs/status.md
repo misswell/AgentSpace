@@ -78,6 +78,27 @@ The automated half of §26 is green for `0.1.24` (row 778) and `check-all` passe
 three of four layers, the fourth having passed standalone on this same tree
 twenty minutes before the console locked itself again (row 779).
 
+§313 is two findings from the same hour, and the difference between them is the
+method. A report that the shipped viewer **froze** — its copy of the desktop stuck
+at 08:28 while the header still read 就绪 — turned out to be a capture of a window
+the WindowServer had stopped drawing: `-l` on an occluded window returns its last
+cached image, the same window id hashed identically 15 seconds apart, the pixels at
+that window's own bounds were the owner's browser, and the cached frame showed the
+live-preview switch **off** next to a rendered desktop, which `DesktopViewerView`
+cannot produce in a single render (row 787). No renderer code was changed on the
+strength of it, and row 775's hole stays open rather than closed. The other finding
+needed no screen at all: the log shows the viewer destroying and recreating its
+hardware H.264 decoder **every 2.000 s per stream** — 750 such lines in 10 minutes —
+because `decode` rebuilt the session for any packet carrying parameter sets, while
+the worker attaches SPS/PPS to every keyframe by design with
+`MaxKeyFrameInterval = fps * 2` (row 788). The fix rebuilds only when the sets
+actually differ; measuring the fix needs a build on this machine, so it is pending
+with the machine in use. `scripts/frame-benchmark.sh` did run against the live
+pair: 14.4 fps over 2 streams, capture→publish p50 13.8 ms / p95 27.9 ms, worker
+2.4% of a core, 10 of 11 verdicts holding — the failure being
+`app_and_worker_same_release`, which row 783 already shows is a label and not a
+behaviour (row 789).
+
 ## Product in one sentence
 
 AgentSpace connects an AI agent to an existing standard macOS account and its
