@@ -29,13 +29,16 @@ descriptor. Neither cause is a Screen Recording, Accessibility, session, socket
 permission or Metal problem, and the wire did not move (32-byte notice, 52-byte
 header, `protocolVersion 1`).
 **Both fixes are in the worker as well as the app**, and publishing never replaces
-that worker by itself — the owner's 「重新安装助手…」 did at 18:30 today, so the
-installed worker is `0.1.23` while the app is `0.1.24`. That one-version gap costs
-nothing measured here: the two tags differ in the worker by a version string and
-nothing else (§312 row 783), so §27's "same newest build" pair is in place in
-substance. What keeps Gates B–I, the 60-minute soak and the benchmark open is the
-console: when it locks, `screencapture` refuses, System Events vends no windows,
-and `scripts/check-all.sh` stops at its own fourth layer (rows 779, 783).
+that worker by itself — the owner's 「重新安装助手…」 did at 18:30 on 2026-09-21,
+so the installed worker is `0.1.23` while the app is `0.1.24`. That one-version gap
+costs nothing measured here: the two tags differ in the worker by a version string
+and nothing else (§312 row 783), so §27's "same newest build" pair is in place in
+substance. What that console lock cost was *screenshots*: on a locked console
+`screencapture` refuses, System Events vends no windows, and
+`scripts/check-all.sh` stops at its own fourth layer (rows 779, 783). The two
+instruments that never needed it have now both run — `scripts/frame-benchmark.sh`
+(§313 row 789) and the 60-minute `scripts/frame-soak.sh` (§313 row 791) — and
+Gates B, F, G, H and I are the ones still open.
 
 The layout fix then reached real pixels — a 0.1.23 app over the *old* 0.1.22
 worker drew the AgentUse desktop with no mapping error, because root cause 1 lived
@@ -99,7 +102,20 @@ change and two after — the second one because the capture geometry moved (row 
 pair: 14.4 fps over 2 streams, capture→publish p50 13.8 ms / p95 27.9 ms, worker
 2.4% of a core, 10 of 11 verdicts holding — the failure being
 `app_and_worker_same_release`, which row 783 already shows is a label and not a
-behaviour (row 789).
+behaviour (row 789). The 60-minute soak then held the same two streams open in all
+357 samples: 43,474 frames published at 12.09 fps, worker 2.1% of a core,
+`appFDs 105 → 105`, app and worker RSS both *shrinking* by 3.6 MB and 5.8 MB, and
+`mappingBytesTotal` flat at 9,668,992 bytes — the number row 766's leak would have
+moved (row 791). Reading the log for that same hour puts the decoder defect on the
+same scale: **2,011** hardware decompression sessions created and invalidated by the
+running app in 60 minutes, ~39 a minute while the desktop changed and 1–8 once the
+owner left it still. Which is also why row 791 calls that hour a baseline: it
+measures the *unfixed* client. `0.1.25` is notarized, stapled, Gatekeeper-clean, its
+dist app's CDHash identical to the DMG's inner copy, and layers 1–3 of `check-all`
+pass on it — but it was never launched, and `gui-verify` was not run, because its
+first act is to `pkill` every AgentSpace process this uid owns, which would have
+killed both the owner's window and the soak's subject while `HIDIdleTime` read
+0.044 s. Deferred, not passed (row 792).
 
 ## Product in one sentence
 
