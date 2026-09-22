@@ -89,4 +89,15 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
 - macOS facts already paid for (do not relearn): `kCGSSessionManagerNameKey` is
   inert — `SessionGetInfo` is the working session probe. Runtime parents must be
   traversable before a named ACL on a child can help; the V3 parent is 0755 and
-  each account runtime is 0700 plus its two-user inherited ACL.
+  each account runtime is 0700 plus its two-user inherited ACL. A synthetic
+  scroll event posted to `.cgSessionEventTap` in a background Aqua session *does*
+  enter that session's stream (a listen-only tap reads it back) and is *never*
+  dispatched to an app — eight shapes, zero pixels, where the `AXVerticalScrollBar`
+  value of the same scroll area moved 35,908 px (§315). Moves, clicks, drags and
+  keys are dispatched normally, so scroll is its own channel problem.
+  `CGEventTypes.h` field numbers, because guessing them invalidates a test:
+  88 `IsContinuous`, 93 `FixedPtDeltaAxis1`, 96 `PointDeltaAxis1`,
+  **99 `ScrollPhase`**, 123 `MomentumPhase`; phases `Began=1 Changed=2 Ended=4
+  Cancelled=8 MayBegin=128` — 4 is `Stationary`, 8 is `Cancelled`, and there is
+  no `kCGScrollWheelEventIsPixel`. A `CGEvent.tapCreate` callback runs on the run
+  loop: `Thread.sleep` between posts starves it and reports "nothing arrived".
