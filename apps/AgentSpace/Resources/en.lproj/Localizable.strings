@@ -151,6 +151,7 @@
 "Zoom" = "Zoom";
 "Capture width" = "Capture width";
 "Frame rate" = "Frame rate";
+"Native" = "Native";
 "Live preview (%ld FPS)" = "Live preview (%ld FPS)";
 "Live preview (1 FPS)" = "Live preview (1 FPS)";
 "updated %@" = "updated %@";

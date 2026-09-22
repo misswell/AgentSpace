@@ -64,7 +64,13 @@ struct DesktopViewerView: View {
     }
 
     private static let frameRateOptions = [1, 5, 10, 15, 30]
-    private static let captureWidthOptions = [960, 1280, 1600, 1920]
+    /// `0` means the capture's own pixel size. Both consumers already treat it
+    /// that way — `CaptureEngine` falls back to the display's natural size, and
+    /// `ScreenCapture` resamples only when `maxWidth > 0` — so offering native
+    /// costs no new plumbing, only a choice. It is the default because a
+    /// down-scaled default softens exactly the text the viewer is read for;
+    /// the smaller numbers stay here for a link that cannot carry 8 MB a frame.
+    private static let captureWidthOptions = [0, 960, 1280, 1600, 1920, 2560]
 
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -76,7 +82,7 @@ struct DesktopViewerView: View {
     /// pointer-travel coalescing a proxy uses.
     @StateObject private var input = DesktopViewerInput()
     @State private var pendingAction: String?
-    @AppStorage("previewMaxWidth") private var previewMaxWidth = 1600
+    @AppStorage("previewMaxWidth") private var previewMaxWidth = 0
     @AppStorage("previewFPS") private var previewFPS = 5
     @State private var zoom = ViewerZoom.fit
 
@@ -356,7 +362,7 @@ struct DesktopViewerView: View {
 
                 Picker("Capture width", selection: $previewMaxWidth) {
                     ForEach(Self.captureWidthOptions, id: \.self) { width in
-                        Text("\(width) px").tag(width)
+                        Text(width == 0 ? "Native" : "\(width) px").tag(width)
                     }
                 }
                 .pickerStyle(.menu)

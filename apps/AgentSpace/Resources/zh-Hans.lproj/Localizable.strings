@@ -151,6 +151,7 @@
 "Zoom" = "缩放";
 "Capture width" = "捕获宽度";
 "Frame rate" = "帧率";
+"Native" = "原生";
 "Live preview (%ld FPS)" = "实时预览（%ld FPS）";
 "Live preview (1 FPS)" = "实时预览（1 FPS）";
 "updated %@" = "更新于 %@";
