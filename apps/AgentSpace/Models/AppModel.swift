@@ -310,14 +310,14 @@ final class AppModel: ObservableObject {
         isInstallingHelper = true
         let result: Result<Void, Error> = await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let service = SMAppService.daemon(plistName: BundleIdentifiers.helperPlist)
-                    _ = try? service.unregister()
-                    try service.register()
-                    continuation.resume(returning: .success(()))
-                } catch {
-                    continuation.resume(returning: .failure(error))
-                }
+                _ = try? SMAppService.daemon(plistName: BundleIdentifiers.helperPlist).unregister()
+                // The second swap site, and the same measured race: `unregister()`
+                // returns before launchd has taken the daemon down, so the
+                // `register()` fifteen milliseconds later is refused (error 1 at
+                // +13 ms, succeeding 2.7 s later). Asking once meant the first
+                // press always failed and the second always worked.
+                continuation.resume(returning: Self.registerDaemon(
+                    attempts: HelperRegistrationRetry.maximumAttempts))
             }
         }
         if case .success = result { try? await Task.sleep(nanoseconds: 500_000_000) }
