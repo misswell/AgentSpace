@@ -336,6 +336,12 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    reinstall needed two presses is `§317 row 813`: the worker-update swap site
    registered a daemon fifteen milliseconds after taking it away, which is the
    race `44dd9d3` measured and paid for at only one of its two call sites.
+   `0.1.27` routes both through `AppModel.registerDaemon(attempts:)` and pins it
+   with two source-invariant tests (`§317 row 814`); no third bare `.register()`
+   can appear quietly. What is *not* claimed is a live one-press swap on this
+   machine — the helper is already current there, so proving it means waiting for
+   the next real swap rather than spending a second admin prompt on the owner's
+   screen.
 5. **Multi-account soak** — two attached accounts working concurrently while
    the human continues normal work.
 6. **Fusion V2 surfaces** — transient windows, explicit clipboard bridging and
@@ -488,6 +494,24 @@ against a bundle built from this tree and fail against 0.1.18's `dist/`, which
 is the correct verdict for an artifact that has no such tab — so `check-all.sh`
 now assumes `dist/` was built from the tree it is gating, which is what
 `scripts/release.sh` produces.
+
+A fifth defect class closed §300 row 651's open question. While 0.1.27 was being
+gated, layer 4 failed four in-gate runs on the *same notarized bytes* that passed
+13/13 standalone: twice `no name field` in the wizard, twice eight Settings
+controls reporting empty. Both phases opened their window by *typing* a shortcut (`⌘N`,
+`⌘,`), and a keystroke is delivered to whatever the console session last focused —
+on a shared machine that is WeChat or Chrome, not the pid the script holds. The
+Settings opener was worse than merely mis-targeted: it was a one-shot heredoc with
+`>/dev/null 2>&1`, so the error that said the app never fronted was discarded and
+nine absent controls got reported as nine empty attributes. Both now *ask* the menu
+bar — walk the app's `menu bar items` and click the item whose
+`AXMenuItemCmdChar` is `n` (or `,`) — which is localization-proof too, since this
+machine's UI is Chinese and a menu title would not match. Each phase prints which
+channel it used (`settings opener: clicked, windows=2`, `wizard: step 2`) instead
+of a bare failure. The lesson generalizes past this script: when a layer-4 verdict
+moves between runs, suspect a focus or timing assumption in the verifier before
+suspecting the build, and never let a diagnostic channel discard its own error
+(§318 rows 816–818, `df6b193` touches `scripts/gui-verify.sh` only).
 
 ## Compatibility rules
 
