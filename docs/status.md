@@ -92,8 +92,10 @@ hardware H.264 decoder **every 2.000 s per stream** — 750 such lines in 10 min
 because `decode` rebuilt the session for any packet carrying parameter sets, while
 the worker attaches SPS/PPS to every keyframe by design with
 `MaxKeyFrameInterval = fps * 2` (row 788). The fix rebuilds only when the sets
-actually differ; measuring the fix needs a build on this machine, so it is pending
-with the machine in use. `scripts/frame-benchmark.sh` did run against the live
+differ, and it was measured with the same instrument that found it: the two shipped
+source files compiled into a headless tool that feeds the real encoder's packets to
+the real decoder, where eight keyframes built eight hardware decoders before the
+change and two after — the second one because the capture geometry moved (row 790). `scripts/frame-benchmark.sh` did run against the live
 pair: 14.4 fps over 2 streams, capture→publish p50 13.8 ms / p95 27.9 ms, worker
 2.4% of a core, 10 of 11 verdicts holding — the failure being
 `app_and_worker_same_release`, which row 783 already shows is a label and not a
