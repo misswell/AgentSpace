@@ -130,9 +130,21 @@ sign() {
   # examined. Ad-hoc signing has no timestamp authority, so it keeps =none.
   local ts="--timestamp"
   [[ "$IDENTITY" == "-" ]] && ts="--timestamp=none"
+  if [[ "$IDENTITY" == "-" ]]; then
+    codesign --force --options runtime "$ts" \
+      --identifier "$identifier" --sign - "$path" 2>&1 | sed 's/^/   /' \
+      || { echo "   ad-hoc codesign failed for $path" >&2; exit 1; }
+    return
+  fi
+  # This used to be one `||` away from re-signing ad-hoc, which meant a hiccup at
+  # Apple's timestamp service produced a release bundle with no identity at all —
+  # and every step of this script still said `ok`. That fallback belongs to the
+  # no-certificate case above, not to a real identity: an artifact that cannot be
+  # Developer ID signed is not releasable, so say it here rather than 20 minutes
+  # later when the notary service calls it Invalid.
   codesign --force --options runtime "$ts" \
     --identifier "$identifier" --sign "$IDENTITY" "$path" 2>&1 | sed 's/^/   /' \
-    || codesign --force --identifier "$identifier" --sign - "$path" 2>&1 | sed 's/^/   /'
+    || { echo "   codesign failed for $path with '$IDENTITY' — a Developer ID signature needs Apple's timestamp service (http://timestamp.apple.com/ts01), and nothing was ad-hoc-signed in its place" >&2; exit 1; }
 }
 
 sign "$APP/Contents/MacOS/agentspace-worker" "com.agentspace.AgentSpace.Worker"
