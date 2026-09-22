@@ -297,9 +297,25 @@ V3 does not make the later roadmap appear by renaming Phase 1:
      automation at `INPUT_BUSY_BY_HUMAN` for the whole press (row 624).
    - **F — fast user switch:** the moment the agent's session is the console,
      capture and input fail closed instead of following the person.
-4. **Multi-account soak** — two attached accounts working concurrently while
+4. **Wheel scrolling inside an agent session** — §314 row 798 measured this as
+   broken below the level of this product's code. Six synthetic scroll shapes —
+   legacy line units, an explicit `event.location`, a persistent
+   `CGEventSource`, `.pixel` units with `kCGScrollWheelEventIsPixel` and a scroll
+   phase, a 10-event burst, and a phased began→changed→ended gesture — posted
+   with the pointer demonstrably inside a scrollable TextEdit and a scrollable
+   Finder window move **nothing**, while those same two windows scroll on
+   `cmd+Up` / `cmd+Down` (56,572 and 6,294 changed pixels in the captured
+   frames). Moves, clicks, drags and keys all work in the same session, so this
+   is specific to wheel delivery, and the leading hypothesis is that
+   `.cgSessionEventTap` routes scroll events to the console session — which an
+   agent session must never be, by §12. Until a listen-only `CGEventTap` inside
+   the agent session distinguishes that, every scroll path the product has
+   (`agentspace scroll`, the viewer's wheel, a proxy's) is accepted and silently
+   does nothing, and §一's 「滚动 Scroll」 acceptance and gate D above both
+   depend on it.
+5. **Multi-account soak** — two attached accounts working concurrently while
    the human continues normal work.
-5. **Fusion V2 surfaces** — transient windows, explicit clipboard bridging and
+6. **Fusion V2 surfaces** — transient windows, explicit clipboard bridging and
    restricted transfer-directory drag and drop remain intentionally deferred.
 
 ## V4 Fusion implementation state
