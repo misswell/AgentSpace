@@ -297,22 +297,26 @@ V3 does not make the later roadmap appear by renaming Phase 1:
      automation at `INPUT_BUSY_BY_HUMAN` for the whole press (row 624).
    - **F — fast user switch:** the moment the agent's session is the console,
      capture and input fail closed instead of following the person.
-4. **Wheel scrolling inside an agent session** — §314 row 798 measured this as
-   broken below the level of this product's code. Six synthetic scroll shapes —
-   legacy line units, an explicit `event.location`, a persistent
-   `CGEventSource`, `.pixel` units with `kCGScrollWheelEventIsPixel` and a scroll
-   phase, a 10-event burst, and a phased began→changed→ended gesture — posted
-   with the pointer demonstrably inside a scrollable TextEdit and a scrollable
-   Finder window move **nothing**, while those same two windows scroll on
-   `cmd+Up` / `cmd+Down` (56,572 and 6,294 changed pixels in the captured
-   frames). Moves, clicks, drags and keys all work in the same session, so this
-   is specific to wheel delivery, and the leading hypothesis is that
-   `.cgSessionEventTap` routes scroll events to the console session — which an
-   agent session must never be, by §12. Until a listen-only `CGEventTap` inside
-   the agent session distinguishes that, every scroll path the product has
-   (`agentspace scroll`, the viewer's wheel, a proxy's) is accepted and silently
-   does nothing, and §一's 「滚动 Scroll」 acceptance and gate D above both
-   depend on it.
+4. **Wheel scrolling inside an agent session** — §314 row 798 found scroll dead;
+   §315 found why, and the reason is not in this product's event code. A
+   listen-only `CGEventTap` inside the agent session reads every posted scroll
+   event back with its fields intact — `.line`, `.pixel`, `IsContinuous`, a
+   `Began → Changed → Ended` phase chain — so the events *do* enter that
+   session's stream, while the system cursor is verified at the same point by
+   `CGWarpMouseCursorPosition` and eight shapes still move zero pixels against a
+   `cmd+Down` control of 59,576. The window server accepts them and never
+   dispatches them to an app. The channel that does work is Accessibility: the
+   scroll area reports `AXSize` 656×390 over `AXContentSize` 656×5200, and
+   writing its `AXVerticalScrollBar` value moved that document **35,908 pixels**
+   where every event shape moved none. `InputSynthesizer`'s `.scroll` now drives
+   the scroll bar first when the caller supplied a point, with the step derived
+   from those two attributes (`ScrollMechanics`, 6 tests) rather than a guessed
+   pixel count, and keeps the wheel post for a session that is the console.
+   **Two things are owed before this item closes**: the worker on this machine
+   still carries the `0.1.23` stamp, so the shipped path is unverified until
+   「重新安装助手…」 replaces it; and a delta counted in *lines* against a
+   fraction of a *document* is an approximation — the feel needs a human hand on
+   a trackpad, not another frame diff.
 5. **Multi-account soak** — two attached accounts working concurrently while
    the human continues normal work.
 6. **Fusion V2 surfaces** — transient windows, explicit clipboard bridging and
