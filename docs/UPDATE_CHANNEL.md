@@ -109,6 +109,20 @@ steady transfer is not cut off by the idle window, and a user cancellation stops
 the rotation instead of falling through to the next host. Every source's failure
 reason is written to the update log.
 
+## Publishing is not finished until `latest` answers
+
+The channel is one derived GitHub endpoint, `GET
+/repos/misswell/AgentSpace/releases/latest` — `SoftwareUpdater.latestReleaseURL`
+— so a release can be live, correct, and still invisible. Measured on 0.1.27:
+flipping a draft with `draft: false` left that endpoint answering the *previous*
+tag for six minutes (nine samples, cache-busting query strings included) while
+`releases/tags/v0.1.27` already reported the new release and its digest; a write
+to the release itself (`make_latest=true`) moved it within five seconds (§318 row
+820). Treat the assertion as part of releasing: publish, then require `latest` to
+name the new tag *and* carry the digest of the file `scripts/check-all.sh`
+approved, and pull the asset back once to prove the bytes that leave this machine
+are the bytes that come back.
+
 ## Automatic checks
 
 Once per launch, after the window is up. A check that fails *automatically* is

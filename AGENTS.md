@@ -57,7 +57,12 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
    「重新安装助手…」), never relax the verification chain to make an update
    succeed, and remember that releases before 0.1.19 ship no updater — the first
    one after this feature must be installed from the DMG by hand, and a release
-   note that does not say so is a broken promise (§302 row 662).
+   note that does not say so is a broken promise (§302 row 662). Publishing is not
+   done until `GET /repos/misswell/AgentSpace/releases/latest` answers the new tag:
+   that endpoint *is* `SoftwareUpdater.latestReleaseURL`, and it kept serving the
+   previous release for six minutes after a draft was flipped to
+   `draft: false` — only a write to the release itself (`make_latest=true`) moved
+   it (§318 row 820).
 
 ## Vocabulary (old → new; both spellings work in code and interface)
 

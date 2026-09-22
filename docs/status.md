@@ -4,21 +4,36 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-22 on `master`. Current public release: `0.1.26`
-(`v0.1.26`, annotated at `644b9dc` — the commit whose tree the bundle was built
-from; the notarized DMG is attached to the GitHub Release, and its
-`assets[].digest` and size equal the gated file byte for byte, which is what the
-in-app updater compares against — §316 row 806). It ships three things: the
+Last updated: 2026-09-22 on `master`. Current public release: `0.1.27`
+(`v0.1.27`, annotated at `7d16b65` — the commit whose tree the bundle was built
+from; the GitHub Release asset reports `sha256:5d503be91a88c0120a1ad9b8bd3d82778e92e767181ee118d2b932320a8da49f`
+over `5548266` bytes, byte-for-byte the file `check-all.sh` gated, which is what
+the in-app updater compares against — §318 rows 815 and 819). It ships one
+change, and it is a small one with a loud user-visible symptom: updating the
+worker swapped the privileged helper by unregistering it and registering again
+fifteen milliseconds later, which launchd refuses for a couple of seconds while it
+finishes taking the daemon down. So **the first press always failed with
+`HELPER_UNAVAILABLE` and the second always worked** — the dialog the owner asked
+about, and correctly called redundant. `44dd9d3` had already measured that race
+(error 1 at +13 ms, 0 at 2.7 s) and bought off the wait at one of the two swap
+sites, the 「重新安装助手…」 button; the worker-update site is now on the same
+`AppModel.registerDaemon(attempts:)` path, with two source-invariant tests so a
+third bare `.register()` cannot appear quietly (§317 rows 813–814). A human's
+「取消」 (`-128`) is still never retried. The previous release, `0.1.26`,
+shipped three things: the
 viewer's hover, drag and scroll now share one Core gesture state machine, first
 release to contain it (§314 rows 794–799); wheel scrolling in the worker drives
 the Accessibility scroll bar, because a synthetic wheel event enters the
 session's stream and is never dispatched to an app (§315 rows 800–804); and the
 viewer's default capture width is the source's own pixel size instead of a 1600
-resample of a 1920 desktop (§315 row 805). Its note names what is *not*
-verified: the shipped scroll path waits on 「重新安装助手…」, because the fix is in
-the worker and this machine's active worker still stamps `0.1.23` (§316 row
-808), and a scroll call that names no point is not covered by it at all (§316
-row 809). The previous release, `0.1.25`, ships one change: the viewer was
+resample of a 1920 desktop (§315 row 805). The scroll half of that is now
+**measured working on the binaries a user actually gets** — after the owner
+updated and pressed 「重新安装助手…」, a scroll naming a point moved a document
+149,740 px against a 36–38 px idle floor (§317 row 811, retiring §316 row 808).
+What `0.1.26` still does not do: a scroll call that names no point —
+`agentspace scroll <space> DX DY` puts only `dx`/`dy` on the wire, so it takes the
+legacy wheel post and measures exactly the floor (§317 row 812).
+The previous release, `0.1.25`, ships one change: the viewer was
 destroying and rebuilding its hardware H.264 decoder on every keyframe, twice a
 second per stream, and it now rebuilds only when the parameter sets differ
 (§313 rows 788–790). The previous release, `0.1.24`, exists
@@ -44,10 +59,15 @@ permission or Metal problem, and the wire did not move (32-byte notice, 52-byte
 header, `protocolVersion 1`).
 **Both fixes are in the worker as well as the app**, and publishing never replaces
 that worker by itself — the owner's 「重新安装助手…」 did at 18:30 on 2026-09-21,
-so the installed worker is `0.1.23` while the app in `/Applications` is `0.1.24`. That one-version gap
-costs nothing measured here: the two tags differ in the worker by a version string
-and nothing else (§312 row 783), so §27's "same newest build" pair is in place in
-substance. What that console lock cost was *screenshots*: on a locked console
+which left the installed worker at `0.1.23` while `/Applications` held `0.1.24`.
+That one-version gap cost nothing measured here: the two tags differ in the worker
+by a version string and nothing else (§312 row 783), so §27's "same newest build"
+pair was in place in substance. The pair is now matched for real: the owner updated
+the App and pressed the button again at 15:20 on 2026-09-22, so `/Applications` is
+`0.1.26 / build 383` and the active worker stamps `0.1.26` (§317 row 811).
+`0.1.27` is published and **not** installed on this machine — its change is in the
+App, so pressing the update is what makes the *next* helper swap a one-press one.
+What that console lock cost was *screenshots*: on a locked console
 `screencapture` refuses, System Events vends no windows, and
 `scripts/check-all.sh` stops at its own fourth layer (rows 779, 783). The two
 instruments that never needed it have now both run — `scripts/frame-benchmark.sh`
