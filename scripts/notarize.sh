@@ -32,6 +32,11 @@ if [[ ! -f "$DMG" ]]; then
   exit 1
 fi
 PROFILE="${NOTARY_PROFILE:-octoshrink-notary}"
+# Consecutive polls that cannot even read a status before this script stops.
+# A live submission reports "In Progress" — that is a status, and it is waited
+# on indefinitely. Only a *missing* status counts here, and six in a row is a
+# credential or network loss, not a slow review.
+MAX_UNKNOWN_POLLS="${NOTARY_MAX_UNKNOWN_POLLS:-6}"
 
 echo "== 0. verify the credential live (a name proves nothing) =="
 if xcrun notarytool history --keychain-profile "$PROFILE" > /dev/null 2>&1; then
@@ -73,19 +78,56 @@ ditto -c -k --keepParent "$APP" "$ZIP"
 # because resubmitting good bytes wastes a full review cycle and leaves two
 # submissions to reconcile.
 await_notarization() { # <file>
-  local file="$1" id status
+  local file="$1" id status out attempt
   if [[ "$MODE" == "notarytool" ]]; then
     id=$(xcrun notarytool submit "$file" --keychain-profile "$PROFILE" --wait 2>&1 \
          | tee /dev/stderr | grep -m1 'id: ' | awk '{print $2}')
-    status=$(xcrun notarytool info "$id" --keychain-profile "$PROFILE" 2>/dev/null \
-             | grep -m1 'status:' | awk '{print $2}')
-    while [[ "$status" != "Accepted" && "$status" != "Rejected" && "$status" != "Invalid" ]]; do
-      echo "  submission $id still $status; polling every 60s (Ctrl-C to stop)" >&2
+    if [[ -z "$id" ]]; then
+      # Without an id there is nothing to reconcile the submission against, so
+      # "unknown" cannot be resolved into a verdict — say so rather than poll
+      # an empty id and report the empty answer as a pending state.
+      echo "submission of $file produced no submission id; nothing to poll." >&2
+      return 1
+    fi
+    # An unreadable status is not a pending status. The keychain profile can
+    # vanish *between* the submit and the polls (observed mid-run on
+    # 2026-09-22), and `notarytool info` then fails with its stderr discarded,
+    # leaving status empty — a shapeless string the old loop printed as
+    # "still ; polling every 60s" forever, so the gate failed for a reason it
+    # never named. Three consecutive unreadable polls is a lost credential, not
+    # a slow review, and says which.
+    attempt=0
+    while :; do
+      if out=$(xcrun notarytool info "$id" --keychain-profile "$PROFILE" 2>&1); then
+        # Whole remainder of the line, not `awk '{print $2}'`: Apple's own word is
+        # "In Progress", and a report that says "still In" is a status truncated
+        # by the reader rather than one the notary ever said.
+        status=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*status:[[:space:]]*//p' | head -1)
+        if [[ -n "$status" ]]; then
+          attempt=0
+          case "$status" in
+            Accepted) return 0 ;;
+            Rejected|Invalid)
+              echo "  submission $id came back $status" >&2
+              printf '%s\n' "$out" >&2
+              return 1 ;;
+          esac
+          echo "  submission $id still $status; polling every 60s (Ctrl-C to stop)"
+          sleep 60
+          continue
+        fi
+      fi
+      attempt=$((attempt + 1))
+      echo "  poll $attempt/$MAX_UNKNOWN_POLLS for submission $id could not read a status:" >&2
+      printf '%s\n' "${out:-<no output>}" | sed 's/^/    /' >&2
+      if ((attempt >= MAX_UNKNOWN_POLLS)); then
+        echo "  giving up. The bytes are at Apple; do NOT resubmit — re-check this" >&2
+        echo "  submission once the credential is restored:" >&2
+        echo "    xcrun notarytool info $id --keychain-profile $PROFILE" >&2
+        return 1
+      fi
       sleep 60
-      status=$(xcrun notarytool info "$id" --keychain-profile "$PROFILE" 2>/dev/null \
-               | grep -m1 'status:' | awk '{print $2}')
     done
-    [[ "$status" == "Accepted" ]]
   else
     asc notarization submit --file "$file" --wait
   fi
