@@ -369,22 +369,38 @@ case "$NOTICE" in
 esac
 
 # --- Settings: open it the way every language names it: ⌘, ------------------
-osascript >/dev/null 2>&1 <<EOF
-tell application "System Events"
-	tell ($PT)
-		set frontmost to true
-		repeat with _mi in menu items of menu 1 of menu bar item "AgentSpace" of menu bar 1
-			try
-				if value of attribute "AXMenuItemCmdChar" of _mi is "," then
-					click _mi
-					exit repeat
-				end if
-			end try
-		end repeat
-	end tell
-end tell
-EOF
-sleep 2
+# Asked of the target process's own menu bar, and retried. The heredoc this
+# replaces ran once and threw both its error and its outcome away, so a run
+# whose menu bar was not ready yet reported Settings as *empty* five checks
+# later — nine controls missing at once, with nothing to say whether the tab
+# never opened or the click never landed.
+SETTINGS_OPEN=""
+for attempt in 1 2 3 4 5; do
+  SETTINGS_OPEN="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	set _p to ($PT)
+	set frontmost of _p to true
+	set _mm to menu 1 of menu bar item \"AgentSpace\" of menu bar 1 of _p
+	set _hit to \"no comma item (\" & (count of menu items of _mm) & \" items)\"
+	repeat with _mi in menu items of _mm
+		try
+			if value of attribute \"AXMenuItemCmdChar\" of _mi is \",\" then
+				click _mi
+				set _hit to \"clicked\"
+				exit repeat
+			end if
+		end try
+	end repeat
+	return _hit
+end tell" 2>&1 | tr -d '\n')"
+  sleep 2
+  [ "$SETTINGS_OPEN" = "clicked" ] && break
+  sleep 1
+done
+# Whether the click landed and whether anything is on screen are two different
+# facts, and only the second one explains the checks below.
+SETTINGS_WINDOWS="$(osascript -e "tell application \"System Events\" to return (count of windows of ($PT)) as text" 2>&1 | tr -d '\n')"
+note "settings opener: $SETTINGS_OPEN, windows=$SETTINGS_WINDOWS"
 
 # --- Settings: the polling floor lives in the control (§49) -----------------
 # Poll for the control, then assert its values. A single read two seconds after
@@ -498,14 +514,35 @@ WIZARD="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
 	set _p to ($PT)
 	set frontmost of _p to true
-	keystroke \"n\" using command down
-	-- ⌘N swaps the dashboard window for the wizard window, and during that
-	-- transition the window list is briefly empty. Reading once after a fixed
-	-- delay used to land in that gap and report a healthy wizard as
-	-- \"no name field\", so poll for the field and keep the window that has it.
+	-- This phase used to type ⌘N, and a keystroke lands on whatever the human
+	-- last clicked: it reported \"no name field\" twice inside check-all and
+	-- passed twice when the same script ran on its own, which is the same
+	-- channel the Settings opener above had to stop using. So ask the menu bar
+	-- directly, and find the item by its ⌘-char rather than by title — this
+	-- machine's UI is Chinese (「文件」/「新建 Agent…」), where a title would
+	-- not match. Re-asking is free: `showingNewSpace` is a Bool, so a second
+	-- pick opens nothing new.
 	set _f to missing value
 	set _w to missing value
-	repeat 8 times
+	set _how to \"never asked\"
+	repeat 12 times
+		if _f is missing value then
+			set _how to \"no ⌘N menu item\"
+			repeat with _top in (menu bar items of menu bar 1 of _p)
+				try
+					repeat with _mi in (menu items of menu 1 of _top)
+						try
+							if value of attribute \"AXMenuItemCmdChar\" of _mi is \"n\" then
+								click _mi
+								set _how to \"asked\"
+								exit repeat
+							end if
+						end try
+					end repeat
+				end try
+				if _how is \"asked\" then exit repeat
+			end repeat
+		end if
 		delay 1
 		repeat with _cand in (windows of _p)
 			set _try to my findById(_cand, \"agentNameField\", text field, 0)
@@ -517,7 +554,28 @@ tell application \"System Events\"
 		end repeat
 		if _f is not missing value then exit repeat
 	end repeat
-	if _f is missing value then return \"no name field\"
+	-- The old failure string was undiagnosable: \"no name field\" could not say
+	-- whether ⌘N never reached the app, whether a sheet held the key window so
+	-- the command was refused, or whether AX simply enumerated nothing. Report
+	-- what is actually on screen instead of guessing from the absence.
+	if _f is missing value then
+		set _d to \"no name field (\" & _how & \")\"
+		set _d to _d & \" windows=\" & (count of windows of _p)
+		repeat with _cand in (windows of _p)
+			set _n to \"?\"
+			try
+				set _n to (name of _cand) as text
+			end try
+			set _d to _d & \" [\" & _n
+			try
+				if (count of sheets of _cand) > 0 then set _d to _d & \" sheet\"
+			end try
+			if my findById(_cand, \"createAgentButton\", button, 0) is not missing value then set _d to _d & \" review\"
+			if my findById(_cand, \"macOSUserPicker\", radio group, 0) is not missing value then set _d to _d & \" picker\"
+			set _d to _d & \"]\"
+		end repeat
+		return _d
+	end if
 	set value of _f to \"gui verify\"
 	-- The account list is filled asynchronously by Directory Service. Reading the
 	-- card once caught it mid-flight and reported \"empty account state\" on a
