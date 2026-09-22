@@ -93,6 +93,23 @@ final class CaptureSizingTests: XCTestCase {
         }
     }
 
+    /// 「原生」 on a Retina panel asks for the view's own pixel size, which for a
+    /// 1920×1080 desktop in a 1140×642 point view is 2280×1283 — an upscale in both
+    /// dimensions, and the box is 1 px out of the desktop's exact shape. This fix is
+    /// about shape, not about resolution: the upscale is granted whole (the 2x pixel
+    /// question is §320 row 837's own open task), and the odd pixel of the request is
+    /// absorbed by rounding rather than by a pillar.
+    func testANativeRetinaRequestKeepsTheUpscaleAndShedsThePillar() {
+        let native = CaptureSizing.resolved(naturalWidth: desktop.width, naturalHeight: desktop.height,
+                                            targetWidth: 2280, targetHeight: 1283)
+        XCTAssertEqual(native.width, 2280, "a request wider than the desktop is still an upscale")
+        // 1080 × (2280 ÷ 1920) is exactly 1282.5, and Swift's `rounded()` breaks a
+        // tie away from zero. Measured, not assumed: the other rule would ship a
+        // buffer one pixel short of the box and nobody downstream would notice.
+        XCTAssertEqual(native.height, 1283)
+        assertSameShapeAsSubject(native, "the native request")
+    }
+
     /// The consequence the whole choice exists for, measured the way the viewer
     /// measures it: a click at the left edge of the *picture* is a click at the
     /// left edge of the *desktop*.

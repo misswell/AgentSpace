@@ -32,7 +32,11 @@ pkill -f "agentspace-worker --space-id" 2>/dev/null || true
 
 echo
 echo "== swift test =="
-swift test 2>&1 | grep -Ev "^warning: 'agentspace'|^\[[0-9]" | tail -60
+# The whole run goes to a file and only its tail to the screen, because a red
+# suite whose failing case was scrolled away is a gate that cannot be debugged:
+# `tail -60` alone threw away the name of the one case that failed out of 583.
+FULL_LOG="${TMPDIR:-/tmp}/agentspace-test-full.log"
+swift test 2>&1 | grep -Ev "^warning: 'agentspace'|^\[[0-9]" | tee "$FULL_LOG" | tail -60
 STATUS=${PIPESTATUS[0]}
 
 echo
@@ -40,5 +44,8 @@ if [[ $STATUS -eq 0 ]]; then
   echo "PASS — see docs/validation.md §4 for the recorded results."
 else
   echo "FAIL (exit $STATUS)" >&2
+  # Named first, before the noise: these are the only lines that say what happened.
+  echo "       failing cases (full run: $FULL_LOG)" >&2
+  grep -E "^Test Case .* failed|error: |Fatal error|crashed" "$FULL_LOG" | head -40 >&2
 fi
 exit $STATUS
