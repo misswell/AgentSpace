@@ -21,8 +21,22 @@ if [[ ! -f "$MCP_DIR/dist/index.js" ]]; then
 fi
 
 echo "== building the CLI and worker =="
-swift build --product agentspace-worker --product agentspace 2>&1 \
-  | grep -Ev "^warning: 'agentspace'|^\[[0-9]" || true
+# One `--product` per invocation. `swift build --product A --product B` answers 0
+# having built only one of them, so the missing binary surfaced further down as
+# "worker did not come up" — a gate failing for a reason it never named (§319 row 827).
+for product in agentspace agentspace-worker; do
+  BUILD_LOG="$ROOT_DIR/.build/mcp-smoke-$product.log"
+  if ! swift build --product "$product" >"$BUILD_LOG" 2>&1; then
+    echo "could not build $product:" >&2
+    tail -20 "$BUILD_LOG" >&2
+    exit 1
+  fi
+  if [[ ! -x "$ROOT_DIR/.build/debug/$product" ]]; then
+    echo "swift build reports $product complete, but $ROOT_DIR/.build/debug/$product is not there" >&2
+    tail -20 "$BUILD_LOG" >&2
+    exit 1
+  fi
+done
 
 pkill -f "agentspace-worker --space-id" 2>/dev/null || true
 

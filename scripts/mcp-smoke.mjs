@@ -118,6 +118,22 @@ try {
       !/falling back|running locally|your own session instead/i.test(text));
   }
 
+  console.log("== agentspace_scroll with half an anchor — refused by the builder, not the worker ==");
+  {
+    // A scroll missing one half of its point must never reach the CLI: the call
+    // that does is the one that reports success and moves nothing (§317 row 812).
+    const reply = await request("tools/call", {
+      name: "agentspace_scroll",
+      arguments: { space: "Demo", dx: 0, dy: -5, x: 400 },
+    });
+    const text = (reply.result?.content?.map((c) => c.text ?? "").join("\n") ?? "")
+      + (reply.error?.message ?? "");
+    check("a lone x is refused", reply.result?.isError === true || Boolean(reply.error),
+      `isError=${reply.result?.isError} text=${text.slice(0, 160)}`);
+    check("the refusal names the anchor, not the console",
+      /both x and y/i.test(text) && !/SESSION_IS_CONSOLE/.test(text), text.slice(0, 200));
+  }
+
   console.log("== unknown tool is refused ==");
   const unknown = await request("tools/call", { name: "agentspace_make_me_root", arguments: {} });
   check("unknown tool errors", Boolean(unknown.error) || unknown.result?.isError === true);
