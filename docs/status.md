@@ -4,14 +4,39 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-22 on `master`. Current public release: `0.1.28`
-(`v0.1.28`, annotated at `b690162` — the commit whose tree the bundle was built
+Last updated: 2026-09-22 on `master`. Current public release: `0.1.29`
+(`v0.1.29`, annotated at `39c1bc2` — the commit whose tree the bundle was built
 from; the GitHub Release asset reports
-`sha256:4417e9395066d61315797866e5630221c8110dd594ca835c25171c788178fd23` over
-`5548467` bytes, byte-for-byte the file `check-all.sh` gated and pulled back from
-the download URL to prove it, and `releases/latest` — the product's own update
-channel — answered the new tag on the first sample without a write (§319 rows
-821–831). It ships one change,
+`sha256:829433c407872391d7f8fc00196965fd92642f79818e397fca695caa227c74d3` over
+`5550513` bytes, byte-for-byte the file `check-all.sh` gated and the copy pulled
+back from the download URL, and `releases/latest` — the product's own update
+channel — answered the new tag on three samples with no write (§321 rows
+839–840). It ships the answer to 「鼠标位置与实际点击位置不一致，应该是横向拉伸后
+导致的」, and the measurement says the direction is not a stretch: ScreenCaptureKit
+refuses to distort, so it had scaled a 1920×1080 desktop *into* a buffer shaped by
+the **viewer's own window** (1280×543) and padded the other 314 columns with
+transparent black — and the only size either end of a stream is told is the
+buffer's. A click at the picture's own left edge therefore resolved **235.5 pt**
+into the desktop: zero error at the centre, worst at either side, which is exactly
+the shape of what was reported. `CaptureSizing` (Core) is now the single place that
+reconciles a request with its subject — a two-dimensional request fits instead of
+fills, a one-dimensional one still means what it said — and a buffer holds exactly
+its subject (`shared/Core/Sources/AgentSpaceCore/CaptureSizing.swift`,
+`native/AgentSpaceWorker/Sources/AgentSpaceWorker/CaptureEngine.swift:73-77`,
+§320 rows 832–836). No wire field, no new error case, `protocolVersion` still 1:
+`start()` already returned the resolved size and both ends read it, so old clients
+keep working and nothing reconnects in a loop. Two consequences are visible on
+purpose: a hand inside the bars of a differently-shaped window now does *nothing*
+rather than clicking 236 pt away, and that geometry's `mappingBytes` drops
+5,564,544 → 4,196,184 (**−24.6 %**) — black padding no longer costs memory or H.264
+bits. **The change is in the worker, so installing 0.1.29 does not move the mouse;
+「重新安装助手…」 does** — the installed worker still answers `0.1.26`, and §320
+row 837's gap stays open until that press. The same chain retired a release-script
+fallback that had turned one failed Developer ID signature into a release bundle
+with no identity, no timestamp and no hardened runtime while every local step said
+`ok`; notarization is what caught it (`Invalid`, 12 issues across 4 Mach-Os), and a
+red test suite that could not name its failing case can now (§321 rows 838–839).
+The previous release, `0.1.28`, ships one change,
 and the change is in the CLI that travels inside the bundle. `agentspace scroll
 <account> DX DY` named **no point**, so it took the legacy wheel post and moved
 exactly as far as doing nothing — while Core, the worker's parser,
@@ -356,6 +381,12 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    fitted one. Still owed on a real machine, for the same reason §315 row 804 and
    §316 row 808 are: this is the worker, and the installed worker is `0.1.26`, so
    the end-to-end click needs 「重新安装助手…」 before it can be called verified.
+   `0.1.29` is published and its bundled worker carries the fix (`nm` shows
+   `CaptureSizing.resolved` in the shipped Mach-O, §321 row 839), so the two-press
+   path — update the app, then reinstall the helper — is the whole of what is left.
+   On the fixed worker, at the window size §320 measured, the expected readings are
+   `mappingBytes 4,196,184`, zero fully-black columns, and a click at the picture's
+   left edge opening the **Apple** menu.
 3. **Real-machine acceptance** — install the new worker into the already
    connected standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the
