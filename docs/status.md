@@ -341,6 +341,21 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    what 0.1.23 changes. §13's static numbers, §27's old-vs-new table and the
    soak's drift numbers come after an app *and* worker at 0.1.23, and §309 row 762
    is where they get recorded rather than promised.
+   **A capture-buffer shape defect was found and fixed here (§320 rows 832–837).**
+   The viewer asks for a box shaped like *its window*, ScreenCaptureKit scales the
+   picture into that box without distorting it and pads the rest with transparent
+   black, and the only size either end is told is the buffer's — so the picture
+   arrived floating between 157-pixel pillars and every click the viewer resolved
+   was off by up to **236 points of a 1920-wide desktop**, zero at the centre and
+   worst at the sides. `CaptureSizing` (Core) now reconciles request with subject
+   once, where both are known, and the fix is wire-free because `start()` already
+   reports the resolved size. Measured live on the shipped worker before the change
+   (`mappingBytes 5,564,544` = 1280×543 for a 1920×1080 display) and measured again
+   with a scratch ScreenCaptureKit probe in the agent session, which returns 314
+   fully-black columns for the box the shipped sizing asks for and **0** for the
+   fitted one. Still owed on a real machine, for the same reason §315 row 804 and
+   §316 row 808 are: this is the worker, and the installed worker is `0.1.26`, so
+   the end-to-end click needs 「重新安装助手…」 before it can be called verified.
 3. **Real-machine acceptance** — install the new worker into the already
    connected standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the

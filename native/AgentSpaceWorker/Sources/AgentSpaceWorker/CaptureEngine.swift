@@ -70,15 +70,11 @@ final class CaptureEngine: NSObject {
             naturalHeight = max(1, Int(window.frame.height) * scale)
         }
 
-        let width: Int, height: Int
-        if targetWidth > 0, targetHeight == 0 {
-            width = targetWidth; height = max(1, naturalHeight * targetWidth / max(1, naturalWidth))
-        } else if targetHeight > 0, targetWidth == 0 {
-            height = targetHeight; width = max(1, naturalWidth * targetHeight / max(1, naturalHeight))
-        } else {
-            width = targetWidth > 0 ? targetWidth : naturalWidth
-            height = targetHeight > 0 ? targetHeight : naturalHeight
-        }
+        // The subject's aspect wins over the requested box, because a buffer shaped
+        // unlike its subject arrives with the picture floating between black pillars
+        // and nothing downstream can see them. See `CaptureSizing`.
+        let (width, height) = CaptureSizing.resolved(naturalWidth: naturalWidth, naturalHeight: naturalHeight,
+                                                     targetWidth: targetWidth, targetHeight: targetHeight)
         let configuration = SCStreamConfiguration()
         configuration.width = max(1, width); configuration.height = max(1, height)
         configuration.pixelFormat = kCVPixelFormatType_32BGRA
