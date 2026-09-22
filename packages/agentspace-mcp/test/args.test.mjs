@@ -125,6 +125,31 @@ test("scroll requires integer deltas", () => {
   assert.throws(() => buildScrollArgs(SPACE, 0, undefined), ArgError);
 });
 
+// A scroll with no anchor is the call that reports success and moves nothing: the
+// wheel event it posts enters a background session's stream without ever reaching
+// an app. So the anchor is passed through when both halves are there, and a half
+// anchor is an error rather than a silently dropped point.
+test("scroll passes its anchor through and refuses a half one", () => {
+  assert.deepEqual(buildScrollArgs(SPACE, 0, -5, 500, 300), [
+    "scroll",
+    SPACE,
+    "0",
+    "-5",
+    "500",
+    "300",
+    "--json",
+  ]);
+  assert.deepEqual(
+    buildScrollArgs(SPACE, 0, -5, undefined, undefined),
+    buildScrollArgs(SPACE, 0, -5),
+    "absent x/y must keep the two-argument form byte for byte",
+  );
+  assert.deepEqual(buildScrollArgs(SPACE, 0, -5, 500.5, 300).slice(4, 6), ["500.5", "300"]);
+  assert.throws(() => buildScrollArgs(SPACE, 0, -5, 500), ArgError);
+  assert.throws(() => buildScrollArgs(SPACE, 0, -5, undefined, 300), ArgError);
+  assert.throws(() => buildScrollArgs(SPACE, 0, -5, Number.NaN, 300), ArgError);
+});
+
 test("drag passes four point coordinates", () => {
   assert.deepEqual(buildDragArgs(SPACE, 1, 2, 50, 60), [
     "drag",

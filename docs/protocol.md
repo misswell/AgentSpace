@@ -196,7 +196,7 @@ scaled Retina display, so the scale comes from
 | `doubleClick` | as `click`, with `count` forced to 2 |
 | `rightClick` | as `click`, with `button` forced to `right` |
 | `drag` | `fromX`, `fromY`, `toX`, `toY`, `button`, `modifiers` |
-| `scroll` | `dx`, `dy`, optional `x`, `y` |
+| `scroll` | `dx`, `dy`, and the point `x`, `y` to scroll at — without the point nothing moves in a background session (§315) |
 | `type` | `text` |
 | `key` | `key` (`"cmd+l"`) **or** `keys` (`["cmd","l"]`) |
 | `sleep` | `ms` (0–30000; alias `wait`) |

@@ -271,6 +271,8 @@ Recommended loop:
 
 Coordinates are display POINTS: points = screenshot pixels / scale. Passing pixel coordinates is the most common mistake and it silently clicks the wrong thing.
 
+Scroll must name its point. A scroll without x/y posts a wheel event, and in a background Aqua session that event enters the session's stream without ever being dispatched to an app — the call succeeds and the view does not move. Pass x/y inside the scrollable area and the same delta scrolls it.
+
 WARNING: synthetic input is refused with code SESSION_IS_CONSOLE when the agent desktop is currently on the physical console (for example someone fast-user-switched into it). The refusal is deliberate: the events would otherwise land on the human's own screen. Switch back to your own account and input resumes. Relay the error's fix rather than retrying in a loop.
 
 No tool creates or deletes agent accounts, and no tool grants Accessibility or Screen Recording. Those are macOS-user- and TCC-level actions that a human must do in the AgentSpace GUI. If a task seems to need them, stop and ask the human.`;
@@ -344,8 +346,8 @@ const inputActionSchema = z.discriminatedUnion("type", [
     type: z.literal("scroll"),
     dx: z.number().int().optional().describe("Horizontal scroll delta; default 0."),
     dy: z.number().int().optional().describe("Vertical scroll delta; negative scrolls down."),
-    x: z.number().optional().describe("Optional anchor X in display points."),
-    y: z.number().optional().describe("Optional anchor Y in display points."),
+    x: z.number().optional().describe("Anchor X in display points. A scroll with no anchor moves nothing in a background session."),
+    y: z.number().optional().describe("Anchor Y in display points; pass with x."),
   }),
   z.object({
     type: z.literal("type"),
@@ -577,15 +579,23 @@ server.registerTool(
   {
     title: "Scroll in a Space",
     description:
-      "Scroll the focused view by a pixel delta. dx/dy are integer deltas; negative dy scrolls down. Refused if the Space's desktop is on the physical console.",
+      "Scroll by a pixel delta. dx/dy are integer deltas; negative dy scrolls down. "
+      + "Pass x/y — the display point to scroll at — whenever you know it: a scroll "
+      + "with no point cannot reach an app in a background session and moves nothing, "
+      + "so an anchored scroll is the one that works. Refused if the Space's desktop "
+      + "is on the physical console.",
     inputSchema: {
       space: spaceSchema,
       dx: z.number().int().describe("Horizontal scroll delta."),
       dy: z.number().int().describe("Vertical scroll delta; negative scrolls down."),
+      x: z.number().optional().describe("Anchor X in display points. Without x and y together, nothing moves."),
+      y: z.number().optional().describe("Anchor Y in display points."),
     },
   },
-  async ({ space, dx, dy }) =>
-    callCli(buildScrollArgs(space, dx, dy), { context: `agentspace scroll ${space} ${dx} ${dy}` }),
+  async ({ space, dx, dy, x, y }) =>
+    callCli(buildScrollArgs(space, dx, dy, x, y), {
+      context: `agentspace scroll ${space} ${dx} ${dy}${x !== undefined && y !== undefined ? ` ${x} ${y}` : ""}`,
+    }),
 );
 
 server.registerTool(

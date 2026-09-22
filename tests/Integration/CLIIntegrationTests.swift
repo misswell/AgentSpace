@@ -297,6 +297,33 @@ final class CLIIntegrationTests: XCTestCase {
         XCTAssertTrue(result.output.contains("BBB"), "the error must name the space: \(result.output)")
     }
 
+    /// `scroll` takes an optional anchor, and the anchor is the whole difference
+    /// between a scroll and nothing: a wheel event with no point enters a
+    /// background session's stream without ever reaching an app, so the verb
+    /// reported success for a release while moving zero pixels (§317 row 812).
+    /// Both shapes must parse, and a *half* anchor must be refused rather than
+    /// quietly dropped — dropping it is how the dead path stayed reachable.
+    func testScrollAcceptsAnAnchorAndRefusesAHalfOne() throws {
+        let cli = try harness()
+        let legacy = cli.run(["scroll", "AAA", "0", "-5", "--json"])
+        let anchored = cli.run(["scroll", "AAA", "0", "-5", "500", "300", "--json"])
+        for (label, result) in [("two-argument", legacy), ("anchored", anchored)] {
+            XCTAssertEqual(result.exitCode, 66, "\(label) scroll must reach the account lookup, got: \(result.output)")
+            XCTAssertFalse(
+                result.output.contains("usage: agentspace scroll"),
+                "\(label) scroll must not be refused by its own parser: \(result.output)"
+            )
+        }
+        let halfAnchor = cli.run(["scroll", "AAA", "0", "-5", "500", "--json"])
+        XCTAssertEqual(halfAnchor.exitCode, 1, "a lone X is a typo, not a scroll: \(halfAnchor.output)")
+        XCTAssertTrue(halfAnchor.output.contains("both X and Y"), halfAnchor.output)
+        let words = cli.run(["scroll", "AAA", "0", "-5", "here", "there", "--json"])
+        XCTAssertEqual(words.exitCode, 1, "a non-numeric anchor must be refused: \(words.output)")
+        XCTAssertTrue(words.output.contains("display points"), words.output)
+        let three = cli.run(["scroll", "AAA", "0", "-5", "500", "300", "400", "--json"])
+        XCTAssertEqual(three.exitCode, 1, "trailing coordinates must not be ignored: \(three.output)")
+    }
+
     func testAttachRefusesAnUnknownAccountBeforeCallingTheHelper() throws {
         let cli = try harness()
         let result = cli.run(["attach", "definitely-not-a-local-account", "--json"])

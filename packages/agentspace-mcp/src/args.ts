@@ -224,15 +224,35 @@ export function buildKeyArgs(space: string, combo: string): string[] {
   return withFreeText(["key", requireSpace(space)], requireText(combo, "combo"), []);
 }
 
-/** `agentspace scroll <space> DX DY [--json]` — deltas are integers. */
-export function buildScrollArgs(space: string, dx: number, dy: number): string[] {
-  return [
+/**
+ * `agentspace scroll <space> DX DY [X Y]` — deltas are integers, the anchor is a
+ * display point. The anchor is not decoration: without a point the worker can
+ * only post a wheel event, and in a background Aqua session that event enters the
+ * session's stream and is never dispatched to an app, so the view does not move.
+ */
+export function buildScrollArgs(
+  space: string,
+  dx: number,
+  dy: number,
+  x?: number,
+  y?: number,
+): string[] {
+  const args = [
     "scroll",
     requireSpace(space),
     String(requireInteger(dx, "dx")),
     String(requireInteger(dy, "dy")),
-    "--json",
   ];
+  const hasX = x !== undefined && x !== null;
+  const hasY = y !== undefined && y !== null;
+  if (hasX || hasY) {
+    if (!hasX || !hasY) {
+      throw new ArgError("scroll anchor needs both x and y");
+    }
+    args.push(String(requireNumber(x, "x")), String(requireNumber(y, "y")));
+  }
+  args.push("--json");
+  return args;
 }
 
 /** `agentspace drag <space> X1 Y1 X2 Y2 [--json]` — coordinates are points. */

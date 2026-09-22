@@ -285,7 +285,7 @@ func usage() -> String {
       click <account> X Y             Click  [--double] [--right]
       type <account> TEXT             Type text
       key <account> COMBO             Press a key combo, e.g. cmd+l
-      scroll <account> DX DY          Scroll
+      scroll <account> DX DY [X Y]    Scroll  (X Y = where; without it nothing moves)
       drag <account> X1 Y1 X2 Y2      Drag
       input <account> --file F | -    Submit a batch of actions as JSON
       launch <account> APP            Launch an app in the agent session
@@ -974,12 +974,35 @@ case "key":
 
 case "scroll":
     guard rest.count >= 3, let dx = Int(rest[1]), let dy = Int(rest[2]) else {
-        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace scroll <space> DX DY"))
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace scroll <space> DX DY [X Y]"))
     }
+    // The anchor is the difference between a scroll and nothing: without a point
+    // the worker can only post a wheel event, and a posted wheel event enters a
+    // background session's stream without ever reaching an app (§315). A lone X is
+    // a typo, and answering it by dropping the anchor quietly is exactly how this
+    // verb stayed at zero pixels for a whole release.
+    var x: Double?
+    var y: Double?
+    var anchorText = ""
+    switch rest.count {
+    case 3:
+        break
+    case 5:
+        guard let anchorX = Double(rest[3]), let anchorY = Double(rest[4]) else {
+            emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace scroll <space> DX DY [X Y] — X and Y are display points"))
+        }
+        x = anchorX
+        y = anchorY
+        anchorText = " at \(Int(anchorX)),\(Int(anchorY))"
+    default:
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace scroll <space> DX DY [X Y] — an anchor needs both X and Y"))
+    }
+    // Encoded by Core, so the CLI, the GUI and the MCP server cannot disagree with
+    // the worker's parser about what an anchored scroll is called on the wire.
+    let action = InputAction.scroll(x: x, y: y, dx: dx, dy: dy).wireValue
     let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
-    let result = callJSON(emitter, connection, Method.input,
-                          inputParams([.obj(["type": .string("scroll"), "dx": .int(dx), "dy": .int(dy)])]))
-    emitter.success(result, human: "scrolled \(dx), \(dy)")
+    let result = callJSON(emitter, connection, Method.input, inputParams([action]))
+    emitter.success(result, human: "scrolled \(dx), \(dy)\(anchorText)")
 
 case "drag":
     guard rest.count >= 5,
