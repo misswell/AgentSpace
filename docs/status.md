@@ -4,11 +4,15 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-21 on `master`. Current public release: `0.1.24`
-(`v0.1.24`, annotated at the last commit of the tree the bundle was built from;
-notarized DMG attached to the GitHub Release, its uploaded digest verified byte
-for byte against the gated file — §311 row 780). `0.1.24` exists because
-`0.1.23`'s live view was **black**: the flip §310 row 764 asked for composed its
+Last updated: 2026-09-22 on `master`. Current public release: `0.1.25`
+(`v0.1.25`, annotated at `7f9bbb2` — the commit whose tree the bundle was built
+from; the notarized DMG is attached to the GitHub Release, and both a
+re-download's hash and the release's own `assets[].digest`, which is what the
+in-app updater compares against, equal the gated file — §313 row 793). It ships
+one change: the viewer was destroying and rebuilding its hardware H.264 decoder
+on every keyframe, twice a second per stream, and it now rebuilds only when the
+parameter sets differ (§313 rows 788–790). The previous release, `0.1.24`, exists
+because `0.1.23`'s live view was **black**: the flip §310 row 764 asked for composed its
 matrix in the wrong order and drew the desktop *below* the drawable, so the
 window showed nothing while every counter the frame engine publishes reported a
 healthy stream (§311 rows 774–776). `0.1.23` had been published **with the
@@ -30,7 +34,7 @@ permission or Metal problem, and the wire did not move (32-byte notice, 52-byte
 header, `protocolVersion 1`).
 **Both fixes are in the worker as well as the app**, and publishing never replaces
 that worker by itself — the owner's 「重新安装助手…」 did at 18:30 on 2026-09-21,
-so the installed worker is `0.1.23` while the app is `0.1.24`. That one-version gap
+so the installed worker is `0.1.23` while the app in `/Applications` is `0.1.24`. That one-version gap
 costs nothing measured here: the two tags differ in the worker by a version string
 and nothing else (§312 row 783), so §27's "same newest build" pair is in place in
 substance. What that console lock cost was *screenshots*: on a locked console
@@ -79,7 +83,11 @@ conclusion and puts Gate E back to "not recorded", and row 781 retires the
 `0.1.22`-worker labelling that made it sound unfixable.
 The automated half of §26 is green for `0.1.24` (row 778) and `check-all` passes
 three of four layers, the fourth having passed standalone on this same tree
-twenty minutes before the console locked itself again (row 779).
+twenty minutes before the console locked itself again (row 779). It is green for
+`0.1.25` too (row 792), with that fourth layer **deferred rather than refused**:
+`gui-verify.sh` opens by `pkill`ing every AgentSpace process this uid owns, which
+at release time would have taken the owner's Desktop window — and the instance the
+60-minute soak was measuring — down with it.
 
 §313 is two findings from the same hour, and the difference between them is the
 method. A report that the shipped viewer **froze** — its copy of the desktop stuck
@@ -115,7 +123,10 @@ dist app's CDHash identical to the DMG's inner copy, and layers 1–3 of `check-
 pass on it — but it was never launched, and `gui-verify` was not run, because its
 first act is to `pkill` every AgentSpace process this uid owns, which would have
 killed both the owner's window and the soak's subject while `HIDIdleTime` read
-0.044 s. Deferred, not passed (row 792).
+0.044 s. Deferred, not passed (row 792). `0.1.25` was then published against
+exactly that evidence, no more (row 793): the tag sits on the commit whose tree
+the bundle was built from, and the release's stored `assets[].digest` — the value
+the in-app updater compares a download against — equals the hash of the gated DMG.
 
 ## Product in one sentence
 
