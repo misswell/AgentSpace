@@ -4,19 +4,41 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-22 on `master`. Current public release: `0.1.27`
-(`v0.1.27`, annotated at `7d16b65` — the commit whose tree the bundle was built
-from; the GitHub Release asset reports `sha256:5d503be91a88c0120a1ad9b8bd3d82778e92e767181ee118d2b932320a8da49f`
-over `5548266` bytes, byte-for-byte the file `check-all.sh` gated, which is what
-the in-app updater compares against — §318 rows 815 and 819). It ships one
-change, and it is a small one with a loud user-visible symptom: updating the
-worker swapped the privileged helper by unregistering it and registering again
-fifteen milliseconds later, which launchd refuses for a couple of seconds while it
-finishes taking the daemon down. So **the first press always failed with
-`HELPER_UNAVAILABLE` and the second always worked** — the dialog the owner asked
-about, and correctly called redundant. `44dd9d3` had already measured that race
-(error 1 at +13 ms, 0 at 2.7 s) and bought off the wait at one of the two swap
-sites, the 「重新安装助手…」 button; the worker-update site is now on the same
+Last updated: 2026-09-22 on `master`. Current public release: `0.1.28`
+(`v0.1.28`, annotated at `b690162` — the commit whose tree the bundle was built
+from; `check-all.sh` gated `dist/AgentSpace-0.1.28.dmg` at
+`sha256:4417e9395066d61315797866e5630221c8110dd594ca835c25171c788178fd23` over
+`5548467` bytes, and the published asset must report those same bytes because
+that is what the in-app updater compares against — §319 rows 821–828). It ships one change,
+and the change is in the CLI that travels inside the bundle. `agentspace scroll
+<account> DX DY` named **no point**, so it took the legacy wheel post and moved
+exactly as far as doing nothing — while Core, the worker's parser,
+`docs/protocol.md`, the viewer and the Fusion router had all carried an anchor for
+four releases; the CLI was the one producer hand-building its own dictionary. The
+verb now reads `scroll <account> DX DY [X Y]` and encodes through Core's
+`InputAction.wireValue`. Measured on one desktop, one box, one worker (pid 96035)
+against a **0 px** idle floor: the installed `0.1.26` CLI's
+`scroll 0 -5 450 300` answers `{"performed":1}` and moves **0 px**, this one moves
+**106,510 px**; an anchor outside any scrollable area (`1500,900`) still moves 0,
+which is what makes the number mean *this point scrolled*; and a half anchor
+(`0 -5 450`) is refused where it used to answer success — the silent degradation
+is how a dead verb stayed shipped for a whole release (`§319 rows 821–823`). The
+same pass fixed two gate defects it tripped over: `swift build --product A
+--product B` answers 0 having built **one** of them, and a notarization poll that
+could not read a status waited forever on the empty string (`§319 rows 827–828`).
+What `0.1.28` does **not** close, said plainly: `agentspace input --file` and
+`agentspace_input` still accept a point-less scroll, because that is what the v1
+wire says and tightening `InputAction.parse` would change a contract every
+existing client walks (`§319 row 825`); and `@agentspace/mcp` is not on npm at all,
+so the MCP half of this reaches only someone sitting in this checkout
+(`§319 row 826`). The previous release, `0.1.27`,
+shipped one small change with a loud symptom: updating the worker swapped the
+privileged helper by unregistering it and registering again fifteen milliseconds
+later, which launchd refuses for a couple of seconds while it finishes taking the
+daemon down — so **the first press always failed with `HELPER_UNAVAILABLE` and the
+second always worked**. `44dd9d3` had already measured that race (error 1 at
++13 ms, 0 at 2.7 s) and bought off the wait at one of the two swap sites, the
+「重新安装助手…」 button; the worker-update site is now on the same
 `AppModel.registerDaemon(attempts:)` path, with two source-invariant tests so a
 third bare `.register()` cannot appear quietly (§317 rows 813–814). A human's
 「取消」 (`-128`) is still never retried. The previous release, `0.1.26`,
@@ -30,9 +52,9 @@ resample of a 1920 desktop (§315 row 805). The scroll half of that is now
 **measured working on the binaries a user actually gets** — after the owner
 updated and pressed 「重新安装助手…」, a scroll naming a point moved a document
 149,740 px against a 36–38 px idle floor (§317 row 811, retiring §316 row 808).
-What `0.1.26` still does not do: a scroll call that names no point —
-`agentspace scroll <space> DX DY` puts only `dx`/`dy` on the wire, so it takes the
-legacy wheel post and measures exactly the floor (§317 row 812).
+`0.1.26`'s remaining scroll gap — a call that names no point
+(`§317 row 812`) — is what `0.1.28` above closes; `0.1.26` and `0.1.27` are still
+current in every other respect.
 The previous release, `0.1.25`, ships one change: the viewer was
 destroying and rebuilding its hardware H.264 decoder on every keyframe, twice a
 second per stream, and it now rebuilds only when the parameter sets differ
@@ -65,8 +87,18 @@ by a version string and nothing else (§312 row 783), so §27's "same newest bui
 pair was in place in substance. The pair is now matched for real: the owner updated
 the App and pressed the button again at 15:20 on 2026-09-22, so `/Applications` is
 `0.1.26 / build 383` and the active worker stamps `0.1.26` (§317 row 811).
-`0.1.27` is published and **not** installed on this machine — its change is in the
-App, so pressing the update is what makes the *next* helper swap a one-press one.
+`0.1.27` and `0.1.28` are published and **not** installed on this machine:
+`/Applications/AgentSpace.app` still reports `0.1.26 / build 383` and its bundled
+`Contents/Helpers/agentspace` stamps `0.1.26`, re-read here rather than recalled.
+Neither release needs 「重新安装助手…」. `0.1.27`'s change is in the App, so
+pressing the update is what makes the *next* helper swap a one-press one;
+`0.1.28`'s is in the CLI, and that CLI ships **inside** the app bundle, so
+「检查更新」 alone replaces the `scroll` verb that was answering 0 px. It also
+needs nothing from the worker, and that is checkable rather than assumed: the
+installed `0.1.26` worker's own parser already reads `x`/`y` off the wire
+(`git show v0.1.26:shared/Core/Sources/AgentSpaceCore/InputActions.swift:175-178`),
+which is *how* row 823 could hold the worker fixed at pid 96035 and move only the
+CLI.
 What that console lock cost was *screenshots*: on a locked console
 `screencapture` refuses, System Events vends no windows, and
 `scripts/check-all.sh` stops at its own fourth layer (rows 779, 783). The two
@@ -346,13 +378,22 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    after the owner updated the App and pressed 「重新安装助手…」, the active worker
    stamps `0.1.26`, and a scroll that names a point moved the document
    **149,740 px** where the idle floor is 36–38 px (`§317 row 811`, which retires
-   row 808's PENDING). **Two things are owed before this item closes**: a scroll
-   call that names no point is not covered at all, because `agentspace scroll
-   <space> DX DY` puts only `dx`/`dy` on the wire and so still takes the legacy
+   row 808's PENDING). **One of the two things owed is now paid**: a scroll call
+   that named no point used to be uncovered entirely, because `agentspace scroll
+   <space> DX DY` put only `dx`/`dy` on the wire and so still took the legacy
    wheel post — measured on those same shipped binaries at **38 px**, i.e. the
-   floor (`§317 row 812`); and a delta counted in *lines* against a
-   fraction of a *document* is an approximation — the feel needs a human hand on
-   a trackpad, not another frame diff. The same session's report that the
+   floor (`§317 row 812`). `0.1.28` gives the verb an anchor
+   (`scroll <account> DX DY [X Y]`) and routes the CLI through Core's
+   `InputAction.wireValue` instead of a hand-built dictionary; on the same
+   desktop with the same worker (pid 96035) the installed CLI's
+   `scroll 0 -5 450 300` moves **0 px** and this one moves **106,510 px** against
+   a **0 px** idle floor, an anchor at `1500,900` — outside any scrollable area —
+   still moves 0, and a half anchor is refused where it used to answer
+   `performed: 1` (`§319 rows 821–823`). What is *still* owed here: a delta
+   counted in *lines* against a fraction of a *document* is an approximation —
+   the feel needs a human hand on a trackpad, not another frame diff — and
+   `agentspace input --file` still accepts a point-less scroll because that is
+   what the v1 wire says (`§319 row 825`). The same session's report that the
    reinstall needed two presses is `§317 row 813`: the worker-update swap site
    registered a daemon fifteen milliseconds after taking it away, which is the
    race `44dd9d3` measured and paid for at only one of its two call sites.
