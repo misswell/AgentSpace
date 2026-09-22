@@ -106,3 +106,8 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
   Cancelled=8 MayBegin=128` — 4 is `Stationary`, 8 is `Cancelled`, and there is
   no `kCGScrollWheelEventIsPixel`. A `CGEvent.tapCreate` callback runs on the run
   loop: `Thread.sleep` between posts starves it and reports "nothing arrived".
+  Two shell/toolchain traps, both paid for twice: `swift build --product A
+  --product B` exits **0** having built only one of them (§319 row 827), and a
+  backtick inside the double-quoted `osascript -e "…"` string is a command
+  substitution, so a comment that types \`like this\` *runs* — and its output is
+  spliced into the script being executed (§319 row 830).
