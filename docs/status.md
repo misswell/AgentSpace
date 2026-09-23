@@ -4,18 +4,23 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-23 on `master`. Current public release: `0.1.38`
-(`v0.1.38` points to `e944271`, the code/test/documentation commit;
-`CFBundleVersion` **432** equals its commit count). The notarized and stapled DMG
-is [`AgentSpace-0.1.38.dmg`](https://github.com/misswell/AgentSpace/releases/tag/v0.1.38):
-**6,262,399** bytes,
-`sha256:2600ef02aff70aa96d93e2b8ae7ad2158d7b63a004e97eee438a1e00eabb01d5`.
-Both Apple submissions were read back from `asc notarization list` rather than
-from the script's own log — `86f43e2b-…` (app) and `c6895e68-…` (DMG), both
-**Accepted** — and `releases/latest`, the endpoint `SoftwareUpdater` reads,
-answered the new tag with that digest on three samples 20 s apart (§330 rows
-929–932). `0.1.37` was never published: its diff from `0.1.36` is four version
-strings and nothing else.
+Last updated: 2026-09-23 on `master`. Current public release: `0.1.39`, and it is
+**the first release cut entirely by GitHub Actions** — that is its only purpose,
+since the product code is 0.1.38's. `v0.1.39` points to `6f9ec92`; the DMG is
+**6,213,665** bytes,
+`sha256:28ac99d1126d318842cf90ac25da8f49fa2db0b3ae77ced57bd5074384bd7cf1`, and
+both of those were confirmed by downloading it back and mounting it: `stapler
+validate` worked on the app *inside* the DMG, `spctl` answered `source=Notarized
+Developer ID`, and the bundle reads 0.1.39 (§331 rows 942–943).
+`releases/latest` — the endpoint `SoftwareUpdater` reads — answered the new tag
+with that digest on three samples. The previous release, `0.1.38`
+(`e944271`, `CFBundleVersion` 432), was cut locally with all four gate layers,
+including layer 4 on the console at 13/13; its DMG is 6,262,399 bytes,
+`sha256:2600ef02aff70aa96d93e2b8ae7ad2158d7b63a004e97eee438a1e00eabb01d5`, and
+both its Apple submissions were read back from `asc notarization list` as
+**Accepted** (§330 rows 929–932).
+`0.1.37` was never published: its diff from `0.1.36` is four version strings and
+nothing else.
 
 ## 0.1.38 — Desktop input is no longer a request/reply conversation (2026-09-23)
 
