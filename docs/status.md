@@ -20,12 +20,14 @@ mouse-down coordinate frame for the gesture, but live window input remains open:
 the existing strict AX match refused the tested windows, so no Fusion phase was
 posted (§328 rows 900–901).
 
-The app update replaces only `/Applications/AgentSpace.app`. After updating,
-press 「重新安装助手…」 to install the current Worker in the agent account; the
-installed Worker may still be 0.1.27 until then. The final gate passed all four
-layers: Swift 628/628, MCP smoke, and 13/13 GUI checks inside AgentUse's session
-without touching the owner's desktop. The MCP smoke script now manages only its
-test Worker and waits 30 seconds for readiness (§328 rows 902–903).
+The app update replaces only `/Applications/AgentSpace.app`. At first the
+installed Worker was 0.1.35; this follow-up installed 0.1.36 through the app
+after the version mismatch was surfaced. The actual Worker now reports Ready,
+accepts input, and resized a TextEdit window before mouse-up (§329). The final
+release gate passed all four layers: Swift 628/628, MCP smoke, and 13/13 GUI
+checks inside AgentUse's session without touching the owner's desktop. The MCP
+smoke script manages only its test Worker and waits 30 seconds for readiness
+(§328 rows 902–903).
 
 `0.1.35` previously shipped the final rate-limited hover fix and measured Unix-socket
 input p95 at 3.98 ms for move and 2.83 ms for click (§327).

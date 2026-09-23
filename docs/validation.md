@@ -9027,3 +9027,18 @@ safety checks still run for every phase.
 | 902 | The MCP smoke gate does not interrupt an attached agent worker and tolerates a slow locked-console readiness probe | pass (live gate) | Removed the broad `pkill -f "agentspace-worker --space-id"`; the smoke script now stops only its own PID and waits up to 30 seconds for its own socket. With the console locked, the previous 6-second wait failed `worker did not come up` with an empty log; the revised smoke run passed every MCP assertion, including fail-closed `SESSION_IS_CONSOLE`. |
 | 903 | Full tests for the live drag source tree | pass | `scripts/test.sh`: Swift **628/628**, stress 1000 round trips in **7.34 s**; MCP package Node tests **24/24** using Node 22; `scripts/mcp-smoke.sh` passed after the startup-bound fix. |
 | 904 | 0.1.36 is the tested, notarized artifact served by the update channel | pass (read back) | `6043f6a` is the code, validation and MCP smoke fix commit; `v0.1.36^{}` resolves to it, and `CFBundleVersion` **428** equals its commit count. `scripts/check-all.sh` passed all four layers: Swift **628/628**, MCP smoke, and AgentUse-session GUI **13/13**. Apple submissions `cfc1967f-fdd3-4419-b1ab-9ee005933608` (App) and `79e9f8c3-5aff-4b11-928d-67dff124036d` (DMG) both returned **Accepted**, with staples valid and Gatekeeper accepting the App. Published Release [v0.1.36](https://github.com/misswell/AgentSpace/releases/tag/v0.1.36); `GET /repos/misswell/AgentSpace/releases/latest` returned `AgentSpace-0.1.36.dmg`, **5,762,400** bytes, `sha256:3f0103de8cb4ff40f7fa3ff9d9f3a9d56a129566cc440f1cbf984b24a6e676d2`, equal to the local notarized DMG. |
+
+
+## 329. The installed Worker must match the drag-phase protocol (2026-09-23)
+
+The app bundle was 0.1.36 while the installed account Worker still ran 0.1.35.
+The 0.1.36 app sends `pointerDown` / `pointerDrag` / `pointerUp`; the older
+Worker does not implement these phases, so a correctly enabled resize gesture
+could not be completed. Updated the helper and account Worker through the
+AgentSpace UI's supported path. A temporary probe for the same account ID must
+be stopped before the production Worker can be launched.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 905 | The current app and installed Worker resize an app window during a held pointer gesture | pass (live on the installed account) | `/Applications/AgentSpace.app` and the active Worker both report **0.1.36**. In AgentUse's Aqua session, the test-created blank TextEdit window changed from **690×592** to **754×648** while the button was still held, then returned to **690×592** after the verification drag was undone. AgentSpace status reported `Ready`, `acceptsInput=true`, `onConsole=false`, session verdict `usable`. The test document was closed afterward. |
+| 906 | The original failure was an app/Worker version mismatch | pass (measured) | Before the fix the app reported **0.1.36** and `/Library/Application Support/AgentSpace/Worker/active/agentspace-worker --version` reported **0.1.35**. The supported in-app Worker update completed after stopping the temporary same-account probe; the installed Worker now reports **0.1.36** and PID **92414**. |
