@@ -123,6 +123,66 @@ name the new tag *and* carry the digest of the file `scripts/check-all.sh`
 approved, and pull the asset back once to prove the bytes that leave this machine
 are the bytes that come back.
 
+## Who builds the release
+
+The release is cut by `.github/workflows/release.yml`, on a `macos-15` runner,
+triggered by a `v*` tag push (or `workflow_dispatch`, which takes a `dry_run`
+input that builds and signs without publishing). It calls this repository's own
+`scripts/release.sh` and `scripts/notarize.sh` rather than reimplementing them: a
+CI path that forked the release logic would be testing a different product than
+the one users install.
+
+Two jobs, in order:
+
+1. **gate** — layers 1–3 of `scripts/check-all.sh`: `scripts/test.sh` (Swift
+   unit + safety + integration), `scripts/updater-e2e.sh`, `scripts/mcp-smoke.sh`,
+   plus the MCP package's own `npm test`.
+2. **release** — imports the Developer ID certificate into a throwaway keychain,
+   registers the notary credential, builds, signs, notarizes, staples, verifies
+   what a user will actually get, publishes, and then asserts the update channel.
+
+**Layer 4 does not run on the runner.** `scripts/gui-verify.sh` drives the
+Accessibility tree of a console Aqua session, which needs a TCC grant that cannot
+be given to a hosted runner non-interactively. The gate job measures that
+prerequisite and says so in the run's job summary rather than failing thirteen
+checks for a permission reason and calling it a broken build. A release whose
+layer 4 matters must still be checked locally with `scripts/check-all.sh`, and
+the workflow appends that sentence to the release notes.
+
+### Required repository secrets
+
+Set these under *Settings → Secrets and variables → Actions*. The workflow fails
+with a named `::error::` for the first one that is missing, so a half-configured
+repository cannot publish.
+
+| Secret | What it is | Where it comes from |
+|---|---|---|
+| `APPLE_CERTIFICATE_P12` | The `Developer ID Application: Guofeng Liu (U8U443D7ZL)` certificate **and its private key**, as a `.p12`, base64-encoded | Keychain Access → export the identity, then `base64 -i DeveloperID.p12 \| pbcopy` |
+| `APPLE_CERTIFICATE_PASSWORD` | The password that `.p12` was exported with | chosen at export time |
+| `APPLE_DEVELOPER_ID` | The full identity string `Developer ID Application: Guofeng Liu (U8U443D7ZL)` | exactly as `security find-identity -v -p codesigning` prints it |
+| `APPLE_TEAM_ID` | `U8U443D7ZL` | the team the certificate belongs to |
+| `ASC_KEY_ID` | App Store Connect API key id | `asc auth status`, or App Store Connect → Users and Access → Integrations |
+| `ASC_ISSUER_ID` | The API key's issuer UUID | same |
+| `ASC_PRIVATE_KEY` | The `.p8` file's **contents** (not a path) | downloaded once when the key was created; Apple does not offer it again |
+
+Notarization uses the API key rather than an Apple ID and an app-specific
+password, because `scripts/notarize.sh` builds its `notarytool` profile from it
+and then verifies that profile with a live `notarytool history` call before
+submitting anything — a profile *name* proves nothing.
+
+### Release notes live in the tree
+
+The workflow requires `docs/releases/<tag>.md` and fails without it. The first
+line (a `# ` heading) becomes the release title and the rest becomes the body,
+with the gated digest and size appended by the workflow.
+
+This exists because this repository's release notes have a rule that
+`--generate-notes` cannot satisfy: a note must say the thing a person has to do
+and say it **first**. For the 0.1.38 cycle that is the two-press rule —
+「检查更新」 then 「重新安装助手…」 — and a generated log of commits would have
+buried it. Keeping the notes in the tree also means they are reviewed in the same
+commit as the version bump.
+
 ## Automatic checks
 
 Once per launch, after the window is up. A check that fails *automatically* is
