@@ -637,6 +637,20 @@ session leaves empty. That refusal (`exit 1`, "the console session's screen is
 LOCKED") is validation §297: it is an environment verdict, not a build verdict,
 and it is a different result from failing every check.
 
+It refuses for a second reason now, and that one is about the person at the
+machine: with any AgentSpace copy running in this session it stops *before*
+touching anything, prints what it would have done (close every copy this uid
+owns, then drive its own in front of whoever is there for one to two minutes),
+and names the override — `AGENTSPACE_GUI_VERIFY_ALLOW_CLOSE=1`. The refusal is
+§323 row 863, and its cause was measured rather than imagined: during 0.1.31's
+release this gate ran six times in one afternoon while the owner was working,
+closing their window each time, and they asked for that to stop. A machine with
+no AgentSpace running needs no override, so a release on a quiet machine is
+unaffected; on a busy one the gate now costs a sentence instead of somebody's
+session. The durable fix, still owed: run these checks inside the **agent
+account's own session** (`agentspace exec`), where the app under test would open
+on that account's display and nothing would appear on the owner's screen at all.
+
 The unlocked run is established: 8/8, with the wizard reaching `step 2`, on the
 published 0.1.18 bundle (§301 row 654). Getting there exposed three defects
 in the gate itself. It addressed the app by *process name*, so an installed copy

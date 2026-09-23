@@ -212,6 +212,39 @@ while IFS= read -r running; do
 			break ;;
 	esac
 done < <(ps -U "$(id -u)" -o comm=)
+
+# --- Consent before the slate is cleared -------------------------------------
+# Everything above this line only looks. Below it, the script closes every
+# AgentSpace app this uid owns and then drives a copy of its own *in front of
+# whoever is at the machine* for a minute or two — windows appearing, Settings
+# opening, toolbar buttons and menus being clicked. Handing the app back at the
+# end does not hand back the two minutes or the focus that was taken, and that
+# cost is only visible to the person sitting there.
+#
+# Measured, during 0.1.31's release: this gate ran six times in an afternoon
+# while the owner was working at the machine, each run closing their window, and
+# the request that came back was 「做测试的时候可否尽量不要打扰我操作」. A gate whose
+# price is somebody's session is a gate people start avoiding, and then the
+# checks it exists for stop being run at all. So it asks now: with any copy
+# running, it stops *before* touching anything, says what it would have done, and
+# names the one-line override for when nobody is there. A machine with no
+# AgentSpace running needs no consent — there is nothing to disturb, and the
+# release flow is unaffected.
+if [ -n "$WAS_RUNNING_APP" ] && [ "${AGENTSPACE_GUI_VERIFY_ALLOW_CLOSE:-0}" != "1" ]; then
+  echo "gui-verify: refusing to run — an AgentSpace copy is running in this session," >&2
+  echo "  and this check needs the screen to itself." >&2
+  echo "  What it would do, if allowed:" >&2
+  echo "    - close every AgentSpace app this uid owns, including the one(s) below" >&2
+  echo "    - drive its own copy on this screen for one to two minutes (windows," >&2
+  echo "      Settings, menus, clicks), then re-open the copy it closed" >&2
+  echo "  Nobody is disturbed by a machine where AgentSpace is not running, so if" >&2
+  echo "  nobody is working at this Mac right now, re-run with:" >&2
+  echo "      AGENTSPACE_GUI_VERIFY_ALLOW_CLOSE=1 scripts/gui-verify.sh" >&2
+  pgrep -U "$(id -u)" -lf "AgentSpace.app/Contents/MacOS/AgentSpace" | sed 's/^/    /' >&2
+  rm -rf "$GUI_ROOT"
+  exit 1
+fi
+
 pkill -U "$(id -u)" -f "AgentSpace.app/Contents/MacOS/AgentSpace" 2>/dev/null
 # Wait for the slate to actually be clear. The human's own copy in
 # /Applications has the same process name as the build under test, and a
