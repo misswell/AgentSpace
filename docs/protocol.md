@@ -266,6 +266,66 @@ faster than the client pulls are dropped, newest wins); `preview.stop` closes it
   WindowServer stops the `SCStream`, discards the last frame, and refuses the
   pull. Start-time safety is not treated as a lifetime grant.
 
+### The fast input channel — `input.sock`
+
+A GUI pointer is *state*, and the JSON RPC above is request/reply: one socket,
+one encoded request, one awaited reply, per event. Measured on this machine that
+was p95 3.98 ms per call (§327 row 894), which a 5 FPS preview hides and a 60 Hz
+one does not. So the pointer and the keys have a second endpoint, and the rules
+did not move with them — `input.sock` re-asks the session verdict, the desktop
+readiness, the Accessibility grant and the human lease for **every** packet, from
+the same code the RPC path uses.
+
+`Runtime/<id>/input.sock`, one persistent Unix connection per account, shared by
+the desktop viewer and every Fusion proxy of that account. Packets are fixed
+binary records, all integers network byte order:
+
+```
+header 32 bytes: magic "ASFI" | version u16 | kind u16 | sequence u64 | timestampNs u64 | payloadSize u32 | flags u32
+payload: a fixed struct per kind, then an optional tail (text, cursor image)
+```
+
+Client → worker: `hello` (token, capabilities, client pid, account), `pointerMove`,
+`pointerDown`, `pointerDrag`, `pointerUp`, `scroll`, `key`, `type`, `humanAcquire`,
+`humanRelease`, `ping`, `bye`. Worker → client: `helloAck`, `ack`, `cursor`,
+`lease`. Each kind belongs to exactly one direction and the other one is refused
+rather than interpreted.
+
+The handshake proves the peer exactly as `frame.sock` does: `getpeereid()` uid
+against the controller recorded by root, the account UUID, the protocol version,
+and the session token compared in constant time. A wrong token gets no reply —
+the connection closes.
+
+Three things are deliberately not like the RPC path:
+
+- **Travel is not a request.** `pointerMove` is written and forgotten; the
+  newest position wins. Travel is acknowledged every 16th packet, and a
+  *repeating* refusal every 32nd — the first refusal of a run and any *changed*
+  one are always sent, so a client always learns that the session started
+  refusing it. This is not an optimisation: answering every packet of a 500-move
+  run filled the worker's socket buffer until its own write blocked and the
+  connection died on a send timeout.
+- **Packets are not JSON.** A fixed record per kind, so nothing has to be parsed
+  to know how many bytes follow.
+- **A press is a press.** `pointerDown` carries `NSEvent.clickCount` and is sent
+  the moment the button goes down rather than after a three-point threshold, so
+  the remote window server — which is what decides click versus drag — sees it
+  while the button is still held.
+
+Coordinates are display points for a `desktop` target and 0…1 fractions of the
+window for a `window` target, which the worker resolves against the window's
+frame *at apply time*. A drag's basis is the frame its `pointerDown` named:
+`GestureFrameStore` holds it by window identity until `pointerUp`, so a title-bar
+drag that moves its own window does not chase its tail.
+
+`cursor` packets carry the session pointer's position and, when the shape
+changed, its BGRA pixels, hotspot and size. A worker advertises `cursorShapes`
+**only after measuring** that it can read its own session's cursor through public
+AppKit (`NSCursor.current`, no CGS private API); until then the viewer keeps the
+cursor that is painted into the frames. When the measurement succeeds mid-
+connection the worker sends a second `helloAck`, which a client reads as "the
+facts about this connection have changed".
+
 ### Fusion windows — `window.*`
 
 `window.list` returns the visible layer-0 standard application windows in the

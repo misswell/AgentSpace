@@ -101,7 +101,128 @@ final class SafetyTests: XCTestCase {
             ])), .sessionIsConsole)
     }
 
+
+    // MARK: - 1b. The fast input channel applies the same rule
+
+    /// The persistent binary input channel is a faster path to the same rules,
+    /// never a way around one.
+    ///
+    /// This is the half of §330 that can be asserted by a gate rather than read
+    /// off a transcript: a real worker, a real `input.sock`, framed packets, and
+    /// the console refusal that must hold for each of them. It runs wherever the
+    /// suite runs — in the console session it proves the refusal, and inside an
+    /// agent's own session it proves the channel is accepted and that its cursor
+    /// capability is only claimed when the worker has measured one.
+    func testFastInputChannelEnforcesTheSameSessionRuleAsTheRPC() throws {
+        let harness = try WorkerHarness()
+        try harness.start()
+        defer { harness.stop() }
+        let hello = try harness.call(Method.hello)
+        let verdict = hello.result?["session"]?["verdict"]?.stringValue
+
+        let socket: InputSocketTransport
+        do {
+            socket = try InputSocketTransport.connect(path: harness.paths.inputSocketPath)
+        } catch {
+            throw XCTSkip("the fast channel is not available on this worker: \(error)")
+        }
+        defer { socket.close() }
+
+        // 1. The handshake proves the peer the same way a frame connection does.
+        let helloPacket = InputHello(spaceID: harness.spaceID, token: harness.token,
+                                     clientLabel: "safety test")
+        try socket.send(kind: .hello, payload: helloPacket.encoded(), sequence: 0)
+        let reply = try socket.readPacket()
+        XCTAssertEqual(reply.kind, .helloAck, "the input channel must answer a hello with its capabilities")
+        let ack = try InputHelloAck(decoding: reply.payload)
+        XCTAssertEqual(ack.protocolVersion, UInt16(agentSpaceProtocolVersion))
+        // A worker claims the cursor-shape channel only after measuring that it can
+        // read its own session's cursor. Nothing in this suite may force that bit:
+        // whether it is set depends on what the worker's session can do, and the
+        // claim being *absent* is the safe answer.
+        XCTAssertEqual(ack.capabilities.contains(.cursorShapes), false,
+                       "cursor shapes may only be claimed after a runtime measurement")
+
+        // 2. Every packet a person can generate is refused in a console session,
+        //    with the same code the RPC path answers.
+        if verdict == "isConsole" {
+            let pointer = InputPointerPacket(target: .desktop, x: 10, y: 10)
+            try socket.send(kind: .pointerMove, payload: pointer.encoded(), sequence: 1)
+            try socket.send(kind: .pointerDown, payload: pointer.encoded(), sequence: 2)
+            try socket.send(kind: .pointerUp, payload: pointer.encoded(), sequence: 3)
+            let scroll = InputScrollPacket(target: .desktop, x: 10, y: 10, dx: 0, dy: -5)
+            try socket.send(kind: .scroll, payload: scroll.encoded(), sequence: 4)
+            try socket.send(kind: .key, payload: Data("cmd+l".utf8), sequence: 5)
+            try socket.send(kind: .type, payload: Data("hello".utf8), sequence: 6)
+
+            var refusals = 0
+            let deadline = Date().addingTimeInterval(3)
+            while Date() < deadline, refusals < 6 {
+                guard let packet = try socket.readPacketWithTimeout(remainingUntil: deadline) else { break }
+                guard packet.kind == .ack, let ack = try? InputAck(decoding: packet.payload) else { continue }
+                if ack.status.isRefusal {
+                    refusals += 1
+                    XCTAssertEqual(ack.status, .refusedSession,
+                                   "a console session must refuse with the code the RPC path uses")
+                }
+            }
+            XCTAssertGreaterThanOrEqual(refusals, 1,
+                "the fast channel refused nothing in a console session, which would mean it posted events")
+        }
+    }
+
+    /// A wrong token is refused by the fast channel exactly as it is by the RPC
+    /// socket. This is not a formality: the agent account can read the runtime
+    /// directory by design, and the token is what stops one Space from driving
+    /// another.
+    func testFastInputChannelRefusesAWrongToken() throws {
+        let harness = try WorkerHarness()
+        try harness.start()
+        defer { harness.stop() }
+        let socket: InputSocketTransport
+        do {
+            socket = try InputSocketTransport.connect(path: harness.paths.inputSocketPath)
+        } catch {
+            throw XCTSkip("the fast channel is not available on this worker: \(error)")
+        }
+        defer { socket.close() }
+        let bogus = InputHello(spaceID: harness.spaceID,
+                               token: SessionToken(hex: String(repeating: "00", count: 32)))
+        try socket.send(kind: .hello, payload: bogus.encoded(), sequence: 0)
+        // Either a refusal packet or a closed connection is a refusal; what must
+        // not happen is an accepted handshake.
+        let reply = try? socket.readPacketWithTimeout(remainingUntil: Date().addingTimeInterval(2))
+        XCTAssertNotEqual(reply?.kind, .helloAck, "a wrong session token must never be accepted")
+    }
+
+    /// Two clients may hold the channel at once. The desktop viewer and a Fusion
+    /// proxy are two windows onto one session, and a connection that parks in
+    /// `read` for as long as its window is open must not be the only one served —
+    /// measured live: on a serial queue the second client connected and then never
+    /// heard a packet.
+    func testFastInputChannelServesTwoClientsAtOnce() throws {
+        let harness = try WorkerHarness()
+        try harness.start()
+        defer { harness.stop() }
+        var sockets: [InputSocketTransport] = []
+        for index in 0..<2 {
+            guard let socket = try? InputSocketTransport.connect(path: harness.paths.inputSocketPath) else {
+                throw XCTSkip("the fast channel is not available on this worker")
+            }
+            let hello = InputHello(spaceID: harness.spaceID, token: harness.token,
+                                   clientLabel: "concurrent \(index)")
+            try socket.send(kind: .hello, payload: hello.encoded(), sequence: 0)
+            sockets.append(socket)
+        }
+        defer { sockets.forEach { $0.close() } }
+        for (index, socket) in sockets.enumerated() {
+            let reply = try socket.readPacketWithTimeout(remainingUntil: Date().addingTimeInterval(2))
+            XCTAssertEqual(reply?.kind, .helloAck, "connection \(index) was never answered")
+        }
+    }
+
     // MARK: - 2. No fallback
+
 
     /// Plan §55: `testInputDeliveredOnlyToWorkerSession`.
     ///

@@ -18,19 +18,37 @@ import Foundation
 /// object, the desktop viewer carries the parsed `InputAction`.
 public final class PointerTravelCoalescer<Value> {
     private let lock = NSLock()
-    private let minimumInterval: TimeInterval
+    private var minimumInterval: TimeInterval
     private let send: (Value) -> Void
     private var pending: Value?
     private var lastSent: Date?
     private var inFlight = false
 
     /// - Parameter minimumInterval: shortest gap between two travel requests.
-    ///   The default caps hover at 30 Hz, which is above what a preview running
-    ///   at 5-15 FPS can show anyway.
-    public init(minimumInterval: TimeInterval = 1.0 / 30.0, send: @escaping (Value) -> Void) {
+    ///
+    ///   Was 1/30 and that was chosen when the picture behind the pointer
+    ///   refreshed at 5–15 FPS: a rate above what the viewer could show bought
+    ///   nothing. With the desktop viewer defaulting to 30 FPS and the capture
+    ///   going to 60 while a gesture is live, a 30 Hz hover is the thing the
+    ///   hand notices — a mouse reports at 125 Hz and a trackpad higher, and
+    ///   the coalescer's job is to drop the *surplus*, not to add a second
+    ///   source of stutter on top of the frame rate. The default is now
+    ///   `DisplayRefresh.defaultPointerRate`, which resolves to the local
+    ///   display's own rate so a 60 Hz panel is not sent 120 Hz updates that
+    ///   only ever alias.
+    public init(minimumInterval: TimeInterval = DisplayRefresh.defaultPointerInterval, send: @escaping (Value) -> Void) {
         self.minimumInterval = max(0, minimumInterval)
         self.send = send
     }
+
+    /// Change the rate while a connection is live — the frame budget already
+    /// does this (`InputRatePolicy`), and rebuilding the coalescer to change a
+    /// number would drop the position that is currently in flight.
+    public func setMinimumInterval(_ interval: TimeInterval) {
+        lock.lock(); minimumInterval = max(0, interval); lock.unlock()
+    }
+
+    public var rateLimit: TimeInterval { lock.lock(); defer { lock.unlock() }; return minimumInterval }
 
     /// A new position. Replaces any position still waiting; sends immediately
     /// when nothing is in flight and the rate allows it.

@@ -100,6 +100,43 @@ final class FrameClient: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
+    /// Change the capture rate of the running stream, in place.
+    ///
+    /// `frame.setFPS` applies a new `minimumFrameInterval` through
+    /// `SCStream.updateConfiguration`, so nothing about the stream's identity
+    /// changes: same shared region, same descriptor, same decoder. A worker from
+    /// before this method answers `METHOD_NOT_FOUND`, and that is deliberately not
+    /// an error here — the stream keeps the rate it was opened at, which is the
+    /// behaviour that worker had anyway.
+    func setFPS(_ fps: Int) {
+        lock.lock(); let id = streamID; let stopped = self.stopped; lock.unlock()
+        guard !stopped, let id else { return }
+        let space = space
+        queue.async {
+            let connection = SpaceConnection(space: space)
+            _ = try? connection.client.call(method: Method.frameSetFPS, params: .obj([
+                "streamID": .string(id.uuidString), "fps": .int(fps),
+            ]), token: connection.token)
+        }
+    }
+
+    /// Stop painting the session's cursor into the captured picture.
+    ///
+    /// Called only once the viewer draws a cursor of its own from the worker's
+    /// published position. Two cursors on screen is the trailing ghost the cursor
+    /// channel exists to remove, and zero cursors is worse than both.
+    func setEmbeddedCursor(_ enabled: Bool) {
+        lock.lock(); let id = streamID; let stopped = self.stopped; lock.unlock()
+        guard !stopped, let id else { return }
+        let space = space
+        queue.async {
+            let connection = SpaceConnection(space: space)
+            _ = try? connection.client.call(method: Method.frameSetFPS, params: .obj([
+                "streamID": .string(id.uuidString), "showsCursor": .bool(enabled),
+            ]), token: connection.token)
+        }
+    }
+
     private func runReconnectLoop() {
         let delays: [TimeInterval] = [0.5, 1, 2, 5]
         var attempt = 0

@@ -46,6 +46,15 @@ public enum Method {
     public static let frameConfigure = "frame.configure"
     public static let frameRequestFull = "frame.requestFull"
     public static let frameStats = "frame.stats"
+    /// Change the capture rate of a running stream without reopening it.
+    ///
+    /// Additive at protocol version 1: a worker from before this method answers
+    /// `METHOD_NOT_FOUND`, and the one caller that uses it — the desktop viewer
+    /// reacting to a drag — treats that as "keep the rate you opened at" rather
+    /// than as a failure. Reopening the stream instead would cost a new
+    /// shared-memory mapping and a fresh decoder, which is exactly what this
+    /// avoids.
+    public static let frameSetFPS = "frame.setFPS"
 
     /// Fusion window surfaces. These are additive protocol-v1 methods: old
     /// clients and workers keep speaking the same envelope and method names.

@@ -28,6 +28,15 @@ final class FramePublisher {
 
     deinit { engine.stop() }
     func stop() { engine.stop(); shared.detach() }
+
+    /// The rate in force. Reported so a caller that asked for one rate and got
+    /// another can see which it got.
+    @discardableResult
+    func updateFrameRate(_ fps: Int) -> Int { engine.updateFrameRate(fps) }
+
+    /// Whether the capture paints the session cursor into the picture. Turned off
+    /// only after the input channel has proved it can publish one of its own.
+    func setCursorPainting(_ enabled: Bool) { engine.showsCursor = enabled }
     var mappingBytes: Int { shared.mappingBytes }
     func stats() -> FrameStats { shared.snapshot() }
 }

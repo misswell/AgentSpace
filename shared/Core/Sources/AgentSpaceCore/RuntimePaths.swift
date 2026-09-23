@@ -8,6 +8,8 @@ import Foundation
 ///   Runtime/
 ///     <space-uuid>/
 ///       worker.sock     the unix socket the worker listens on
+///       frame.sock      the binary capture channel
+///       input.sock      the persistent binary input channel
 ///       worker.pid      pid of the listening worker
 ///       token           the 256-bit session secret, mode 0600
 ///       status.json     last known status, written by the worker
@@ -59,6 +61,12 @@ public struct RuntimePaths: Sendable {
 
     public var socketPath: String { explicitSocketPath ?? (directory + "/worker.sock") }
     public var frameSocketPath: String { directory + "/frame.sock" }
+    /// The persistent binary input channel. A separate endpoint from
+    /// `worker.sock` on purpose: the RPC socket answers one request per
+    /// connection and is the right shape for a CLI or an agent, while a hand
+    /// moving a mouse is a state that must not pay a connect, an encode and a
+    /// reply per event.
+    public var inputSocketPath: String { directory + "/input.sock" }
     public var pidPath: String { directory + "/worker.pid" }
     public var tokenPath: String { directory + "/token" }
     public var statusPath: String { directory + "/status.json" }
@@ -78,6 +86,7 @@ public struct RuntimePaths: Sendable {
 
     public var socketPathFits: Bool { RuntimePaths.socketPathFits(socketPath) }
     public var frameSocketPathFits: Bool { RuntimePaths.socketPathFits(frameSocketPath) }
+    public var inputSocketPathFits: Bool { RuntimePaths.socketPathFits(inputSocketPath) }
 
     // MARK: Directory preparation
 

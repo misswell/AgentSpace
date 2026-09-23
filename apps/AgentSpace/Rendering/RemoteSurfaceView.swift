@@ -22,22 +22,47 @@ struct RemoteSurfaceView: NSViewRepresentable {
     /// into — display points for the desktop viewer. Fractions do not need it,
     /// so a proxy that only sends fractions leaves it alone.
     var remoteContentSize: CGSize = .zero
+    /// Whether the pointer is captured on entry (Desktop Mode) or only on a
+    /// press (a Fusion proxy). See `PointerCapturePolicy`.
+    var capturePolicy: PointerCapturePolicy = .watchOnly
+    /// Whether the local cursor may be hidden at all. False while the worker has
+    /// not confirmed it will publish a cursor of its own — a hidden local cursor
+    /// and no remote one is a desktop with no pointer.
+    var hidesLocalCursor = false
     var onGesture: ((RemotePointerGesture) -> Void)? = nil
     var onClaimHuman: (() -> Void)? = nil
+    var onReleaseHuman: (() -> Void)? = nil
+    /// A press that must reach the agent immediately (raw phases) rather than
+    /// after the click/drag threshold.
+    var sendsRawPresses = false
+    /// Where the drawn remote cursor lives, so the view that owns the worker's
+    /// published position can put it on screen.
+    var cursorOverlay: RemoteCursorOverlayProxy?
+    /// A drag started or ended. The host uses it to raise the capture rate: a
+    /// window being dragged at a low frame rate does not look dragged.
+    var onDragActivity: ((Bool) -> Void)? = nil
 
     func makeNSView(context: Context) -> RemoteSurfaceNSView {
         let view = RemoteSurfaceNSView(client: client)
-        view.captureLimit = captureLimit; view.captureMagnification = captureMagnification
-        view.acceptsInput = acceptsInput; view.remoteContentSize = remoteContentSize
-        view.onGesture = onGesture; view.onClaimHuman = onClaimHuman
+        configure(view)
         return view
     }
 
     func updateNSView(_ view: RemoteSurfaceNSView, context: Context) {
+        configure(view)
+        view.needsLayout = true
+    }
+
+    private func configure(_ view: RemoteSurfaceNSView) {
         view.captureLimit = captureLimit; view.captureMagnification = captureMagnification
         view.acceptsInput = acceptsInput; view.remoteContentSize = remoteContentSize
         view.onGesture = onGesture; view.onClaimHuman = onClaimHuman
-        view.needsLayout = true
+        view.onReleaseHuman = onReleaseHuman
+        view.sendsRawPresses = sendsRawPresses
+        view.capture.configure(capturePolicy)
+        view.allowsLocalCursorHiding = hidesLocalCursor
+        view.onDragActivity = onDragActivity
+        cursorOverlay?.attach(view.cursorOverlay)
     }
 }
 
@@ -132,17 +157,51 @@ class RemoteSurfaceNSView: NSView {
     var captureLimit: CGSize = .zero
     var captureMagnification = 1.0
     /// See `RemoteSurfaceView.acceptsInput`. Revoking input drops the gesture in
-    /// progress: a press collected while input was permitted must not become a
-    /// click after the worker said stop.
+    /// progress *and* releases pointer capture: a press collected while input was
+    /// permitted must not become a click after the worker said stop, and a
+    /// hidden local cursor must not survive a worker that went offline.
     var acceptsInput = false {
-        didSet { if !acceptsInput { gestures.reset() } }
+        didSet {
+            guard !acceptsInput else { return }
+            forward(gestures.cancelPress())
+            gestures.reset()
+            capture.release()
+            refreshCursorRects()
+        }
     }
     var remoteContentSize: CGSize = .zero
     var onGesture: ((RemotePointerGesture) -> Void)?
     /// Takes the worker's human lease without performing any input.
     var onClaimHuman: (() -> Void)?
+    /// The person left the surface. Releasing explicitly is what lets automation
+    /// resume immediately instead of waiting out the five-second fail-safe.
+    var onReleaseHuman: (() -> Void)?
+    /// A drag started or ended, so a host can raise the capture rate: a window
+    /// being dragged at a low frame rate does not look like it is being dragged.
+    var onDragActivity: ((Bool) -> Void)?
+    /// Whether every press is forwarded as a press. Desktop Mode sets it; a
+    /// proxy keeps the threshold model that makes a click out of a press.
+    var sendsRawPresses = false {
+        didSet { if sendsRawPresses != gestures.isRaw, capture.isControlling { gestures.beginControl(rawPhases: sendsRawPresses) } }
+    }
+    /// Whether this surface may hide the local cursor at all. False until the
+    /// worker has promised a cursor of its own.
+    var allowsLocalCursorHiding = false {
+        didSet { if !allowsLocalCursorHiding { capture.release() }; refreshCursorRects() }
+    }
+    /// The pointer half of this surface's state: capture, the image rect, and
+    /// when to hide the local cursor.
+    let capture = PointerCaptureCoordinator()
+    /// The agent's own pointer, drawn locally from the worker's published
+    /// position. Nil until a cursor channel exists, in which case the cursor
+    /// inside the captured picture is what the person sees.
+    var cursorOverlay: RemoteCursorOverlayLayer? { cursorOverlayLayer }
     private var gestures = RemotePointerGestureTracker()
     private var trackingArea: NSTrackingArea?
+    private let cursorOverlayLayer: RemoteCursorOverlayLayer?
+    /// The display point of the last position this surface sent, so a correction
+    /// from the worker can be compared against what the hand actually asked for.
+    private var lastSentDisplayPoint: CGPoint?
     private let renderer: MetalSurfaceRenderer?
     private let cpuLayer = CALayer()
     private let cpuLock = NSLock()
@@ -152,6 +211,7 @@ class RemoteSurfaceNSView: NSView {
 
     init(client: FrameClient) {
         self.client = client; self.renderer = MetalSurfaceRenderer()
+        self.cursorOverlayLayer = RemoteCursorOverlayLayer()
         super.init(frame: .zero)
         wantsLayer = true
         if let metalLayer = renderer?.layer { layer = metalLayer }
@@ -159,6 +219,22 @@ class RemoteSurfaceNSView: NSView {
         cpuLayer.backgroundColor = NSColor.black.cgColor
         cpuLayer.isHidden = true
         layer?.addSublayer(cpuLayer)
+        // Above the picture, below nothing: the overlay is the agent's pointer,
+        // and the menu bar and Dock of the agent's desktop are part of the
+        // picture it has to be drawn on top of.
+        if let overlay = cursorOverlayLayer { layer?.addSublayer(overlay) }
+        capture.onCaptureBegan = { [weak self] in
+            guard let self else { return }
+            self.gestures.beginControl(rawPhases: self.sendsRawPresses)
+            self.onClaimHuman?()
+            self.refreshCursorRects()
+        }
+        capture.onCaptureEnded = { [weak self] in
+            guard let self else { return }
+            self.gestures.endControl()
+            self.onReleaseHuman?()
+            self.refreshCursorRects()
+        }
         client.handleSharedFrame = { [weak self] mapping, _, _, slot, patches, presented in
             guard let self else { return .refused }
             let outcome = self.renderer?.apply(mapping: mapping, slot: slot, patches: patches, presented: presented) ?? .refused
@@ -200,6 +276,9 @@ class RemoteSurfaceNSView: NSView {
         if window == nil {
             forward(gestures.cancelPress())
             gestures.reset()
+            // The picture is gone, so nothing may still claim the pointer: a
+            // hidden cursor belongs to a window that is on screen.
+            capture.release()
         }
     }
 
@@ -211,7 +290,7 @@ class RemoteSurfaceNSView: NSView {
         // is the main cursor passing over it, and moving the agent's pointer
         // because of that is the opposite of isolation.
         let area = NSTrackingArea(rect: bounds,
-                                  options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],
+                                  options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
                                   owner: self, userInfo: nil)
         addTrackingArea(area)
         trackingArea = area
@@ -238,6 +317,8 @@ class RemoteSurfaceNSView: NSView {
         let targetWidth = max(1, Int(Double(limitedWidth) * captureMagnification))
         let targetHeight = max(1, Int(Double(limitedHeight) * captureMagnification))
         client.configure(width: targetWidth, height: targetHeight)
+        refreshCaptureGeometry()
+        refreshCursorRects()
     }
 
     // MARK: - Pointer gestures
@@ -247,30 +328,77 @@ class RemoteSurfaceNSView: NSView {
     // forwards the fractions, the desktop viewer converts them to display points.
 
     override func mouseMoved(with event: NSEvent) {
-        forward(gestures.pointerMoved(to: viewPoint(of: event), in: surfaceMapping(), now: Date()))
+        let point = viewPoint(of: event)
+        // Capture first: the hand may have just entered the picture, which in
+        // Desktop Mode *is* taking control, and the travel it produces belongs to
+        // the same event rather than to the next one.
+        capture.pointer(movedTo: point)
+        predictCursor(at: point)
+        forward(gestures.pointerMoved(to: point, in: surfaceMapping(), now: Date()))
     }
-    override func mouseDown(with event: NSEvent) { beganPress(event) }
-    override func rightMouseDown(with event: NSEvent) { beganPress(event) }
-    override func otherMouseDown(with event: NSEvent) { beganPress(event) }
+
+    /// The pointer left the view's bounds entirely. A tracking area with
+    /// `.inVisibleRect` reports this as `mouseExited`; capture must end here even
+    /// if no further event arrives, because the local cursor has to come back.
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        capture.pointerLeftView()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        capture.pointer(movedTo: viewPoint(of: event))
+    }
+
+    override func mouseDown(with event: NSEvent) { beganPress(event, clickCount: event.clickCount) }
+    override func rightMouseDown(with event: NSEvent) { beganPress(event, clickCount: event.clickCount) }
+    override func otherMouseDown(with event: NSEvent) { beganPress(event, clickCount: 1) }
     override func mouseDragged(with event: NSEvent) { dragged(event) }
     override func rightMouseDragged(with event: NSEvent) { dragged(event) }
     override func otherMouseDragged(with event: NSEvent) { dragged(event) }
     override func mouseUp(with event: NSEvent) { endPress(event, clickCount: event.clickCount) }
-    override func rightMouseUp(with event: NSEvent) { endPress(event, clickCount: 1) }
+    override func rightMouseUp(with event: NSEvent) { endPress(event, clickCount: event.clickCount) }
     override func otherMouseUp(with event: NSEvent) { endPress(event, clickCount: 1) }
+
     override func scrollWheel(with event: NSEvent) {
         guard acceptsInput else { return }
+        let point = viewPoint(of: event)
+        // A scroll is a deliberate act, so it captures the pointer in a proxy
+        // that has not captured it yet: a person scrolling inside a remote window
+        // is working in it.
+        if !capture.isControlling, imageContains(point) {
+            capture.pointer(movedTo: point)
+            capture.pressStarted()
+            capture.pressEnded(pointerInside: true)
+        }
         forward(gestures.scrolled(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY,
-                                 at: viewPoint(of: event), in: surfaceMapping(), now: Date()))
+                                 at: point, in: surfaceMapping(), now: Date()))
     }
 
-    private func beganPress(_ event: NSEvent) {
+    private func beganPress(_ event: NSEvent, clickCount: Int) {
         guard acceptsInput, onGesture != nil else { return }
         window?.makeFirstResponder(self)
+        let point = viewPoint(of: event)
         let attributes = RemotePointerGesture.attributes(of: event)
-        let claimed = gestures.beganPress(at: viewPoint(of: event), button: attributes.button,
+        if sendsRawPresses {
+            // Raw mode: the press goes out now, as a press, because the remote
+            // window server is what decides whether it is a click or the start of
+            // a drag — and it can only decide that if it sees the press while the
+            // button is still down.
+            capture.pressStarted()
+            let gesture = gestures.beganPressPhases(at: point, button: attributes.button,
+                                                    clickCount: clickCount,
+                                                    modifiers: attributes.modifiers,
+                                                    in: surfaceMapping(), now: Date())
+            forward(gesture)
+            predictCursor(at: point)
+            onDragActivity?(true)
+            return
+        }
+        let claimed = gestures.beganPress(at: point, button: attributes.button,
                                           modifiers: attributes.modifiers,
-                                          in: surfaceMapping(), now: Date())
+                                          in: surfaceMapping(), now: Date(), clickCount: clickCount)
+        capture.pressStarted()
         // The pause on automation starts with the press, not with the gesture it
         // eventually produces.
         if claimed { onClaimHuman?() }
@@ -278,25 +406,128 @@ class RemoteSurfaceNSView: NSView {
 
     private func dragged(_ event: NSEvent) {
         guard acceptsInput else { return }
-        let update = gestures.dragged(to: viewPoint(of: event), in: surfaceMapping(), now: Date())
+        let point = viewPoint(of: event)
+        let update = gestures.draggedPhases(to: point, in: surfaceMapping(), now: Date())
         if update.renewLease { onClaimHuman?() }
         for gesture in update.gestures { forward(gesture) }
+        predictCursor(at: point)
     }
 
     private func endPress(_ event: NSEvent, clickCount: Int) {
         guard acceptsInput else { return }
         window?.makeFirstResponder(self)
+        let point = viewPoint(of: event)
         // The final position must reach the agent before mouse-up. It is also
         // the first streamed point if the threshold was crossed only on release.
-        let update = gestures.dragged(to: viewPoint(of: event), in: surfaceMapping(), now: Date())
+        let update = gestures.draggedPhases(to: point, in: surfaceMapping(), now: Date())
         for gesture in update.gestures { forward(gesture) }
-        forward(gestures.endedPress(at: viewPoint(of: event), clickCount: clickCount,
+        forward(gestures.endedPress(at: point, clickCount: clickCount,
                                     in: surfaceMapping(), now: Date()))
+        predictCursor(at: point)
+        let inside = imageContains(point)
+        onDragActivity?(false)
+        capture.pressEnded(pointerInside: inside)
+        // A press outside the picture that captured nothing must not leave the
+        // surface believing it holds the pointer.
+        if !inside, capture.state == .hovering { capture.pointerLeftView() }
     }
 
     private func forward(_ gesture: RemotePointerGesture?) {
         guard acceptsInput, let gesture, let onGesture else { return }
         onGesture(gesture)
+    }
+
+    private func imageContains(_ point: CGPoint) -> Bool {
+        let rect = surfaceMapping().fittedRect
+        guard let rect, rect.width >= 1, rect.height >= 1 else { return false }
+        return rect.contains(x: Double(point.x), y: Double(point.y))
+    }
+
+    /// Move the drawn cursor to where the hand is, immediately.
+    ///
+    /// This is what makes the pointer feel attached: the position the person's
+    /// hand moved to is known locally the instant it moves, so the sprite can be
+    /// drawn there without waiting for the worker's echo — which arrives in
+    /// single-digit milliseconds but is nevertheless a round trip the eye can be
+    /// trained to see. The worker's answer corrects the drawing when it
+    /// disagrees (see `RemoteCursorOverlayLayer.apply`).
+    private func predictCursor(at point: CGPoint) {
+        guard let overlay = cursorOverlayLayer,
+              let displayPoint = surfaceMapping().displayPoint(appKitX: Double(point.x), appKitY: Double(point.y)) else { return }
+        lastSentDisplayPoint = CGPoint(x: displayPoint.x, y: displayPoint.y)
+        overlay.predict(displayPoint: CGPoint(x: displayPoint.x, y: displayPoint.y))
+    }
+
+    /// The worker's authoritative cursor position and shape.
+    func applyCursor(_ presentation: InputClient.CursorPresentation) {
+        cursorOverlayLayer?.mapping = surfaceMapping()
+        cursorOverlayLayer?.apply(presentation)
+    }
+
+    /// Show or hide the agent's own cursor sprite. Off while the picture still
+    /// carries the cursor inside it: two cursors drawn from two sources is the
+    /// trailing ghost this overlay exists to remove.
+    func setCursorOverlayVisible(_ visible: Bool) {
+        cursorOverlayLayer?.isHidden = !visible || cursorOverlayLayer?.contents == nil
+    }
+
+    // MARK: - Cursor rects
+
+    /// AppKit asks this whenever the pointer moves over the view. In capture the
+    /// remote image gets a transparent cursor; everywhere else — the header, the
+    /// footer, a Fusion title bar, the letterbox bars — the ordinary cursor is
+    /// what a person is entitled to.
+    ///
+    /// This is deliberately the *only* mechanism the product uses to hide the
+    /// pointer. `NSCursor.hide()` keeps a process-wide count that any missed
+    /// unhide leaves wrong, so a crash or a fast user switch mid-gesture could
+    /// leave the person with no cursor anywhere on their Mac. Cursor rects are
+    /// scoped to one view and are recomputed by AppKit on demand, so the worst
+    /// failure mode is the ordinary cursor reappearing.
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        guard allowsLocalCursorHiding, capture.isControlling,
+              let rect = capture.cursorRect else { return }
+        addCursorRect(rect, cursor: TransparentCursor.cursor)
+    }
+
+    /// Tell AppKit the cursor rects changed.
+    ///
+    /// `resetCursorRects()` alone is not enough: AppKit asks for cursor rects
+    /// when the pointer moves or the view is laid out, so a capture that begins
+    /// while the hand is *still* would keep showing the local cursor until the
+    /// next twitch. Invalidating makes AppKit ask now — and it is the invalidation
+    /// that also makes the release path immediate, which is the half that matters
+    /// more.
+    private func refreshCursorRects() {
+        if let window {
+            window.invalidateCursorRects(for: self)
+        } else {
+            resetCursorRects()
+        }
+    }
+
+    /// The image rect, refreshed on layout so a cursor rect is never computed
+    /// against a stale window size.
+    private func refreshCaptureGeometry() {
+        guard let rect = surfaceMapping().fittedRect else {
+            capture.imageRect = .zero
+            return
+        }
+        capture.imageRect = CGRect(x: rect.x, y: rect.y, width: rect.width, height: rect.height)
+        cursorOverlayLayer?.mapping = surfaceMapping()
+    }
+
+    /// Escape — Control-Option or Control-Command-G — hands the pointer back
+    /// without leaving the surface. Absolute Desktop Mode normally releases on
+    /// exit alone; this is for the case where the person wants to reach their own
+    /// window controls while still looking at the agent's desktop.
+    override func keyDown(with event: NSEvent) {
+        if ReleaseCaptureGesture.matches(event) {
+            capture.escape()
+            return
+        }
+        super.keyDown(with: event)
     }
 
     /// Marks a deliberate interaction the subclass handled itself — for a proxy

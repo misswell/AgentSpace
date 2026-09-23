@@ -44,6 +44,12 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     case noInputTarget = "NO_INPUT_TARGET"
     /// Direct interaction with a Fusion proxy temporarily owns input.
     case inputBusyByHuman = "INPUT_BUSY_BY_HUMAN"
+    /// The packet named a window the worker cannot resolve right now — closed,
+    /// minimised, or re-created since the proxy last looked. Distinct from
+    /// `badRequest` because the caller's own fix is to re-list windows, and
+    /// distinct from `sessionIsConsole` because nothing about the session is
+    /// wrong.
+    case invalidTarget = "INVALID_TARGET"
 
     // --- Apps ---------------------------------------------------------------
     case appNotFound = "APP_NOT_FOUND"
@@ -96,7 +102,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
             return true
         case .accessibilityDenied, .screenRecordingDenied,
              .workerIsRoot, .workspaceDenied, .workspaceInvalid, .execDenied,
-             .invalidCoordinate, .invalidAction,
+             .invalidCoordinate, .invalidAction, .invalidTarget,
              .unauthorized, .badRequest, .methodNotFound, .protocolMismatch,
              .helperRejected, .internalError:
             return false
@@ -138,6 +144,8 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
             return NSLocalizedString("The AgentSpace session has no focused app, so a keyboard event would go nowhere and an accessibility read has no target. Launch something there first, e.g. `agentspace launch <space> Finder`. Pointer input does not need a focused app and still works — a click on the Dock is enough.", comment: "")
         case .inputBusyByHuman:
             return NSLocalizedString("A person is controlling an Agent window. Wait five seconds after their last input, then retry.", comment: "")
+        case .invalidTarget:
+            return NSLocalizedString("The window this input names is gone or has been re-created. Re-open the Fusion window list and try again.", comment: "")
         case .appNotFound:
             return NSLocalizedString("Pass an app name that exists in the AgentSpace session (`agentspace apps <space>`) or an absolute path to a .app bundle.", comment: "")
         case .appLaunchTimeout:

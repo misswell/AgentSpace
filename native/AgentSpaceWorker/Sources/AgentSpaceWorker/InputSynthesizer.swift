@@ -119,10 +119,19 @@ enum InputSynthesizer {
                 if n < count { sleepMs(60) }
             }
 
-        case .pointerDown(let x, let y, let button, let modifiers):
+        case .pointerDown(let x, let y, let button, let clickCount, let modifiers):
             let (down, _, _) = downUpTypes(button.cgButton)
             post(mouseEvent(.mouseMoved, x, y, button.cgButton))
-            post(mouseEvent(down, x, y, button.cgButton), flags: flags(from: modifiers))
+            // The click state rides the press, because that is the only thing the
+            // window server consults to decide whether this is the second half of
+            // a double-click. `NSEvent.clickCount` is 2 on the second press of a
+            // fast pair, and passing it through is what makes a double-click in
+            // the agent's Finder open a name field instead of selecting a file
+            // twice.
+            if let event = mouseEvent(down, x, y, button.cgButton) {
+                event.setIntegerValueField(.mouseEventClickState, value: Int64(max(1, clickCount)))
+                post(event, flags: flags(from: modifiers))
+            }
 
         case .pointerDrag(let fx, let fy, let tx, let ty, let button, let modifiers):
             let (_, _, dragged) = downUpTypes(button.cgButton)
@@ -132,9 +141,12 @@ enum InputSynthesizer {
                 post(event, flags: flags(from: modifiers))
             }
 
-        case .pointerUp(let x, let y, let button, let modifiers):
+        case .pointerUp(let x, let y, let button, let clickCount, let modifiers):
             let (_, up, _) = downUpTypes(button.cgButton)
-            post(mouseEvent(up, x, y, button.cgButton), flags: flags(from: modifiers))
+            if let event = mouseEvent(up, x, y, button.cgButton) {
+                event.setIntegerValueField(.mouseEventClickState, value: Int64(max(1, clickCount)))
+                post(event, flags: flags(from: modifiers))
+            }
 
         case .drag(let fx, let fy, let tx, let ty, let button, let modifiers):
             // A drag is a *stream*, not "down, jump, up". AppKit only starts

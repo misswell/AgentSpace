@@ -17,10 +17,15 @@ public enum RemotePointerGesture: Equatable, Sendable {
               button: MouseButton, modifiers: [Modifier])
     /// Live drag phases. The first two are emitted while the local button is
     /// still down; the final phase is emitted on release.
-    case pointerDown(u: Double, v: Double, button: MouseButton, modifiers: [Modifier])
+    ///
+    /// `clickCount` carries `NSEvent.clickCount` through to the remote press:
+    /// the window server decides a double-click from the second press's own
+    /// click state, so two presses sent as two unrelated single clicks are two
+    /// single clicks however fast they arrive.
+    case pointerDown(u: Double, v: Double, button: MouseButton, clickCount: Int, modifiers: [Modifier])
     case pointerDrag(fromU: Double, fromV: Double, toU: Double, toV: Double,
                      button: MouseButton, modifiers: [Modifier])
-    case pointerUp(u: Double, v: Double, button: MouseButton, modifiers: [Modifier])
+    case pointerUp(u: Double, v: Double, button: MouseButton, clickCount: Int, modifiers: [Modifier])
     /// Whole lines scrolled; the fractional remainder is kept by the tracker.
     ///
     /// The axes keep AppKit's own signs and order — `linesX` is
@@ -63,6 +68,7 @@ public struct RemotePointerGestureTracker {
         var lastU: Double
         var lastV: Double
         var button: MouseButton
+        var clickCount: Int
         var modifiers: [Modifier]
         var travelled = false
         var streamStarted = false
@@ -71,6 +77,21 @@ public struct RemotePointerGestureTracker {
     private var press: Press?
     private var engagedUntil: Date?
     private var lastRenewal = Date.distantPast
+    /// Set while a surface has taken the pointer through capture rather than
+    /// through a gesture — Desktop Mode, where entering the picture *is*
+    /// taking control. `nil` means the old rule applies: travel reaches the
+    /// agent only inside a live lease.
+    ///
+    /// The two are different questions and this is why the field is separate
+    /// from `engagedUntil`: a lease expires on a clock, while control lasts
+    /// exactly as long as the pointer is over the picture. Expressing the
+    /// second as a far-future lease would leave a stale one behind after the
+    /// pointer left, which is a five-second pause on automation nobody asked
+    /// for — the opposite of what leaving is supposed to mean.
+    private var controlling = false
+    /// Raw pointer phases: every press goes to the agent as a press, as soon as
+    /// it happens, instead of waiting to learn whether it was a click.
+    private var rawPhases = false
     /// Trackpad deltas arrive as fractions (0.1, 0.4 …). The wire carries whole
     /// lines, so rounding each event on its own turned slow scrolling to zero.
     private var scrollCarryX = 0.0
@@ -79,8 +100,29 @@ public struct RemotePointerGestureTracker {
     public init() {}
 
     public func isEngaged(at now: Date) -> Bool {
+        if controlling { return true }
         guard let engagedUntil else { return false }
         return now < engagedUntil
+    }
+
+    public var isControlling: Bool { controlling }
+    public var isRaw: Bool { rawPhases }
+
+    /// The pointer entered a surface that captures on entry. Travel now reaches
+    /// the agent, and every press is sent as a press.
+    ///
+    /// Deliberately does *not* take the human lease: that is the worker's to
+    /// grant, and a surface asks for it over the fast channel where the answer
+    /// is immediate. Calling this twice is harmless.
+    public mutating func beginControl(rawPhases: Bool = true) {
+        controlling = true
+        self.rawPhases = rawPhases
+    }
+
+    /// The pointer left, or the surface stopped being an input target.
+    public mutating func endControl() {
+        controlling = false
+        rawPhases = false
     }
 
     /// A deliberate action that is not a pointer gesture — typing into a proxy —
@@ -97,6 +139,8 @@ public struct RemotePointerGestureTracker {
         press = nil
         engagedUntil = nil
         lastRenewal = Date.distantPast
+        controlling = false
+        rawPhases = false
         scrollCarryX = 0
         scrollCarryY = 0
     }
@@ -104,9 +148,9 @@ public struct RemotePointerGestureTracker {
     /// A disappearing surface must not leave the agent's button held down.
     public mutating func cancelPress() -> RemotePointerGesture? {
         defer { press = nil }
-        guard let press, press.streamStarted else { return nil }
-        return .pointerUp(u: press.lastU, v: press.lastV,
-                          button: press.button, modifiers: press.modifiers)
+        guard let press, press.streamStarted || rawPhases else { return nil }
+        return .pointerUp(u: press.lastU, v: press.lastV, button: press.button,
+                          clickCount: press.clickCount, modifiers: press.modifiers)
     }
 
     /// Pointer travel.
@@ -115,7 +159,9 @@ public struct RemotePointerGestureTracker {
     /// *picture* of another session. Forwarding it would activate that app in the
     /// agent's session and move its pointer, so hovering there would interrupt
     /// whatever the agent is doing. Only a person who is already in control
-    /// expects the remote pointer to follow their hand.
+    /// expects the remote pointer to follow their hand — and "in control" is
+    /// either a live lease (the proxy rule) or capture (Desktop Mode, where the
+    /// picture *is* the screen being operated).
     public mutating func pointerMoved(to point: CGPoint, in surface: PreviewMapping,
                                       now: Date) -> RemotePointerGesture? {
         guard isEngaged(at: now) else { return nil }
@@ -123,22 +169,54 @@ public struct RemotePointerGestureTracker {
         return .hover(u: f.u, v: f.v)
     }
 
+    /// A press arriving in raw mode is sent the moment it happens, whatever it
+    /// turns out to be.
+    public var sendsPressesImmediately: Bool { rawPhases }
+
     /// The button came down. Returns whether this press should take the worker's
     /// human lease.
     ///
     /// The pause on automation starts here rather than when the gesture is finally
     /// posted, because the person has already committed to this surface.
     public mutating func beganPress(at point: CGPoint, button: MouseButton, modifiers: [Modifier],
-                                    in surface: PreviewMapping, now: Date) -> Bool {
+                                    in surface: PreviewMapping, now: Date,
+                                    clickCount: Int = 1) -> Bool {
         guard let f = surface.fraction(appKitX: Double(point.x), appKitY: Double(point.y)) else {
             press = nil
             return false
         }
         press = Press(viewOrigin: point, u: f.u, v: f.v, lastU: f.u, lastV: f.v,
-                      button: button, modifiers: modifiers)
+                      button: button, clickCount: max(1, clickCount), modifiers: modifiers)
         engagedUntil = now.addingTimeInterval(Self.humanLeaseSeconds)
         lastRenewal = now
         return true
+    }
+
+    /// The button came down, and every phase that follows it is reported as it
+    /// happens.
+    ///
+    /// This is the model a remote desktop needs, and it is the one RustDesk uses:
+    /// `MOUSE_DOWN` is sent when the local button goes down, not when the gesture
+    /// has been classified. The old shape — record the press, wait for three
+    /// points of travel, then decide between a click and a drag — is right for a
+    /// proxy that has to keep a person's ordinary click working and wrong for a
+    /// window the person is trying to *drag*, because it makes the title bar
+    /// respond only after the hand has already moved.
+    ///
+    /// A press that never moves is therefore sent as down + up rather than as a
+    /// click, which is exactly what the window server does with a real mouse:
+    /// click-ness is decided remotely, by the app that receives both events.
+    ///
+    /// Returns the gesture to post, or `nil` when the press landed in the
+    /// letterbox and belongs to nobody.
+    public mutating func beganPressPhases(at point: CGPoint, button: MouseButton, clickCount: Int,
+                                          modifiers: [Modifier], in surface: PreviewMapping,
+                                          now: Date) -> RemotePointerGesture? {
+        guard beganPress(at: point, button: button, modifiers: modifiers,
+                         in: surface, now: now, clickCount: clickCount) else { return nil }
+        guard rawPhases, let press else { return nil }
+        return .pointerDown(u: press.u, v: press.v, button: press.button,
+                            clickCount: press.clickCount, modifiers: press.modifiers)
     }
 
     /// Travel while the button is held. Remembers that the press went past the
@@ -156,17 +234,31 @@ public struct RemotePointerGestureTracker {
         return true
     }
 
-    /// Events to send before the local button comes up. Starting only after
-    /// the click/drag threshold preserves ordinary clicks, while the first
-    /// crossed point sends down + drag immediately instead of replaying the
-    /// entire path after release.
-    public mutating func dragged(to point: CGPoint, in surface: PreviewMapping,
-                                 now: Date) -> (renewLease: Bool, gestures: [RemotePointerGesture]) {
+    /// Every phase of a live drag, in order.
+    ///
+    /// In raw mode the press was already sent, so this emits only the travel —
+    /// including the first few points, which the threshold-based path deliberately
+    /// swallowed. A drag that has to clear three points before the remote window
+    /// hears anything is a title bar that starts moving late by exactly the
+    /// distance the hand covered first.
+    public mutating func draggedPhases(to point: CGPoint, in surface: PreviewMapping,
+                                       now: Date) -> (renewLease: Bool, gestures: [RemotePointerGesture]) {
         let renewLease = dragged(to: point, now: now)
-        guard var press, press.travelled,
+        guard var press,
               let fraction = surface.fractionClamped(appKitX: Double(point.x), appKitY: Double(point.y)) else {
             return (renewLease, [])
         }
+        if rawPhases {
+            let move = RemotePointerGesture.pointerDrag(
+                fromU: press.lastU, fromV: press.lastV, toU: fraction.u, toV: fraction.v,
+                button: press.button, modifiers: press.modifiers)
+            press.lastU = fraction.u
+            press.lastV = fraction.v
+            press.streamStarted = true
+            self.press = press
+            return (renewLease, [move])
+        }
+        guard press.travelled else { return (renewLease, []) }
         let move = RemotePointerGesture.pointerDrag(
             fromU: press.lastU, fromV: press.lastV, toU: fraction.u, toV: fraction.v,
             button: press.button, modifiers: press.modifiers)
@@ -179,9 +271,24 @@ public struct RemotePointerGestureTracker {
         press.streamStarted = true
         self.press = press
         return (renewLease, [
-            .pointerDown(u: press.u, v: press.v, button: press.button, modifiers: press.modifiers),
+            .pointerDown(u: press.u, v: press.v, button: press.button,
+                         clickCount: press.clickCount, modifiers: press.modifiers),
             move,
         ])
+    }
+
+    /// Events to send before the local button comes up. Starting only after
+    /// the click/drag threshold preserves ordinary clicks, while the first
+    /// crossed point sends down + drag immediately instead of replaying the
+    /// entire path after release.
+    ///
+    /// Kept beside `draggedPhases` because the two are different models rather
+    /// than two spellings of one: this is the threshold model a proxy uses when
+    /// it has not taken raw control, and the tests that pin it are the reason the
+    /// old behaviour cannot come back by accident.
+    public mutating func dragged(to point: CGPoint, in surface: PreviewMapping,
+                                 now: Date) -> (renewLease: Bool, gestures: [RemotePointerGesture]) {
+        draggedPhases(to: point, in: surface, now: now)
     }
 
     /// The button came up: the press resolves into a click or a drag here, because
@@ -195,9 +302,19 @@ public struct RemotePointerGestureTracker {
             return nil
         }
         engagedUntil = now.addingTimeInterval(Self.humanLeaseSeconds)
+        if rawPhases {
+            // The press already went out; the release is its other half. Landing
+            // outside the picture is pulled back onto it, because the travelled
+            // path started inside and dropping the release would leave the remote
+            // app's button held down.
+            guard let to = surface.fractionClamped(appKitX: Double(point.x), appKitY: Double(point.y)) else { return nil }
+            return .pointerUp(u: to.u, v: to.v, button: press.button,
+                              clickCount: max(press.clickCount, clickCount), modifiers: press.modifiers)
+        }
         if press.streamStarted {
             guard let to = surface.fractionClamped(appKitX: Double(point.x), appKitY: Double(point.y)) else { return nil }
-            return .pointerUp(u: to.u, v: to.v, button: press.button, modifiers: press.modifiers)
+            return .pointerUp(u: to.u, v: to.v, button: press.button,
+                              clickCount: press.clickCount, modifiers: press.modifiers)
         }
         if press.travelled {
             // A release that drifted past the image edge is pulled back onto it:

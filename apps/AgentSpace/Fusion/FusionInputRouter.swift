@@ -41,11 +41,13 @@ enum FusionInputRouter {
             addModifiers(modifiers, to: &object)
             return .object(object)
 
-        case .pointerDown(let u, let v, let button, let modifiers):
-            return pointerPhase("pointerDown", u: u, v: v, button: button, modifiers: modifiers)
+        case .pointerDown(let u, let v, let button, let clickCount, let modifiers):
+            return pointerPhase("pointerDown", u: u, v: v, button: button,
+                                clickCount: clickCount, modifiers: modifiers)
 
-        case .pointerUp(let u, let v, let button, let modifiers):
-            return pointerPhase("pointerUp", u: u, v: v, button: button, modifiers: modifiers)
+        case .pointerUp(let u, let v, let button, let clickCount, let modifiers):
+            return pointerPhase("pointerUp", u: u, v: v, button: button,
+                                clickCount: clickCount, modifiers: modifiers)
 
         case .pointerDrag(let fromU, let fromV, let toU, let toV, let button, let modifiers):
             var object: [String: JSONValue] = [
@@ -75,11 +77,15 @@ enum FusionInputRouter {
     }
 
     private static func pointerPhase(_ type: String, u: Double, v: Double,
-                                     button: MouseButton, modifiers: [Modifier]) -> JSONValue {
+                                     button: MouseButton, clickCount: Int,
+                                     modifiers: [Modifier]) -> JSONValue {
         var object: [String: JSONValue] = [
             "type": .string(type), "xFraction": .double(u), "yFraction": .double(v),
             "button": .string(button.rawValue),
         ]
+        // Additive on the wire, and absent means one click — which is what every
+        // existing proxy meant by sending a press with no count.
+        if clickCount != 1 { object["count"] = .int(clickCount) }
         addModifiers(modifiers, to: &object)
         return .object(object)
     }

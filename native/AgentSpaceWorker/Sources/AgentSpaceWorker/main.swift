@@ -535,6 +535,11 @@ case .success(let arguments):
     let frameManager = FrameManager(context: context)
     let server = SocketServer(socketPath: socketPath, context: context, serveOnce: arguments.once, frames: frameManager)
     let frameServer = FrameServer(context: context, manager: frameManager)
+    // The persistent binary input channel. One endpoint per Space, shared by the
+    // desktop viewer and every Fusion proxy of that account, on its own
+    // user-interactive queue so a capture that is busy encoding cannot delay a
+    // click.
+    let inputServer = InputServer(context: context, operations: server.operations)
 
     // The ordering rule: Session → **Desktop Ready** → Capture → Input.
     //
@@ -547,7 +552,16 @@ case .success(let arguments):
     // session that is perfectly inspectable. Input keeps asking the same
     // question per call (Operations step 1b), so a desktop that comes up late is
     // usable without restarting anything.
-    let desktopReadiness = context.desktopMonitor.waitForReady(timeout: 15)
+    // Bounded, and overridable for the test harness. The wait exists so a
+    // session that is still coming up is *reported* rather than silently refused
+    // per call; a harness that starts twenty workers to assert refusals should
+    // not pay fifteen seconds each for a diagnosis it has already been given.
+    // The product's own value is unchanged, and the override can only shorten a
+    // wait for a desktop that is not ready — the readiness answer itself is read
+    // fresh on every input call either way.
+    let readinessTimeout = ProcessInfo.processInfo.environment["AGENTSPACE_DESKTOP_READY_TIMEOUT"]
+        .flatMap(Double.init) ?? 15
+    let desktopReadiness = context.desktopMonitor.waitForReady(timeout: max(0, readinessTimeout))
     if desktopReadiness.isReady {
         Log.session.info("desktop ready after \(Int(Date().timeIntervalSince(context.startedAt) * 1000))ms; capture and input may start")
     } else {
@@ -570,6 +584,8 @@ case .success(let arguments):
         try server.bind()
         try frameServer.bind()
         frameServer.start()
+        try inputServer.bind()
+        inputServer.start()
     } catch SocketServer.BindError.alreadyRunning {
         let message = "another worker is already serving this agent"
         Log.worker.error(message)
@@ -613,6 +629,7 @@ case .success(let arguments):
     // Clean shutdown: remove the socket so the next start does not trip over it
     // and so the GUI can tell the worker is gone.
     let cleanup = {
+        inputServer.stop()
         frameServer.stop()
         frameManager.stopAll()
         writeStatusSnapshot(.stopped)

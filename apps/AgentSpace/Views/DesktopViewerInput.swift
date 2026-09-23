@@ -1,92 +1,252 @@
 import AppKit
+import Combine
 import AgentSpaceCore
 
-/// Turns the desktop viewer's pointer gestures into `input` calls.
+/// Turns the desktop viewer's pointer gestures into packets on the fast channel.
 ///
-/// The viewer is a person driving the agent's own desktop, so it goes through the
-/// same `input` operation an agent goes through. That is what keeps the two honest
-/// with each other: a gesture here is refused by the very human lease a Fusion
-/// proxy claims, and a coordinate that would be invalid for an agent is invalid
-/// here rather than silently landing somewhere else.
+/// This used to go through `SpaceService.input` — the same JSON RPC an agent
+/// uses — and the reasoning was sound at the time: a person driving the agent's
+/// desktop should be refused by exactly the rules an agent is refused by, and a
+/// second transport is a second place for those rules to be wrong. What it cost
+/// was the one thing a mouse is judged on. Every move opened a socket, encoded a
+/// request and waited for a reply; measured on this machine that was p95 3.98 ms
+/// per call (§327 row 894), which is invisible at 5 FPS and obvious at 60 — and
+/// the pointer is what a hand compares against its own motion at a much finer
+/// resolution than any frame rate.
 ///
-/// Travel is the one gesture that is *state* rather than an event, so it goes
-/// through the same coalescer a proxy uses — one hover in flight, the newest
-/// position behind it, and never a queue for the click that ended the wave to wait
-/// behind. A deliberate gesture bypasses it and keeps its own order.
+/// So the pointer moved to `input.sock`, and the *rules did not move*: the
+/// worker re-asks the session verdict, the desktop readiness, the Accessibility
+/// grant and the human lease for every packet, from the same code the RPC path
+/// uses. `SpaceService.input` remains the transport for keys and for everything
+/// an agent does.
 @MainActor
 final class DesktopViewerInput: ObservableObject {
     /// A refusal worth interrupting the desktop for. A skipped hover is not one:
-    /// pointer travel is refused by design while someone else holds the lease, and
-    /// replacing a working desktop with a message about a hover would be the viewer
-    /// manufacturing its own problem.
+    /// pointer travel is refused by design while nobody holds the lease, and
+    /// replacing a working desktop with a message about a hover would be the
+    /// viewer manufacturing its own problem.
     @Published private(set) var refusal: AppModel.PresentedError?
+    /// True once the channel is up and the worker has promised a cursor of its
+    /// own, which is what lets the viewer hide the local one and stop drawing
+    /// the cursor that is baked into the frames.
+    @Published private(set) var cursorChannelActive = false
 
     private var space: AgentAccount?
     private var display: DisplayGeometry?
-    private let inputQueue = DispatchQueue(label: BundleIdentifiers.app + ".desktop.input")
-    private var dragActive = false
+    private var client: InputClient?
+    private var subscriptions: Set<AnyCancellable> = []
+    /// One coalescer, at the display's own rate. Travel is state: at most one
+    /// packet is being written while at most one newer position waits behind it,
+    /// and a wave across the desktop cannot queue a hundred stale positions ahead
+    /// of the click that ended it.
+    ///
+    /// Built in `configure` rather than lazily, because its sender needs the
+    /// client that only exists once an account is known — and because a lazy
+    /// initialiser that reaches back into `self` cannot both reference and
+    /// release the coalescer it is building.
+    ///
+    /// The slot is released as soon as the packet is handed to the writer rather
+    /// than when the worker answers: travel has no answer worth waiting for, and
+    /// holding the slot for a round trip is the request/reply shape this channel
+    /// exists to remove.
+    private var travel: PointerTravelCoalescer<(x: Double, y: Double)>?
     private var pendingTravelPump: Task<Void, Never>?
-    private lazy var travel = PointerTravelCoalescer<InputAction> { [weak self] action in
-        Task { @MainActor in self?.deliverTravel(action) }
-    }
+    private var dragActive = false
+    /// The display point of the last gesture's press, so a drag's phases all
+    /// resolve against the frame the press named.
+    private var lastPressPoint: (x: Double, y: Double)?
 
-    /// Where the next gesture goes, and how big that surface is in the points the
-    /// input protocol means. Refreshed while the viewer renders, because the
-    /// snapshot is the only thing that knows either.
     func configure(space: AgentAccount, display: DisplayGeometry) {
         self.space = space
         self.display = display
+        let rate = DisplayRefresh.defaultPointerRate
+        if client == nil {
+            let created = InputClient(space: space)
+            client = created
+            travel = PointerTravelCoalescer(minimumInterval: 1.0 / rate) { [weak self] point in
+                guard let self else { return }
+                self.client?.move(to: point, target: .desktop)
+                // Released at once: the newest position replaces whatever is
+                // pending, which is the whole contract of a travel coalescer.
+                self.travel?.finished()
+            }
+            created.connect()
+            observe(created)
+        } else {
+            travel?.setMinimumInterval(1.0 / rate)
+        }
+    }
+
+    /// Follow the channel: its state decides whether this viewer may hide the
+    /// local cursor, and its published position is what the overlay draws.
+    ///
+    /// Subscribed rather than polled, and the position is forwarded straight to
+    /// the report closure instead of through a `@Published` property: it updates
+    /// at display rate, and a SwiftUI invalidation per position would redraw the
+    /// whole viewer at 120 Hz to move one AppKit layer.
+    private func observe(_ client: InputClient) {
+        subscriptions.removeAll()
+        client.$state
+            .receive(on: RunLoop.main)
+            .sink { [weak self] state in
+                guard let self else { return }
+                let next = state.isReady && client.capabilities.contains(.cursorShapes)
+                guard next != self.cursorChannelActive else { return }
+                self.cursorChannelActive = next
+                self.onCursorChannelChange?(next)
+                if !state.isReady { self.travel?.reset() }
+            }
+            .store(in: &subscriptions)
+        client.$capabilities
+            .receive(on: RunLoop.main)
+            .sink { [weak self] capabilities in
+                guard let self else { return }
+                let next = (self.client?.state.isReady == true) && capabilities.contains(.cursorShapes)
+                guard next != self.cursorChannelActive else { return }
+                self.cursorChannelActive = next
+                self.onCursorChannelChange?(next)
+            }
+            .store(in: &subscriptions)
+        client.$remoteCursor
+            .receive(on: RunLoop.main)
+            .sink { [weak self] presentation in
+                self?.onCursor?(presentation)
+            }
+            .store(in: &subscriptions)
+        client.$lastRefusal
+            .receive(on: RunLoop.main)
+            .compactMap { $0 }
+            .sink { [weak self] error in
+                guard let self, let space = self.space else { return }
+                self.refusal = AppModel.PresentedError(
+                    code: error.code.rawValue, message: error.message,
+                    fix: error.code.remediation, spaceName: space.name)
+            }
+            .store(in: &subscriptions)
+    }
+
+    /// Called with every position the worker publishes, so the surface can draw
+    /// it. Set by the viewer when it creates this object.
+    var onCursor: ((InputClient.CursorPresentation?) -> Void)?
+    /// Called when the channel comes up or goes away, so the host can act once
+    /// per transition rather than once per packet.
+    var onCursorChannelChange: ((Bool) -> Void)?
+
+    var remoteCursor: InputClient.CursorPresentation? { client?.remoteCursor }
+
+    /// Follow the display's pointer rate, which the viewer adjusts with the
+    /// capture rate: a 60 FPS drag wants 60 Hz travel, and a still desktop does
+    /// not need 120.
+    func setPointerRate(_ rate: Double) {
+        travel?.setMinimumInterval(1.0 / max(1, rate))
     }
 
     func send(_ gesture: RemotePointerGesture) {
-        guard let space, let display else { return }
+        guard let client, let display else { return }
         switch gesture {
         case .hover(let u, let v):
             let point = Self.point(u, v, display)
-            travel.offer(.move(x: point.x, y: point.y), now: Date())
+            travel?.offer(point, now: Date())
             schedulePendingTravel()
 
         case .click(let u, let v, let button, let count, let modifiers):
+            // A click is still expressible as down + up on the fast channel, and
+            // that is what it becomes: the worker posts the same two events, and
+            // the click state carries the count so a double-click stays one.
             let point = Self.point(u, v, display)
-            send(.click(x: point.x, y: point.y, button: button, count: count, modifiers: modifiers),
-                 to: space)
+            client.pointerDown(at: point, target: .desktop, button: button,
+                               clickCount: 1, modifiers: modifiers)
+            client.pointerUp(at: point, target: .desktop, button: button,
+                             clickCount: max(1, count), modifiers: modifiers)
 
         case .drag(let fromU, let fromV, let toU, let toV, let button, let modifiers):
             let press = Self.point(fromU, fromV, display)
             let release = Self.point(toU, toV, display)
-            send(.drag(fromX: press.x, fromY: press.y, toX: release.x, toY: release.y,
-                       button: button, modifiers: modifiers), to: space)
+            client.pointerDown(at: press, target: .desktop, button: button, clickCount: 1, modifiers: modifiers)
+            client.pointerDrag(from: press, to: release, target: .desktop, button: button, modifiers: modifiers)
+            client.pointerUp(at: release, target: .desktop, button: button, clickCount: 1, modifiers: modifiers)
 
-        case .pointerDown(let u, let v, let button, let modifiers):
+        case .pointerDown(let u, let v, let button, let clickCount, let modifiers):
             dragActive = true
-            travel.reset()
+            travel?.reset()
             let point = Self.point(u, v, display)
-            send(.pointerDown(x: point.x, y: point.y, button: button, modifiers: modifiers), to: space)
+            lastPressPoint = point
+            client.pointerDown(at: point, target: .desktop, button: button,
+                               clickCount: clickCount, modifiers: modifiers)
 
         case .pointerDrag(let fromU, let fromV, let toU, let toV, let button, let modifiers):
             let from = Self.point(fromU, fromV, display)
             let to = Self.point(toU, toV, display)
-            send(.pointerDrag(fromX: from.x, fromY: from.y, toX: to.x, toY: to.y,
-                              button: button, modifiers: modifiers), to: space)
+            // The gesture's own basis: the point the press named, not the point
+            // this packet starts from, so a window that has already moved does
+            // not make the drag chase itself.
+            let origin = lastPressPoint ?? from
+            client.pointerDrag(from: origin, to: to, target: .desktop, button: button, modifiers: modifiers)
+            lastPressPoint = to
 
-        case .pointerUp(let u, let v, let button, let modifiers):
+        case .pointerUp(let u, let v, let button, let clickCount, let modifiers):
             dragActive = false
+            lastPressPoint = nil
             let point = Self.point(u, v, display)
-            send(.pointerUp(x: point.x, y: point.y, button: button, modifiers: modifiers), to: space)
+            client.pointerUp(at: point, target: .desktop, button: button,
+                             clickCount: clickCount, modifiers: modifiers)
 
         case .scroll(let u, let v, let linesX, let linesY):
             let point = Self.point(u, v, display)
-            send(.scroll(x: point.x, y: point.y, dx: linesX, dy: linesY), to: space)
+            client.scroll(at: point, target: .desktop, dx: linesX, dy: linesY)
+        }
+    }
+
+    /// A person has taken the desktop: automation pauses now rather than when
+    /// the first press arrives, and resumes when they leave.
+    func claimHuman() {
+        client?.acquireHuman()
+    }
+
+    func releaseHuman() {
+        client?.releaseHuman()
+    }
+
+    func sendKey(_ combo: String) {
+        client?.key(combo)
+    }
+
+    func sendText(_ text: String) {
+        client?.type(text)
+    }
+
+    /// Send a key or a typed string over the fast channel. Returns false when the
+    /// channel is not up, which is the caller's signal to use the RPC path — the
+    /// fallback a worker from before this channel needs.
+    func sendKeyAction(_ action: InputAction) -> Bool {
+        guard let client, client.state.isReady else { return false }
+        switch action {
+        case .key(let combo): client.key(combo); return true
+        case .type(let text): client.type(text); return true
+        default: return false
         }
     }
 
     /// Positions collected for a desktop nobody is watching any more must not be
-    /// posted after it.
+    /// posted after it, and a person who has left must not leave automation
+    /// paused.
     func reset() {
         pendingTravelPump?.cancel()
         pendingTravelPump = nil
         dragActive = false
-        travel.reset()
+        lastPressPoint = nil
+        travel?.reset()
+        client?.releaseHuman()
+    }
+
+    /// Closes the channel. The worker sees the socket end, which is also its
+    /// fail-safe for a client that died mid-gesture.
+    func shutdown() {
+        reset()
+        subscriptions.removeAll()
+        client?.disconnect()
+        client = nil
+        cursorChannelActive = false
     }
 
     /// The gesture's fraction of the captured display, as the point on it that
@@ -96,45 +256,18 @@ final class DesktopViewerInput: ObservableObject {
         PreviewMapping.displayPoint(u: u, v: v, displayWidth: display.width, displayHeight: display.height)
     }
 
-    private func send(_ action: InputAction, to space: AgentAccount) {
-        inputQueue.async { [weak self] in
-            let error = SpaceService().input(for: space, actions: [action])
-            Task { @MainActor in
-                guard let self else { return }
-                guard let error else { self.refusal = nil; return }
-                self.refusal = AppModel.PresentedError(code: error.code.rawValue, message: error.message,
-                                                      fix: error.code.remediation, spaceName: space.name)
-            }
-        }
-    }
-
-    private func deliverTravel(_ action: InputAction) {
-        guard let space, !dragActive else {
-            travel.finished()
-            return
-        }
-        inputQueue.async { [weak self] in
-            _ = SpaceService().input(for: space, actions: [action])
-            Task { @MainActor in
-                guard let self else { return }
-                // A refused hover must still release the coalescer's slot.
-                self.travel.finished()
-                self.schedulePendingTravel()
-            }
-        }
-    }
-
-    /// A last hover can arrive inside the 30 Hz interval just after the
-    /// previous request finishes. No more mouse events are guaranteed, so it
-    /// needs its own wakeup; otherwise the cursor can stop at an old position.
+    /// A last hover can arrive inside one display-refresh interval just after the
+    /// previous packet's slot was released. No more mouse events are guaranteed,
+    /// so it needs its own wakeup; otherwise the cursor can stop at an old
+    /// position.
     private func schedulePendingTravel() {
-        guard let delay = travel.pendingDelay(), pendingTravelPump == nil else { return }
+        guard let delay = travel?.pendingDelay(), pendingTravelPump == nil else { return }
         pendingTravelPump = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(max(1, ceil(delay * 1_000_000_000))))
             guard let self else { return }
             self.pendingTravelPump = nil
             guard !Task.isCancelled else { return }
-            self.travel.pump()
+            self.travel?.pump()
             self.schedulePendingTravel()
         }
     }

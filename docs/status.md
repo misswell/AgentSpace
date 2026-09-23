@@ -4,12 +4,69 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-23 on `master`. Current public release: `0.1.36`
+Last updated: 2026-09-23 on `master`. **`0.1.38` is built and not published** — see the
+paragraph below the release header for why, in one sentence: this machine has no
+Developer ID private key, so the DMG cannot be notarized and an un-notarized
+download would be refused by Gatekeeper on the user's own Mac. The tree is
+complete, gated and committed; publishing needs one `.p12` import. Current
+public release: `0.1.36`
 (`v0.1.36` points to `6043f6a`, the build tree; `CFBundleVersion` 428 equals its
 commit count). The notarized and stapled DMG is
 [`AgentSpace-0.1.36.dmg`](https://github.com/misswell/AgentSpace/releases/tag/v0.1.36):
 5,762,400 bytes, `sha256:3f0103de8cb4ff40f7fa3ff9d9f3a9d56a129566cc440f1cbf984b24a6e676d2`.
 `releases/latest` returned that tag and digest after publication (§328 row 904).
+
+## 0.1.38 — Desktop input is no longer a request/reply conversation (2026-09-23)
+
+This round answers the report that the desktop still "feels remote" next to
+RustDesk or Parallels. The root cause was measured rather than guessed, and it
+was **not** the input transport — it was that the default preview rate was
+**5 FPS** while the agent's cursor is painted *into* the captured picture, so the
+remote pointer could never be newer than a frame (up to 200 ms), and no
+optimisation of the input path could have fixed it.
+
+What changed:
+
+- **A persistent binary input channel.** `Runtime/<id>/input.sock`, one
+  connection per account shared by the desktop viewer and every Fusion proxy,
+  fixed binary records instead of JSON, and no reply awaited for travel. A
+  scratch worker from this tree wrote **500** pointer packets down one socket at
+  **p50 0.221 ms / p95 0.255 ms**, against p95 0.597 ms for the RPC path it
+  replaces (§330 row 908). The safety model did not move: peer uid, token,
+  account, protocol version, and the session verdict re-asked *per packet*.
+- **Pointer capture.** Entering the agent's desktop hands the pointer over
+  (default `Auto`); leaving returns it. Fusion proxies keep press-to-capture
+  because a person's own windows surround them.
+- **The local cursor hides through a cursor rect**, never `NSCursor.hide()`. The
+  difference matters: a missed reset shows the ordinary cursor, where a missed
+  unhide would leave someone with no pointer anywhere on their Mac.
+- **The cursor left the video.** The worker publishes position and shape over the
+  input channel (public AppKit only — no CGS private API), the viewer draws the
+  sprite locally and optimistically, and the capture stops painting its own
+  cursor only after the worker *measures* it can read one.
+- **30 FPS by default, 60 while a gesture is live**, changed in place through a
+  new `frame.setFPS` (`SCStream.updateConfiguration`) rather than by reopening
+  the stream.
+- **The window matcher §328 row 901 left open is fixed**: scoring instead of an
+  exact title-and-frame rule, permissive for pointer input and strict for close,
+  minimize and resize.
+- **Two defects were found by running it, not by reading it**: answering every
+  packet of a 500-move run filled the worker's socket buffer until its own write
+  blocked and the connection died (now sampled, first and *changed* refusals
+  always sent — row 910), and connections on a serial queue meant a second window
+  connected and then never heard a packet (now one blocking read per connection —
+  row 911).
+
+Nothing in the frame engine, the shared-memory layout or the wire's existing
+methods was rewritten, and `protocolVersion` is still 1: old clients keep
+working, and a worker from before this round answers `frame.setFPS` with
+`METHOD_NOT_FOUND`, which both senders treat as "keep the rate you opened at"
+rather than as a failure.
+
+**This release needs two presses, and the second one is where most of it lives.**
+`frame.setFPS`, the input socket, the cursor provider and the relaxed window
+matcher are all in the **worker**, so 「检查更新」 brings the viewer's half and
+「重新安装助手…」 brings the half that actually moves anything.
 
 Desktop Mode now sends pointer down, each drag position, and pointer up in order;
 it no longer waits for mouse-up and replays the path. In the agent session, the old

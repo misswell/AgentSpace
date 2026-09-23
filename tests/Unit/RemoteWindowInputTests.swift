@@ -66,13 +66,13 @@ final class RemoteWindowInputTests: XCTestCase {
     func testLiveDragPhasesResolveThroughTheSameWindowGeometry() throws {
         XCTAssertEqual(
             try action(#"{"type":"pointerDown","xFraction":0.25,"yFraction":0.25,"button":"left"}"#),
-            .pointerDown(x: 300, y: 150, button: .left, modifiers: []))
+            .pointerDown(x: 300, y: 150, button: .left, clickCount: 1, modifiers: []))
         XCTAssertEqual(
             try action(#"{"type":"pointerDrag","xFraction":0.25,"yFraction":0.25,"toXFraction":0.5,"toYFraction":0.5,"button":"left"}"#),
             .pointerDrag(fromX: 300, fromY: 150, toX: 400, toY: 200, button: .left, modifiers: []))
         XCTAssertEqual(
             try action(#"{"type":"pointerUp","xFraction":0.5,"yFraction":0.5,"button":"left"}"#),
-            .pointerUp(x: 400, y: 200, button: .left, modifiers: []))
+            .pointerUp(x: 400, y: 200, button: .left, clickCount: 1, modifiers: []))
     }
 
     /// Which button and which modifiers were held is the difference between a

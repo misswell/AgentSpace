@@ -63,7 +63,17 @@ struct DesktopViewerView: View {
         }
     }
 
-    private static let frameRateOptions = [1, 5, 10, 15, 30]
+    /// The rates a person can choose. 30 is the default because the previous
+    /// default of 5 was the single largest contributor to the desktop feeling
+    /// remote: a cursor that lives inside the captured picture can be no newer
+    /// than the newest frame, so 5 FPS meant a quarter of a second of lag on the
+    /// thing a hand judges first, whatever the input path cost.
+    ///
+    /// 60 is offered because the capture path can do it and because a drag looks
+    /// wrong below the panel's own rate; the rate policy raises the *stream* to
+    /// 60 while a button is held even at a lower stored preference, because a
+    /// window being dragged has to move with the hand that is dragging it.
+    private static let frameRateOptions = [1, 5, 10, 15, 30, 60]
 
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -71,18 +81,38 @@ struct DesktopViewerView: View {
     @State private var lastCapture: Date?
     @State private var captureError: AppModel.PresentedError?
     @State private var frameClient: FrameClient?
+    /// The capture rate actually asked for, which differs from the stored
+    /// preference while a gesture is live: a drag raises the stream to 60 FPS
+    /// whatever the preference says, because a dragged window that updates at
+    /// 15 FPS does not look like it is being dragged.
+    @State private var liveFPS: Int?
     /// The viewer's own input path: gestures in, `input` calls out, with the
     /// pointer-travel coalescing a proxy uses.
     @StateObject private var input = DesktopViewerInput()
     @State private var pendingAction: String?
+    /// The bridge that lets this SwiftUI view push the worker's cursor position
+    /// into the AppKit layer that draws it. Owned here rather than inside the
+    /// surface because the position arrives on the view's `InputClient`, and the
+    /// surface is rebuilt whenever SwiftUI feels like it.
+    @StateObject private var cursorOverlay = RemoteCursorOverlayProxy()
     /// The display-quality mode, on the same key Settings' picker writes.
     @AppStorage(DisplayQuality.storageKey) private var displayQuality = DisplayQuality.default.rawValue
-    @AppStorage("previewFPS") private var previewFPS = 5
+    @AppStorage("previewFPS") private var previewFPS = 30
+    /// How the pointer behaves over the agent's desktop. See `MouseCaptureMode`:
+    /// the default hands the pointer over on entry, which is what makes Desktop
+    /// Mode feel like the machine in front of the person rather than a picture of
+    /// one.
+    @AppStorage(MouseCaptureMode.storageKey) private var captureMode = MouseCaptureMode.default.rawValue
     @State private var zoom = ViewerZoom.fit
 
     /// The mode in force, with anything unreadable falling back to the default
     /// rather than to a guess.
     private var quality: DisplayQuality { DisplayQuality.parse(displayQuality) ?? .default }
+
+    /// The pointer policy in force, on the same "unreadable means default" rule.
+    private var pointerPolicy: PointerCapturePolicy {
+        (MouseCaptureMode.parse(captureMode) ?? .default).policy(for: .desktop)
+    }
 
     /// The most pixels this viewer may ask the worker for.
     ///
@@ -182,16 +212,24 @@ struct DesktopViewerView: View {
             guard let action else { return event }
             let space = snapshot.space
             self.pendingAction = Self.describe(action)
-            Task { @MainActor in
-                let error = await Task.detached(priority: .userInitiated) {
-                    SpaceService().input(for: space, actions: [action])
-                }.value
-                if let error {
-                    self.captureError = AppModel.PresentedError(
-                        code: error.code.rawValue,
-                        message: error.message,
-                        fix: error.code.remediation,
-                        spaceName: space.name)
+            // Keys take the fast channel when it is up, and the RPC path when it
+            // is not. Both end in the worker's own `KeyCombo` parser and the same
+            // session gates, so the only difference is which socket carries the
+            // bytes — and a keystroke that shares a socket with the pointer cannot
+            // be queued behind a JSON encode.
+            let channelUp = self.input.sendKeyAction(action)
+            if !channelUp {
+                Task { @MainActor in
+                    let error = await Task.detached(priority: .userInitiated) {
+                        SpaceService().input(for: space, actions: [action])
+                    }.value
+                    if let error {
+                        self.captureError = AppModel.PresentedError(
+                            code: error.code.rawValue,
+                            message: error.message,
+                            fix: error.code.remediation,
+                            spaceName: space.name)
+                    }
                 }
             }
             return nil // consumed: the key went to the agent session
@@ -280,7 +318,18 @@ struct DesktopViewerView: View {
                     acceptsInput: snapshot.acceptsInput,
                     remoteContentSize: CGSize(width: snapshot.display?.width ?? 0,
                                               height: snapshot.display?.height ?? 0),
-                    onGesture: { gesture in send(gesture, snapshot: snapshot) })
+                    capturePolicy: snapshot.acceptsInput ? pointerPolicy : .watchOnly,
+                    // The local cursor is hidden only once the worker has proved
+                    // it publishes one of its own. Hiding it earlier would leave
+                    // the person looking at a desktop with no pointer at all —
+                    // worse than a cursor that lags by one frame.
+                    hidesLocalCursor: input.cursorChannelActive,
+                    onGesture: { gesture in send(gesture, snapshot: snapshot) },
+                    onClaimHuman: { input.claimHuman() },
+                    onReleaseHuman: { input.releaseHuman() },
+                    sendsRawPresses: true,
+                    cursorOverlay: cursorOverlay,
+                    onDragActivity: { active in setDragActivity(active) })
                 if !snapshot.acceptsInput { inputBlockedOverlay(snapshot) }
                 VStack { HStack { FrameClientStatusOverlay(client: frameClient); Spacer() }; Spacer() }
             }
@@ -389,6 +438,19 @@ struct DesktopViewerView: View {
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("desktopViewerFPSPicker")
 
+                // Mouse capture is a preference rather than a fixed behaviour:
+                // taking the pointer on entry is what makes the desktop feel
+                // local, and it is also the thing a person may not want if they
+                // are watching the agent work.
+                Picker("Mouse Capture", selection: $captureMode) {
+                    Text("Auto").tag(MouseCaptureMode.auto.rawValue)
+                    Text("Click to Capture").tag(MouseCaptureMode.clickToCapture.rawValue)
+                    Text("Off").tag(MouseCaptureMode.off.rawValue)
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("desktopViewerCaptureModePicker")
+                .help(Text("When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back."))
+
                 Spacer(minLength: 0)
 
                 // What the stream actually is, in the two sizes that answer every
@@ -422,6 +484,20 @@ struct DesktopViewerView: View {
     private func startPreview() {
         guard frameClient == nil else { return }
         guard let space = snapshot?.space else { return }
+        // The cursor channel and the capture's own cursor are mutually
+        // exclusive: while the overlay draws the agent's pointer, the picture
+        // must stop painting one, or the person sees two — the trailing ghost
+        // this whole path exists to remove.
+        let overlay = cursorOverlay
+        input.onCursor = { [weak overlay] presentation in overlay?.apply(presentation) }
+        input.onCursorChannelChange = { [weak frameClient, weak overlay] active in
+            overlay?.isDrawingCursor = active
+            // Only once the worker has *proved* it can publish shapes: turning
+            // the painted cursor off for a channel that then fails would leave
+            // the desktop with no pointer at all.
+            frameClient?.setEmbeddedCursor(!active)
+        }
+        if let display = snapshot?.display { input.configure(space: space, display: display) }
         // Opened at the mode's own size rather than at "whatever the worker
         // thinks", so the first stream and the first `layout()` agree: the
         // surface's debounce reopens the stream when the requested size changes
@@ -435,9 +511,14 @@ struct DesktopViewerView: View {
 
     private func stopPreview() {
         frameClient?.stop(); frameClient = nil
+        liveFPS = nil
         // Nothing collected for a desktop that is no longer being watched may
-        // still be posted afterwards.
+        // still be posted afterwards, and the fast channel closes with the
+        // window: it exists for a person who is looking at the desktop.
         input.reset()
+        cursorOverlay.detach()
+        input.onCursor = nil
+        input.onCursorChannelChange = nil
     }
 
     private func restartPreviewIfNeeded() {
@@ -479,6 +560,23 @@ struct DesktopViewerView: View {
         guard snapshot.acceptsInput, let display = snapshot.display else { return }
         input.configure(space: snapshot.space, display: display)
         input.send(gesture)
+    }
+
+    /// A gesture started or ended, so the capture rate can follow it.
+    ///
+    /// A dragged or resized window at 15 FPS does not look dragged: the picture
+    /// updates four times in the time the hand crosses the screen. The rate is
+    /// raised to 60 while the button is down and returned to the person's own
+    /// preference when it comes up — in place, through `frame.setFPS`, because
+    /// reopening the stream would rebuild the shared region and restart the
+    /// decoder to move one number.
+    private func setDragActivity(_ active: Bool) {
+        let policy = InputRatePolicy(ceiling: previewFPS)
+        let target = policy.frames(for: active ? .interactive : .active)
+        guard liveFPS != target else { return }
+        liveFPS = target
+        frameClient?.setFPS(target)
+        input.setPointerRate(policy.pointerRate)
     }
 
 }

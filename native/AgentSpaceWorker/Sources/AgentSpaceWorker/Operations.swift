@@ -63,6 +63,7 @@ struct Operations {
             case Method.frameConfigure: return .success(try frameConfigure(params: params))
             case Method.frameRequestFull: return .success(try frameRequestFull(params: params))
             case Method.frameStats: return .success(try frameStats(params: params))
+            case Method.frameSetFPS: return .success(try frameSetFPS(params: params))
             case Method.windowList: return .success(try windowList())
             case Method.windowStreamStart: return .success(try windowStreamStart(params: params))
             case Method.windowStreamFrame: return .success(try windowStreamFrame(params: params))
@@ -408,7 +409,7 @@ struct Operations {
         for (index, action) in actions.enumerated() {
             switch action {
             case .move(let x, let y), .click(let x, let y, _, _, _),
-                 .pointerDown(let x, let y, _, _), .pointerUp(let x, let y, _, _):
+                 .pointerDown(let x, let y, _, _, _), .pointerUp(let x, let y, _, _, _):
                 if let error = CoordinateRules.validate(x: x, y: y, geometry: geometry) {
                     throw AgentSpaceError(
                         code: error.code,
@@ -817,6 +818,37 @@ struct Operations {
         // debounce boundary. Keep the additive method explicit and honest.
         _ = try frameStreamID(params)
         return .obj(["reopenRequired": .bool(true)])
+    }
+
+    /// Change a running stream's capture rate in place.
+    ///
+    /// The rate is a property of the *stream*, not of the stream's identity: the
+    /// display is the same size, the shared region is the same region, and only
+    /// the interval between samples moved. `SCStream.updateConfiguration` applies
+    /// that; rebuilding through close/open would hand the viewer a new mapping and
+    /// restart its decoder to move one number, which is the thing this method
+    /// exists to avoid.
+    ///
+    /// `showsCursor` rides along because it is the same operation on the same
+    /// configuration, and because the two decisions are made together: once the
+    /// viewer draws its own cursor, the capture must stop painting one, and both
+    /// happen at the moment the input channel proves it can carry the cursor.
+    func frameSetFPS(params: JSONValue) throws -> JSONValue {
+        guard let publisher = frames.publisher(try frameStreamID(params)) else {
+            throw AgentSpaceError(code: .previewNotRunning, message: "frame stream is not running")
+        }
+        var reply: [String: JSONValue] = [:]
+        if let fps = params["fps"]?.intValue {
+            reply["fps"] = .int(publisher.updateFrameRate(fps))
+        }
+        if let embeds = params["showsCursor"]?.boolValue {
+            publisher.setCursorPainting(embeds)
+            reply["showsCursor"] = .bool(embeds)
+        }
+        guard !reply.isEmpty else {
+            throw AgentSpaceError(code: .badRequest, message: #"frame.setFPS requires "fps" or "showsCursor""#)
+        }
+        return .obj(reply)
     }
 
     func frameRequestFull(params: JSONValue) throws -> JSONValue {

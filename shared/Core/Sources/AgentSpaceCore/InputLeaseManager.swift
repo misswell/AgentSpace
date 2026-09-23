@@ -17,6 +17,19 @@ public final class InputLeaseManager: @unchecked Sendable {
         humanUntil = now.addingTimeInterval(duration)
     }
 
+    /// Let go early, which is what leaving a captured surface means.
+    ///
+    /// The five-second lease exists as the fail-safe for a client that dies
+    /// without releasing — a crash, a killed window, a dropped connection — and
+    /// it stays exactly that. It is a poor *normal* path in one direction only:
+    /// a person who has finished with the agent's desktop should not have to
+    /// wait out a timer before their automation resumes, and an explicit release
+    /// is the difference between "the agent may work again" and "the agent may
+    /// work again in a moment, probably".
+    public func releaseHuman() {
+        lock.lock(); humanUntil = nil; lock.unlock()
+    }
+
     public func automationAllowed(now: Date = Date()) -> Bool {
         lock.lock(); defer { lock.unlock() }
         guard let humanUntil else { return true }

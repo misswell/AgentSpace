@@ -23,13 +23,16 @@ final class CaptureEngine: NSObject {
     private let target: CaptureTarget
     private let targetWidth: Int
     private let targetHeight: Int
-    private let maxFPS: Int
     private let handler: Handler
     private let terminationHandler: (Termination) -> Void
     private let lock = NSLock()
     private var stream: SCStream?
     private var reportedFailure = false
     private var sequence: UInt64 = 0
+    /// The rate in force. Kept as state rather than as `let`, because changing
+    /// the frame rate must not rebuild the stream: the capture is the same
+    /// display at the same size, and only the interval between samples moved.
+    private var maxFPS: Int
 
     /// What a capture resolved to, and what it was resolved from.
     ///
@@ -118,7 +121,9 @@ final class CaptureEngine: NSObject {
         configuration.width = max(1, width); configuration.height = max(1, height)
         configuration.pixelFormat = kCVPixelFormatType_32BGRA
         configuration.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(maxFPS))
-        configuration.queueDepth = 2; configuration.showsCursor = true; configuration.scalesToFit = true
+        configuration.queueDepth = 2; configuration.scalesToFit = true
+        configuration.showsCursor = _showsCursor
+        lock.lock(); lastWidth = max(1, width); lastHeight = max(1, height); lock.unlock()
         let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
         try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: DispatchQueue(label: BundleIdentifiers.worker + ".capture-engine"))
         lock.lock(); self.stream = stream; self.reportedFailure = false; lock.unlock()
@@ -140,6 +145,70 @@ final class CaptureEngine: NSObject {
         let stopped = DispatchSemaphore(value: 0); stream.stopCapture { _ in stopped.signal() }; _ = stopped.wait(timeout: .now() + 5)
         terminationHandler(.stopped)
     }
+
+    /// Change the capture rate without touching anything else.
+    ///
+    /// `SCStream.updateConfiguration` applies a new `minimumFrameInterval` to the
+    /// running stream. The alternative — closing and reopening — would rebuild
+    /// the shared-memory region, hand the viewer a new descriptor and restart the
+    /// decoder, all to move a number that the stream already knows how to change:
+    /// measured cost of the naive version was one full reconnect per rate change,
+    /// and the desktop viewer changes rate whenever a button goes down.
+    ///
+    /// Returns the rate now in force, which is what the caller reports.
+    @discardableResult
+    func updateFrameRate(_ fps: Int) -> Int {
+        let clamped = max(1, min(60, fps))
+        lock.lock()
+        let stream = self.stream
+        let previous = maxFPS
+        if clamped != previous { maxFPS = clamped }
+        lock.unlock()
+        guard let stream, clamped != previous else { return clamped }
+        let configuration = SCStreamConfiguration()
+        configuration.width = lastWidth
+        configuration.height = lastHeight
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(clamped))
+        configuration.queueDepth = 2
+        configuration.showsCursor = showsCursor
+        configuration.scalesToFit = true
+        let applied = DispatchSemaphore(value: 0)
+        var failure: Error?
+        stream.updateConfiguration(configuration) { error in failure = error; applied.signal() }
+        // Bounded wait: an update that never returns must not park the frame
+        // publisher's queue, which is where this is called from.
+        _ = applied.wait(timeout: .now() + 2)
+        if let failure {
+            Log.capture.error("frame stream could not change its rate to \(clamped) FPS (\(failure)), staying at \(previous)")
+            lock.lock(); maxFPS = previous; lock.unlock()
+            return previous
+        }
+        Log.capture.info("frame stream rate is now \(clamped) FPS")
+        return clamped
+    }
+
+    /// Whether the capture paints the session's cursor into the picture.
+    ///
+    /// Turned off only once the worker has proved it can publish a cursor of its
+    /// own over the input channel (`CursorStateProvider.shapesAvailable`).
+    /// Turning it off earlier would be a desktop with no pointer at all, which is
+    /// worse than a lagging one.
+    var showsCursor: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _showsCursor }
+        set {
+            lock.lock(); let changed = _showsCursor != newValue; _showsCursor = newValue; lock.unlock()
+            guard changed else { return }
+            updateFrameRate(maxFPS)
+            Log.capture.info("capture cursor painting is now \(newValue ? "on" : "off")")
+        }
+    }
+
+    /// The size the running stream was started at, needed to build a
+    /// configuration for an update. Written once in `start()`.
+    private var lastWidth = 1
+    private var lastHeight = 1
+    private var _showsCursor = true
 }
 
 extension CaptureEngine: SCStreamOutput {

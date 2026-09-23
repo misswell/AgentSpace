@@ -107,6 +107,14 @@ final class WorkerHarness {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
+        // The worker waits for a usable desktop before binding, which on a locked
+        // or single-session machine takes the whole timeout for an answer these
+        // tests do not depend on: every assertion here is about a *refusal*, and
+        // the refusal is re-decided per call. Shortening the wait keeps the gate
+        // quick without weakening anything it checks.
+        var environment = ProcessInfo.processInfo.environment
+        environment["AGENTSPACE_DESKTOP_READY_TIMEOUT"] = "0"
+        process.environment = environment
         process.arguments = [
             "--space-id", spaceID.uuidString,
             "--name", "Safety Test Space",

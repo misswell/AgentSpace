@@ -582,3 +582,13 @@
 "Loading applications…" = "正在读取应用…";
 "Could not list applications" = "无法读取应用列表";
 "No application matches that search" = "没有匹配的应用";
+
+/* Desktop viewer: how the pointer behaves over the agent's desktop. */
+"Mouse Capture" = "鼠标接管";
+"Auto" = "自动";
+"Click to Capture" = "点击后接管";
+"Off" = "关闭";
+"When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back." = "何时由 Agent 桌面接管鼠标：鼠标进入即接管，或点击后接管。按 Control-Option 或 Control-Command-G 可随时交还。";
+
+/* Fusion: the window an input names no longer exists. */
+"The window this input names is gone or has been re-created. Re-open the Fusion window list and try again." = "这条输入指向的窗口已不存在或已被重新创建。请重新打开融合窗口列表后重试。";

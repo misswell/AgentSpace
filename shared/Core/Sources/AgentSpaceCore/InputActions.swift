@@ -58,9 +58,15 @@ public enum InputAction: Equatable, Sendable {
     case move(x: Double, y: Double)
     case click(x: Double, y: Double, button: MouseButton, count: Int, modifiers: [Modifier])
     case drag(fromX: Double, fromY: Double, toX: Double, toY: Double, button: MouseButton, modifiers: [Modifier])
-    case pointerDown(x: Double, y: Double, button: MouseButton, modifiers: [Modifier])
+    /// `clickCount` is additive at protocol version 1: it defaults to 1, so a
+    /// client from before this field existed sends a single click, which is what
+    /// its absence always meant. It exists because `NSEvent.clickCount` is what
+    /// the window server uses to tell the second press of a double-click from an
+    /// unrelated first one — without it a double-click arrives as two clicks and
+    /// a file rename in the Finder never opens the name field.
+    case pointerDown(x: Double, y: Double, button: MouseButton, clickCount: Int, modifiers: [Modifier])
     case pointerDrag(fromX: Double, fromY: Double, toX: Double, toY: Double, button: MouseButton, modifiers: [Modifier])
-    case pointerUp(x: Double, y: Double, button: MouseButton, modifiers: [Modifier])
+    case pointerUp(x: Double, y: Double, button: MouseButton, clickCount: Int, modifiers: [Modifier])
     case scroll(x: Double?, y: Double?, dx: Int, dy: Int)
     case type(text: String)
     case key(combo: String)
@@ -199,12 +205,21 @@ extension InputAction {
                 }
                 button = parsed
             }
+            // Additive: absent means one click, which is what every older caller
+            // meant by sending a press with no count at all.
+            var clickCount = 1
+            if let raw = object["count"]?.intValue {
+                guard raw >= 1 && raw <= InputLimits.maxClickCount else {
+                    return bad("count must be between 1 and \(InputLimits.maxClickCount)")
+                }
+                clickCount = raw
+            }
             guard let modifiers = parseModifiers(object["modifiers"], index: index) else {
                 return bad("modifiers must be an array of known modifier names")
             }
             return .success(type == "pointerDown"
-                ? .pointerDown(x: x, y: y, button: button, modifiers: modifiers)
-                : .pointerUp(x: x, y: y, button: button, modifiers: modifiers))
+                ? .pointerDown(x: x, y: y, button: button, clickCount: clickCount, modifiers: modifiers)
+                : .pointerUp(x: x, y: y, button: button, clickCount: clickCount, modifiers: modifiers))
 
         case "drag", "pointerDrag":
             guard let fx = object["fromX"]?.doubleValue, let fy = object["fromY"]?.doubleValue,
@@ -486,12 +501,13 @@ extension InputAction {
             }
             return .object(object)
 
-        case .pointerDown(let x, let y, let button, let modifiers),
-             .pointerUp(let x, let y, let button, let modifiers):
+        case .pointerDown(let x, let y, let button, let clickCount, let modifiers),
+             .pointerUp(let x, let y, let button, let clickCount, let modifiers):
             var object: [String: JSONValue] = [
                 "type": .string(typeName), "x": .double(x), "y": .double(y),
                 "button": .string(button.rawValue),
             ]
+            if clickCount != 1 { object["count"] = .int(clickCount) }
             if !modifiers.isEmpty {
                 object["modifiers"] = .array(modifiers.map { .string($0.rawValue) })
             }

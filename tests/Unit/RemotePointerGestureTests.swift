@@ -78,13 +78,13 @@ final class RemotePointerGestureTests: XCTestCase {
         let update = tracker.dragged(to: point(480, 270), in: square,
                                      now: start.addingTimeInterval(0.1))
         XCTAssertEqual(update.gestures, [
-            .pointerDown(u: 0.25, v: 0.25, button: .left, modifiers: []),
+            .pointerDown(u: 0.25, v: 0.25, button: .left, clickCount: 1, modifiers: []),
             .pointerDrag(fromU: 0.25, fromV: 0.25, toU: 0.5, toV: 0.5,
                          button: .left, modifiers: []),
         ], "the remote window must begin moving while the button is still held")
         XCTAssertEqual(tracker.endedPress(at: point(720, 135), clickCount: 1,
                                          in: square, now: start.addingTimeInterval(0.2)),
-                       .pointerUp(u: 0.75, v: 0.75, button: .left, modifiers: []))
+                       .pointerUp(u: 0.75, v: 0.75, button: .left, clickCount: 1, modifiers: []))
     }
 
     /// Three points of jitter is still a click; four is a drag. Both surfaces have

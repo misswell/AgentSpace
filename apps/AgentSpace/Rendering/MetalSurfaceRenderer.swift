@@ -27,6 +27,19 @@ final class MetalSurfaceRenderer {
         CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &textureCache)
         layer = CAMetalLayer(); layer.device = device; layer.pixelFormat = .bgra8Unorm
         layer.framebufferOnly = false; layer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
+        // Two drawables, and presents not tied to a transaction.
+        //
+        // The count is a latency decision rather than a tuning knob: a layer with
+        // three or more in flight lets the compositor hold frames it has already
+        // been handed, which is invisible at 5 FPS and is exactly the extra frame
+        // of lag a person notices at 60. Two is the minimum that still lets this
+        // renderer build the next frame while the compositor takes the last one.
+        layer.maximumDrawableCount = 2
+        // `presentsWithTransaction` exists for synchronising a layer with a
+        // transaction the caller is already inside; nothing here is, and leaving
+        // it on makes every present wait for a transaction commit that never
+        // comes — the classic "why is my Metal view one frame behind" answer.
+        layer.presentsWithTransaction = false
         layer.backgroundColor = NSColor.black.cgColor
     }
 

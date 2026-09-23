@@ -582,3 +582,13 @@
 "Loading applications…" = "Loading applications…";
 "Could not list applications" = "Could not list applications";
 "No application matches that search" = "No application matches that search";
+
+/* Desktop viewer: how the pointer behaves over the agent's desktop. */
+"Mouse Capture" = "Mouse Capture";
+"Auto" = "Auto";
+"Click to Capture" = "Click to Capture";
+"Off" = "Off";
+"When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back." = "When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back.";
+
+/* Fusion: the window an input names no longer exists. */
+"The window this input names is gone or has been re-created. Re-open the Fusion window list and try again." = "The window this input names is gone or has been re-created. Re-open the Fusion window list and try again.";
