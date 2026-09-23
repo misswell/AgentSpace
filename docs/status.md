@@ -4,7 +4,32 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-23 on `master`. Current public release: `0.1.31`
+Last updated: 2026-09-23 on `master`. Current public release: `0.1.33`
+(`v0.1.33`, annotated at `4e7b1c1` — the commit whose tree the bundle was built from,
+`git rev-list --count` there = 422 = the stamp inside it; the GitHub Release asset
+reports `sha256:a7f870228dfb49503205f0536f1fb207716873544ca153eb1b1031175a16edbc` over
+`5709522` bytes, byte-for-byte what `check-all.sh` gated, and `releases/latest` — the
+product's own update channel — answered the new tag on three samples with that same
+digest in its asset list, no `make_latest` write needed this time). It ships the
+**Fusion app picker** (§325): until now Fusion could only mirror what was already
+*running*, so 「单独融合 Safari / Terminal / VSCode」 began with "start it some other
+way first". The toolbar's 「融合应用…」 lists what is installed in that session
+(measured: **224** regular apps out of **372** bundles; the rest are
+`/System/Library/CoreServices` daemons with no window to fuse), with a search field,
+icons rendered by the worker, and a per-row action that launches the app or — when it
+is already up — shows the windows it has.
+**This release needs two presses, and the second one is what makes it work:**
+「检查更新」 brings the picker's surface, but the question it asks
+(`apps.available`) is answered by the **worker**, and the installed worker is
+`0.1.27` — until 「重新安装助手…」 the picker reports
+`METHOD_NOT_FOUND: unknown method 'apps.available'` (§325 row 882, §326 row 891).
+`0.1.32`, published two hours earlier, carries **no product change** at all — four
+version strings and nothing else — and exists only to ship §324's verification
+instrument. This round also records the first release whose layer 4 ran to green
+**without touching anybody's desktop**: 13/13 in the agent account's session while the
+owner's own app stayed open, which is the state §310 row 779 and §313 row 792 had to
+skip that layer to avoid (§326 row 888).
+The release before that, `0.1.31`
 (`v0.1.31`, annotated at `b06418e` — the commit whose tree the bundle was built from,
 `git rev-list --count` there = 413 = the stamp inside it; the GitHub Release asset
 reports `sha256:68351f1022e5c7e147fbaec216ca9dfeaf3c4af835b49c842cf2b1e1b56043db` over
