@@ -44,4 +44,46 @@ public enum CaptureSizing {
         }
         return (naturalWidth, naturalHeight)
     }
+
+    /// A resolved buffer size, and whether a ceiling reduced it.
+    public struct Plan: Equatable, Sendable {
+        public let width: Int
+        public let height: Int
+        /// True when `SharedFrameGeometry.maximumPixels` cut the size down. Said
+        /// out loud rather than folded into the numbers because a softer picture
+        /// and a deliberate one look identical once only the size is reported.
+        public let capped: Bool
+
+        public init(width: Int, height: Int, capped: Bool) {
+            self.width = width; self.height = height; self.capped = capped
+        }
+
+        public var pixels: Int { width * height }
+    }
+
+    /// The buffer to build, held to the largest size one stream may hold.
+    ///
+    /// The subject's own pixel size is the ceiling for quality — an upscale can
+    /// be asked for, but nothing above it is detail. The budget is the ceiling
+    /// for survival: a mapping the manager would refuse, or one that leaves no
+    /// room for a second surface, is not a picture anyone can use. So the fit
+    /// happens first (the aspect is the subject's) and the ceiling second, where
+    /// it scales both axes by the same factor so the buffer keeps that aspect.
+    ///
+    /// `maximumPixels` is not reachable by any single display today, which is the
+    /// point of measuring rather than guessing: it is a bound the code can prove
+    /// instead of a number that felt large.
+    public static func planned(naturalWidth: Int, naturalHeight: Int,
+                               targetWidth: Int, targetHeight: Int) -> Plan {
+        let (width, height) = resolved(naturalWidth: naturalWidth, naturalHeight: naturalHeight,
+                                      targetWidth: targetWidth, targetHeight: targetHeight)
+        let pixels = width * height
+        guard pixels > SharedFrameGeometry.maximumPixels else {
+            return Plan(width: width, height: height, capped: false)
+        }
+        let scale = (Double(SharedFrameGeometry.maximumPixels) / Double(pixels)).squareRoot()
+        return Plan(width: max(1, Int((Double(width) * scale).rounded())),
+                    height: max(1, Int((Double(height) * scale).rounded())),
+                    capped: true)
+    }
 }

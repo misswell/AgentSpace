@@ -31,6 +31,13 @@ final class SharedFramePublisher {
     /// holding, and "same generation" is what tells a reader to keep its pixels.
     private var generation: UInt64 = 0
     private var dimensions: (Int, Int)?
+    /// Whether the capture feeding this mapping was cut by the pixel ceiling.
+    ///
+    /// Recorded when the capture starts rather than recomputed here: only the
+    /// capture knows what it asked a subject for and what it was given, and a
+    /// reader of `frame.stats` needs both to tell a soft picture that was asked
+    /// for from one that was trimmed.
+    private var captureCapped = false
     /// The size this stream needs and could not get a mapping for.
     ///
     /// Held so the next reconnect can ask again. Retrying per captured frame
@@ -75,6 +82,12 @@ final class SharedFramePublisher {
     /// worker's most recent refusal.
     func prepare(width: Int, height: Int) throws {
         try queue.sync { try self.allocate(width: width, height: height) }
+    }
+
+    /// What the capture's own sizing decided, reported beside the size it
+    /// produced. See `FrameStats.captureCapped`.
+    func noteCaptureCapped(_ value: Bool) {
+        queue.sync { captureCapped = value }
     }
 
     /// Create the mapping a surface of this size needs, resetting everything that
@@ -265,6 +278,12 @@ final class SharedFramePublisher {
             value.captureToPublishP50 = latency.captureToPublish[50] ?? 0
             value.captureToPublishP95 = latency.captureToPublish[95] ?? 0
             value.mappingBytes = region?.size ?? 0
+            value.captureWidth = dimensions?.0
+            value.captureHeight = dimensions?.1
+            // Only answered once there is a capture to describe: a stream that
+            // never got a mapping has no resolution, and "false" would read as
+            // "measured, not capped".
+            value.captureCapped = dimensions == nil ? nil : captureCapped
             value.fullFrameRatio = value.framesPublished > 0
                 ? Double(value.fullFrames) / Double(value.framesPublished) : 0
             value.pendingDamageArea = pendingDamageArea()

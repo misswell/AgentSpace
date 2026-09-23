@@ -4,7 +4,15 @@ import AgentSpaceCore
 
 struct RemoteSurfaceView: NSViewRepresentable {
     let client: FrameClient
-    var captureWidthLimit: Int = 0
+    /// The most pixels the capture may be asked for, in each axis — the source's
+    /// own pixel size, held to `DisplayQuality`. `.zero` means "no ceiling of its
+    /// own": a caller that does not know the source (a Fusion proxy) keeps asking
+    /// for the pixels its view can show.
+    ///
+    /// The viewer's request is the *smaller* of this and its own window's device
+    /// pixels, so 「原生」 cannot ask a 1920-wide desktop for 2280 pixels and be
+    /// handed an enlargement. See `DisplayQuality` for the cost of the other way.
+    var captureLimit: CGSize = .zero
     var captureMagnification: Double = 1
     /// Whether pointer gestures may be turned into input at all. The caller's
     /// answer to "does the worker permit input right now"; a surface that is not
@@ -19,14 +27,14 @@ struct RemoteSurfaceView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> RemoteSurfaceNSView {
         let view = RemoteSurfaceNSView(client: client)
-        view.captureWidthLimit = captureWidthLimit; view.captureMagnification = captureMagnification
+        view.captureLimit = captureLimit; view.captureMagnification = captureMagnification
         view.acceptsInput = acceptsInput; view.remoteContentSize = remoteContentSize
         view.onGesture = onGesture; view.onClaimHuman = onClaimHuman
         return view
     }
 
     func updateNSView(_ view: RemoteSurfaceNSView, context: Context) {
-        view.captureWidthLimit = captureWidthLimit; view.captureMagnification = captureMagnification
+        view.captureLimit = captureLimit; view.captureMagnification = captureMagnification
         view.acceptsInput = acceptsInput; view.remoteContentSize = remoteContentSize
         view.onGesture = onGesture; view.onClaimHuman = onClaimHuman
         view.needsLayout = true
@@ -121,7 +129,7 @@ extension RemotePointerGesture {
 
 class RemoteSurfaceNSView: NSView {
     let client: FrameClient
-    var captureWidthLimit = 0
+    var captureLimit: CGSize = .zero
     var captureMagnification = 1.0
     /// See `RemoteSurfaceView.acceptsInput`. Revoking input drops the gesture in
     /// progress: a press collected while input was permitted must not become a
@@ -211,10 +219,21 @@ class RemoteSurfaceNSView: NSView {
         let scale = window?.backingScaleFactor ?? 2
         renderer?.resize(bounds.size, scale: scale)
         cpuLayer.frame = bounds
+        // What this window can show, in its own device pixels…
         let naturalWidth = max(1, Int(bounds.width * scale))
-        let limitedWidth = captureWidthLimit > 0 ? min(naturalWidth, captureWidthLimit) : naturalWidth
+        let naturalHeight = max(1, Int(bounds.height * scale))
+        // …held to what the source has, when the caller knows. Asking for more
+        // pixels than the subject has buys an enlargement: ScreenCaptureKit scales
+        // the desktop *up* into the buffer it is handed, so the encoder spends bits
+        // describing interpolation, and the picture on screen is the same one the
+        // renderer would have made locally for free. Bounded here rather than in the
+        // worker because this is where the local window size is known, and the
+        // worker's own ceiling (`SharedFrameGeometry.maximumPixels`) is about the
+        // frame budget rather than about sharpness.
+        let limitedWidth = captureLimit.width > 0 ? min(naturalWidth, Int(captureLimit.width)) : naturalWidth
+        let limitedHeight = captureLimit.height > 0 ? min(naturalHeight, Int(captureLimit.height)) : naturalHeight
         let targetWidth = max(1, Int(Double(limitedWidth) * captureMagnification))
-        let targetHeight = max(1, Int(Double(targetWidth) * Double(bounds.height / max(1, bounds.width))))
+        let targetHeight = max(1, Int(Double(limitedHeight) * captureMagnification))
         client.configure(width: targetWidth, height: targetHeight)
     }
 

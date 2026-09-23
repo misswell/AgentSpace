@@ -93,11 +93,12 @@ final class CaptureSizingTests: XCTestCase {
         }
     }
 
-    /// 「原生」 on a Retina panel asks for the view's own pixel size, which for a
-    /// 1920×1080 desktop in a 1140×642 point view is 2280×1283 — an upscale in both
-    /// dimensions, and the box is 1 px out of the desktop's exact shape. This fix is
-    /// about shape, not about resolution: the upscale is granted whole (the 2x pixel
-    /// question is §320 row 837's own open task), and the odd pixel of the request is
+    /// A box larger than the subject is still an enlargement, deliberately: this
+    /// function is a *fit*, and refusing to enlarge here would silently shrink a
+    /// caller that meant to ask for more (the zoom knob does exactly that). The
+    /// resolution question is answered one layer up, where the source's own size is
+    /// known — the viewer's request is bounded by it (`DisplayQuality`, §323) — so
+    /// what is pinned here is only that the odd pixel of a mismatched box is
     /// absorbed by rounding rather than by a pillar.
     func testANativeRetinaRequestKeepsTheUpscaleAndShedsThePillar() {
         let native = CaptureSizing.resolved(naturalWidth: desktop.width, naturalHeight: desktop.height,
@@ -146,5 +147,56 @@ final class CaptureSizingTests: XCTestCase {
         XCTAssertLessThan(abs(Double(size.width) / Double(size.height) - subjectAspect), 0.005,
                           "\(detail): \(size.width)×\(size.height) is not 1920×1080's shape",
                           file: file, line: line)
+    }
+
+    // MARK: - The frame budget's ceiling (§323)
+
+    /// The ceiling is derived, and this is the derivation, asserted on the real
+    /// constants rather than restated: one stream at the maximum size must still
+    /// leave room for a second one of its own size.
+    ///
+    /// Both halves matter. The first is the promise — a viewer and a proxy can be
+    /// open together. The second is what keeps the number from drifting upward
+    /// later: a ceiling that were merely "safe" could be raised until only one
+    /// stream fits, and nothing else in the code would notice.
+    func testThePixelCeilingIsTheLargestSizeTwoStreamsCanShare() {
+        let ceiling = SharedFrameGeometry.maximumPixels
+        let atCeiling = SharedFrameLayout.regionSize(payloadCapacity: ceiling * SharedFrameGeometry.bytesPerPixel)
+        XCTAssertLessThanOrEqual(atCeiling * 2, SharedFrameGeometry.memoryBudget,
+                                 "a maximum-size stream must leave room for a second one")
+        let oneMore = SharedFrameLayout.regionSize(payloadCapacity: (ceiling + 1) * SharedFrameGeometry.bytesPerPixel)
+        XCTAssertGreaterThan(oneMore * 2, SharedFrameGeometry.memoryBudget,
+                             "the ceiling must be the largest such size, not merely a safe one")
+    }
+
+    /// A request inside the budget is untouched — this is a bound, not a policy
+    /// about size.
+    func testARequestUnderTheCeilingIsPassedThroughUntouched() {
+        let plan = CaptureSizing.planned(naturalWidth: 1920, naturalHeight: 1080,
+                                        targetWidth: 3024, targetHeight: 1964)
+        XCTAssertFalse(plan.capped)
+        XCTAssertEqual(plan.width, 3024)
+        XCTAssertEqual(plan.height, 1701, "the fit is unchanged: 1080 × (3024 ÷ 1920)")
+    }
+
+    /// Above it, the cut is by one factor on both axes, so the buffer keeps its
+    /// subject's shape and the picture cannot arrive distorted.
+    func testASurfaceAboveTheCeilingIsCutToTheLargestShapeThatFits() {
+        let plan = CaptureSizing.planned(naturalWidth: 7680, naturalHeight: 4320,
+                                        targetWidth: 0, targetHeight: 0)
+        XCTAssertTrue(plan.capped, "an 8K desktop is 33.2 Mpx, twice the ceiling")
+        XCTAssertLessThanOrEqual(plan.pixels, SharedFrameGeometry.maximumPixels)
+        XCTAssertGreaterThan(plan.pixels, SharedFrameGeometry.maximumPixels - 100_000,
+                             "the cut is to the ceiling, not below it")
+        XCTAssertEqual(Double(plan.width) / Double(plan.height), 7680.0 / 4320.0, accuracy: 0.001)
+    }
+
+    /// Where the line falls on real hardware, so the number is not abstract: 5K
+    /// is captured whole and a 6K Pro Display XDR is not.
+    func testA5KDisplayFitsAndA6KOneDoesNot() {
+        XCTAssertFalse(CaptureSizing.planned(naturalWidth: 5120, naturalHeight: 2880,
+                                            targetWidth: 0, targetHeight: 0).capped)
+        XCTAssertTrue(CaptureSizing.planned(naturalWidth: 6016, naturalHeight: 3384,
+                                           targetWidth: 0, targetHeight: 0).capped)
     }
 }

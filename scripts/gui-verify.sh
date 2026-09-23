@@ -427,18 +427,21 @@ done
 check "refresh slider min=2.0"  "2.0" "${SLIDER%%|*}"
 check "refresh slider max=10.0" "10.0" "${SLIDER##*|}"
 
-# --- Settings: Preview width tiers (§53) -------------------------------------
-# The tier labels ("960 px" …) are deliberately untranslated, so the titles
-# compare equal in both languages. Same §307 cause as the slider above: this
-# reads the Advanced tab, so it gets the same budget for the tab to appear.
-TIERS=""
+# --- Settings: the display-quality tiers (§53, §323) --------------------------
+# This control used to be a width list whose labels were deliberately
+# untranslated. It is now the mode picker the viewer's footer carries as well —
+# one key, one default, one option list — and its three names *are* localized,
+# so the assertion is exact against each shipped language instead of against
+# titles that only hold in one of them. §318's rule: never assert a localized
+# title in whatever language the machine happens to run.
+QUALITY=""
 for attempt in 1 2 3 4 5; do
-  TIERS="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+  QUALITY="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
 	set _p to ($PT)
-	set _w to my windowWithId(_p, \"previewWidthPicker\", pop up button)
+	set _w to my advancedSettingsWindow(_p)
 	if _w is missing value then return \"\"
-	set _pp to my findById(_w, \"previewWidthPicker\", pop up button, 0)
+	set _pp to my findById(_w, \"displayQualityPicker\", pop up button, 0)
 	if _pp is missing value then return \"\"
 	click _pp
 	delay 1
@@ -448,11 +451,18 @@ tell application \"System Events\"
 	end repeat
 	return _out
 end tell" 2>/dev/null)"
-  TIERS="$(echo "$TIERS" | sed 's/|$//; s/ //g')"
-  [ "$TIERS" = "960px|1280px|1600px|1920px" ] && break
+  QUALITY="$(echo "$QUALITY" | sed 's/|$//; s/ //g')"
+  case "$QUALITY" in
+    "NativeRetina|Balanced|Performance"|"原生Retina|均衡|性能") break ;;
+  esac
   osascript -e 'key code 53' >/dev/null 2>&1; sleep 1
 done
-check "preview tiers" "960px|1280px|1600px|1920px" "$TIERS"
+case "$QUALITY" in
+  "NativeRetina|Balanced|Performance") QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
+  "原生Retina|均衡|性能")                QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
+  *)                                     QUALITY_VERDICT="$QUALITY" ;;
+esac
+check "display quality tiers" "NativeRetina|Balanced|Performance" "$QUALITY_VERDICT"
 osascript -e 'key code 53' >/dev/null 2>&1
 
 # --- Settings: the Update pane exists and starts in a safe state -------------

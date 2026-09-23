@@ -19,6 +19,28 @@ public struct SharedFrameGeometry: Equatable, Sendable {
     /// Bytes per pixel on the shared path: BGRA, no planar variant.
     public static let bytesPerPixel = 4
 
+    /// Every open stream's mapping in one worker, added together.
+    public static let memoryBudget = 256 * 1024 * 1024
+
+    /// The most pixels one stream's buffer may hold.
+    ///
+    /// Not a display's size and not a round number: it is the largest surface
+    /// whose mapping, counted **twice**, still fits `memoryBudget` — the largest
+    /// stream that still leaves room for a second one of its own size. A cap
+    /// expressed in pixels rather than in bytes is what a capture can be held to
+    /// before a buffer is allocated, and the property it has to keep is the one
+    /// the manager enforces at open time (`FrameManager.open`): a viewer plus one
+    /// more surface must not be refused because the first one took everything.
+    ///
+    /// The arithmetic, against the real constants: `regionSize = 2 × (2112 + 4p)`,
+    /// so `2 × regionSize ≤ 268,435,456` gives `p ≤ 16,776,688`. That is 5K
+    /// (5120×2880 = 14,745,600) with room to spare, and it does cap a 6K
+    /// Pro Display XDR (6016×3384 = 20,358,144, i.e. 82 % linear) — a capture
+    /// larger than one machine's budget for two streams is a picture that cannot
+    /// be shown next to another, which is worse than one that is slightly soft.
+    public static let maximumPixels =
+        (memoryBudget / (2 * SharedFrameLayout.slotCount) - SharedFrameLayout.slotMetadataSize) / bytesPerPixel
+
     public let width: Int
     public let height: Int
     /// One slot's pixel room: `width * height * 4`.

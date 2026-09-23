@@ -83,6 +83,10 @@ struct AgentSpaceApp: App {
 
     init() {
         appDelegate.model = model
+        // The display-quality choice is read by two views and stored once. A
+        // build older than this one stored a *width limit* on a key of its own,
+        // so it is translated here, at launch, before either view reads it.
+        DisplayQuality.migrateStoredPreference()
     }
 
     var body: some Scene {
@@ -206,10 +210,15 @@ final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @AppStorage("statusRefreshSeconds") private var statusRefreshSeconds = 3.0
-    @AppStorage("previewMaxWidth") private var previewMaxWidth = 1600
+    @AppStorage(DisplayQuality.storageKey) private var displayQuality = DisplayQuality.default.rawValue
     @AppStorage("fusionFPSPolicy") private var fusionFPSPolicy = 0
     @AppStorage("settingsTab") private var selectedTab = "accounts"
     @State private var advancedRoot = AgentSpaceEnvironment.rootOverride ?? ""
+
+    /// What the mode in force means, in the mode's own words.
+    private var qualityExplanation: String {
+        (DisplayQuality.parse(displayQuality) ?? .default).explanation
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -265,11 +274,13 @@ struct SettingsView: View {
                         Text(String(format: NSLocalizedString("Status refresh: %lds", comment: ""), Int(statusRefreshSeconds)))
                     }
                     .accessibilityIdentifier("statusRefreshSlider")
-                    Picker("Preview width", selection: $previewMaxWidth) {
-                        Text("960 px").tag(960); Text("1280 px").tag(1280)
-                        Text("1600 px").tag(1600); Text("1920 px").tag(1920)
-                    }
-                    .accessibilityIdentifier("previewWidthPicker")
+                    // One control, one key, the same options as the viewer's
+                    // footer — see `DisplayQualityPicker`. The mode chosen here is
+                    // what the live stream and the saved snapshot both use.
+                    DisplayQualityPicker()
+                        .accessibilityIdentifier("displayQualityPicker")
+                    Text(qualityExplanation)
+                        .font(.caption).foregroundStyle(.secondary)
                     TextField("AgentSpace root", text: $advancedRoot)
                         .textFieldStyle(.roundedBorder)
                     Text("Where accounts, runtime sockets and logs live. Empty means /Library/Application Support/AgentSpace. AGENTSPACE_ROOT is read at launch; restart to apply.")

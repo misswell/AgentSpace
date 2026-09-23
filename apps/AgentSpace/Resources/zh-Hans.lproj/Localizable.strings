@@ -562,3 +562,10 @@
 "The shared picture could not be recovered. Reconnect, and if it keeps happening, update AgentSpace." = "共享画面连接无法恢复。请重新连接；如果问题持续，请更新 AgentSpace。";
 "Close Agent Window" = "关闭 Agent 窗口";
 "Closes the agent's own window, not just this mirror of it." = "关闭 Agent 的窗口本身，而不只是这个显示窗口。";
+"Display quality" = "显示质量";
+"Native Retina" = "原生 Retina";
+"Balanced" = "均衡";
+"The agent desktop's own pixels. Sharpest, and the most data." = "Agent 桌面的原始像素。最清晰，数据量也最大。";
+"Three quarters of the agent desktop's pixels, in each direction." = "每条边为 Agent 桌面像素的四分之三。";
+"At most 1280 pixels wide. For a slow link." = "最宽 1280 像素。适用于慢速链路。";
+"Stream %1$ld×%2$ld px · source %3$ld×%4$ld px" = "画面 %1$ld×%2$ld 像素 · 源 %3$ld×%4$ld 像素";

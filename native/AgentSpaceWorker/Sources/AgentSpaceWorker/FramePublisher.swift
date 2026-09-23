@@ -20,9 +20,10 @@ final class FramePublisher {
             // connection, let the client see the EOF and reconnect.
             onTermination: { [weak shared] termination in shared?.captureEnded(termination) })
         self.router.invalidSession = { [weak engine] in DispatchQueue.global().async { engine?.stop() } }
-        let dimensions = try engine.start()
-        try shared.prepare(width: dimensions.width, height: dimensions.height)
-        router.prepare(width: dimensions.width, height: dimensions.height)
+        let geometry = try engine.start()
+        try shared.prepare(width: geometry.width, height: geometry.height)
+        shared.noteCaptureCapped(geometry.capped)
+        router.prepare(width: geometry.width, height: geometry.height)
     }
 
     deinit { engine.stop() }

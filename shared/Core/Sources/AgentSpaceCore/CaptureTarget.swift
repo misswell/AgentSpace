@@ -4,6 +4,14 @@ public enum CaptureTarget: Equatable, Sendable {
     case display(displayID: UInt32?)
     case window(WindowIdentity)
 
+    /// What this target is, for a log line a person reads. Never a wire field.
+    public var kindDescription: String {
+        switch self {
+        case .display: return "display"
+        case .window: return "window"
+        }
+    }
+
     public var jsonValue: JSONValue {
         switch self {
         case .display(let id):

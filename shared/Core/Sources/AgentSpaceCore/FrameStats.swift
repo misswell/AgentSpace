@@ -34,6 +34,22 @@ public struct FrameStats: Codable, Equatable, Sendable {
     public var fullFrameRatio: Double = 0
     public var pendingDamageArea: UInt64 = 0
     public var mappingBytes: Int = 0
+    /// The surface this stream is capturing into, in pixels.
+    ///
+    /// The viewer is told this size in every slot header, but a reader asking
+    /// `frame.stats` is not a viewer: before these two fields the only way to
+    /// answer "what resolution is this stream actually at?" was to invert the
+    /// layout arithmetic over `mappingBytes` by hand and hope the formula had not
+    /// moved (`docs/validation.md` §320 row 832 did exactly that). Optional
+    /// because a worker older than the field does not answer it, and a missing
+    /// answer must not fail a decode — the same rule `allocationFailure` follows.
+    public var captureWidth: Int?
+    public var captureHeight: Int?
+    /// Whether the pixel ceiling (`SharedFrameGeometry.maximumPixels`) cut the
+    /// size the request asked for. Reported beside the size rather than folded
+    /// into it, because a picture that is soft because it was capped and one that
+    /// is soft because the request was small read identically otherwise.
+    public var captureCapped: Bool?
 
     // Which path the stream is on right now, and what it costs to be there.
     public var frameMode: String = "delta"

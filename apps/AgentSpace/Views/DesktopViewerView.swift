@@ -64,13 +64,6 @@ struct DesktopViewerView: View {
     }
 
     private static let frameRateOptions = [1, 5, 10, 15, 30]
-    /// `0` means the capture's own pixel size. Both consumers already treat it
-    /// that way — `CaptureEngine` falls back to the display's natural size, and
-    /// `ScreenCapture` resamples only when `maxWidth > 0` — so offering native
-    /// costs no new plumbing, only a choice. It is the default because a
-    /// down-scaled default softens exactly the text the viewer is read for;
-    /// the smaller numbers stay here for a link that cannot carry 8 MB a frame.
-    private static let captureWidthOptions = [0, 960, 1280, 1600, 1920, 2560]
 
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -82,9 +75,35 @@ struct DesktopViewerView: View {
     /// pointer-travel coalescing a proxy uses.
     @StateObject private var input = DesktopViewerInput()
     @State private var pendingAction: String?
-    @AppStorage("previewMaxWidth") private var previewMaxWidth = 0
+    /// The display-quality mode, on the same key Settings' picker writes.
+    @AppStorage(DisplayQuality.storageKey) private var displayQuality = DisplayQuality.default.rawValue
     @AppStorage("previewFPS") private var previewFPS = 5
     @State private var zoom = ViewerZoom.fit
+
+    /// The mode in force, with anything unreadable falling back to the default
+    /// rather than to a guess.
+    private var quality: DisplayQuality { DisplayQuality.parse(displayQuality) ?? .default }
+
+    /// The most pixels this viewer may ask the worker for.
+    ///
+    /// Bounded by the *agent's* display, not by this window: the mode is a claim
+    /// about the source, and the surface takes the smaller of this and its own
+    /// device pixels. Until the first snapshot arrives the limit is empty, and the
+    /// stream opens at the worker's own natural size — which is the mode's own
+    /// answer anyway, so the first frame is not a downgrade.
+    private var captureLimit: CGSize {
+        guard let display = snapshot?.display else { return .zero }
+        let size = quality.captureSize(sourceWidth: display.pixelWidth, sourceHeight: display.pixelHeight)
+        return CGSize(width: size.width, height: size.height)
+    }
+
+    /// The width a still snapshot is resampled to; `0` leaves the PNG at the
+    /// framebuffer's own size. The same mode, one step outside the live stream.
+    private var snapshotMaxWidth: Int {
+        guard let display = snapshot?.display else { return 0 }
+        let width = quality.captureSize(sourceWidth: display.pixelWidth, sourceHeight: display.pixelHeight).width
+        return width >= display.pixelWidth ? 0 : width
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -113,7 +132,7 @@ struct DesktopViewerView: View {
         .onChange(of: snapshot?.acceptsInput) { _ in syncKeyboardState() }
         .onChange(of: hostWindow) { _ in syncKeyboardState() }
         .onChange(of: previewFPS) { _ in restartPreviewIfNeeded() }
-        .onChange(of: previewMaxWidth) { _ in
+        .onChange(of: displayQuality) { _ in
             restartPreviewIfNeeded()
         }
     }
@@ -256,7 +275,7 @@ struct DesktopViewerView: View {
                 Color.black
                 RemoteSurfaceView(
                     client: frameClient,
-                    captureWidthLimit: previewMaxWidth,
+                    captureLimit: captureLimit,
                     captureMagnification: zoom.factor,
                     acceptsInput: snapshot.acceptsInput,
                     remoteContentSize: CGSize(width: snapshot.display?.width ?? 0,
@@ -360,13 +379,9 @@ struct DesktopViewerView: View {
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("desktopViewerZoomPicker")
 
-                Picker("Capture width", selection: $previewMaxWidth) {
-                    ForEach(Self.captureWidthOptions, id: \.self) { width in
-                        Text(width == 0 ? "Native" : "\(width) px").tag(width)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("desktopViewerResolutionPicker")
+                DisplayQualityPicker()
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("desktopViewerQualityPicker")
 
                 Picker("Frame rate", selection: $previewFPS) {
                     ForEach(Self.frameRateOptions, id: \.self) { fps in
@@ -377,6 +392,20 @@ struct DesktopViewerView: View {
                 .accessibilityIdentifier("desktopViewerFPSPicker")
 
                 Spacer(minLength: 0)
+
+                // What the stream actually is, in the two sizes that answer every
+                // "why is this not sharp?" question: the buffer the worker is
+                // sending, and the desktop it was taken from. A viewer set to
+                // 「原生」 on a 2x panel should read two equal numbers here; two
+                // different ones mean the source is smaller than the window, or a
+                // ceiling is in play.
+                if let size = liveSurfaceSize, let display = snapshot?.display {
+                    Text(String(format: NSLocalizedString("Stream %1$ld×%2$ld px · source %3$ld×%4$ld px", comment: ""),
+                                Int(size.width), Int(size.height), display.pixelWidth, display.pixelHeight))
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("desktopViewerStreamSize")
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -385,10 +414,24 @@ struct DesktopViewerView: View {
 
     // MARK: - Capture
 
+    /// The size of the picture the worker is sending, once one has arrived —
+    /// `nil` before the first frame, so the footer never prints 0×0.
+    private var liveSurfaceSize: CGSize? {
+        guard let size = frameClient?.surfaceSize, size.width > 0, size.height > 0 else { return nil }
+        return size
+    }
+
     private func startPreview() {
         guard frameClient == nil else { return }
         guard let space = snapshot?.space else { return }
-        let client = FrameClient(space: space, target: .display(displayID: nil), maxFPS: previewFPS, targetWidth: previewMaxWidth)
+        // Opened at the mode's own size rather than at "whatever the worker
+        // thinks", so the first stream and the first `layout()` agree: the
+        // surface's debounce reopens the stream when the requested size changes
+        // by 16 px or more, and a first request of (0,0) followed by the real one
+        // was one reconnect per window open.
+        let limit = captureLimit
+        let client = FrameClient(space: space, target: .display(displayID: nil), maxFPS: previewFPS,
+                                targetWidth: Int(limit.width), targetHeight: Int(limit.height))
         frameClient = client; client.start()
     }
 
@@ -411,11 +454,10 @@ struct DesktopViewerView: View {
 
     private func capture() {
         guard let snapshot else { return }
-        // A modest width keeps an idle preview cheap without making the geometry
-        // lie:
-        // the mapping uses the image's own size for the fraction and the display's
-        // point size for the conversion, so a downscale cannot shift a click.
-        switch SpaceService().screenshot(for: snapshot.space, maxWidth: previewMaxWidth, inline: false) {
+        // The still snapshot follows the same mode as the stream, so the file a
+        // person saves is the picture they were looking at. `0` means "leave the
+        // framebuffer's own size alone".
+        switch SpaceService().screenshot(for: snapshot.space, maxWidth: snapshotMaxWidth, inline: false) {
         case .failure(let error):
             captureError = AppModel.PresentedError(
                 code: error.code.rawValue,
