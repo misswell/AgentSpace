@@ -435,6 +435,7 @@ check "refresh slider max=10.0" "10.0" "${SLIDER##*|}"
 # titles that only hold in one of them. §318's rule: never assert a localized
 # title in whatever language the machine happens to run.
 QUALITY=""
+QUALITY_OPENED=""
 for attempt in 1 2 3 4 5; do
   QUALITY="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
@@ -442,10 +443,10 @@ tell application \"System Events\"
 	set _w to my advancedSettingsWindow(_p)
 	if _w is missing value then return \"\"
 	set _pp to my findById(_w, \"displayQualityPicker\", pop up button, 0)
-	if _pp is missing value then return \"\"
+	if _pp is missing value then return \"notfound\"
 	click _pp
 	delay 1
-	set _out to \"\"
+	set _out to \"opened|\"
 	repeat with _mi in (menu items of menu 1 of _pp)
 		set _out to _out & ((title of _mi) as text) & \"|\"
 	end repeat
@@ -455,15 +456,28 @@ end tell" 2>/dev/null)"
   case "$QUALITY" in
     "NativeRetina|Balanced|Performance"|"原生Retina|均衡|性能") break ;;
   esac
-  osascript -e 'key code 53' >/dev/null 2>&1; sleep 1
+  # Escape dismisses a menu this loop opened; it must never be pressed when no
+  # menu was opened, because with nothing to dismiss it closes the Settings
+  # *window* instead — and every check after this one then fails for a reason
+  # that has nothing to do with what it is checking. Measured: a run where the
+  # lookup came back empty pressed it five times and the whole Update pane
+  # reported "not there" (§323 row 860).
+  if [ "${QUALITY#opened}" != "$QUALITY" ]; then
+    osascript -e 'key code 53' >/dev/null 2>&1
+  fi
+  sleep 1
 done
 case "$QUALITY" in
   "NativeRetina|Balanced|Performance") QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
   "原生Retina|均衡|性能")                QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
+  "opened|NativeRetina|Balanced|Performance") QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
+  "opened|原生Retina|均衡|性能")                QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
   *)                                     QUALITY_VERDICT="$QUALITY" ;;
 esac
 check "display quality tiers" "NativeRetina|Balanced|Performance" "$QUALITY_VERDICT"
-osascript -e 'key code 53' >/dev/null 2>&1
+if [ "${QUALITY#opened}" != "$QUALITY" ]; then
+  osascript -e 'key code 53' >/dev/null 2>&1
+fi
 
 # --- Settings: the Update pane exists and starts in a safe state -------------
 # The claim worth gating is not "the tab is there" but "the destructive control

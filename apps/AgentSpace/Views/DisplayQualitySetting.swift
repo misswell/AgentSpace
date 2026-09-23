@@ -9,6 +9,14 @@ import AgentSpaceCore
 /// here is only how it reads: one option per mode, in the language the rest of
 /// the window is in.
 struct DisplayQualityPicker: View {
+    /// Applied to the `Picker` itself, never to this struct.
+    ///
+    /// `.accessibilityIdentifier` on a composed view lands on whatever element
+    /// SwiftUI decides to wrap it in, and the gate looks the control up as a
+    /// `pop up button` — an identifier on the wrapper is found only when the two
+    /// happen to be the same element, which is a coin flip across runs rather
+    /// than a property of the code (`docs/validation.md` §323 row 860).
+    var identifier: String
     @AppStorage(DisplayQuality.storageKey) private var stored = DisplayQuality.default.rawValue
 
     var body: some View {
@@ -17,6 +25,8 @@ struct DisplayQualityPicker: View {
                 Text(quality.title).tag(quality.rawValue)
             }
         }
+        .pickerStyle(.menu)
+        .accessibilityIdentifier(identifier)
     }
 }
 

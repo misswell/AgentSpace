@@ -277,8 +277,7 @@ struct SettingsView: View {
                     // One control, one key, the same options as the viewer's
                     // footer — see `DisplayQualityPicker`. The mode chosen here is
                     // what the live stream and the saved snapshot both use.
-                    DisplayQualityPicker()
-                        .accessibilityIdentifier("displayQualityPicker")
+                    DisplayQualityPicker(identifier: "displayQualityPicker")
                     Text(qualityExplanation)
                         .font(.caption).foregroundStyle(.secondary)
                     TextField("AgentSpace root", text: $advancedRoot)

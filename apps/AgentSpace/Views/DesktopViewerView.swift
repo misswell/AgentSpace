@@ -379,9 +379,7 @@ struct DesktopViewerView: View {
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("desktopViewerZoomPicker")
 
-                DisplayQualityPicker()
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("desktopViewerQualityPicker")
+                DisplayQualityPicker(identifier: "desktopViewerQualityPicker")
 
                 Picker("Frame rate", selection: $previewFPS) {
                     ForEach(Self.frameRateOptions, id: \.self) { fps in
