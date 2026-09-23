@@ -121,3 +121,12 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
   backtick inside the double-quoted `osascript -e "…"` string is a command
   substitution, so a comment that types \`like this\` *runs* — and its output is
   spliced into the script being executed (§319 row 830).
+  Two facts about reading a UI from inside an agent session (§324): a process
+  the worker spawns through `exec` **inherits its Accessibility grant**
+  (`AXIsProcessTrusted() == true` there), while System Events is not drivable in
+  that session at all — an AppleEvent with a 20-second timeout answers
+  `-1712 AppleEvent timed out`, which is why `tests/SessionUI` calls
+  `AXUIElement` directly. And `AXMenuItemCmdChar` reports **uppercase** letters
+  for plain ⌘-shortcuts (`N` for 「新建 Agent…」, `W` for 「关闭」): AppleScript's
+  `is` folds case, Swift's `==` does not, so a case-sensitive port matches
+  nothing and looks exactly like a build defect.
