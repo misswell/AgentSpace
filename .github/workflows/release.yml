@@ -55,9 +55,13 @@ jobs:
     name: Validate tag, version and notes
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ needs.validate.outputs.version }}
-      tag: ${{ needs.validate.outputs.tag }}
-      notes: ${{ needs.validate.outputs.notes }}
+      # These come from *this* job's steps. `needs.validate.outputs.*` here would
+      # be a self-reference: it resolves to empty, and the release then looked for
+      # `dist/AgentSpace-.dmg`. Measured — that is exactly how this shipped the
+      # first time and failed at the verify step with an empty RELEASE_VERSION.
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      notes: ${{ steps.release.outputs.notes }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
