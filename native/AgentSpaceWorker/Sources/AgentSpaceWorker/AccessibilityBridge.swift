@@ -131,6 +131,17 @@ enum AccessibilityBridge {
             // Values can hold typed text; cap and never log them (plan §37).
             object["value"] = .string(String(value.prefix(500)))
         }
+        // Numeric values — a scroll bar's position, a slider's setting, a
+        // progress indicator. They used to be dropped: `describe` kept a value
+        // only when it was a String, which made "did that scroll move anything?"
+        // unanswerable through the wire and left `AXMinValue`/`AXMaxValue`
+        // invisible to every caller. Additive at protocol version 1: a client
+        // that does not know the key ignores it.
+        if let raw = copyAttribute(element, kAXValueAttribute as String),
+           let number = raw as? NSNumber,
+           CFGetTypeID(raw) != CFBooleanGetTypeID() {
+            object["numberValue"] = .double(number.doubleValue)
+        }
         if let identifier = stringAttribute(element, kAXIdentifierAttribute as String), !identifier.isEmpty {
             object["identifier"] = .string(identifier)
         }
@@ -330,8 +341,7 @@ enum AccessibilityBridge {
     /// that works when the agent session *is* the console.
     static func scrollArea(atX x: Double, y: Double, linesX: Int, linesY: Int) -> Bool {
         guard AXIsProcessTrusted(),
-              let hit = try? elementAt(x: Float(x), y: Float(y)).element,
-              let area = scrollArea(ancestorOf: hit),
+              let area = scrollArea(under: x, y: y),
               let viewport = frame(area)?.size,
               let content = sizeAttribute(area, "AXContentSize")
         else { return false }
@@ -345,6 +355,79 @@ enum AccessibilityBridge {
                            viewport: Double(viewport.width), content: Double(content.width)) || moved
         }
         return moved
+    }
+
+    /// The scroll area a point lands in — by hit-test if that works, by geometry
+    /// if it does not.
+    ///
+    /// The hit-test route alone was not enough, and the way it fails is silent:
+    /// in a background Aqua session `AXUIElementCopyElementAtPosition` returns
+    /// the **AXApplication** element instead of the content under the point
+    /// (measured on macOS 27.0 for both TextEdit and Finder), so walking up from
+    /// it never reaches a scroll area, and every anchored `scroll` degraded to
+    /// the wheel post that this same file documents as reaching nothing. The
+    /// report a person sees is 「那个点什么都没滚动」 from `agentspace scroll`,
+    /// which is honest but is not what they asked for.
+    ///
+    /// The fallback uses a hit-test that *does* work in that session: the window
+    /// server says which window owns the point, and that window's own
+    /// accessibility tree is then searched for the scroll area whose frame
+    /// contains it. One more step, only when the cheap route fails, and it is
+    /// what makes a Fusion/Desktop scroll work in an agent session at all.
+    private static func scrollArea(under x: Double, y: Double) -> AXUIElement? {
+        if let hit = try? elementAt(x: Float(x), y: Float(y)).element,
+           let area = scrollArea(ancestorOf: hit) {
+            return area
+        }
+        guard let pid = windowOwner(atX: x, y: y) else { return nil }
+        for window in windows(of: pid) {
+            for candidate in descendants(of: window, maxNodes: 600) {
+                guard stringAttribute(candidate, kAXRoleAttribute as String) == "AXScrollArea",
+                      let frame = frame(candidate),
+                      frame.contains(CGPoint(x: x, y: y)) else { continue }
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    /// The pid owning the topmost layer-0 window that contains this point — the
+    /// same window-server hit-test the pointer input path relies on, which is
+    /// why it works where the accessibility one does not.
+    private static func windowOwner(atX x: Double, y: Double) -> pid_t? {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+        let point = CGPoint(x: x, y: y)
+        for entry in list {
+            guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
+                  let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
+                  let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat],
+                  let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary)
+            else { continue }
+            if rect.contains(point) { return pid }
+        }
+        return nil
+    }
+
+    private static func windows(of pid: pid_t) -> [AXUIElement] {
+        (copyAttribute(appElement(pid: pid), kAXWindowsAttribute as String) as? [AXUIElement]) ?? []
+    }
+
+    /// Breadth-first, bounded. A browser's tree is tens of thousands of nodes and
+    /// this walk exists to find one element.
+    private static func descendants(of root: AXUIElement, maxNodes: Int) -> [AXUIElement] {
+        var queue = [root]
+        var found: [AXUIElement] = []
+        var index = 0
+        while index < queue.count && found.count < maxNodes {
+            let node = queue[index]
+            index += 1
+            found.append(node)
+            queue.append(contentsOf: children(node))
+        }
+        return found
     }
 
     private static func scroll(barOf area: AXUIElement, named attribute: String,

@@ -167,6 +167,7 @@ struct Operations {
 
     func status(params: JSONValue) throws -> JSONValue {
         let verdict = context.sessionVerdict()
+        let desktopReadiness = context.desktopReadiness()
         let fileAccess = FilePrivacy.granted(home: context.home)
         let permissions = PermissionState(
             screenRecording: ScreenCapture.permissionGranted(),
@@ -192,6 +193,14 @@ struct Operations {
             "session": .obj([
                 "verdict": .string(verdictName(verdict)),
                 "onConsole": .bool(verdict == .isConsole || verdict == .indeterminate),
+            ]),
+            // Why input would be refused, without having to try it: the same
+            // verdict the input path gates on, so a client can show "the desktop
+            // is still coming up" instead of reporting a mysterious failed click.
+            "desktop": .obj([
+                "ready": .bool(desktopReadiness.isReady),
+                "missing": .array(desktopReadiness.gaps.map { .string($0.rawValue) }),
+                "summary": .string(desktopReadiness.summary),
             ]),
             // Both coordinate spaces, as `hello` already reported them. Sending
             // only the point size here meant a client that read `status` alone
@@ -321,6 +330,16 @@ struct Operations {
     /// The one operation where getting the order wrong puts events on the
     /// human's screen. Plan §12/§13.
     func input(params: JSONValue) throws -> JSONValue {
+        // "Input received" — logged before any refusal, so the log carries what
+        // was asked for as well as what happened to it. The three lines this
+        // path emits (received here, posted in `InputSynthesizer`, result at the
+        // bottom) exist because "my click did nothing" and "my click never
+        // arrived" are different reports, and only the log can separate them
+        // after the fact.
+        let requested = params["actions"]?.arrayValue ?? []
+        let requestedKinds = requested.compactMap { $0["type"]?.stringValue }.joined(separator: ",")
+        Log.input.info("input received: \(requested.count) action(s) [\(requestedKinds)] in '\(self.context.spaceName)' as uid \(self.context.uid)")
+
         // (1) Session safety, first and unconditionally.
         try requireDesktopSession("inject input")
         let verdict = context.sessionVerdict()
@@ -341,6 +360,21 @@ struct Operations {
                 message: "refusing to inject input: this session has no window server, so there is no event stream to post into.")
         case .usable:
             break
+        }
+
+        // (1b) Desktop readiness — the ordering rule's third step
+        // (*Session → Desktop Ready → Capture → Input*). The checks above ask
+        // whether posting would land on a *person*; this one asks whether there
+        // is a desktop to land on at all. A session whose Dock and Finder are
+        // not up is a bare window server, which is the state behind the report
+        // 「输入失败 / no app is frontmost」: the refusal now names the missing
+        // part instead of letting the events disappear. Re-read on every call,
+        // so a session that finishes coming up becomes usable without a worker
+        // restart.
+        let readiness = context.desktopReadiness()
+        if let refusal = DesktopReadinessCheck.refusal(readiness, spaceName: context.spaceName) {
+            Log.input.error("refused input: \(readiness.summary)")
+            throw refusal
         }
 
         guard inputLease.automationAllowed() else {
@@ -422,7 +456,8 @@ struct Operations {
             }
             performed += 1
         }
-        Log.input.info("performed \(performed) input action(s) in \(context.spaceName)")
+        let channelNames = channels.compactMap { $0.stringValue }.joined(separator: ",")
+        Log.input.info("input result: performed \(performed) action(s), channels [\(channelNames)] in '\(self.context.spaceName)'")
         // `performed` counts, in order, what each action actually did. A scroll
         // that named a point and reached no scroll area comes back as
         // `scrolledViaWheel`, which is the honest answer in a session that is not
@@ -453,7 +488,7 @@ struct Operations {
     /// client would use to decide what to put in front of them.
     func appsAvailable(params: JSONValue) throws -> JSONValue {
         try requireDesktopSession("list the applications installed in the session")
-        return AppCatalog.available(
+        return ApplicationService.available(
             query: params["query"]?.stringValue,
             limit: params["limit"]?.intValue ?? ApplicationCatalog.defaultLimit,
             icons: params["icons"]?.boolValue ?? true,
@@ -937,6 +972,14 @@ struct Operations {
 
     func windowInput(params: JSONValue) throws -> JSONValue {
         try requireDesktopSession("inject Fusion input")
+        // A proxy press is a `CGEvent` into that session like any other, so the
+        // same ordering rule applies: no event before the desktop is up. See
+        // `input(params:)` step (1b) for why this is asked per call.
+        let readiness = context.desktopReadiness()
+        if let refusal = DesktopReadinessCheck.refusal(readiness, spaceName: context.spaceName) {
+            Log.input.error("refused Fusion input: \(readiness.summary)")
+            throw refusal
+        }
         guard AccessibilityBridge.trusted() else {
             throw AgentSpaceError(code: .accessibilityDenied, message: "Accessibility is not granted to agentspace-worker in this session.")
         }

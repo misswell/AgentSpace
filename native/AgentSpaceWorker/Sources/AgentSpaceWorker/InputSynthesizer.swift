@@ -37,6 +37,17 @@ enum InputSynthesizer {
     private static func post(_ event: CGEvent?, flags: CGEventFlags = []) {
         guard let event else { return }
         event.flags = flags
+        // "CGEvent posted" — the middle of the three lines the input path emits
+        // (received, posted, result), and the only one that proves an event was
+        // actually built and handed to the window server: everything above it
+        // can succeed with no event leaving the process (an unparseable combo, or
+        // a scroll that found its scroll area and drove *that* through
+        // Accessibility instead). The tap is named because the tap is the
+        // design: `.cgSessionEventTap` posts into this session's own stream,
+        // where `.cghidEventTap` — refused by construction in this product —
+        // would type into the human's session.
+        let location = event.location
+        Log.input.info("CGEvent posted: type=\(event.type.rawValue) at \(Int(location.x)),\(Int(location.y)) tap=.cgSessionEventTap")
         event.post(tap: .cgSessionEventTap)
     }
 

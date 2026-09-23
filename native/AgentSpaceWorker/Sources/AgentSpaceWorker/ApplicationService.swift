@@ -10,7 +10,7 @@ import AgentSpaceCore
 /// where the bundle can be opened. Every *decision* about the resulting list
 /// (which entries count, how duplicates collapse, what a search matches) is in
 /// Core's `ApplicationCatalog`, where it is unit-tested without any of this.
-enum AppCatalog {
+enum ApplicationService {
 
     /// Applications a picker can offer.
     ///

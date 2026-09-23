@@ -536,6 +536,27 @@ case .success(let arguments):
     let server = SocketServer(socketPath: socketPath, context: context, serveOnce: arguments.once, frames: frameManager)
     let frameServer = FrameServer(context: context, manager: frameManager)
 
+    // The ordering rule: Session → **Desktop Ready** → Capture → Input.
+    //
+    // Gate 2 above answered "is there a window server at all?"; this one waits
+    // for the desktop to actually be a desktop (login finished, Dock and Finder
+    // running), which is the state a session passes through on its way up. The
+    // wait is bounded and its result is logged either way, because a worker that
+    // refused to bind its socket while a Dock was missing would be a worker
+    // whose `status` could not say why — the app would show "offline" for a
+    // session that is perfectly inspectable. Input keeps asking the same
+    // question per call (Operations step 1b), so a desktop that comes up late is
+    // usable without restarting anything.
+    let desktopReadiness = context.desktopMonitor.waitForReady(timeout: 15)
+    if desktopReadiness.isReady {
+        Log.session.info("desktop ready after \(Int(Date().timeIntervalSince(context.startedAt) * 1000))ms; capture and input may start")
+    } else {
+        let message = "desktop is not ready (\(desktopReadiness.summary)); the worker still binds and answers status, "
+            + "and input will refuse with SESSION_NOT_READY until Dock and Finder are up."
+        Log.session.error("\(message)")
+        FileHandle.standardError.write(Data(("agentspace-worker: " + message + "\n").utf8))
+    }
+
     // Create the runtime directory if this is a development/first run. In
     // production the helper has already made it with the right ACL.
     try? FileManager.default.createDirectory(

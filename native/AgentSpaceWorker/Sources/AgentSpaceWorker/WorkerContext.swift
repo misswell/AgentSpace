@@ -26,6 +26,11 @@ public final class WorkerContext {
     public let uid: uid_t
     public let username: String
     public let home: String
+    /// The live desktop probe. One instance per worker: it keeps the last
+    /// logged verdict so a startup wait is a few lines rather than a poll log.
+    /// Internal — `DesktopSessionMonitor` is this module's, and callers ask
+    /// `desktopReadiness()` rather than reaching for the probe.
+    let desktopMonitor: DesktopSessionMonitor
 
     public init?(
         spaceID: UUID,
@@ -42,6 +47,7 @@ public final class WorkerContext {
         self.token = token
         self.paths = paths
         self.sessionInfo = sessionInfo
+        self.desktopMonitor = DesktopSessionMonitor(source: sessionInfo)
         self.startedAt = Date()
         self.uid = getuid()
         self.username = String(cString: namePtr)
@@ -83,5 +89,14 @@ public final class WorkerContext {
     /// events onto someone's real screen.
     public func sessionVerdict() -> SessionVerdict {
         SessionGuard.verdict(using: sessionInfo)
+    }
+
+    /// Is this session's *desktop* up — Dock, Finder, login finished, window
+    /// server present? Asked on every input call rather than cached at startup:
+    /// a session that finishes coming up, or gets locked, must be picked up
+    /// without a worker restart, and the whole probe is one dictionary read plus
+    /// two process lookups.
+    public func desktopReadiness() -> DesktopReadiness {
+        desktopMonitor.readiness()
     }
 }
