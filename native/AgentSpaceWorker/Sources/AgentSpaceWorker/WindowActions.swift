@@ -25,12 +25,34 @@ enum WindowActions {
                     ? "no accessibility window matches window \(window.id), so input could land on another window"
                     : "more than one accessibility window matches window \(window.id), so refusing to guess which one to raise")
         }
-        let status = AXUIElementPerformAction(element, kAXRaiseAction as CFString)
-        guard status == .success else {
+        // `AXRaise` is the action for this, but an app may advertise it and still
+        // refuse it: measured on System Settings, whose own window lists `AXRaise` in
+        // its action names and answers -25205 (AttributeUnsupported) when performed,
+        // while Safari's answers 0. Making the window main and focused moves it up the
+        // front-to-back order identically: on four Safari windows, raising the back
+        // one and writing main+focused to it both took [2027,2022,2019,2013] to
+        // [2019,2013,2027,2022] (§322 row 844), so the writes are tried before the
+        // click that depends on this window being above its siblings is refused.
+        if AXUIElementPerformAction(element, kAXRaiseAction as CFString) == .success { return }
+        AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        // Judged by what the app now reports, not by the status of the write: an app
+        // can accept the assignment and put the focus somewhere else, and then input
+        // really would land on a sibling.
+        guard isMainWindow(window, element: element) else {
             throw AgentSpaceError(
                 code: .badRequest,
-                message: "macOS refused to raise window \(window.id) (AX error \(status.rawValue)), so input could land on another window")
+                message: "window \(window.id) would neither raise nor become the app's main window, so input could land on another window")
         }
+    }
+
+    /// Does the application say *this* window is its main one?
+    private static func isMainWindow(_ window: RemoteWindow, element: AXUIElement) -> Bool {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            AXUIElementCreateApplication(window.pid), kAXMainWindowAttribute as CFString, &value) == .success,
+              let value else { return false }
+        return CFEqual(value, element)
     }
 
     static func perform(_ action: Action, window: RemoteWindow) throws {

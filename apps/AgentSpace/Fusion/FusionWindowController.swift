@@ -10,7 +10,6 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private let state = FusionWindowState()
     private let queue: DispatchQueue
     private var startingCapture = false
-    private var closingRemote = false
     private var frameClient: FrameClient?
     /// Pointer travel is state, not a gesture: one request in flight and only
     /// the newest position behind it, so a wave across the proxy cannot put a
@@ -49,6 +48,23 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
             state: state,
             send: { [weak self] action in self?.send(action) },
             claimHuman: { [weak self] in self?.claimHuman() }))
+        installTitlebarAction()
+    }
+
+    /// The one action this window takes against the agent, in the title bar.
+    ///
+    /// Not over the picture: that is the agent's window, and its corners are where
+    /// its own controls live.
+    private func installTitlebarAction() {
+        guard let window else { return }
+        let hosting = NSHostingView(rootView: FusionWindowActions(closeRemote: { [weak self] in
+            self?.closeRemoteWindow()
+        }))
+        hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.view = hosting
+        accessory.layoutAttribute = .trailing
+        window.addTitlebarAccessoryViewController(accessory)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -101,8 +117,24 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     func windowDidMiniaturize(_ notification: Notification) { stop() }
     func windowDidDeminiaturize(_ notification: Notification) { startCapture() }
 
+    /// The mirror always closes, and closing it never touches the agent's window.
+    ///
+    /// This button used to *mean* "close the remote window": it asked the worker and
+    /// only closed the mirror once that came back, so a proxy whose remote window was
+    /// already gone, or whose app refuses the close, could not be dismissed at all —
+    /// the one thing a mirror must always allow. Closing the agent's window is now the
+    /// labelled action in the corner of the proxy, where its consequence is visible.
+    ///
+    /// `stop()` has to happen here: the session keeps this controller so the next
+    /// poll does not hand the same window a fresh mirror, and a kept controller is
+    /// offered `resumeCapture` again on every poll.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if closingRemote { stop(); return true }
+        stop()
+        return true
+    }
+
+    /// Close the *agent's* window, then this mirror of it.
+    func closeRemoteWindow() {
         let space = self.space, remote = remoteWindow
         queue.async { [weak self] in
             let result = SpaceService().windowClose(for: space, window: remote)
@@ -110,17 +142,22 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
                 guard let self else { return }
                 switch result {
                 case .success:
-                    self.closingRemote = true
-                    self.window?.performClose(nil)
-                case .failure(let error): self.state.error = error
+                    self.stop()
+                    self.window?.close()
+                case .failure(let error):
+                    self.state.error = error
                 }
             }
         }
-        return false
     }
 
     private func startCapture() {
-        guard frameClient == nil, !startingCapture, window?.isMiniaturized != true else { return }
+        // A dismissed mirror stays in the session's dictionary so the poll does not
+        // hand that window a fresh mirror a second after the person closed it. That
+        // record must not also keep a frame stream alive for a window nobody is
+        // looking at, so an invisible proxy is simply not started.
+        guard frameClient == nil, !startingCapture,
+              window?.isMiniaturized != true, window?.isVisible != false else { return }
         startingCapture = true
         let configuredFPS = UserDefaults.standard.integer(forKey: "fusionFPSPolicy")
         let fps = configuredFPS == 0 ? (window?.isKeyWindow == true ? 15 : 5) : configuredFPS

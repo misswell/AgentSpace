@@ -29,6 +29,26 @@ struct FusionWindowView: View {
     }
 }
 
+/// The proxy's title-bar action.
+///
+/// The proxy's own close button only ever dismissed this mirror; closing the
+/// window being mirrored is deliberate and says so in words.
+struct FusionWindowActions: View {
+    let closeRemote: () -> Void
+
+    var body: some View {
+        Button(action: closeRemote) {
+            Text("Close Agent Window")
+        }
+        .help(Text("Closes the agent's own window, not just this mirror of it."))
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .accessibilityIdentifier("closeFusionAgentWindow")
+        .padding(.horizontal, 8)
+        .fixedSize()
+    }
+}
+
 private struct FusionSurface: NSViewRepresentable {
     let client: FrameClient
     let send: (JSONValue) -> Void

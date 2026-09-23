@@ -150,20 +150,28 @@ clamped click is a click in the wrong place and the agent would not know.
 
 ## `NO_INPUT_TARGET` — "no app is frontmost"
 
-Keyboard and mouse events need somewhere to land. Posting into a session with
-nothing frontmost is a silent no-op, and AgentSpace reports an error instead
-because "nothing happened" is worse than "it failed" when a model is deciding
-what to do next.
+Only **keyboard** input needs an application that is focused: a `type` or `key`
+posted into a session with nothing focused is a silent no-op, and "nothing
+happened" is worse than "it failed" when a model is deciding what to do next.
+`accessibility.snapshot` and `accessibility.frontmost` report it for the same
+reason — with no focused app there is no tree to read.
 
-**Fix.** Launch or activate something in the Space first:
+Pointer input is **not** refused for this. The window server hit-tests a click
+against the point it names, so a click on the Dock or the bare desktop lands
+where it says even when no window is open; refusing those would block the only
+input that can open a window in the first place (measured in `docs/validation.md`
+§322).
+
+**Fix.** Open something in the Space:
 
 ```bash
 agentspace launch <space> Finder
 agentspace apps <space>
 ```
 
-A session that has just been logged into may briefly have only the desktop
-showing; retrying after a second works.
+…or click its tile in the Dock from the desktop viewer. A session that has just
+been logged into may briefly have only the desktop showing; retrying after a
+second works.
 
 ---
 

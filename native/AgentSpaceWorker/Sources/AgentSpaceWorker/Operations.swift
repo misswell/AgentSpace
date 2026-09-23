@@ -390,19 +390,20 @@ struct Operations {
             }
         }
 
-        // (5) Keyboard and mouse events need somewhere to land. Posting into a
-        // session with no frontmost app is a silent no-op, and a silent no-op is
-        // worse than an error because the agent believes it worked.
-        let needsTarget = actions.contains { action in
-            if case .sleep = action { return false }
-            return true
-        }
-        if needsTarget {
+        // (5) Keyboard events need a responder. Pointer events do not: the window
+        // server hit-tests them by point, so a click on the Dock lands on the Dock
+        // even when this session has no window open — measured by posting exactly
+        // such a click into a session with zero layer-0 windows, which launched the
+        // app whose tile it hit (`tests/probes/DockClickProbe.swift`). Refusing
+        // pointer actions here did not prevent a silent no-op; it *was* one, and it
+        // was unescapable, because that first Dock click is how a window gets open.
+        let needsResponder = actions.contains { $0.needsResponder }
+        if needsResponder {
             let frontmost = AppControl.frontmostPID()
             if frontmost == nil || frontmost == getpid() {
                 throw AgentSpaceError(
                     code: .noInputTarget,
-                    message: "no app is frontmost in the '\(context.spaceName)' session, so the events would be delivered to nothing.")
+                    message: "no app window is open in the '\(context.spaceName)' session, so there is nothing to type into. Pointer input still works — click an app in the Dock to open a window.")
             }
         }
 

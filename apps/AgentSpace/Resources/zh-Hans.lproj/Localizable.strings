@@ -204,7 +204,7 @@
 "In the AgentSpace session: System Settings → Privacy & Security → Screen & System Audio Recording → enable agentspace-worker. Then run `agentspace restart <space>`." = "在该 AgentSpace 会话中：系统设置 → 隐私与安全性 → 屏幕与系统声音录制 → 启用 agentspace-worker。然后运行 `agentspace restart <space>`。";
 "Coordinates are display POINTS (x right, y down, origin top-left of the main display), not screenshot pixels. Divide a pixel by the reported `scale`." = "坐标是显示「点」（x 向右，y 向下，主显示器左上角为原点），不是截图像素。像素值需除以返回的 `scale`。";
 "Check the action list against docs/protocol.md. The whole batch is validated before anything is performed, so nothing was done." = "请对照 docs/protocol.md 检查操作列表。整批操作会先校验再执行，因此这次什么都没有发生。";
-"No app is frontmost in the AgentSpace session, so the events would go nowhere. Launch or activate something there first, e.g. `agentspace launch <space> Finder`." = "AgentSpace 会话中没有前台应用，事件将无处投递。请先在那里启动或激活一个应用，例如 `agentspace launch <space> Finder`。";
+"The AgentSpace session has no focused app, so a keyboard event would go nowhere and an accessibility read has no target. Launch something there first, e.g. `agentspace launch <space> Finder`. Pointer input does not need a focused app and still works — a click on the Dock is enough." = "AgentSpace 会话里没有获得焦点的应用，所以键盘事件会无处投递，无障碍读取也没有目标。请先在那里启动一个应用，例如 `agentspace launch <space> Finder`。指针输入不需要焦点应用，仍然可用 —— 点一下 Dock 就够了。";
 "Pass an app name that exists in the AgentSpace session (`agentspace apps <space>`) or an absolute path to a .app bundle." = "传入 AgentSpace 会话中存在的应用名（`agentspace apps <space>`）或 .app 捆绑包的绝对路径。";
 "The app was launched but never registered with the window server. It may be showing a modal in the AgentSpace session; take a screenshot to look." = "应用已启动但从未在窗口服务器注册。它可能在 AgentSpace 会话中弹出了模态窗口；可截图查看。";
 "The app is not running in that agent. `agentspace apps <space>` lists what is." = "该应用没有在那个 Agent 中运行。`agentspace apps <space>` 可列出正在运行的应用。";
@@ -560,3 +560,5 @@
 "Frame stream is out of sync" = "画面流状态不同步";
 "AgentSpace is reconnecting the shared picture." = "AgentSpace 正在重新连接共享画面。";
 "The shared picture could not be recovered. Reconnect, and if it keeps happening, update AgentSpace." = "共享画面连接无法恢复。请重新连接；如果问题持续，请更新 AgentSpace。";
+"Close Agent Window" = "关闭 Agent 窗口";
+"Closes the agent's own window, not just this mirror of it." = "关闭 Agent 的窗口本身，而不只是这个显示窗口。";

@@ -327,9 +327,12 @@ forbids a screenshot of the user's desktop.
 3. **Whole batch validated.** One bad action performs *nothing*; the error names
    the offending index.
 4. **Coordinates** checked against the real display → `INVALID_COORDINATE`.
-5. **A frontmost app must exist** → `NO_INPUT_TARGET`. Posting into a session
-   with nothing frontmost is a silent no-op, and a silent no-op is worse than an
-   error because the caller believes it worked.
+5. **A keyboard action needs a frontmost app** → `NO_INPUT_TARGET`. A `type` or
+   `key` with nothing focused is a silent no-op, and a silent no-op is worse than
+   an error because the caller believes it worked. Pointer actions are excluded:
+   the window server hit-tests them against the point they name, so a click has a
+   target on the Dock or the bare desktop, and refusing it would block the only
+   input that can open a window in a session that has none (§322).
 6. **Perform.** Nothing above this line has a side effect.
 
 Every event is posted with `CGEvent.post(tap: .cgSessionEventTap)`. The function
@@ -441,7 +444,7 @@ Every code, and what a caller should do. `recoverable` is derived from the code.
 | `SCREEN_RECORDING_DENIED` | **no** | TCC Screen Recording missing |
 | `INVALID_COORDINATE` | **no** | Off-display, negative, or non-finite |
 | `INVALID_ACTION` | **no** | Malformed action batch; nothing was performed |
-| `NO_INPUT_TARGET` | yes | No frontmost app to deliver to |
+| `NO_INPUT_TARGET` | yes | Nothing focused to deliver a keyboard event to; pointer input is never refused for this |
 | `INPUT_BUSY_BY_HUMAN` | yes | A person interacted with a Fusion proxy in the last five seconds |
 | `APP_NOT_FOUND` | yes | No such app in this session |
 | `APP_LAUNCH_TIMEOUT` | yes | Launched, never registered |

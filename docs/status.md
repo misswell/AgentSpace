@@ -4,15 +4,43 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-22 on `master`. Current public release: `0.1.29`
-(`v0.1.29`, annotated at `39c1bc2` — the commit whose tree the bundle was built
-from; the GitHub Release asset reports
-`sha256:829433c407872391d7f8fc00196965fd92642f79818e397fca695caa227c74d3` over
-`5550513` bytes, byte-for-byte the file `check-all.sh` gated and the copy pulled
-back from the download URL, and `releases/latest` — the product's own update
-channel — answered the new tag on three samples with no write (§321 rows
-839–840). It ships the answer to 「鼠标位置与实际点击位置不一致，应该是横向拉伸后
-导致的」, and the measurement says the direction is not a stretch: ScreenCaptureKit
+Last updated: 2026-09-23 on `master`. Current public release: `0.1.30`
+(`v0.1.30`, annotated at `<TAGGED-COMMIT>`; the release asset, its digest and what
+`releases/latest` answered are recorded in §322 once the gates have run). It ships the
+answers to two reports about one desktop — 「无法点击，点击没有反应」 and
+「窗口无法关闭」 — and they turned out to be the same defect twice: a safety check that
+spent the only escape it existed to keep. `Operations.swift`'s "does this action need
+a target?" test asked nothing except "is it a `sleep`?", so `move`, `click` and
+`drag` were refused with `NO_INPUT_TARGET` in a session with no window open — and
+clicking a Dock tile is *how* a window gets open there. Pointer input is now refused
+only where it really is blind: the window server hit-tests a pointer against the point
+it names, so a click with no window still has a target, while a key has none
+(`InputAction.needsResponder`; §322 rows 841–842, measured as `click 1352 1033`
+launched 系统设置, pid 65062, window 2184, in a session that had zero).
+`window.activate` made `AXRaise`'s status code fatal, but System Settings advertises
+`AXRaise` in its own action names and answers **-25205** when it is performed, while
+`set AXMain`/`set AXFocused` answer 0 and produce the *identical* on-screen order to a
+successful `AXRaise` — so a raise is now judged by what the app reports afterwards
+(`kAXMainWindow`, `CFEqual`) rather than by the status of a call (row 844). And the
+Fusion proxy's red button used to ask the agent's permission before it would let
+*itself* close; because `generation` is a per-process counter
+(`WindowCatalog.swift:16` — CGWindow 2204 was generation **12** on the long-running
+worker and **1** on a fresh one), a proxy left open across a worker restart carried an
+identity that could never be accepted *and* could never be dismissed, since "no longer
+exists or its generation changed" is the same answer for both. The mirror always
+closes now, and closing the agent's window is a labelled title-bar action,
+「关闭 Agent 窗口」 (row 845). No new wire field, no new error case,
+`protocolVersion` still 1, 585 unit tests green.
+**This release needs two presses, not one:** the undismissible window is the app's
+problem, so 「检查更新」 fixes that half; rows 841–844 are in the **worker**, so the
+pointer and the raise reach a desktop only after 「重新安装助手…」. The installed worker
+answers `0.1.27`, not the `0.1.26` this page kept saying — re-measured here with
+`strings` rather than recalled, which narrows §320 row 837's gaps without closing them
+(row 847).
+
+The previous release, `0.1.29`, ships the answer to
+「鼠标位置与实际点击位置不一致，应该是横向拉伸后导致的」, and the measurement says the
+direction is not a stretch: ScreenCaptureKit
 refuses to distort, so it had scaled a 1920×1080 desktop *into* a buffer shaped by
 the **viewer's own window** (1280×543) and padded the other 314 columns with
 transparent black — and the only size either end of a stream is told is the
@@ -29,9 +57,10 @@ keep working and nothing reconnects in a loop. Two consequences are visible on
 purpose: a hand inside the bars of a differently-shaped window now does *nothing*
 rather than clicking 236 pt away, and that geometry's `mappingBytes` drops
 5,564,544 → 4,196,184 (**−24.6 %**) — black padding no longer costs memory or H.264
-bits. **The change is in the worker, so installing 0.1.29 does not move the mouse;
-「重新安装助手…」 does** — the installed worker still answers `0.1.26`, and §320
-row 837's gap stays open until that press. The same chain retired a release-script
+bits. **The change is in the worker, so installing 0.1.29 did not move the mouse;
+「重新安装助手…」 does** — and §320 row 837's gap stayed open through it, because what
+that press installs is 0.1.29's worker, not 0.1.30's (§322 row 847).
+The same chain retired a release-script
 fallback that had turned one failed Developer ID signature into a release bundle
 with no identity, no timestamp and no hardened runtime while every local step said
 `ok`; notarization is what caught it (`Invalid`, 12 issues across 4 Mach-Os), and a
@@ -117,6 +146,10 @@ the App and pressed the button again at 15:20 on 2026-09-22, so `/Applications` 
 `0.1.27` and `0.1.28` are published and **not** installed on this machine:
 `/Applications/AgentSpace.app` still reports `0.1.26 / build 383` and its bundled
 `Contents/Helpers/agentspace` stamps `0.1.26`, re-read here rather than recalled.
+**That sentence is now out of date, and §322's re-read replaces it:** on 2026-09-23 the
+installed app is `0.1.27` and the active worker is `0.1.27` (pid 26074), so the update
+and 「重新安装助手…」 have both been pressed since; `0.1.28`, `0.1.29` and `0.1.30` are
+the releases sitting ahead of it.
 Neither release needs 「重新安装助手…」. `0.1.27`'s change is in the App, so
 pressing the update is what makes the *next* helper swap a one-press one;
 `0.1.28`'s is in the CLI, and that CLI ships **inside** the app bundle, so

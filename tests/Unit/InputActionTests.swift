@@ -295,6 +295,38 @@ final class InputActionTests: XCTestCase {
             }
         }
     }
+
+    // MARK: Does this action need an app to receive it?
+    //
+    // The worker refuses input it believes has no target. Measured, that belief is
+    // wrong for pointer events: a click posted into a session with zero layer-0
+    // windows was hit-tested by the window server against the Dock tile under the
+    // named point and launched the app (§322, `tests/probes/DockClickProbe.swift`).
+    // So only the keyboard-half of the API may be refused for want of a responder —
+    // refusing the rest locks the desktop, because that Dock click is how a window
+    // gets open in the first place.
+
+    func testPointerActionsDoNotNeedAResponder() {
+        let pointer: [InputAction] = [
+            .move(x: 1, y: 1),
+            .click(x: 1, y: 1, button: .left, count: 1, modifiers: []),
+            .click(x: 1, y: 1, button: .left, count: 2, modifiers: []),
+            .drag(fromX: 0, fromY: 0, toX: 1, toY: 1, button: .left, modifiers: []),
+            .scroll(x: nil, y: nil, dx: 0, dy: -100),
+            .scroll(x: 5, y: 6, dx: 0, dy: -100),
+            .sleep(ms: 10),
+        ]
+        for action in pointer {
+            XCTAssertFalse(action.needsResponder, "\(action) is delivered to a point, not to a focused app")
+        }
+    }
+
+    func testKeyboardActionsNeedAResponder() {
+        let keyboard: [InputAction] = [.type(text: "hello"), .key(combo: "cmd+l")]
+        for action in keyboard {
+            XCTAssertTrue(action.needsResponder, "\(action) with no frontmost window is dropped, not delivered")
+        }
+    }
 }
 
 // MARK: - Wire encoding

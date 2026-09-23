@@ -135,7 +135,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         case .invalidAction:
             return NSLocalizedString("Check the action list against docs/protocol.md. The whole batch is validated before anything is performed, so nothing was done.", comment: "")
         case .noInputTarget:
-            return NSLocalizedString("No app is frontmost in the AgentSpace session, so the events would go nowhere. Launch or activate something there first, e.g. `agentspace launch <space> Finder`.", comment: "")
+            return NSLocalizedString("The AgentSpace session has no focused app, so a keyboard event would go nowhere and an accessibility read has no target. Launch something there first, e.g. `agentspace launch <space> Finder`. Pointer input does not need a focused app and still works — a click on the Dock is enough.", comment: "")
         case .inputBusyByHuman:
             return NSLocalizedString("A person is controlling an Agent window. Wait five seconds after their last input, then retry.", comment: "")
         case .appNotFound:

@@ -84,6 +84,23 @@ public enum InputAction: Equatable, Sendable {
         if case .move = self { return true }
         return false
     }
+
+    /// Whether this action needs an application that will receive it.
+    ///
+    /// The window server hit-tests a pointer event against the point it names, so a
+    /// click has a target wherever that point is — including the Dock and the desktop
+    /// of a session with no window open at all. A keyboard event instead goes to the
+    /// focused element of the frontmost app, so with no window open there is nothing
+    /// to receive it and the event is silently dropped. That difference is what the
+    /// worker's "is there a target?" check is for, and it only holds for keys: on a
+    /// bare desktop the check used to refuse the very Dock click that would open a
+    /// window, so no input could be sent at all.
+    public var needsResponder: Bool {
+        switch self {
+        case .type, .key: return true
+        case .move, .click, .drag, .scroll, .sleep: return false
+        }
+    }
 }
 
 /// Hard bounds. Plan §14 asks for batching; unbounded batching is a

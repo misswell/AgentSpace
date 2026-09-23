@@ -86,7 +86,7 @@ agentspace click dev 500 300
        ├─ AXIsProcessTrusted()         → ACCESSIBILITY_DENIED
        ├─ validate the whole batch     → INVALID_ACTION
        ├─ coordinates vs the display   → INVALID_COORDINATE
-       ├─ a frontmost app must exist   → NO_INPUT_TARGET
+       ├─ typing needs a focused app   → NO_INPUT_TARGET
        └─ CGEvent.post(tap: .cgSessionEventTap)
             │
             └─ enters THIS session's event stream only; the window server
