@@ -83,10 +83,15 @@ jobs:
                 's/.*agentSpaceVersion = "(.*)".*/\1/p' "agentSpaceVersion"
           check shared/Core/Sources/AgentSpaceCore/Diagnostics.swift \
                 's/.*agentspace-core (.*)".*/\1/p' "the diagnostics line"
-          # Read through plutil rather than a text scan: the plist holds other
-          # digit-leading strings (LSMinimumSystemVersion) and a scan would
-          # happily compare the wrong one.
-          apple_version="$(plutil -extract CFBundleShortVersionString raw apps/AgentSpace/Resources/Info.plist)"
+          # The plist is XML, so it is parsed rather than text-scanned: it holds
+          # other digit-leading strings (LSMinimumSystemVersion) and a scan would
+          # happily compare the wrong one. One line of python rather than
+          # `plutil`, because this job runs on Linux to be cheap — measured the
+          # hard way: the first version of this step called `plutil`, which does
+          # not exist on ubuntu-latest, so the job exited 127 without ever
+          # comparing the tag. A check that fails for the wrong reason is worse
+          # than no check, because it looks like it worked.
+          apple_version="$(python3 -c "import plistlib;print(plistlib.load(open('apps/AgentSpace/Resources/Info.plist','rb'))['CFBundleShortVersionString'])")"
           [[ "$apple_version" == "$version" ]] || {
             echo "::error file=apps/AgentSpace/Resources/Info.plist::CFBundleShortVersionString is '$apple_version', the CLI says '$version'"
             mismatched=1
