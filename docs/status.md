@@ -5,8 +5,15 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/validation.md`](validation.md).
 
 Last updated: 2026-09-23 on `master`. Current public release: `0.1.30`
-(`v0.1.30`, annotated at `<TAGGED-COMMIT>`; the release asset, its digest and what
-`releases/latest` answered are recorded in §322 once the gates have run). It ships the
+(`v0.1.30`, annotated at `cf7aa1b` — the commit whose tree the bundle was built from,
+`git rev-list --count` there = 408 = the stamp inside it; the GitHub Release asset
+reports `sha256:243f4fc86db0d6d3cdcf3899dc19213a56a3b0a6ffdaf6af0991b71f408637e2` over
+`5556169` bytes, byte-for-byte what `check-all.sh` gated and what `curl -L` of the
+download URL returned, and `releases/latest` — the product's own update channel —
+answered the new tag on three samples with no write. Layer 4's first run reported
+*zero main windows* on this artifact and thirteen of thirteen on the second, over the
+same bytes; the build was ruled out before the instrument was, and both runs are on the
+record (§322 row 848). It ships the
 answers to two reports about one desktop — 「无法点击，点击没有反应」 and
 「窗口无法关闭」 — and they turned out to be the same defect twice: a safety check that
 spent the only escape it existed to keep. `Operations.swift`'s "does this action need
@@ -15,8 +22,8 @@ a target?" test asked nothing except "is it a `sleep`?", so `move`, `click` and
 clicking a Dock tile is *how* a window gets open there. Pointer input is now refused
 only where it really is blind: the window server hit-tests a pointer against the point
 it names, so a click with no window still has a target, while a key has none
-(`InputAction.needsResponder`; §322 rows 841–842, measured as `click 1352 1033`
-launched 系统设置, pid 65062, window 2184, in a session that had zero).
+(`InputAction.needsResponder`; §322 rows 841–842 — measured as a `click 1352 1033`
+into a session with zero windows, which launched 系统设置 as pid 65062 with window 2184).
 `window.activate` made `AXRaise`'s status code fatal, but System Settings advertises
 `AXRaise` in its own action names and answers **-25205** when it is performed, while
 `set AXMain`/`set AXFocused` answer 0 and produce the *identical* on-screen order to a
