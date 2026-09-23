@@ -119,6 +119,23 @@ enum InputSynthesizer {
                 if n < count { sleepMs(60) }
             }
 
+        case .pointerDown(let x, let y, let button, let modifiers):
+            let (down, _, _) = downUpTypes(button.cgButton)
+            post(mouseEvent(.mouseMoved, x, y, button.cgButton))
+            post(mouseEvent(down, x, y, button.cgButton), flags: flags(from: modifiers))
+
+        case .pointerDrag(let fx, let fy, let tx, let ty, let button, let modifiers):
+            let (_, _, dragged) = downUpTypes(button.cgButton)
+            if let event = mouseEvent(dragged, tx, ty, button.cgButton) {
+                event.setDoubleValueField(.mouseEventDeltaX, value: tx - fx)
+                event.setDoubleValueField(.mouseEventDeltaY, value: ty - fy)
+                post(event, flags: flags(from: modifiers))
+            }
+
+        case .pointerUp(let x, let y, let button, let modifiers):
+            let (_, up, _) = downUpTypes(button.cgButton)
+            post(mouseEvent(up, x, y, button.cgButton), flags: flags(from: modifiers))
+
         case .drag(let fx, let fy, let tx, let ty, let button, let modifiers):
             // A drag is a *stream*, not "down, jump, up". AppKit only starts
             // tracking once it has entered its own mouse-tracking loop and

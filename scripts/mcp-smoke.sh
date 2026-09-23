@@ -38,9 +38,9 @@ for product in agentspace agentspace-worker; do
   fi
 done
 
-pkill -f "agentspace-worker --space-id" 2>/dev/null || true
-
 ROOT="${AGENTSPACE_MCP_SMOKE_ROOT:-/tmp/as-mcp}"
+# This test owns only its temporary root and the worker PID started below.
+# Stopping every `agentspace-worker` here would interrupt attached agent accounts.
 rm -rf "$ROOT"
 SPACE_ID="$(uuidgen)"
 mkdir -p "$ROOT/Spaces" "$ROOT/Runtime/$SPACE_ID"
@@ -63,7 +63,10 @@ PY
 WORKER_PID=$!
 trap 'kill "$WORKER_PID" 2>/dev/null; wait "$WORKER_PID" 2>/dev/null' EXIT
 
-for _ in $(seq 1 60); do
+# A locked console can make the readiness probe slow even though the worker
+# correctly binds and refuses input; allow that startup without changing the
+# safety assertion below.
+for _ in $(seq 1 300); do
   [[ -S "$ROOT/Runtime/$SPACE_ID/worker.sock" ]] && break
   sleep 0.1
 done

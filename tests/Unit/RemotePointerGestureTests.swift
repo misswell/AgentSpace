@@ -72,6 +72,21 @@ final class RemotePointerGestureTests: XCTestCase {
                              button: .left, modifiers: []))
     }
 
+    func testDragStartsBeforeTheButtonIsReleased() {
+        var tracker = RemotePointerGestureTracker()
+        tracker.beganPress(at: point(240, 405), button: .left, modifiers: [], in: square, now: start)
+        let update = tracker.dragged(to: point(480, 270), in: square,
+                                     now: start.addingTimeInterval(0.1))
+        XCTAssertEqual(update.gestures, [
+            .pointerDown(u: 0.25, v: 0.25, button: .left, modifiers: []),
+            .pointerDrag(fromU: 0.25, fromV: 0.25, toU: 0.5, toV: 0.5,
+                         button: .left, modifiers: []),
+        ], "the remote window must begin moving while the button is still held")
+        XCTAssertEqual(tracker.endedPress(at: point(720, 135), clickCount: 1,
+                                         in: square, now: start.addingTimeInterval(0.2)),
+                       .pointerUp(u: 0.75, v: 0.75, button: .left, modifiers: []))
+    }
+
     /// Three points of jitter is still a click; four is a drag. Both surfaces have
     /// to agree on where that line is, or the same hand means different things in
     /// a viewer and in a proxy.

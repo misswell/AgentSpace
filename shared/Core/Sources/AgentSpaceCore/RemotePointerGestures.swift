@@ -15,6 +15,12 @@ public enum RemotePointerGesture: Equatable, Sendable {
     case click(u: Double, v: Double, button: MouseButton, count: Int, modifiers: [Modifier])
     case drag(fromU: Double, fromV: Double, toU: Double, toV: Double,
               button: MouseButton, modifiers: [Modifier])
+    /// Live drag phases. The first two are emitted while the local button is
+    /// still down; the final phase is emitted on release.
+    case pointerDown(u: Double, v: Double, button: MouseButton, modifiers: [Modifier])
+    case pointerDrag(fromU: Double, fromV: Double, toU: Double, toV: Double,
+                     button: MouseButton, modifiers: [Modifier])
+    case pointerUp(u: Double, v: Double, button: MouseButton, modifiers: [Modifier])
     /// Whole lines scrolled; the fractional remainder is kept by the tracker.
     ///
     /// The axes keep AppKit's own signs and order — `linesX` is
@@ -54,9 +60,12 @@ public struct RemotePointerGestureTracker {
         var viewOrigin: CGPoint
         var u: Double
         var v: Double
+        var lastU: Double
+        var lastV: Double
         var button: MouseButton
         var modifiers: [Modifier]
         var travelled = false
+        var streamStarted = false
     }
 
     private var press: Press?
@@ -92,6 +101,14 @@ public struct RemotePointerGestureTracker {
         scrollCarryY = 0
     }
 
+    /// A disappearing surface must not leave the agent's button held down.
+    public mutating func cancelPress() -> RemotePointerGesture? {
+        defer { press = nil }
+        guard let press, press.streamStarted else { return nil }
+        return .pointerUp(u: press.lastU, v: press.lastV,
+                          button: press.button, modifiers: press.modifiers)
+    }
+
     /// Pointer travel.
     ///
     /// Crossing a remote surface is the main user moving their own cursor over a
@@ -117,7 +134,8 @@ public struct RemotePointerGestureTracker {
             press = nil
             return false
         }
-        press = Press(viewOrigin: point, u: f.u, v: f.v, button: button, modifiers: modifiers)
+        press = Press(viewOrigin: point, u: f.u, v: f.v, lastU: f.u, lastV: f.v,
+                      button: button, modifiers: modifiers)
         engagedUntil = now.addingTimeInterval(Self.humanLeaseSeconds)
         lastRenewal = now
         return true
@@ -138,6 +156,34 @@ public struct RemotePointerGestureTracker {
         return true
     }
 
+    /// Events to send before the local button comes up. Starting only after
+    /// the click/drag threshold preserves ordinary clicks, while the first
+    /// crossed point sends down + drag immediately instead of replaying the
+    /// entire path after release.
+    public mutating func dragged(to point: CGPoint, in surface: PreviewMapping,
+                                 now: Date) -> (renewLease: Bool, gestures: [RemotePointerGesture]) {
+        let renewLease = dragged(to: point, now: now)
+        guard var press, press.travelled,
+              let fraction = surface.fractionClamped(appKitX: Double(point.x), appKitY: Double(point.y)) else {
+            return (renewLease, [])
+        }
+        let move = RemotePointerGesture.pointerDrag(
+            fromU: press.lastU, fromV: press.lastV, toU: fraction.u, toV: fraction.v,
+            button: press.button, modifiers: press.modifiers)
+        press.lastU = fraction.u
+        press.lastV = fraction.v
+        if press.streamStarted {
+            self.press = press
+            return (renewLease, [move])
+        }
+        press.streamStarted = true
+        self.press = press
+        return (renewLease, [
+            .pointerDown(u: press.u, v: press.v, button: press.button, modifiers: press.modifiers),
+            move,
+        ])
+    }
+
     /// The button came up: the press resolves into a click or a drag here, because
     /// only now is it known whether it travelled.
     public mutating func endedPress(at point: CGPoint, clickCount: Int,
@@ -149,6 +195,10 @@ public struct RemotePointerGestureTracker {
             return nil
         }
         engagedUntil = now.addingTimeInterval(Self.humanLeaseSeconds)
+        if press.streamStarted {
+            guard let to = surface.fractionClamped(appKitX: Double(point.x), appKitY: Double(point.y)) else { return nil }
+            return .pointerUp(u: to.u, v: to.v, button: press.button, modifiers: press.modifiers)
+        }
         if press.travelled {
             // A release that drifted past the image edge is pulled back onto it:
             // the travelled path still started inside the window, and dropping the

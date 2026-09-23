@@ -40,6 +40,20 @@ final class RemoteWindowInputTests: XCTestCase {
             .click(x: 400, y: 150, button: .left, count: 1, modifiers: []))
     }
 
+    func testLiveDragKeepsTheMouseDownFrameAsWindowMoves() throws {
+        let value = try JSONDecoder().decode(JSONValue.self, from: Data(
+            #"{"type":"pointerDrag","xFraction":0.25,"yFraction":0.25,"toXFraction":0.5,"toYFraction":0.5}"#.utf8))
+        let moved = RemoteWindow(
+            id: window.id, pid: window.pid, appName: window.appName,
+            bundleIdentifier: window.bundleIdentifier, title: window.title,
+            frame: CGRectValue(x: 260, y: 140, width: 400, height: 200),
+            layer: window.layer, visible: true, minimized: false, generation: window.generation)
+        XCTAssertEqual(try RemoteWindowInput.action(from: .object(["action": value]),
+                                                       window: moved, gestureFrame: window.frame),
+                       .pointerDrag(fromX: 300, fromY: 150, toX: 400, toY: 200,
+                                    button: .left, modifiers: []))
+    }
+
     /// The press is the drag's *start*, which the parser names `fromX`/`fromY`.
     /// A drag built the way a click is gets rejected, and the proxy's gesture
     /// never reaches the agent.
@@ -47,6 +61,18 @@ final class RemoteWindowInputTests: XCTestCase {
         XCTAssertEqual(
             try action(#"{"type":"drag","xFraction":0,"yFraction":0,"toXFraction":1,"toYFraction":1}"#),
             .drag(fromX: 200, fromY: 100, toX: 600, toY: 300, button: .left, modifiers: []))
+    }
+
+    func testLiveDragPhasesResolveThroughTheSameWindowGeometry() throws {
+        XCTAssertEqual(
+            try action(#"{"type":"pointerDown","xFraction":0.25,"yFraction":0.25,"button":"left"}"#),
+            .pointerDown(x: 300, y: 150, button: .left, modifiers: []))
+        XCTAssertEqual(
+            try action(#"{"type":"pointerDrag","xFraction":0.25,"yFraction":0.25,"toXFraction":0.5,"toYFraction":0.5,"button":"left"}"#),
+            .pointerDrag(fromX: 300, fromY: 150, toX: 400, toY: 200, button: .left, modifiers: []))
+        XCTAssertEqual(
+            try action(#"{"type":"pointerUp","xFraction":0.5,"yFraction":0.5,"button":"left"}"#),
+            .pointerUp(x: 400, y: 200, button: .left, modifiers: []))
     }
 
     /// Which button and which modifiers were held is the difference between a

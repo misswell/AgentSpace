@@ -6,8 +6,9 @@ enum WindowInputRouter {
     /// The proxy's action, with window-relative fractions resolved. The
     /// vocabulary past the geometry is Core's (`RemoteWindowInput`), so a
     /// shift-click from a proxy means what it means from `agentspace input`.
-    static func prepare(params: JSONValue, window: RemoteWindow) throws -> InputAction {
-        try RemoteWindowInput.action(from: params, window: window)
+    static func prepare(params: JSONValue, window: RemoteWindow,
+                        gestureFrame: CGRectValue? = nil) throws -> InputAction {
+        try RemoteWindowInput.action(from: params, window: window, gestureFrame: gestureFrame)
     }
 
     /// Make the Fusion window a provable input target before posting at its

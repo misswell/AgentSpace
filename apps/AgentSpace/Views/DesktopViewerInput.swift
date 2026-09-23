@@ -23,9 +23,11 @@ final class DesktopViewerInput: ObservableObject {
 
     private var space: AgentAccount?
     private var display: DisplayGeometry?
+    private let inputQueue = DispatchQueue(label: BundleIdentifiers.app + ".desktop.input")
+    private var dragActive = false
     private var pendingTravelPump: Task<Void, Never>?
     private lazy var travel = PointerTravelCoalescer<InputAction> { [weak self] action in
-        Task { @MainActor in await self?.deliverTravel(action) }
+        Task { @MainActor in self?.deliverTravel(action) }
     }
 
     /// Where the next gesture goes, and how big that surface is in the points the
@@ -55,6 +57,23 @@ final class DesktopViewerInput: ObservableObject {
             send(.drag(fromX: press.x, fromY: press.y, toX: release.x, toY: release.y,
                        button: button, modifiers: modifiers), to: space)
 
+        case .pointerDown(let u, let v, let button, let modifiers):
+            dragActive = true
+            travel.reset()
+            let point = Self.point(u, v, display)
+            send(.pointerDown(x: point.x, y: point.y, button: button, modifiers: modifiers), to: space)
+
+        case .pointerDrag(let fromU, let fromV, let toU, let toV, let button, let modifiers):
+            let from = Self.point(fromU, fromV, display)
+            let to = Self.point(toU, toV, display)
+            send(.pointerDrag(fromX: from.x, fromY: from.y, toX: to.x, toY: to.y,
+                              button: button, modifiers: modifiers), to: space)
+
+        case .pointerUp(let u, let v, let button, let modifiers):
+            dragActive = false
+            let point = Self.point(u, v, display)
+            send(.pointerUp(x: point.x, y: point.y, button: button, modifiers: modifiers), to: space)
+
         case .scroll(let u, let v, let linesX, let linesY):
             let point = Self.point(u, v, display)
             send(.scroll(x: point.x, y: point.y, dx: linesX, dy: linesY), to: space)
@@ -66,6 +85,7 @@ final class DesktopViewerInput: ObservableObject {
     func reset() {
         pendingTravelPump?.cancel()
         pendingTravelPump = nil
+        dragActive = false
         travel.reset()
     }
 
@@ -77,28 +97,31 @@ final class DesktopViewerInput: ObservableObject {
     }
 
     private func send(_ action: InputAction, to space: AgentAccount) {
-        Task { @MainActor in
-            let error = await Task.detached(priority: .userInitiated) {
-                SpaceService().input(for: space, actions: [action])
-            }.value
-            guard let error else {
-                refusal = nil
-                return
+        inputQueue.async { [weak self] in
+            let error = SpaceService().input(for: space, actions: [action])
+            Task { @MainActor in
+                guard let self else { return }
+                guard let error else { self.refusal = nil; return }
+                self.refusal = AppModel.PresentedError(code: error.code.rawValue, message: error.message,
+                                                      fix: error.code.remediation, spaceName: space.name)
             }
-            refusal = AppModel.PresentedError(code: error.code.rawValue, message: error.message,
-                                              fix: error.code.remediation, spaceName: space.name)
         }
     }
 
-    private func deliverTravel(_ action: InputAction) async {
-        guard let space else { return }
-        _ = await Task.detached(priority: .userInitiated) {
-            SpaceService().input(for: space, actions: [action])
-        }.value
-        // Whether or not the worker answered, the travel slot has to be released,
-        // or one skipped hover silences the pointer for good.
-        travel.finished()
-        schedulePendingTravel()
+    private func deliverTravel(_ action: InputAction) {
+        guard let space, !dragActive else {
+            travel.finished()
+            return
+        }
+        inputQueue.async { [weak self] in
+            _ = SpaceService().input(for: space, actions: [action])
+            Task { @MainActor in
+                guard let self else { return }
+                // A refused hover must still release the coalescer's slot.
+                self.travel.finished()
+                self.schedulePendingTravel()
+            }
+        }
     }
 
     /// A last hover can arrive inside the 30 Hz interval just after the

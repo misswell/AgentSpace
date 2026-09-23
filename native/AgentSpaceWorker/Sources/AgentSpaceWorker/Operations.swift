@@ -17,6 +17,7 @@ struct Operations {
     let windowStreams: WindowStreamManager
     let inputLease: InputLeaseManager
     let frames: FrameManager
+    private let windowDragFrames = WindowDragFrameStore()
 
     static let workerVersion = agentSpaceVersion
 
@@ -406,13 +407,15 @@ struct Operations {
         let geometry = ScreenCapture.mainDisplayGeometry()
         for (index, action) in actions.enumerated() {
             switch action {
-            case .move(let x, let y), .click(let x, let y, _, _, _):
+            case .move(let x, let y), .click(let x, let y, _, _, _),
+                 .pointerDown(let x, let y, _, _), .pointerUp(let x, let y, _, _):
                 if let error = CoordinateRules.validate(x: x, y: y, geometry: geometry) {
                     throw AgentSpaceError(
                         code: error.code,
                         message: "action \(index): \(error.message)")
                 }
-            case .drag(let fx, let fy, let tx, let ty, _, _):
+            case .drag(let fx, let fy, let tx, let ty, _, _),
+                 .pointerDrag(let fx, let fy, let tx, let ty, _, _):
                 for (label, x, y) in [("fromX/fromY", fx, fy), ("toX/toY", tx, ty)] {
                     if let error = CoordinateRules.validate(x: x, y: y, geometry: geometry) {
                         throw AgentSpaceError(
@@ -984,7 +987,14 @@ struct Operations {
             throw AgentSpaceError(code: .accessibilityDenied, message: "Accessibility is not granted to agentspace-worker in this session.")
         }
         let window = try windowCatalog.window(matching: windowIdentity(params))
-        let action = try WindowInputRouter.prepare(params: params, window: window)
+        let actionType = params["action"]?["type"]?.stringValue
+        let gestureFrame = actionType == "pointerDrag" || actionType == "pointerUp"
+            ? windowDragFrames.frame(for: window.identity) : nil
+        if (actionType == "pointerDrag" || actionType == "pointerUp") && gestureFrame == nil {
+            throw AgentSpaceError(code: .invalidAction, message: "Fusion drag has no matching pointerDown")
+        }
+        let action = try WindowInputRouter.prepare(params: params, window: window,
+                                                    gestureFrame: gestureFrame)
         if action.isHover {
             // Pointer travel is not a person taking control. Forwarding it
             // anyway would activate the agent's app and raise its window, so
@@ -997,7 +1007,11 @@ struct Operations {
             }
             return .obj(["performed": .int(1), "channel": .string(try WindowInputRouter.perform(action).rawValue)])
         }
-        try WindowInputRouter.activate(window: window)
+        if !action.isDragContinuation {
+            try WindowInputRouter.activate(window: window)
+        }
+        if case .pointerDown = action { windowDragFrames.begin(window.identity, frame: window.frame) }
+        defer { if case .pointerUp = action { windowDragFrames.end(window.identity) } }
         inputLease.claimHuman()
         // The channel rides along here too, so a proxy can tell a scroll that
         // moved its document from one that only posted an event — the same
@@ -1073,6 +1087,28 @@ struct Operations {
             exit(0)
         }
         return .obj(["stopping": .bool(true), "reason": .string(reason)])
+    }
+}
+
+/// A moving Fusion window must keep the coordinate system it had at mouse-down.
+/// Otherwise each newly reported window origin is added to the proxy's motion.
+private final class WindowDragFrameStore {
+    private let lock = NSLock()
+    private var frames: [WindowIdentity: CGRectValue] = [:]
+
+    func begin(_ identity: WindowIdentity, frame: CGRectValue) {
+        lock.lock(); defer { lock.unlock() }
+        frames[identity] = frame
+    }
+
+    func frame(for identity: WindowIdentity) -> CGRectValue? {
+        lock.lock(); defer { lock.unlock() }
+        return frames[identity]
+    }
+
+    func end(_ identity: WindowIdentity) {
+        lock.lock(); defer { lock.unlock() }
+        frames[identity] = nil
     }
 }
 

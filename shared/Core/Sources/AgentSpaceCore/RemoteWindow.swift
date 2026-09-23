@@ -152,9 +152,11 @@ public enum RemoteWindowInput {
     /// Pointer types whose coordinates arrive as fractions.
     private static let pointerTypes: Set<String> = [
         "move", "click", "doubleClick", "rightClick", "scroll", "drag",
+        "pointerDown", "pointerDrag", "pointerUp",
     ]
 
-    public static func action(from params: JSONValue, window: RemoteWindow) throws -> InputAction {
+    public static func action(from params: JSONValue, window: RemoteWindow,
+                              gestureFrame: CGRectValue? = nil) throws -> InputAction {
         guard let value = params["action"] else {
             throw AgentSpaceError(code: .invalidAction, message: #"window.input requires an "action" object"#)
         }
@@ -173,20 +175,21 @@ public enum RemoteWindowInput {
                 code: .invalidCoordinate,
                 message: "window pointer input requires xFraction and yFraction")
         }
+        let frame = gestureFrame ?? window.frame
         let press = try WindowCoordinateMapper.point(
-            xFraction: xFraction, yFraction: yFraction, in: window.frame)
+            xFraction: xFraction, yFraction: yFraction, in: frame)
         // `drag` names its start `fromX`/`fromY`; every other pointer type uses
         // `x`/`y`. Sending a drag's press under the wrong key is a malformed
         // action to the parser, not a drag that starts somewhere else.
         var absolute: [String: JSONValue] = ["type": .string(type)]
-        if type == "drag" {
+        if type == "drag" || type == "pointerDrag" {
             absolute["fromX"] = .double(press.x)
             absolute["fromY"] = .double(press.y)
         } else {
             absolute["x"] = .double(press.x)
             absolute["y"] = .double(press.y)
         }
-        if type == "drag" {
+        if type == "drag" || type == "pointerDrag" {
             // A drag is two normalized points of the same window: the press and
             // the release. Text selection and slider knobs need the travelled
             // path, which a `click` followed by moves cannot express.
@@ -196,7 +199,7 @@ public enum RemoteWindowInput {
                     code: .invalidCoordinate, message: "window drag requires toXFraction and toYFraction")
             }
             let release = try WindowCoordinateMapper.point(
-                xFraction: toXFraction, yFraction: toYFraction, in: window.frame)
+                xFraction: toXFraction, yFraction: toYFraction, in: frame)
             absolute["toX"] = .double(release.x)
             absolute["toY"] = .double(release.y)
         }

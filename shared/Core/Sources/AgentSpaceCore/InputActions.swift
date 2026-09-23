@@ -58,6 +58,9 @@ public enum InputAction: Equatable, Sendable {
     case move(x: Double, y: Double)
     case click(x: Double, y: Double, button: MouseButton, count: Int, modifiers: [Modifier])
     case drag(fromX: Double, fromY: Double, toX: Double, toY: Double, button: MouseButton, modifiers: [Modifier])
+    case pointerDown(x: Double, y: Double, button: MouseButton, modifiers: [Modifier])
+    case pointerDrag(fromX: Double, fromY: Double, toX: Double, toY: Double, button: MouseButton, modifiers: [Modifier])
+    case pointerUp(x: Double, y: Double, button: MouseButton, modifiers: [Modifier])
     case scroll(x: Double?, y: Double?, dx: Int, dy: Int)
     case type(text: String)
     case key(combo: String)
@@ -70,6 +73,9 @@ public enum InputAction: Equatable, Sendable {
         case .move: return "move"
         case .click(_, _, _, let count, _): return count >= 2 ? "doubleClick" : "click"
         case .drag: return "drag"
+        case .pointerDown: return "pointerDown"
+        case .pointerDrag: return "pointerDrag"
+        case .pointerUp: return "pointerUp"
         case .scroll: return "scroll"
         case .type: return "type"
         case .key: return "key"
@@ -85,6 +91,16 @@ public enum InputAction: Equatable, Sendable {
         return false
     }
 
+    /// Subsequent phases of a live drag use the target selected by the down
+    /// event; raising it again on every point adds AX latency and can reorder
+    /// the drag when the target window itself is moving.
+    public var isDragContinuation: Bool {
+        switch self {
+        case .pointerDrag, .pointerUp: return true
+        default: return false
+        }
+    }
+
     /// Whether this action needs an application that will receive it.
     ///
     /// The window server hit-tests a pointer event against the point it names, so a
@@ -98,7 +114,7 @@ public enum InputAction: Equatable, Sendable {
     public var needsResponder: Bool {
         switch self {
         case .type, .key: return true
-        case .move, .click, .drag, .scroll, .sleep: return false
+        case .move, .click, .drag, .pointerDown, .pointerDrag, .pointerUp, .scroll, .sleep: return false
         }
     }
 }
@@ -172,10 +188,9 @@ extension InputAction {
             }
             return .success(.click(x: x, y: y, button: button, count: count, modifiers: modifiers))
 
-        case "drag":
-            guard let fx = object["fromX"]?.doubleValue, let fy = object["fromY"]?.doubleValue,
-                  let tx = object["toX"]?.doubleValue, let ty = object["toY"]?.doubleValue else {
-                return bad("drag requires numeric fromX, fromY, toX and toY")
+        case "pointerDown", "pointerUp":
+            guard let x = object["x"]?.doubleValue, let y = object["y"]?.doubleValue else {
+                return bad("\(type) requires numeric x and y")
             }
             var button: MouseButton = .left
             if let raw = object["button"]?.stringValue {
@@ -187,7 +202,28 @@ extension InputAction {
             guard let modifiers = parseModifiers(object["modifiers"], index: index) else {
                 return bad("modifiers must be an array of known modifier names")
             }
-            return .success(.drag(fromX: fx, fromY: fy, toX: tx, toY: ty, button: button, modifiers: modifiers))
+            return .success(type == "pointerDown"
+                ? .pointerDown(x: x, y: y, button: button, modifiers: modifiers)
+                : .pointerUp(x: x, y: y, button: button, modifiers: modifiers))
+
+        case "drag", "pointerDrag":
+            guard let fx = object["fromX"]?.doubleValue, let fy = object["fromY"]?.doubleValue,
+                  let tx = object["toX"]?.doubleValue, let ty = object["toY"]?.doubleValue else {
+                return bad("\(type) requires numeric fromX, fromY, toX and toY")
+            }
+            var button: MouseButton = .left
+            if let raw = object["button"]?.stringValue {
+                guard let parsed = MouseButton(rawValue: raw.lowercased()) else {
+                    return bad("unknown button '\(raw)'")
+                }
+                button = parsed
+            }
+            guard let modifiers = parseModifiers(object["modifiers"], index: index) else {
+                return bad("modifiers must be an array of known modifier names")
+            }
+            return .success(type == "drag"
+                ? .drag(fromX: fx, fromY: fy, toX: tx, toY: ty, button: button, modifiers: modifiers)
+                : .pointerDrag(fromX: fx, fromY: fy, toX: tx, toY: ty, button: button, modifiers: modifiers))
 
         case "scroll":
             let dx = object["dx"]?.intValue ?? 0
@@ -443,6 +479,29 @@ extension InputAction {
                 "fromY": .double(fromY),
                 "toX": .double(toX),
                 "toY": .double(toY),
+                "button": .string(button.rawValue),
+            ]
+            if !modifiers.isEmpty {
+                object["modifiers"] = .array(modifiers.map { .string($0.rawValue) })
+            }
+            return .object(object)
+
+        case .pointerDown(let x, let y, let button, let modifiers),
+             .pointerUp(let x, let y, let button, let modifiers):
+            var object: [String: JSONValue] = [
+                "type": .string(typeName), "x": .double(x), "y": .double(y),
+                "button": .string(button.rawValue),
+            ]
+            if !modifiers.isEmpty {
+                object["modifiers"] = .array(modifiers.map { .string($0.rawValue) })
+            }
+            return .object(object)
+
+        case .pointerDrag(let fromX, let fromY, let toX, let toY, let button, let modifiers):
+            var object: [String: JSONValue] = [
+                "type": .string("pointerDrag"),
+                "fromX": .double(fromX), "fromY": .double(fromY),
+                "toX": .double(toX), "toY": .double(toY),
                 "button": .string(button.rawValue),
             ]
             if !modifiers.isEmpty {

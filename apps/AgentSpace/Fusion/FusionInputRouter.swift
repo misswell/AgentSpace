@@ -41,6 +41,22 @@ enum FusionInputRouter {
             addModifiers(modifiers, to: &object)
             return .object(object)
 
+        case .pointerDown(let u, let v, let button, let modifiers):
+            return pointerPhase("pointerDown", u: u, v: v, button: button, modifiers: modifiers)
+
+        case .pointerUp(let u, let v, let button, let modifiers):
+            return pointerPhase("pointerUp", u: u, v: v, button: button, modifiers: modifiers)
+
+        case .pointerDrag(let fromU, let fromV, let toU, let toV, let button, let modifiers):
+            var object: [String: JSONValue] = [
+                "type": .string("pointerDrag"),
+                "xFraction": .double(fromU), "yFraction": .double(fromV),
+                "toXFraction": .double(toU), "toYFraction": .double(toV),
+                "button": .string(button.rawValue),
+            ]
+            addModifiers(modifiers, to: &object)
+            return .object(object)
+
         case .scroll(let u, let v, let linesX, let linesY):
             return .object(["type": .string("scroll"),
                             "xFraction": .double(u),
@@ -56,6 +72,16 @@ enum FusionInputRouter {
     private static func clickType(button: MouseButton, count: Int) -> String {
         if button == .right { return "rightClick" }
         return count >= 2 ? "doubleClick" : "click"
+    }
+
+    private static func pointerPhase(_ type: String, u: Double, v: Double,
+                                     button: MouseButton, modifiers: [Modifier]) -> JSONValue {
+        var object: [String: JSONValue] = [
+            "type": .string(type), "xFraction": .double(u), "yFraction": .double(v),
+            "button": .string(button.rawValue),
+        ]
+        addModifiers(modifiers, to: &object)
+        return .object(object)
     }
 
     private static func addModifiers(_ modifiers: [Modifier], to object: inout [String: JSONValue]) {

@@ -197,7 +197,10 @@ class RemoteSurfaceNSView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.acceptsMouseMovedEvents = true
-        if window == nil { gestures.reset() }
+        if window == nil {
+            forward(gestures.cancelPress())
+            gestures.reset()
+        }
     }
 
     override func updateTrackingAreas() {
@@ -275,12 +278,18 @@ class RemoteSurfaceNSView: NSView {
 
     private func dragged(_ event: NSEvent) {
         guard acceptsInput else { return }
-        if gestures.dragged(to: viewPoint(of: event), now: Date()) { onClaimHuman?() }
+        let update = gestures.dragged(to: viewPoint(of: event), in: surfaceMapping(), now: Date())
+        if update.renewLease { onClaimHuman?() }
+        for gesture in update.gestures { forward(gesture) }
     }
 
     private func endPress(_ event: NSEvent, clickCount: Int) {
         guard acceptsInput else { return }
         window?.makeFirstResponder(self)
+        // The final position must reach the agent before mouse-up. It is also
+        // the first streamed point if the threshold was crossed only on release.
+        let update = gestures.dragged(to: viewPoint(of: event), in: surfaceMapping(), now: Date())
+        for gesture in update.gestures { forward(gesture) }
         forward(gestures.endedPress(at: viewPoint(of: event), clickCount: clickCount,
                                     in: surfaceMapping(), now: Date()))
     }
