@@ -72,6 +72,16 @@ say so in their first line (§330 row 933).
 
 Two notes for whoever picks this up next, both learned the hard way this round:
 
+- **Releases are cut by GitHub Actions as of this round** (`.github/workflows/release.yml`,
+  the owner's decision after 0.1.38 — see §331). It calls this tree's own
+  `scripts/release.sh` and `scripts/notarize.sh`, gates on layers 1–3, and
+  asserts the update channel's digest itself. **Layer 4 cannot run there** (it
+  needs a console session with an Accessibility grant), so a UI-affecting round
+  still owes a local `scripts/check-all.sh`. The first dry run proved the whole
+  job end to end on a `macos-26` runner — both submissions **Accepted** — and the
+  runner label is `macos-26` rather than `macos-15` for a product reason:
+  `doctor` fails its macOS-version check below 26. Release notes now live at
+  `docs/releases/<tag>.md` and the workflow refuses to publish without them.
 - **The Developer ID private key is not in the login keychain.** The first
   notarization attempt came back `Invalid` because only *Apple Development* and
   *Apple Distribution* identities were installed; `asc certificates create` for a

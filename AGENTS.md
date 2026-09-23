@@ -103,12 +103,26 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
   or `<Feature>: <what and why> (plan §N)`.
 - **Finish means publish** (the owner's standing instruction, 2026-09-23:
   「以后做完了就推送github发版」). A finished round that changes anything a user runs
-  is pushed *and* released without asking: bump the four version strings,
-  `scripts/release.sh` → `scripts/notarize.sh` (read the submission ids back from
-  Apple) → `scripts/check-all.sh`, `gh release create` with Chinese notes, then
-  assert `GET /repos/misswell/AgentSpace/releases/latest` answers the new tag
-  **and** carries the asset digest the gate ran on, then record it in
+  is pushed *and* released without asking. **Since `0.1.38` the release is cut by
+  `.github/workflows/release.yml`** (§331) — the owner's decision, matching
+  ClipNest, MacPilot, DevSweep and octo-shrink. So the order is: bump the four
+  version strings, write `docs/releases/v<version>.md` (required — the notes must
+  lead with what a person has to do), commit, push, then `git tag -a v<version>`
+  and push the tag. The workflow gates (layers 1–3), signs, notarizes, staples,
+  publishes, and asserts `releases/latest` carries the gated digest itself.
+  **Layer 4 does not run on a runner** — it needs a console Aqua session with an
+  Accessibility grant — so run `scripts/check-all.sh` locally too when the UI is
+  affected, and do not let a green CI run imply a layer it never ran (§331 row
+  937). The local path (`scripts/release.sh` → `scripts/notarize.sh` →
+  `scripts/check-all.sh`, all four layers) remains the fallback and is what
+  `0.1.38` itself was cut with; either way read the submission ids back from
+  Apple, never from the script's own log, and record the release in
   `validation.md` and the release header of `status.md` (§326 rows 887–889).
+  Two facts bought on 2026-09-23: the Developer ID **private key** is not in this
+  login keychain (it lives at `~/Desktop/clipnest-signing/DeveloperID.p12`;
+  `asc certificates create` refuses unless the caller is the Account Holder); and
+  the runner must be `macos-26`, because `doctor` fails its macOS-version check
+  below 26 and that is a product requirement, not a build defect.
   A round that changes nothing a user runs still gets a release when the tree
   moved, but its notes say so in the first line (§324) — a note that implies a
   change which is not there is the one broken promise this file cannot fix later.
