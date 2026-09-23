@@ -89,7 +89,11 @@ struct FusionAppPickerView: View {
             }
         }
         .padding(20)
-        .frame(minWidth: 560, minHeight: 460)
+        // A definite size rather than a minimum: a picker is a fixed little
+        // window, and `minWidth` lets the longest row's ideal width — which for
+        // a row containing an absolute path is very long — decide how big the
+        // sheet becomes.
+        .frame(width: 620, height: 480)
         .task { load() }
     }
 
@@ -140,14 +144,18 @@ struct FusionAppPickerView: View {
         HStack(spacing: 10) {
             icon(app)
             VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: app.name)
+                Text(verbatim: app.name).lineLimit(1)
                 Text(verbatim: app.path)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.head)
             }
-            Spacer()
+            // Takes the width left after the icon, the badge and the button, and
+            // truncates inside it: an absolute path has no business deciding how
+            // wide the sheet is.
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 8)
             if app.isRunning {
                 // Already up in that session: the useful action is to show the
                 // windows it has, not to start a second copy of it.
