@@ -18,6 +18,13 @@
 # Events drives the app), and an app bundle. `AGENTSPACE_GUI_APP` can point at
 # a temporary verification bundle; the default remains the release bundle in
 # dist/.
+#
+# Exit codes: 0 every check passed, 1 the checks ran and something failed,
+# 3 nothing was verified (locked screen, another session, or a running copy this
+# gate will not close without being asked). 3 exists because `check-all.sh` has
+# to tell "could not look" from "looked and saw a failure": on 3 it falls back
+# to `scripts/session-gui-verify.sh`, the same 13 checks in the agent account's
+# own session, which needs no screen and no consent (§324).
 set -u
 cd "$(dirname "$0")/.."
 
@@ -182,17 +189,24 @@ case "${SESSION_STATE:-unknown}" in
     echo "gui-verify: refusing to run — the console session's screen is LOCKED, so no" >&2
     echo "  app can put a window on screen and every accessibility read would come back" >&2
     echo "  empty. That is the machine, not the build. Unlock the screen and re-run." >&2
-    exit 1 ;;
+    echo "  Exit 3 = nothing was verified, not a failed build. A locked screen does not" >&2
+    echo "  affect an agent account's own session, which is where" >&2
+    echo "  scripts/session-gui-verify.sh runs these same checks." >&2
+    exit 3 ;;
   off-console)
     rm -rf "$GUI_ROOT"
     echo "gui-verify: refusing to run — this session is not on the console, so its" >&2
     echo "  windows are not being presented and nothing here could be observed." >&2
-    exit 1 ;;
+    echo "  Exit 3 = nothing was verified. Use scripts/session-gui-verify.sh, which" >&2
+    echo "  checks a build inside an agent account's session by design." >&2
+    exit 3 ;;
   *)
     rm -rf "$GUI_ROOT"
     echo "gui-verify: refusing to run — the session's console state could not be read," >&2
     echo "  and a verification that cannot say what it observed says nothing." >&2
-    exit 1 ;;
+    echo "  Exit 3 = nothing was verified. scripts/session-gui-verify.sh needs no" >&2
+    echo "  console session at all." >&2
+    exit 3 ;;
 esac
 note "session presenting windows ($SESSION_STATE)"
 
@@ -240,9 +254,12 @@ if [ -n "$WAS_RUNNING_APP" ] && [ "${AGENTSPACE_GUI_VERIFY_ALLOW_CLOSE:-0}" != "
   echo "  Nobody is disturbed by a machine where AgentSpace is not running, so if" >&2
   echo "  nobody is working at this Mac right now, re-run with:" >&2
   echo "      AGENTSPACE_GUI_VERIFY_ALLOW_CLOSE=1 scripts/gui-verify.sh" >&2
+  echo "  Exit 3 = nothing was verified. If somebody *is* at the Mac," >&2
+  echo "  scripts/session-gui-verify.sh runs these same 13 checks inside an agent" >&2
+  echo "  account's own session, closing and opening nothing of theirs." >&2
   pgrep -U "$(id -u)" -lf "AgentSpace.app/Contents/MacOS/AgentSpace" | sed 's/^/    /' >&2
   rm -rf "$GUI_ROOT"
-  exit 1
+  exit 3
 fi
 
 pkill -U "$(id -u)" -f "AgentSpace.app/Contents/MacOS/AgentSpace" 2>/dev/null

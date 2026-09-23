@@ -83,6 +83,16 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
   `scripts/check-all.sh` as the gate. **PATH caveat**: `WorkspacePreparerTests`
   assumes `/usr/bin/git`; run with
   `env PATH=/usr/bin:/bin:/usr/sbin:/sbin swift test` or make it PATH-agnostic.
+- **Layer 4 has two instruments, and neither may disturb a person.**
+  `scripts/gui-verify.sh` verifies the UI on the console: it closes every
+  AgentSpace copy this uid owns and drives a window on the human's screen, so it
+  asks first and exits **3** ("nothing was verified") when it will not — hence
+  exit 3 ≠ failure. `scripts/session-gui-verify.sh` runs the same 13 checks
+  inside an agent account's own session via `agentspace exec`
+  (`tests/SessionUI`, product `agentspace-gui-check`), where nothing appears on
+  the owner's screen and their processes cannot even be signalled.
+  `check-all.sh` falls back to it on a 3 and always prints which instrument
+  answered. Reach for the session gate when anyone is at the Mac (§324).
 - Never hardcode test counts in README or docs — they drift; point at
   `docs/validation.md`.
 - Record behaviour claims in [`docs/validation.md`](docs/validation.md): a new

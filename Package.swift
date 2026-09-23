@@ -31,6 +31,10 @@ let package = Package(
         // to `AgentSpace` on the way in, where the destinations differ.
         .executable(name: "AgentSpaceApp", targets: ["AgentSpaceApp"]),
         .executable(name: "agentspace-session-test", targets: ["SessionAcceptanceTest"]),
+        // The console gate's session-side twin: the same 13 UI checks, run
+        // inside an agent account's own session so verifying a build never
+        // closes or drives anything on the human's screen (§324).
+        .executable(name: "agentspace-gui-check", targets: ["SessionUIVerify"]),
         .executable(name: "agentspace-helper", targets: ["AgentSpacePrivilegedHelper"]),
         // The in-app updater: a nested tool that swaps a verified bundle in and
         // relaunches it. Shipped inside the app, never installed on its own.
@@ -106,6 +110,11 @@ let package = Package(
             name: "SessionAcceptanceTest",
             dependencies: ["AgentSpaceCore"],
             path: "tests/Session"
+        ),
+        .executableTarget(
+            name: "SessionUIVerify",
+            dependencies: [],
+            path: "tests/SessionUI"
         ),
         .testTarget(
             name: "AgentSpaceUnitTests",

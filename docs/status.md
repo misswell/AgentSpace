@@ -625,6 +625,7 @@ env PATH=/usr/bin:/bin:/usr/sbin:/sbin swift test
 scripts/mcp-smoke.sh
 scripts/updater-e2e.sh
 scripts/check-all.sh
+scripts/session-gui-verify.sh   # layer 4's 13 checks, in the agent session (no screen, no consent)
 ```
 
 For official `dist/`, always run `scripts/release.sh` and then
@@ -633,9 +634,10 @@ For official `dist/`, always run `scripts/release.sh` and then
 `scripts/gui-verify.sh` refuses to run when the console is not presenting
 windows — locked screen, fast-user-switched away, or session state it cannot
 read — because all of its checks read an accessibility tree that a locked
-session leaves empty. That refusal (`exit 1`, "the console session's screen is
-LOCKED") is validation §297: it is an environment verdict, not a build verdict,
-and it is a different result from failing every check.
+session leaves empty. That refusal is validation §297: it is an environment
+verdict, not a build verdict, and it is a different result from failing every
+check. It exits **3** for it (1 is now *only* "the checks ran and failed"), so
+the two are distinguishable by a caller, not just by a reader.
 
 It refuses for a second reason now, and that one is about the person at the
 machine: with any AgentSpace copy running in this session it stops *before*
@@ -647,9 +649,33 @@ release this gate ran six times in one afternoon while the owner was working,
 closing their window each time, and they asked for that to stop. A machine with
 no AgentSpace running needs no override, so a release on a quiet machine is
 unaffected; on a busy one the gate now costs a sentence instead of somebody's
-session. The durable fix, still owed: run these checks inside the **agent
-account's own session** (`agentspace exec`), where the app under test would open
-on that account's display and nothing would appear on the owner's screen at all.
+session.
+
+**The durable fix is no longer owed: layer 4 now has a second instrument, and it
+cannot reach the owner's session at all** (§324). `scripts/session-gui-verify.sh`
+runs the same 13 checks, in the same order and under the same names, inside an
+**agent account's own session** — it hands `tests/SessionUI`'s
+`agentspace-gui-check` to that session through the worker's shipped `exec`, and
+the app under test opens on that account's desktop. Nothing appears on the
+human's screen, no copy of theirs is closed, and their processes cannot be
+signalled by it: it runs as the agent user, whose `pkill` of the owner's pid
+answers `Operation not permitted` (row 868). Measured on this machine against
+the stapled 0.1.31 bundle: 13 passed, 0 failed, three times, ~35–42 s, with the
+owner's app the same pid and the same start time before and after. The console
+gate's premise is enforced rather than assumed — the checker refuses (exit 3,
+launching nothing) if it is ever started in the console session, and it refuses
+when the agent session is on the console, where its windows would be somebody's
+screen.
+
+`scripts/check-all.sh` catches the console gate's 3 and runs the session gate
+instead, printing `gui-verify verified nothing (exit 3, above) — running its
+session-side twin` first: a release no longer stops because somebody is at the
+Mac, and the transcript always says which instrument produced the layer-4
+verdict. That **retires the "deferred rather than refused" releases** — §310 row
+779 and §313 row 792 skipped this layer precisely because the owner's window and
+a running soak had to be left alone. What it needs is an attached account with a
+live worker; with neither it refuses with a sentence rather than pretending to
+have checked anything.
 
 The unlocked run is established: 8/8, with the wizard reaching `step 2`, on the
 published 0.1.18 bundle (§301 row 654). Getting there exposed three defects

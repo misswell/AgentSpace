@@ -11,6 +11,12 @@
 # respectively; if their prerequisites are missing they fail with their own
 # diagnostics, which is exactly what should stop a release.
 #
+# Layer 4 falls back rather than stopping when the console gate refuses to touch
+# a machine somebody is using: `scripts/session-gui-verify.sh` runs the same 13
+# checks inside an agent account's own session (see `run_layer` below). That
+# fallback needs an attached account with a live worker; without one it reports
+# its own refusal, which stops the release just as the console gate would have.
+#
 # acceptance.sh (the phase-0 isolation gate) is deliberately not part of this
 # aggregate: it opens TextEdit on the real desktop and runs for minutes —
 # it is a decision to be made, not a checkbox (run it explicitly with
@@ -55,9 +61,40 @@ fi
 LAYERS=(scripts/test.sh scripts/updater-e2e.sh scripts/mcp-smoke.sh scripts/gui-verify.sh)
 FAILED=()
 
+# Layer 4 has a twin. `scripts/gui-verify.sh` clears the slate — it closes every
+# AgentSpace copy this uid owns and drives a window of its own on the human's
+# screen — and it refuses (exit 3) rather than do that to somebody who is
+# working: a running copy, a locked screen, a session that is not on the
+# console. Exit 3 means *nothing was verified*, so giving up there would stop a
+# release for a reason that is not the build.
+#
+# `scripts/session-gui-verify.sh` answers the same 13 checks from inside an
+# agent account's own session, where the human's screen, focus and windows are
+# not in play at all. So the layer falls back to it — never silently: which
+# instrument produced the verdict is printed either way, because "layer 4 passed"
+# on its own would not say whether a person's desktop was used to get that
+# answer.
+run_layer() {
+  local script="$1" code
+  bash "$script"
+  code=$?
+  if [ "$script" = "scripts/gui-verify.sh" ] && [ "$code" -eq 3 ]; then
+    echo "    gui-verify verified nothing (exit 3, above) — running its session-side twin"
+    bash scripts/session-gui-verify.sh
+    code=$?
+    if [ "$code" -eq 3 ]; then
+      echo "    the session-side twin refused too (exit 3) — layer 4 verified nothing at all"
+    elif [ "$code" -ne 0 ]; then
+      echo "    the session-side twin ran and failed — the report above names the checks"
+    fi
+    return "$code"
+  fi
+  return "$code"
+}
+
 for layer in "${LAYERS[@]}"; do
   echo "==> $layer"
-  if ! bash "$layer"; then
+  if ! run_layer "$layer"; then
     FAILED+=("$layer")
     echo "    FAILED: $layer — stopping here"
     break
