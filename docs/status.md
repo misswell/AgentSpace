@@ -4,17 +4,18 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-23 on `master`. **`0.1.38` is built and not published** — see the
-paragraph below the release header for why, in one sentence: this machine has no
-Developer ID private key, so the DMG cannot be notarized and an un-notarized
-download would be refused by Gatekeeper on the user's own Mac. The tree is
-complete, gated and committed; publishing needs one `.p12` import. Current
-public release: `0.1.36`
-(`v0.1.36` points to `6043f6a`, the build tree; `CFBundleVersion` 428 equals its
-commit count). The notarized and stapled DMG is
-[`AgentSpace-0.1.36.dmg`](https://github.com/misswell/AgentSpace/releases/tag/v0.1.36):
-5,762,400 bytes, `sha256:3f0103de8cb4ff40f7fa3ff9d9f3a9d56a129566cc440f1cbf984b24a6e676d2`.
-`releases/latest` returned that tag and digest after publication (§328 row 904).
+Last updated: 2026-09-23 on `master`. Current public release: `0.1.38`
+(`v0.1.38` points to `e944271`, the code/test/documentation commit;
+`CFBundleVersion` **432** equals its commit count). The notarized and stapled DMG
+is [`AgentSpace-0.1.38.dmg`](https://github.com/misswell/AgentSpace/releases/tag/v0.1.38):
+**6,262,399** bytes,
+`sha256:2600ef02aff70aa96d93e2b8ae7ad2158d7b63a004e97eee438a1e00eabb01d5`.
+Both Apple submissions were read back from `asc notarization list` rather than
+from the script's own log — `86f43e2b-…` (app) and `c6895e68-…` (DMG), both
+**Accepted** — and `releases/latest`, the endpoint `SoftwareUpdater` reads,
+answered the new tag with that digest on three samples 20 s apart (§330 rows
+929–932). `0.1.37` was never published: its diff from `0.1.36` is four version
+strings and nothing else.
 
 ## 0.1.38 — Desktop input is no longer a request/reply conversation (2026-09-23)
 
@@ -66,7 +67,28 @@ rather than as a failure.
 **This release needs two presses, and the second one is where most of it lives.**
 `frame.setFPS`, the input socket, the cursor provider and the relaxed window
 matcher are all in the **worker**, so 「检查更新」 brings the viewer's half and
-「重新安装助手…」 brings the half that actually moves anything.
+「重新安装助手…」 brings the half that actually moves anything. The release notes
+say so in their first line (§330 row 933).
+
+Two notes for whoever picks this up next, both learned the hard way this round:
+
+- **The Developer ID private key is not in the login keychain.** The first
+  notarization attempt came back `Invalid` because only *Apple Development* and
+  *Apple Distribution* identities were installed; `asc certificates create` for a
+  new Developer ID is refused unless the caller is the Account Holder. The key
+  that worked lives at `~/Desktop/clipnest-signing/DeveloperID.p12`
+  (`Developer ID Application: Guofeng Liu (U8U443D7ZL)`, serial `1A2A4844076D68ED`)
+  and was imported into a throwaway `/tmp` keychain for this build. **Import it
+  into the login keychain before the next release**, or the same hour will be
+  spent again (§330 row 928).
+- **What this round did not verify, and it is the half a person can see:** no
+  desktop picture was ever looked at with this build. Title-bar drag, the eight
+  resize hotspots, Fusion end-to-end, worker-restart and fast-user-switch cursor
+  recovery all need an attached account with a live worker and a background Aqua
+  session; this machine has neither. The input numbers are socket-write costs,
+  not pixel latency. Layer 4 did pass — 13/13 on the console, unlocked for the
+  first time in this round — but it checks the *viewer's* controls, not the
+  pointer.
 
 Desktop Mode now sends pointer down, each drag position, and pointer up in order;
 it no longer waits for mouse-up and replays the path. In the agent session, the old
