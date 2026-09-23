@@ -101,6 +101,18 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
   (the original plan) or `plan(v2) §N` (`docs/v2-plan.md`).
 - Commit style: no prefixes. `validation §N: <finding>`, `<scope>: <behaviour>`,
   or `<Feature>: <what and why> (plan §N)`.
+- **Finish means publish** (the owner's standing instruction, 2026-09-23:
+  「以后做完了就推送github发版」). A finished round that changes anything a user runs
+  is pushed *and* released without asking: bump the four version strings,
+  `scripts/release.sh` → `scripts/notarize.sh` (read the submission ids back from
+  Apple) → `scripts/check-all.sh`, `gh release create` with Chinese notes, then
+  assert `GET /repos/misswell/AgentSpace/releases/latest` answers the new tag
+  **and** carries the asset digest the gate ran on, then record it in
+  `validation.md` and the release header of `status.md` (§326 rows 887–889).
+  A round that changes nothing a user runs still gets a release when the tree
+  moved, but its notes say so in the first line (§324) — a note that implies a
+  change which is not there is the one broken promise this file cannot fix later.
+  Never publish on a failing gate, and never relax the gate to publish.
 - macOS facts already paid for (do not relearn): `kCGSSessionManagerNameKey` is
   inert — `SessionGetInfo` is the working session probe. Runtime parents must be
   traversable before a named ACL on a child can help; the V3 parent is 0755 and
