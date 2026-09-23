@@ -569,3 +569,16 @@
 "Three quarters of the agent desktop's pixels, in each direction." = "每条边为 Agent 桌面像素的四分之三。";
 "At most 1280 pixels wide. For a slow link." = "最宽 1280 像素。适用于慢速链路。";
 "Stream %1$ld×%2$ld px · source %3$ld×%4$ld px" = "画面 %1$ld×%2$ld 像素 · 源 %3$ld×%4$ld 像素";
+
+/* Fusion app picker: installed applications in an agent account's session. */
+"Fuse App…" = "融合应用…";
+"Choose an App to Fuse" = "选择要融合的应用";
+"Search applications" = "搜索应用";
+"Fuse" = "融合";
+"Show Windows" = "显示窗口";
+"Running" = "已在运行";
+"Recently used" = "最近使用";
+"All applications" = "全部应用";
+"Loading applications…" = "正在读取应用…";
+"Could not list applications" = "无法读取应用列表";
+"No application matches that search" = "没有匹配的应用";

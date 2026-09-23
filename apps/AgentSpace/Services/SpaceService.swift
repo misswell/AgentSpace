@@ -525,6 +525,40 @@ final class SpaceService {
                 message: "no worker is answering for '\(space.name)': \(error)"))
         }
     }
+
+    /// Every application installed in the Space's session — what the Fusion app
+    /// picker lists before anything has been launched.
+    ///
+    /// Deliberately *not* filtered here: the reply carries the whole list, and
+    /// the search field filters locally, so typing in it costs no round trip
+    /// (and a search cannot make the list blink through a loading state).
+    func availableApps(for space: AgentAccount, timeout: Double = 30) -> Result<[InstalledApplication], AgentSpaceError> {
+        let connection = SpaceConnection(space: space)
+        do {
+            let response = try connection.client.call(
+                method: Method.appsAvailable, params: .object([:]), token: connection.token, timeout: timeout)
+            if let error = response.error { return .failure(error) }
+            let result = response.result ?? .object([:])
+            let apps = (result["apps"]?.arrayValue ?? []).compactMap { item -> InstalledApplication? in
+                guard let name = item["name"]?.stringValue,
+                      let path = item["path"]?.stringValue else { return nil }
+                return InstalledApplication(
+                    name: name,
+                    bundleIdentifier: item["bundleId"]?.stringValue,
+                    path: path,
+                    version: item["version"]?.stringValue,
+                    pid: item["pid"]?.intValue,
+                    icon: item["icon"]?.stringValue)
+            }
+            // The worker already sorted them; re-sorting here would be a second
+            // opinion about the order a person sees.
+            return .success(apps)
+        } catch {
+            return .failure(AgentSpaceError(
+                code: .workerOffline,
+                message: "no worker is answering for '\(space.name)': \(error)"))
+        }
+    }
 }
 
 struct ScreenshotResult: Equatable {

@@ -21,4 +21,51 @@ final class FusionManager {
     func closeApps(for spaceID: UUID) {
         sessions.removeValue(forKey: spaceID)?.stop()
     }
+
+    // MARK: - The app picker's verbs
+
+    /// Bring one application up in the Space, then mirror its windows here.
+    ///
+    /// An app that is already running is *activated* rather than launched: the
+    /// picker labels that row 「已在运行」, and starting a second copy would give
+    /// the person two of everything.
+    func fuse(app: InstalledApplication, in space: AgentAccount, completion: @escaping (AgentSpaceError?) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            // Built inside the closure: `SpaceService` is not Sendable, and
+            // capturing one here is exactly what the compiler warns about.
+            let service = SpaceService()
+            let error = app.isRunning
+                ? service.activate(space, app: app.path)
+                : service.launch(space, app: app.path)
+            Task { @MainActor in
+                guard error == nil else {
+                    completion(error)
+                    return
+                }
+                // Start (or wake) the window session *after* the launch: proxies
+                // are built from `window.list`, and an app that has not
+                // registered a window yet has nothing to mirror.
+                self.openApps(for: space)
+                completion(nil)
+            }
+        }
+    }
+
+    /// Recently fused apps for one Space, most recent first.
+    ///
+    /// Per Space on purpose: two accounts are two different jobs, and a shared
+    /// list would reorder both by whichever was used last.
+    func recentApps(for space: AgentAccount) -> [String] {
+        UserDefaults.standard.stringArray(forKey: Self.recentKey(space)) ?? []
+    }
+
+    func rememberRecent(app: InstalledApplication, for space: AgentAccount) {
+        var recent = recentApps(for: space).filter { $0 != app.path }
+        recent.insert(app.path, at: 0)
+        UserDefaults.standard.set(Array(recent.prefix(5)), forKey: Self.recentKey(space))
+    }
+
+    private static func recentKey(_ space: AgentAccount) -> String {
+        "fusionRecentApps.\(space.id.uuidString)"
+    }
 }

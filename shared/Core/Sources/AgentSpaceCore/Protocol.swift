@@ -13,6 +13,11 @@ public enum Method {
     public static let screenshot = "screenshot"
     public static let input = "input"
     public static let apps = "apps"
+    /// Every application *installed* in the session, not the ones currently
+    /// running: this is what a Fusion app picker has to show before anything has
+    /// been launched. Additive at protocol version 1 — `apps` keeps answering
+    /// the running list it always has, so no existing client changes meaning.
+    public static let appsAvailable = "apps.available"
     public static let launch = "launch"
     public static let quit = "quit"
     public static let forceQuit = "forceQuit"

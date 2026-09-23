@@ -41,6 +41,7 @@ struct Operations {
             case Method.screenshot: return .success(try screenshot(params: params))
             case Method.input: return .success(try input(params: params))
             case Method.apps: return .success(try apps())
+            case Method.appsAvailable: return .success(try appsAvailable(params: params))
             case Method.launch: return .success(try launch(params: params))
             case Method.quit, Method.forceQuit:
                 return .success(try quit(params: params, force: method == Method.forceQuit))
@@ -441,6 +442,22 @@ struct Operations {
             "count": .int(list.count),
             "apps": .array(list.map(\.json)),
         ])
+    }
+
+    /// Every application *installed* in this session — the list a Fusion app
+    /// picker needs before anything has been launched, as opposed to the running
+    /// list `apps` answers.
+    ///
+    /// The session gate is the same one `launch` uses and for the same reason:
+    /// on the console these are the user's applications, and this is the reply a
+    /// client would use to decide what to put in front of them.
+    func appsAvailable(params: JSONValue) throws -> JSONValue {
+        try requireDesktopSession("list the applications installed in the session")
+        return AppCatalog.available(
+            query: params["query"]?.stringValue,
+            limit: params["limit"]?.intValue ?? ApplicationCatalog.defaultLimit,
+            icons: params["icons"]?.boolValue ?? true,
+            includingAgents: params["all"]?.boolValue ?? false)
     }
 
     func launch(params: JSONValue) throws -> JSONValue {

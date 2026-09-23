@@ -363,6 +363,47 @@ Omitting accessory apps makes every launch of a menu-bar app look like a failure
 { "count": 62, "apps": [ { "pid": 5852, "name": "Zed", "bundleId": "dev.zed.Zed", "path": "/Applications/Zed.app", "policy": "regular", "active": true } ] }
 ```
 
+### `apps.available`
+
+Every application **installed** in the session, as opposed to the ones running.
+The Fusion app picker shows this before anything has been launched; an agent that
+wants to start something uses it to find out what exists.
+
+Params (all optional):
+
+| field | meaning |
+|---|---|
+| `query` | case-insensitive match against name, bundle id or file name |
+| `limit` | cap on the reply, default 250 |
+| `icons` | default **true**: a 32-point PNG, base64, per app |
+| `all` | default **false**: include menu-bar agents and background-only services |
+
+The default list is the *regular* apps — a person can open one and look at it,
+which is what a picker is for. Measured in the agent account's session on
+2026-09-23: the six search roots hold **372** applications, of which **224** are
+regular; the rest are `/System/Library/CoreServices` daemons (`AddPrinter`,
+`AddressBookUrlForwarder`, `AccessibilityUIServer`) that have no window to fuse.
+Both of those flags are read from `LSBackgroundOnly`/`LSUIElement`, spelled as a
+boolean in some bundles and as the **string** `"1"`/`"YES"` in others.
+
+```json
+{ "count": 2, "total": 224, "truncated": false,
+  "roots": ["/Applications", "…", "/Users/agentuse/Applications"],
+  "apps": [ { "name": "Safari", "bundleId": "com.apple.Safari", "version": "27.0",
+              "path": "/Applications/Safari.app", "pid": 887, "icon": "iVBORw0…" } ] }
+```
+
+`total` is the list's size **before** `query`, so a client can say "2 of 224"
+rather than leaving a person unsure whether the search worked or the scan
+failed. `pid` is present only while that app is running in the session, which is
+how a picker knows to offer 「显示窗口」 instead of a second copy. `roots` is where
+the scan looked — the same list `launch` searches when given a name, so an app
+the picker offers is an app `launch` can find.
+
+Additive at protocol version 1: `apps` keeps answering exactly what it always
+has, and a worker that predates this method answers the ordinary `unknown
+method` error, which is what the CLI reports verbatim.
+
 ### `launch` / `activate` / `quit` / `forceQuit`
 
 Params: `{ "app": "Google Chrome" }` — a name, a bundle id, or an absolute path

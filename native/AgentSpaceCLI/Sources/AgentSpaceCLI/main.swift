@@ -44,7 +44,7 @@ struct ParsedArgs {
 let valueFlags: Set<String> = [
     "root", "out", "max-width", "display", "cwd", "timeout", "env",
     "file", "pid", "role", "title", "identifier", "action", "reason",
-    "max-depth", "max-nodes", "fps",
+    "max-depth", "max-nodes", "fps", "query", "limit",
     // Attach workspace flags. Declared here or the parser refuses them as
     // unknown before the command ever sees them.
     "repo", "branch", "share", "share-rw", "config",
@@ -56,6 +56,8 @@ let booleanFlags: Set<String> = [
     "help", "version", "json", "double", "right", "force", "inline",
     "interesting", "no-interesting", "all", "resources", "quiet",
     "remove-home", "install", "start", "frame", "stop", "stats",
+    // `apps --available`: the installed-app list, which nothing else asks for.
+    "available", "icons",
 ]
 
 /// Flags that may appear more than once.
@@ -1051,6 +1053,44 @@ case "quit":
 
 case "apps":
     let (_, connection) = resolveSpace(rest.first, root: rootOverride, emitter: emitter)
+    // `--available` is the other half of the same question. `apps` answers "what
+    // is running in this session", which is only useful once something is;
+    // `apps.available` answers "what could be launched", which is what an agent
+    // needs first — and what the Fusion app picker shows. Additive at protocol
+    // version 1: `apps` keeps answering exactly what it always has.
+    if parsed.bool("available") {
+        var params: [String: JSONValue] = [:]
+        if let query = parsed.flag("query") { params["query"] = .string(query) }
+        if let limit = parsed.int("limit") { params["limit"] = .int(limit) }
+        // Text output cannot show a picture, and a couple of hundred base64
+        // icons is a reply nobody reads: they are asked for only on request.
+        params["icons"] = .bool(parsed.bool("icons"))
+        // By default the reply is the regular apps — the ones a person can open
+        // and then look at. `--all` adds the menu-bar agents and background
+        // services, which is 372 entries on this Mac and no window to fuse.
+        params["all"] = .bool(parsed.bool("all"))
+        let result = callJSON(emitter, connection, Method.appsAvailable, .object(params))
+        if emitter.json {
+            print(emitter.pretty(result))
+            exit(0)
+        }
+        let list = result["apps"]?.arrayValue ?? []
+        if list.isEmpty { print("No applications found in this AgentSpace.") }
+        for app in list {
+            let name = app["name"]?.stringValue ?? "(unnamed)"
+            let identifier = app["bundleId"]?.stringValue ?? "-"
+            let version = app["version"]?.stringValue.map { "  \($0)" } ?? ""
+            let path = app["path"]?.stringValue ?? ""
+            let running = app["pid"] != nil ? "  ←running" : ""
+            print("\(name)\t\(identifier)\(version)\t\(path)\(running)")
+        }
+        if let count = result["count"]?.intValue, let total = result["total"]?.intValue,
+           count < total {
+            FileHandle.standardError.write(Data(
+                "\(count) of \(total) applications; narrow it with --query TEXT\n".utf8))
+        }
+        exit(0)
+    }
     let result = callJSON(emitter, connection, Method.apps, .object([:]))
     if emitter.json {
         print(emitter.pretty(result))

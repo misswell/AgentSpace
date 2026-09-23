@@ -123,14 +123,10 @@ enum AppControl {
             return url
         }
 
-        let roots = [
-            "/Applications",
-            "/Applications/Utilities",
-            "/System/Applications",
-            "/System/Applications/Utilities",
-            "/System/Library/CoreServices",
-            NSHomeDirectory() + "/Applications",
-        ]
+        // One list, shared with the app picker: a picker that offers an app this
+        // function cannot find — or hides one it could launch — would be the same
+        // directory list maintained twice, and they would drift.
+        let roots = ApplicationCatalog.searchRoots(home: NSHomeDirectory())
         let candidateName = reference.hasSuffix(".app") ? reference : reference + ".app"
         for root in roots {
             let candidate = root + "/" + candidateName

@@ -94,6 +94,7 @@ struct SpaceDetailView: View {
     @State private var appsError: AppModel.PresentedError?
     @State private var showingApps = false
     @State private var showingPermissionGuide = false
+    @State private var showingFusionPicker = false
 
     var body: some View {
         Group {
@@ -196,6 +197,20 @@ struct SpaceDetailView: View {
                     || model.selected?.screenRecording != true
                     || model.selected?.accessibility != true)
 
+                // 「Open Apps」 mirrors what is already running. This is the other
+                // direction — pick something from what is *installed* and start
+                // it in that session — which is what the Fusion promise needs
+                // before anything has been launched there.
+                Button {
+                    showingFusionPicker = true
+                } label: {
+                    Label(NSLocalizedString("Fuse App…", comment: ""), systemImage: "plus.rectangle.on.rectangle")
+                }
+                .accessibilityIdentifier("fusionAppPickerButton")
+                .disabled(model.selected?.acceptsInput != true
+                    || model.selected?.screenRecording != true
+                    || model.selected?.accessibility != true)
+
                 // Stop keeps the session; Disconnect removes only
                 // AgentSpace-owned setup.
                 Menu {
@@ -218,6 +233,11 @@ struct SpaceDetailView: View {
             if let snapshot = model.snapshots.first(where: { $0.id == model.selection }) {
                 PermissionGuideView(spaceID: snapshot.space.id)
                     .environmentObject(model)
+            }
+        }
+        .sheet(isPresented: $showingFusionPicker) {
+            if let space = model.selected?.space {
+                FusionAppPickerView(space: space)
             }
         }
     }

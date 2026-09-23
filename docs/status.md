@@ -553,6 +553,17 @@ The first Fusion vertical slice is now implemented in this tree:
   it, and closing maps to a unique AX window or refuses an ambiguous match. A
   proxy whose stream stops answering — most often a restarted worker — rebuilds
   itself instead of freezing on the last frame.
+- **Fuse App…** is the other direction: a picker over what is **installed** in
+  that session, with a search field, icons and one button per row
+  (`FusionAppPickerView`, `apps.available`, `ApplicationCatalog` in Core, §325).
+  Before it, Fusion could only mirror what was already running — the product's
+  own 「单独融合 Safari / Terminal / VSCode」 began with "start it some other way
+  first". The list is the *regular* apps (measured: 224 of 372; the rest are
+  `/System/Library/CoreServices` daemons with no window to fuse), a row already
+  running offers 「显示窗口」 rather than a second copy, and 最近使用 is five
+  entries per Space in `UserDefaults`. 收藏 is not implemented, and the picker
+  has no gate check yet — adding a 14th check to layer 4 means both instruments
+  (§324), and the console one needs a console session to develop (§325 row 885).
 - Pressing and travelling in a proxy is one `drag` action; pressing and releasing
   in place is a click. Direct proxy interaction owns a renewable five-second
   human input lease, but only deliberate interaction claims it — a cursor
