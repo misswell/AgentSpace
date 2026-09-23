@@ -44,8 +44,84 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The cheap checks run first, on their own job, because they are the ones a
+  # person waiting on a release is most likely to trip: a tag that disagrees with
+  # the tree, or a missing notes file. Measured on a deliberate mismatch
+  # (`v0.1.999` against a tree reading 0.1.38): the guard fired, but only after
+  # the whole gate job had run, because the version check lived in the release
+  # job. Four minutes of runner to be told a tag is wrong is four minutes for
+  # nothing, so this is now its own job and both others need it.
+  validate:
+    name: Validate tag, version and notes
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ needs.validate.outputs.version }}
+      tag: ${{ needs.validate.outputs.tag }}
+      notes: ${{ needs.validate.outputs.notes }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Resolve and validate version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/.*cliVersion = "\(.*\)".*/\1/p' native/AgentSpaceCLI/Sources/AgentSpaceCLI/main.swift | head -1)"
+          [[ -n "$version" ]] || { echo "Could not read cliVersion" >&2; exit 1; }
+
+          mismatched=0
+          check() { # file, pattern, what
+            local found
+            found="$(sed -nE "$2" "$1" | head -1)"
+            if [[ "$found" != "$version" ]]; then
+              echo "::error file=$1::$3 says '$found', the CLI says '$version'"
+              mismatched=1
+            fi
+          }
+          check shared/Core/Sources/AgentSpaceCore/HelperClient.swift \
+                's/.*agentSpaceVersion = "(.*)".*/\1/p' "agentSpaceVersion"
+          check shared/Core/Sources/AgentSpaceCore/Diagnostics.swift \
+                's/.*agentspace-core (.*)".*/\1/p' "the diagnostics line"
+          # Read through plutil rather than a text scan: the plist holds other
+          # digit-leading strings (LSMinimumSystemVersion) and a scan would
+          # happily compare the wrong one.
+          apple_version="$(plutil -extract CFBundleShortVersionString raw apps/AgentSpace/Resources/Info.plist)"
+          [[ "$apple_version" == "$version" ]] || {
+            echo "::error file=apps/AgentSpace/Resources/Info.plist::CFBundleShortVersionString is '$apple_version', the CLI says '$version'"
+            mismatched=1
+          }
+          [[ "$mismatched" -eq 0 ]] || exit 1
+
+          tag=""
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            tag="$GITHUB_REF_NAME"
+            [[ "$tag" == "v$version" ]] || {
+              echo "::error::Tag $tag does not match the tree's version v$version" >&2
+              exit 1
+            }
+          else
+            tag="v$version"
+          fi
+
+          # The notes are authored in the tree, not generated. This repository's
+          # rule is that a release note says the thing a person has to do and says
+          # it first (the two-press rule), which `--generate-notes` cannot know.
+          # Requiring the file is how that rule survives moving to CI.
+          notes="docs/releases/$tag.md"
+          if [[ ! -f "$notes" ]]; then
+            echo "::error::$notes does not exist. Write the release notes there — they are required, and they must lead with what a person has to do."
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "notes=$notes" >> "$GITHUB_OUTPUT"
+          echo "Validated $tag: every version string agrees, notes are at $notes"
+
   gate:
     name: Gate (layers 1-3 on the runner, layer 4 stated)
+    needs: validate
     runs-on: macos-26
     steps:
       - name: Check out source
@@ -133,7 +209,7 @@ jobs:
 
   release:
     name: Sign, notarize, publish
-    needs: gate
+    needs: [validate, gate]
     runs-on: macos-26
     env:
       APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
@@ -177,65 +253,18 @@ jobs:
             exit 1
           }
 
-      # Every version string in the tree, and the tag if there is one, must
-      # agree. A release whose bundle says one number and whose CLI says another
-      # is a two-build drift nobody notices until a user does.
-      - name: Resolve and validate version
-        id: release
+      # The version, tag and notes were validated before the gate ran — see the
+      # `validate` job — so this job consumes them rather than re-deriving them.
+      - name: Confirm the validated release identity
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          RELEASE_NOTES: ${{ needs.validate.outputs.notes }}
         run: |
           set -euo pipefail
-          version="$(sed -n 's/.*cliVersion = "\(.*\)".*/\1/p' native/AgentSpaceCLI/Sources/AgentSpaceCLI/main.swift | head -1)"
-          [[ -n "$version" ]] || { echo "Could not read cliVersion" >&2; exit 1; }
-
-          mismatched=0
-          check() { # file, pattern, what
-            local found
-            found="$(sed -nE "$2" "$1" | head -1)"
-            if [[ "$found" != "$version" ]]; then
-              echo "::error file=$1::$3 says '$found', the CLI says '$version'"
-              mismatched=1
-            fi
-          }
-          check shared/Core/Sources/AgentSpaceCore/HelperClient.swift \
-                's/.*agentSpaceVersion = "(.*)".*/\1/p' "agentSpaceVersion"
-          check shared/Core/Sources/AgentSpaceCore/Diagnostics.swift \
-                's/.*agentspace-core (.*)".*/\1/p' "the diagnostics line"
-          # Read through plutil rather than a text scan: the plist holds other
-          # digit-leading strings (LSMinimumSystemVersion) and a scan would
-          # happily compare the wrong one.
-          apple_version="$(plutil -extract CFBundleShortVersionString raw apps/AgentSpace/Resources/Info.plist)"
-          [[ "$apple_version" == "$version" ]] || {
-            echo "::error file=apps/AgentSpace/Resources/Info.plist::CFBundleShortVersionString is '$apple_version', the CLI says '$version'"
-            mismatched=1
-          }
-          [[ "$mismatched" -eq 0 ]] || exit 1
-
-          tag=""
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            tag="$GITHUB_REF_NAME"
-            [[ "$tag" == "v$version" ]] || {
-              echo "::error::Tag $tag does not match the tree's version v$version" >&2
-              exit 1
-            }
-          else
-            tag="v$version"
-          fi
-
-          # The notes are authored in the tree, not generated. This repository's
-          # rule is that a release note says the thing a person has to do and
-          # says it first (the two-press rule), which `--generate-notes` cannot
-          # know. Requiring the file is how that rule survives moving to CI.
-          notes="docs/releases/$tag.md"
-          if [[ ! -f "$notes" ]]; then
-            echo "::error::$notes does not exist. Write the release notes there — they are required, and they must lead with what a person has to do."
-            exit 1
-          fi
-
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "notes=$notes" >> "$GITHUB_OUTPUT"
-          echo "Preparing AgentSpace $version ($tag)"
+          echo "Preparing AgentSpace $RELEASE_VERSION ($RELEASE_TAG)"
+          echo "notes: $RELEASE_NOTES"
 
       - name: Import Developer ID certificate
         shell: bash
@@ -333,7 +362,7 @@ jobs:
         id: verify
         shell: bash
         env:
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
         run: |
           set -euo pipefail
           app="dist/AgentSpace.app"
@@ -374,9 +403,9 @@ jobs:
         if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
         shell: bash
         env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-          RELEASE_NOTES: ${{ steps.release.outputs.notes }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_NOTES: ${{ needs.validate.outputs.notes }}
           RELEASE_DIGEST: ${{ steps.verify.outputs.digest }}
           RELEASE_SIZE: ${{ steps.verify.outputs.size }}
         run: |
