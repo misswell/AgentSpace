@@ -4,7 +4,27 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-23 on `master`. Current public release: `0.1.33`
+Last updated: 2026-09-23 on `master`. Current public release: `0.1.35`
+(`v0.1.35` points to `3846fef`, the build tree; `CFBundleVersion` 426 equals its
+commit count). The notarized and stapled DMG is
+[`AgentSpace-0.1.35.dmg`](https://github.com/misswell/AgentSpace/releases/tag/v0.1.35):
+5,745,316 bytes, `sha256:08b04544ec29f343925bbb62c5fdde603907689b5d85bfdd6606cd2bdeab4457`.
+`releases/latest` returned that tag and asset digest after publication (§327).
+The desktop viewer now drains its **final** rate-limited mouse position even
+when no more mouse events arrive. The input RPC already uses a Unix socket;
+measured on this Mac in the agent account's session, request-to-reply p95 was
+3.98 ms for move and 2.83 ms for click. Those are **not** pixel-response
+measurements, so the <50/<100 ms visual targets remain open. The installed
+worker still has the old no-frontmost refusal and `apps.available` gap: after
+updating the app, press 「重新安装助手…」 to install the current worker (§327 row 895).
+The final gate passed all four layers, including 13 GUI checks in the agent
+session without closing the owner's app.
+
+`0.1.34` added a desktop-readiness gate and input-path logs and fixed the AX
+scroll route inside a background session. Its Release asset is present on the
+REST update channel and matches the local notarized DMG (§327 row 896).
+
+The earlier `0.1.33` release
 (`v0.1.33`, annotated at `4e7b1c1` — the commit whose tree the bundle was built from,
 `git rev-list --count` there = 422 = the stamp inside it; the GitHub Release asset
 reports `sha256:a7f870228dfb49503205f0536f1fb207716873544ca153eb1b1031175a16edbc` over
