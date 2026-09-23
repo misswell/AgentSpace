@@ -4,21 +4,31 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-23 on `master`. Current public release: `0.1.35`
-(`v0.1.35` points to `3846fef`, the build tree; `CFBundleVersion` 426 equals its
+Last updated: 2026-09-23 on `master`. Current public release: `0.1.36`
+(`v0.1.36` points to `6043f6a`, the build tree; `CFBundleVersion` 428 equals its
 commit count). The notarized and stapled DMG is
-[`AgentSpace-0.1.35.dmg`](https://github.com/misswell/AgentSpace/releases/tag/v0.1.35):
-5,745,316 bytes, `sha256:08b04544ec29f343925bbb62c5fdde603907689b5d85bfdd6606cd2bdeab4457`.
-`releases/latest` returned that tag and asset digest after publication (§327).
-The desktop viewer now drains its **final** rate-limited mouse position even
-when no more mouse events arrive. The input RPC already uses a Unix socket;
-measured on this Mac in the agent account's session, request-to-reply p95 was
-3.98 ms for move and 2.83 ms for click. Those are **not** pixel-response
-measurements, so the <50/<100 ms visual targets remain open. The installed
-worker still has the old no-frontmost refusal and `apps.available` gap: after
-updating the app, press 「重新安装助手…」 to install the current worker (§327 row 895).
-The final gate passed all four layers, including 13 GUI checks in the agent
-session without closing the owner's app.
+[`AgentSpace-0.1.36.dmg`](https://github.com/misswell/AgentSpace/releases/tag/v0.1.36):
+5,762,400 bytes, `sha256:3f0103de8cb4ff40f7fa3ff9d9f3a9d56a129566cc440f1cbf984b24a6e676d2`.
+`releases/latest` returned that tag and digest after publication (§328 row 904).
+
+Desktop Mode now sends pointer down, each drag position, and pointer up in order;
+it no longer waits for mouse-up and replays the path. In the agent session, the old
+atomic drag RPC took a median 689.5 ms; the new phase RPCs measured a median 4.44 ms,
+and a System Settings window moved before pointer-up (§328 rows 898–899). These
+are request-to-reply measurements, not pixel latency. Fusion now holds its
+mouse-down coordinate frame for the gesture, but live window input remains open:
+the existing strict AX match refused the tested windows, so no Fusion phase was
+posted (§328 rows 900–901).
+
+The app update replaces only `/Applications/AgentSpace.app`. After updating,
+press 「重新安装助手…」 to install the current Worker in the agent account; the
+installed Worker may still be 0.1.27 until then. The final gate passed all four
+layers: Swift 628/628, MCP smoke, and 13/13 GUI checks inside AgentUse's session
+without touching the owner's desktop. The MCP smoke script now manages only its
+test Worker and waits 30 seconds for readiness (§328 rows 902–903).
+
+`0.1.35` previously shipped the final rate-limited hover fix and measured Unix-socket
+input p95 at 3.98 ms for move and 2.83 ms for click (§327).
 
 `0.1.34` added a desktop-readiness gate and input-path logs and fixed the AX
 scroll route inside a background session. Its Release asset is present on the
