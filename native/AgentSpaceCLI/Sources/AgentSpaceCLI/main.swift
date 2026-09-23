@@ -1002,7 +1002,17 @@ case "scroll":
     let action = InputAction.scroll(x: x, y: y, dx: dx, dy: dy).wireValue
     let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
     let result = callJSON(emitter, connection, Method.input, inputParams([action]))
-    emitter.success(result, human: "scrolled \(dx), \(dy)\(anchorText)")
+    // An anchored scroll that came back on the wheel channel moved nothing an app
+    // can see: the event is posted into the session's stream and the window server
+    // does not dispatch it to an app (§315). Reporting only "scrolled" there is the
+    // same silent degradation this verb was fixed for in 0.1.28 — the anchor is
+    // what makes a scroll work, so a run where the anchor could not be used has to
+    // say so rather than describe the gesture that was intended.
+    var note = ""
+    if x != nil, result["channels"]?.arrayValue?.first?.stringValue == "scrolledViaWheel" {
+        note = "\n  → no scroll area was found at that point, so a wheel event was posted instead, and a posted wheel event does not reach an app in a session that is not on the console. Nothing at that point was scrolled."
+    }
+    emitter.success(result, human: "scrolled \(dx), \(dy)\(anchorText)\(note)")
 
 case "drag":
     guard rest.count >= 5,

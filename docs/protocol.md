@@ -201,6 +201,16 @@ scaled Retina display, so the scale comes from
 | `key` | `key` (`"cmd+l"`) **or** `keys` (`["cmd","l"]`) |
 | `sleep` | `ms` (0–30000; alias `wait`) |
 
+The answer is `{ "performed": N, "channels": [ … ] }`, where `channels` has one
+entry per performed action, in order, naming what it actually did: `performed`
+for a posted event, `scrolledViaAccessibility` for a scroll that moved a scroll
+bar, and `scrolledViaWheel` for one that only posted a wheel event. That last
+distinction is not bookkeeping: in a session that is not on the console a posted
+wheel event enters the stream and reaches no app (§315), so `performed: 1` alone
+would describe a scroll that moved nothing. `channels` is additive — a worker
+older than it answers as it always did, and a client that does not read it is
+where it was.
+
 ### Binary Frame Engine — `frame.*` + `frame.sock`
 
 Current Desktop and Fusion clients call additive protocol-v1 methods
@@ -290,7 +300,8 @@ does not make a cached coordinate dangerous. Past the geometry the action is the
 **same** object `input` accepts — `button`, `count`, `modifiers`, `dx`, `dy` —
 because the worker resolves the fractions and hands the result to the same
 parser, rather than maintaining a second dialect. `type` and `key` reuse the
-normal input action shapes. Returns `{ "performed": N }`.
+normal input action shapes. Returns `{ "performed": N, "channel": "…" }`, with the
+same vocabulary `input` reports in `channels`.
 
 Direct Fusion interaction holds a five-second human input lease; ordinary
 `input` calls during that lease fail `INPUT_BUSY_BY_HUMAN`. The lease is claimed

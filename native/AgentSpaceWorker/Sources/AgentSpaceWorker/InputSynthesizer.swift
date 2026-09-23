@@ -59,9 +59,31 @@ enum InputSynthesizer {
         if ms > 0 { usleep(UInt32(ms) * 1000) }
     }
 
+    /// Which channel an action took.
+    ///
+    /// Only `scroll` has two, and the difference is not cosmetic. In a session
+    /// that is not on the console a posted wheel event enters the stream and
+    /// reaches no app (§315, measured across eight event shapes) while the
+    /// Accessibility scroll bar does move the document. "It answered success" and
+    /// "the picture moved" are therefore answers to different questions, and a
+    /// caller that cannot tell them apart is how a scroll which moves nothing
+    /// reads as working — the same silent degradation §319 row 823 retired from
+    /// the CLI's point-less scroll, one layer down.
+    enum Outcome: String {
+        case performed
+        case scrolledViaAccessibility
+        case scrolledViaWheel
+
+        /// Whether the action moved the content the caller named. The wheel path
+        /// is the one that may not have: it is posted either because no scroll
+        /// area was found at the point, or because this session *is* the console,
+        /// where a wheel event works — and only the session knows which.
+        var movedNamedContent: Bool { self != .scrolledViaWheel }
+    }
+
     /// Execute one validated action. Throws only the errors that are genuinely
     /// per-action (`INVALID_ACTION` for a key combo that fails to parse).
-    static func perform(_ action: InputAction) throws {
+    static func perform(_ action: InputAction) throws -> Outcome {
         switch action {
         case .sleep(let ms):
             // A sleep moves no cursor and presses no key, so it needs no target.
@@ -133,13 +155,14 @@ enum InputSynthesizer {
             // session *is* the console the wheel event is the better path
             // anyway, so both fall through to the post below.
             if let x, let y, AccessibilityBridge.scrollArea(atX: x, y: y, linesX: dx, linesY: dy) {
-                return
+                return .scrolledViaAccessibility
             }
             if let x, let y { post(mouseEvent(.mouseMoved, x, y, .left)) }
             // wheel1 = vertical, wheel2 = horizontal. `dy` is passed straight
             // through, so positive dy is what a natural trackpad swipe down does.
             post(CGEvent(scrollWheelEvent2Source: nil, units: .line,
                          wheelCount: 2, wheel1: Int32(dy), wheel2: Int32(dx), wheel3: 0))
+            return .scrolledViaWheel
 
         case .type(let text):
             // One event per **grapheme cluster**, 2 ms apart.
@@ -178,6 +201,10 @@ enum InputSynthesizer {
                 throw error
             }
         }
+        // Every other action has one channel, and taking it is the whole of the
+        // outcome: a posted event is delivered into this session's stream, which
+        // is what the console check above exists to make safe.
+        return .performed
     }
 
     private static func flags(from modifiers: [Modifier]) -> CGEventFlags {

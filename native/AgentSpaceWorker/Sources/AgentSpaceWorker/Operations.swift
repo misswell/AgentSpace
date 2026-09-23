@@ -409,9 +409,10 @@ struct Operations {
 
         // (6) Perform, in order. Nothing above this line has a side effect.
         var performed = 0
+        var channels: [JSONValue] = []
         for action in actions {
             do {
-                try InputSynthesizer.perform(action)
+                channels.append(.string(try InputSynthesizer.perform(action).rawValue))
             } catch let error as AgentSpaceError {
                 throw AgentSpaceError(
                     code: error.code,
@@ -421,7 +422,13 @@ struct Operations {
             performed += 1
         }
         Log.input.info("performed \(performed) input action(s) in \(context.spaceName)")
-        return .obj(["performed": .int(performed)])
+        // `performed` counts, in order, what each action actually did. A scroll
+        // that named a point and reached no scroll area comes back as
+        // `scrolledViaWheel`, which is the honest answer in a session that is not
+        // on the console: the event was posted, and no app will see it (§315). A
+        // count alone cannot say that, and the caller that cannot tell has no way
+        // to learn that "it worked" and "it moved nothing" were the same word.
+        return .obj(["performed": .int(performed), "channels": .array(channels)])
     }
 
     // MARK: - apps
@@ -834,6 +841,13 @@ struct Operations {
         // reply is read by a person comparing two of them, and a key that is
         // always present is a key that says nothing about the one time it matters.
         if let failure = value.allocationFailure { fields["allocationFailure"] = Self.allocationFailureJSON(failure) }
+        // Also omitted while there is no capture to describe. A reader that finds
+        // them can answer "what resolution is this stream at, and was it trimmed?"
+        // without inverting `mappingBytes` itself — which is what §320 row 832 had
+        // to do to read a 1280×543 buffer out of 5,564,544 bytes.
+        if let width = value.captureWidth { fields["captureWidth"] = .int(width) }
+        if let height = value.captureHeight { fields["captureHeight"] = .int(height) }
+        if let capped = value.captureCapped { fields["captureCapped"] = .bool(capped) }
         for (key, field) in extra { fields[key] = field }
         return .obj(fields)
     }
@@ -921,11 +935,14 @@ struct Operations {
             guard inputLease.deliversHover() else {
                 return .obj(["performed": .int(0), "skipped": .string("hover")])
             }
-            return .obj(["performed": .int(try WindowInputRouter.perform(action))])
+            return .obj(["performed": .int(1), "channel": .string(try WindowInputRouter.perform(action).rawValue)])
         }
         try WindowInputRouter.activate(window: window)
         inputLease.claimHuman()
-        return .obj(["performed": .int(try WindowInputRouter.perform(action))])
+        // The channel rides along here too, so a proxy can tell a scroll that
+        // moved its document from one that only posted an event — the same
+        // distinction `input` reports, for the same reason.
+        return .obj(["performed": .int(1), "channel": .string(try WindowInputRouter.perform(action).rawValue)])
     }
 
     /// Claim the human lease for a proxy the person is pressing inside.

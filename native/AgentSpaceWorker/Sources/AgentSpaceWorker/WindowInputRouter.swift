@@ -20,8 +20,13 @@ enum WindowInputRouter {
         try WindowActions.raise(window: window)
     }
 
-    static func perform(_ action: InputAction) throws -> Int {
+    /// What the action did, and which channel it took. The channel travels out
+    /// to the caller for the same reason it does on `input` (see
+    /// `InputSynthesizer.Outcome`): a proxy scroll that reaches no scroll area is
+    /// posted as a wheel event, and in a session that is not on the console that
+    /// event reaches no app — so a proxy whose document does not move should not
+    /// have been told that it scrolled.
+    static func perform(_ action: InputAction) throws -> InputSynthesizer.Outcome {
         try InputSynthesizer.perform(action)
-        return 1
     }
 }
