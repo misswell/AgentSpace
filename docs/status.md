@@ -4,16 +4,45 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-23 on `master`. Current public release: `0.1.30`
-(`v0.1.30`, annotated at `cf7aa1b` — the commit whose tree the bundle was built from,
-`git rev-list --count` there = 408 = the stamp inside it; the GitHub Release asset
-reports `sha256:243f4fc86db0d6d3cdcf3899dc19213a56a3b0a6ffdaf6af0991b71f408637e2` over
-`5556169` bytes, byte-for-byte what `check-all.sh` gated and what `curl -L` of the
+Last updated: 2026-09-23 on `master`. Current public release: `0.1.31`
+(`v0.1.31`, annotated at `b06418e` — the commit whose tree the bundle was built from,
+`git rev-list --count` there = 413 = the stamp inside it; the GitHub Release asset
+reports `sha256:68351f1022e5c7e147fbaec216ca9dfeaf3c4af835b49c842cf2b1e1b56043db` over
+`5590655` bytes, byte-for-byte what `check-all.sh` gated and what `curl -L` of the
 download URL returned, and `releases/latest` — the product's own update channel —
-answered the new tag on three samples with no write. Layer 4's first run reported
-*zero main windows* on this artifact and thirteen of thirteen on the second, over the
-same bytes; the build was ruled out before the instrument was, and both runs are on the
-record (§322 row 848). It ships the
+answered the new tag on three samples with no write). It ships the Retina round
+(§323): the desktop stream read a display's **point** size as its **pixel** size, so a
+HiDPI agent desktop was captured at half resolution in each axis and the viewer scaled
+it back up — measured in the agent session on its 2x display, `3024×1964` now against
+`1512×982` before, and on text the native buffer is indistinguishable from an
+independent `screencapture` (0.010 % of pixels) where the old size differed on 2.967 %,
+with 260x as many glyph-edge pixels in the wrong place. 「原生」 now means the source's
+own pixels rather than an enlargement of them — the viewer takes the smaller of its own
+device pixels and the display's, which is 2280×1283 → **1920×1080** (−29 % of bytes) for
+the window §320 row 837 measured — the pixel ceiling is derived from the frame budget
+instead of chosen (`maximumPixels = 16,776,688`), and the two pickers that disagreed
+about one preference are one control on one key whose stored width is translated once.
+The cost is measured rather than guessed, and the release notes say so: native pixels on
+a 2x desktop are **792 kB/s at p50 21.6 ms** against **132 kB/s at 10.9 ms** for the
+point size.
+**This release needs two presses, and the second one is the point of it.** 「检查更新」
+brings the viewer's quality modes, the bounded request and the CLI's honest scroll line;
+the sharpness itself is in the **worker**, so it arrives only after
+「重新安装助手…」 — the installed pair is app `0.1.31` / worker `0.1.27`, and every
+capture number in §323 was produced with a worker built from this tree. One behaviour
+changes for an existing preference on purpose: a stored `previewMaxWidth` becomes a
+mode (`0`→native, `≤1280`→performance, larger→balanced), so the `1280` stored on this
+machine is now **Performance** and the sharpest setting has to be chosen. Also in
+0.1.31, from the same gate: an anchored `scroll` that reached no scroll area used to
+answer `performed: 1` while moving nothing (§315's wheel fallback cannot reach an app
+in a background session), and the worker now reports which channel each action took so
+it can no longer read as success.
+
+The previous release, `0.1.30` (`cf7aa1b`, `git rev-list --count` 408, digest
+`sha256:243f4fc86db0d6d3cdcf3899dc19213a56a3b0a6ffdaf6af0991b71f408637e2` over
+`5556169` bytes; layer 4's first run reported *zero main windows* on that artifact and
+thirteen of thirteen on the second, over the same bytes — the build was ruled out before
+the instrument was, §322 row 848), ships the
 answers to two reports about one desktop — 「无法点击，点击没有反应」 and
 「窗口无法关闭」 — and they turned out to be the same defect twice: a safety check that
 spent the only escape it existed to keep. `Operations.swift`'s "does this action need
@@ -38,7 +67,7 @@ exists or its generation changed" is the same answer for both. The mirror always
 closes now, and closing the agent's window is a labelled title-bar action,
 「关闭 Agent 窗口」 (row 845). No new wire field, no new error case,
 `protocolVersion` still 1, 585 unit tests green.
-**This release needs two presses, not one:** the undismissible window is the app's
+**This release needs two presses, not one:** the undismissable window is the app's
 problem, so 「检查更新」 fixes that half; rows 841–844 are in the **worker**, so the
 pointer and the raise reach a desktop only after 「重新安装助手…」. The installed worker
 answers `0.1.27`, not the `0.1.26` this page kept saying — re-measured here with
@@ -427,6 +456,16 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    On the fixed worker, at the window size §320 measured, the expected readings are
    `mappingBytes 4,196,184`, zero fully-black columns, and a click at the picture's
    left edge opening the **Apple** menu.
+   **One of those expectations moved with §323**, and the movement is the point:
+   with the viewer's request now bounded by the source's own pixels, a 1280-wide
+   window over this 1920×1080 desktop no longer asks for anything the desktop does
+   not have, so the buffer is the fitted box *or* the desktop, whichever is smaller,
+   and `mappingBytes` is at most `16,593,024` (1920×1080) rather than an enlargement
+   of it. The shape of the check is unchanged — zero pillars, and a click at the
+   picture's left edge opening the Apple menu — and rows 849–855 have already
+   produced the corresponding numbers on this machine with a worker built from the
+   tree, which is what makes the press the only thing left rather than the only
+   evidence.
 3. **Real-machine acceptance** — install the new worker into the already
    connected standard account,
    enter its Aqua session, grant Accessibility and Screen Recording, prove the
