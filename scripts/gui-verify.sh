@@ -427,57 +427,39 @@ done
 check "refresh slider min=2.0"  "2.0" "${SLIDER%%|*}"
 check "refresh slider max=10.0" "10.0" "${SLIDER##*|}"
 
-# --- Settings: the display-quality tiers (§53, §323) --------------------------
-# This control used to be a width list whose labels were deliberately
-# untranslated. It is now the mode picker the viewer's footer carries as well —
-# one key, one default, one option list — and its three names *are* localized,
-# so the assertion is exact against each shipped language instead of against
-# titles that only hold in one of them. §318's rule: never assert a localized
-# title in whatever language the machine happens to run.
+# --- Settings: the display-quality control (§53, §323) -----------------------
+# Read, never clicked — and that is a measurement, not a preference. A SwiftUI
+# Picker's menu is not in the accessibility tree until the menu is open
+# (`-1719 invalid index` on every one of five attempts), and clicking it puts the
+# app into menu tracking, where the window's own elements stop resolving: one
+# missing control then reported eleven checks as failed, because the retry loop's
+# Escape closed the Settings *window* (§323 row 860). The control's `value` is the
+# selected mode's own name, so the assertion is exact against both shipped
+# languages; the three options themselves are pinned where they can be read
+# without a screen — Core's `allCases` and, for the titles, `LocalizationTests`.
+# stderr is deliberately *not* discarded: a lookup that fails must say whether the
+# window was absent or the control was, which an empty string cannot.
 QUALITY=""
-QUALITY_OPENED=""
 for attempt in 1 2 3 4 5; do
   QUALITY="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
 	set _p to ($PT)
 	set _w to my advancedSettingsWindow(_p)
-	if _w is missing value then return \"\"
+	if _w is missing value then return \"no advanced settings window\"
 	set _pp to my findById(_w, \"displayQualityPicker\", pop up button, 0)
-	if _pp is missing value then return \"notfound\"
-	click _pp
-	delay 1
-	set _out to \"opened|\"
-	repeat with _mi in (menu items of menu 1 of _pp)
-		set _out to _out & ((title of _mi) as text) & \"|\"
-	end repeat
-	return _out
-end tell" 2>/dev/null)"
-  QUALITY="$(echo "$QUALITY" | sed 's/|$//; s/ //g')"
+	if _pp is missing value then return \"no display quality control\"
+	return (value of _pp) as text
+end tell" 2>&1 | tr -d '\n')"
   case "$QUALITY" in
-    "NativeRetina|Balanced|Performance"|"原生Retina|均衡|性能") break ;;
+    "Native Retina"|"原生 Retina"|"Balanced"|"均衡"|"Performance"|"性能") break ;;
   esac
-  # Escape dismisses a menu this loop opened; it must never be pressed when no
-  # menu was opened, because with nothing to dismiss it closes the Settings
-  # *window* instead — and every check after this one then fails for a reason
-  # that has nothing to do with what it is checking. Measured: a run where the
-  # lookup came back empty pressed it five times and the whole Update pane
-  # reported "not there" (§323 row 860).
-  if [ "${QUALITY#opened}" != "$QUALITY" ]; then
-    osascript -e 'key code 53' >/dev/null 2>&1
-  fi
   sleep 1
 done
 case "$QUALITY" in
-  "NativeRetina|Balanced|Performance") QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
-  "原生Retina|均衡|性能")                QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
-  "opened|NativeRetina|Balanced|Performance") QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
-  "opened|原生Retina|均衡|性能")                QUALITY_VERDICT="NativeRetina|Balanced|Performance" ;;
-  *)                                     QUALITY_VERDICT="$QUALITY" ;;
+  "Native Retina"|"原生 Retina"|"Balanced"|"均衡"|"Performance"|"性能") QUALITY_VERDICT="one of the three modes" ;;
+  *) QUALITY_VERDICT="$QUALITY" ;;
 esac
-check "display quality tiers" "NativeRetina|Balanced|Performance" "$QUALITY_VERDICT"
-if [ "${QUALITY#opened}" != "$QUALITY" ]; then
-  osascript -e 'key code 53' >/dev/null 2>&1
-fi
+check "display quality control" "one of the three modes" "$QUALITY_VERDICT"
 
 # --- Settings: the Update pane exists and starts in a safe state -------------
 # The claim worth gating is not "the tab is there" but "the destructive control
