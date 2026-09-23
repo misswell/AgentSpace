@@ -1,5 +1,12 @@
 name: Release AgentSpace (macOS)
 
+# The runner is pinned to macos-26, not macos-15, and that is a product fact
+# rather than a preference: AgentSpace requires macOS 26 or later (plan §3), and
+# the suite asserts it — `doctor` fails its macOS-version check on anything older,
+# so `testDoctorReportsEveryCheckWithAStatus` fails on a macOS 15 runner for a
+# reason that has nothing to do with the change being released. Measured: the
+# first dry run on `macos-15` reported exactly that, 696 of 697 tests passing.
+
 # The release path this repository has always documented, moved onto a runner.
 #
 # What is deliberately the same as every local release: `scripts/release.sh`
@@ -39,7 +46,7 @@ concurrency:
 jobs:
   gate:
     name: Gate (layers 1-3 on the runner, layer 4 stated)
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -127,7 +134,7 @@ jobs:
   release:
     name: Sign, notarize, publish
     needs: gate
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
