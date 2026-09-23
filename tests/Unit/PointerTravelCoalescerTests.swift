@@ -75,6 +75,22 @@ final class PointerTravelCoalescerTests: XCTestCase {
         XCTAssertEqual(sent, [0, 1])
     }
 
+    func testFinalRateLimitedPositionReportsWhenItCanBePumped() {
+        let coalescer = makeCoalescer(minimumInterval: 0.05)
+        XCTAssertNil(coalescer.pendingDelay(now: start))
+        coalescer.offer(position(0), now: start)
+        coalescer.offer(position(1), now: start.addingTimeInterval(0.01))
+        XCTAssertNil(coalescer.pendingDelay(now: start.addingTimeInterval(0.01)),
+                     "a completion, not a timer, must release an in-flight request")
+
+        coalescer.finished(now: start.addingTimeInterval(0.01))
+        XCTAssertEqual(coalescer.pendingDelay(now: start.addingTimeInterval(0.01)) ?? -1,
+                       0.04, accuracy: 0.001)
+        coalescer.pump(now: start.addingTimeInterval(0.051))
+        XCTAssertEqual(sent, [0, 1])
+        XCTAssertNil(coalescer.pendingDelay(now: start.addingTimeInterval(0.051)))
+    }
+
     /// Travel that belongs to a window nobody is looking at any more must not be
     /// posted after that window is gone.
     func testResetDropsEverythingUnsent() {

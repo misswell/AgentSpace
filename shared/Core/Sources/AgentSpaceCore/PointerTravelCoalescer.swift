@@ -74,6 +74,15 @@ public final class PointerTravelCoalescer<Value> {
     public var isInFlight: Bool { lock.lock(); defer { lock.unlock() }; return inFlight }
     public var hasPendingPosition: Bool { lock.lock(); defer { lock.unlock() }; return pending != nil }
 
+    /// When a rate-limited final position can be sent. A caller with no frame
+    /// timer can arm exactly one wakeup instead of losing the last hover.
+    public func pendingDelay(now: Date = Date()) -> TimeInterval? {
+        lock.lock(); defer { lock.unlock() }
+        guard pending != nil, !inFlight else { return nil }
+        guard let lastSent else { return 0 }
+        return max(0, minimumInterval - now.timeIntervalSince(lastSent))
+    }
+
     /// How many travel requests could still reach the agent: the one being
     /// answered plus the newest waiting one, and never more. This is the bound
     /// a deliberate gesture queues behind.

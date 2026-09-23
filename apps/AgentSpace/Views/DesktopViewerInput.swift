@@ -23,6 +23,7 @@ final class DesktopViewerInput: ObservableObject {
 
     private var space: AgentAccount?
     private var display: DisplayGeometry?
+    private var pendingTravelPump: Task<Void, Never>?
     private lazy var travel = PointerTravelCoalescer<InputAction> { [weak self] action in
         Task { @MainActor in await self?.deliverTravel(action) }
     }
@@ -41,7 +42,7 @@ final class DesktopViewerInput: ObservableObject {
         case .hover(let u, let v):
             let point = Self.point(u, v, display)
             travel.offer(.move(x: point.x, y: point.y), now: Date())
-            travel.pump()
+            schedulePendingTravel()
 
         case .click(let u, let v, let button, let count, let modifiers):
             let point = Self.point(u, v, display)
@@ -63,6 +64,8 @@ final class DesktopViewerInput: ObservableObject {
     /// Positions collected for a desktop nobody is watching any more must not be
     /// posted after it.
     func reset() {
+        pendingTravelPump?.cancel()
+        pendingTravelPump = nil
         travel.reset()
     }
 
@@ -95,5 +98,21 @@ final class DesktopViewerInput: ObservableObject {
         // Whether or not the worker answered, the travel slot has to be released,
         // or one skipped hover silences the pointer for good.
         travel.finished()
+        schedulePendingTravel()
+    }
+
+    /// A last hover can arrive inside the 30 Hz interval just after the
+    /// previous request finishes. No more mouse events are guaranteed, so it
+    /// needs its own wakeup; otherwise the cursor can stop at an old position.
+    private func schedulePendingTravel() {
+        guard let delay = travel.pendingDelay(), pendingTravelPump == nil else { return }
+        pendingTravelPump = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(max(1, ceil(delay * 1_000_000_000))))
+            guard let self else { return }
+            self.pendingTravelPump = nil
+            guard !Task.isCancelled else { return }
+            self.travel.pump()
+            self.schedulePendingTravel()
+        }
     }
 }
