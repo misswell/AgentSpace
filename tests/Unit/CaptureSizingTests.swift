@@ -12,6 +12,14 @@ import XCTest
 /// Pure geometry, so it is tested here rather than in front of a WindowServer.
 final class CaptureSizingTests: XCTestCase {
 
+    func testViewerZoomNeverUpscalesPastTheSourcePixels() {
+        let request = CaptureSizing.viewerRequest(
+            viewPixelWidth: 1532, viewPixelHeight: 862,
+            magnification: 2, sourceLimitWidth: 1920, sourceLimitHeight: 1080)
+        XCTAssertEqual(request.width, 1920)
+        XCTAssertEqual(request.height, 1080)
+    }
+
     /// A 1920×1080 desktop, the one the real machine under `docs/validation.md` runs.
     private let desktop = (width: 1920, height: 1080)
 

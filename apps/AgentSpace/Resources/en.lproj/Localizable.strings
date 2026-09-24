@@ -569,6 +569,7 @@
 "Three quarters of the agent desktop's pixels, in each direction." = "Three quarters of the agent desktop's pixels, in each direction.";
 "At most 1280 pixels wide. For a slow link." = "At most 1280 pixels wide. For a slow link.";
 "Stream %1$ld×%2$ld px · source %3$ld×%4$ld px" = "Stream %1$ld×%2$ld px · source %3$ld×%4$ld px";
+"Stream %1$ld×%2$ld px · desktop %3$ld×%4$ld pt · %5$ld×%6$ld px (%7$ld×)" = "Stream %1$ld×%2$ld px · desktop %3$ld×%4$ld pt · %5$ld×%6$ld px (%7$ld×)";
 
 /* Fusion app picker: installed applications in an agent account's session. */
 "Fuse App…" = "Fuse App…";

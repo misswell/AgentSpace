@@ -4,13 +4,23 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-24 on `master`. Current public release: **0.1.40**.
-`v0.1.40` points to `8d96184`; its notarized, stapled DMG is **6,253,135** bytes,
-`sha256:f673af39a78eaaa0af4405032148d0b1f245f8f3612cc2ce2523dd475898440d`.
-GitHub Actions run `35940848637` passed its validate, gate and sign/notarize/publish
-jobs; `releases/latest` answers `v0.1.40` with that same asset digest (§332 row 949).
+Last updated: 2026-09-24 on `master`. Current public release: **0.1.41**.
+`v0.1.41` points to `8bbe015`; its notarized, stapled DMG is **6,289,192** bytes,
+`sha256:8ab509b98180e6aff97c185be138686c9071afea6a91d66bd01194d510c228e9`.
+GitHub Actions run `35943611102` passed validate, gate and sign/notarize/publish;
+`releases/latest` answers `v0.1.41` with that digest (§335 row 956).
 
-0.1.41 candidate: a standalone Fusion proxy now begins at the remote App
+0.1.42 candidate: the visible Desktop Viewer now refreshes that account's
+lightweight status every three seconds, so a recovered background session can
+accept clicks again. Successful fast-channel input clears an old refusal in
+the UI. A zoomed capture request is capped at the actual source pixel size,
+and the footer distinguishes display points from backing pixels (§335).
+AgentUse's current main display is **1920×1080 points and pixels (1×)**; its
+other, built-in display is **1512×982 points / 3024×1964 pixels (2×)**.
+The viewer remains on the current main display; no fake Retina pixels or
+system-wide virtual display are created.
+
+0.1.41: a standalone Fusion proxy now begins at the remote App
 window's size within the host screen's visible bounds. Dragging the local edge
 requests a real resize of the App window in the agent session; the worker keeps
 its current position, returns the size the App accepted, and capture targets
@@ -20,7 +30,7 @@ discovery no longer create proxies; the user selects a window and presses
 need 0.1.41. Live drag acceptance against an installed 0.1.41 Worker remains
 unmeasured; local source, MCP, updater and isolated session UI checks pass.
 
-Desktop Viewer 0.1.41 candidate: the whole desktop fills its viewport by
+Desktop Viewer 0.1.41: the whole desktop fills its viewport by
 constraining the viewer's resize ratio while accounting for its controls
 (§334 rows 954–955). AgentUse's display exposes only 1920×1080; a tested
 virtual display appeared in the owner's display list, so the user chose this

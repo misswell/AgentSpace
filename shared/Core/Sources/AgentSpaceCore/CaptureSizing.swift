@@ -16,6 +16,19 @@
 /// pure geometry — and because both ends of a stream have to agree that a buffer
 /// holds exactly its subject, which is only true if the buffer is sized that way.
 public enum CaptureSizing {
+    /// The local viewer's pixel request after zoom, held to the source's real
+    /// pixels when known. Magnification changes the budget, not the detail the
+    /// remote display physically rendered.
+    public static func viewerRequest(viewPixelWidth: Int, viewPixelHeight: Int,
+                                     magnification: Double, sourceLimitWidth: Int,
+                                     sourceLimitHeight: Int) -> (width: Int, height: Int) {
+        let factor = magnification.isFinite && magnification > 0 ? magnification : 1
+        let width = max(1, Int(Double(max(1, viewPixelWidth)) * factor))
+        let height = max(1, Int(Double(max(1, viewPixelHeight)) * factor))
+        return (sourceLimitWidth > 0 ? min(width, sourceLimitWidth) : width,
+                sourceLimitHeight > 0 ? min(height, sourceLimitHeight) : height)
+    }
+
     /// The buffer to build.
     ///
     /// `naturalWidth × naturalHeight` is the subject's own pixel size. The target

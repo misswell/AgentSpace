@@ -155,6 +155,14 @@ struct DesktopViewerView: View {
             startPreview()
             syncKeyboardState()
         }
+        .task {
+            while !Task.isCancelled {
+                if let id = spaceID ?? model.selected?.space.id {
+                    await model.refreshViewerStatus(for: id)
+                }
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
         .onDisappear {
             stopPreview()
             removeKeyboardMonitor()
@@ -475,8 +483,9 @@ struct DesktopViewerView: View {
                 // different ones mean the source is smaller than the window, or a
                 // ceiling is in play.
                 if let size = liveSurfaceSize, let display = snapshot?.display {
-                    Text(String(format: NSLocalizedString("Stream %1$ld×%2$ld px · source %3$ld×%4$ld px", comment: ""),
-                                Int(size.width), Int(size.height), display.pixelWidth, display.pixelHeight))
+                    Text(String(format: NSLocalizedString("Stream %1$ld×%2$ld px · desktop %3$ld×%4$ld pt · %5$ld×%6$ld px (%7$ld×)", comment: ""),
+                                Int(size.width), Int(size.height), display.width, display.height,
+                                display.pixelWidth, display.pixelHeight, display.scale))
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("desktopViewerStreamSize")

@@ -132,12 +132,14 @@ final class DesktopViewerInput: ObservableObject {
             .store(in: &subscriptions)
         client.$lastRefusal
             .receive(on: RunLoop.main)
-            .compactMap { $0 }
             .sink { [weak self] error in
-                guard let self, let space = self.space else { return }
-                self.refusal = AppModel.PresentedError(
-                    code: error.code.rawValue, message: error.message,
-                    fix: error.code.remediation, spaceName: space.name)
+                guard let self else { return }
+                guard let error, let space = self.space else {
+                    self.refusal = nil
+                    return
+                }
+                self.refusal = AppModel.PresentedError(code: error.code.rawValue,
+                    message: error.message, fix: error.code.remediation, spaceName: space.name)
             }
             .store(in: &subscriptions)
     }

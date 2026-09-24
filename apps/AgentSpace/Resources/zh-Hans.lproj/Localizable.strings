@@ -569,6 +569,7 @@
 "Three quarters of the agent desktop's pixels, in each direction." = "每条边为 Agent 桌面像素的四分之三。";
 "At most 1280 pixels wide. For a slow link." = "最宽 1280 像素。适用于慢速链路。";
 "Stream %1$ld×%2$ld px · source %3$ld×%4$ld px" = "画面 %1$ld×%2$ld 像素 · 源 %3$ld×%4$ld 像素";
+"Stream %1$ld×%2$ld px · desktop %3$ld×%4$ld pt · %5$ld×%6$ld px (%7$ld×)" = "画面 %1$ld×%2$ld 像素 · 桌面 %3$ld×%4$ld 点 · %5$ld×%6$ld 像素（%7$ld×）";
 
 /* Fusion app picker: installed applications in an agent account's session. */
 "Fuse App…" = "融合应用…";

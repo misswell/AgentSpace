@@ -312,11 +312,15 @@ class RemoteSurfaceNSView: NSView {
         // worker because this is where the local window size is known, and the
         // worker's own ceiling (`SharedFrameGeometry.maximumPixels`) is about the
         // frame budget rather than about sharpness.
-        let limitedWidth = captureLimit.width > 0 ? min(naturalWidth, Int(captureLimit.width)) : naturalWidth
-        let limitedHeight = captureLimit.height > 0 ? min(naturalHeight, Int(captureLimit.height)) : naturalHeight
-        let targetWidth = max(1, Int(Double(limitedWidth) * captureMagnification))
-        let targetHeight = max(1, Int(Double(limitedHeight) * captureMagnification))
-        client.configure(width: targetWidth, height: targetHeight)
+        // Apply the source ceiling *after* magnification. A 200% selection must
+        // not request a fake 3840×2160 frame from a 1920×1080, 1× desktop:
+        // that only enlarges existing pixels, forces a stream reconnect and
+        // can exhaust the shared-frame budget without adding Retina detail.
+        let request = CaptureSizing.viewerRequest(
+            viewPixelWidth: naturalWidth, viewPixelHeight: naturalHeight,
+            magnification: captureMagnification,
+            sourceLimitWidth: Int(captureLimit.width), sourceLimitHeight: Int(captureLimit.height))
+        client.configure(width: request.width, height: request.height)
         refreshCaptureGeometry()
         refreshCursorRects()
     }

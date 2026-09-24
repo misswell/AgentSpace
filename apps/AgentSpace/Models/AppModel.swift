@@ -28,11 +28,12 @@ struct CurrentAccountAuthorization: Equatable, Sendable {
 ///
 /// **Refresh is slow and on demand.** Plan §53 sets a 2–5 s floor on status
 /// polling, prefers event notifications outright, and forbids the 100 ms loop
-/// that makes a management app cost more than the thing it manages. Nothing
-/// polls on a timer at all: refreshes happen on foreground, selection and
-/// explicit request. Live surfaces are event-driven over the persistent frame
-/// socket and stop when their windows close; they never fall back to a timed
-/// screenshot loop. Idle, measured in docs/validation.md §27: 0.0% CPU.
+/// that makes a management app cost more than the thing it manages. The
+/// dashboard refreshes on foreground, selection and explicit request. A visible
+/// Desktop Viewer checks only its account's lightweight status every three
+/// seconds, so input can recover after a background session wakes; its frames
+/// remain event-driven over the persistent socket, never a screenshot poll.
+/// Idle with no viewer, measured in docs/validation.md §27: 0.0% CPU.
 ///
 /// **Input is gated on `acceptsInput`.** The buttons that drive the agent's
 /// desktop are disabled unless the worker itself said input is permitted. The GUI
@@ -903,6 +904,25 @@ final class AppModel: ObservableObject {
             // alert. Only something the user did is worth interrupting for.
             _ = problem
         }
+    }
+
+    /// A detached desktop viewer stays open across fast user switches and
+    /// Worker restarts. Refresh only that account's lightweight status while it
+    /// is visible, without rechecking the helper or measuring resources.
+    func refreshViewerStatus(for spaceID: UUID) async {
+        guard let index = snapshots.firstIndex(where: { $0.id == spaceID }) else { return }
+        let space = snapshots[index].space
+        let startedAt = Date()
+        var fresh = await Task.detached(priority: .utility) {
+            SpaceService().snapshot(for: space)
+        }.value
+        guard !Task.isCancelled,
+              let currentIndex = snapshots.firstIndex(where: { $0.id == spaceID }) else { return }
+        let current = snapshots[currentIndex]
+        if let last = current.lastRefreshed, last > (fresh.lastRefreshed ?? startedAt) { return }
+        fresh.space = current.space
+        fresh.resources = current.resources
+        snapshots[currentIndex] = fresh
     }
 
     /// An app update installs only the app bundle. On foreground refresh, ask
