@@ -4,7 +4,25 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-24 on `master`. Current public release: **0.1.45**.
+Last updated: 2026-09-24 on `master`. Current public release: **0.1.46**.
+0.1.46 (§337): the Desktop Viewer's stream is now **one logical 2× Retina main
+desktop**. While a `.retinaDesktop` frame stream is open the worker makes the
+session's real 2× display (1512×982 pt / 3024×1964 px) its main display and
+mirrors its other displays onto it, so the Dock and menu bar — which render
+only on the main display (row 966) — arrive with the flip; the saved
+arrangement returns at the last close, through the client connection's end, or
+from the marker file when a replacement worker starts after a kill. The
+arrangement only is saved and restored: `CGDisplayCopyAllDisplayModes` is
+unusable on this Mac (0 modes for the 2× panel even un-mirrored), no mode is
+ever changed, and the main-display reassignment settles after the
+configuration call returns (`waitForMain`). Input rides the same layout:
+`.desktop` packets are absolute main-display points, so the coordinate bound
+moves with the applied layout (measured: (1600,900) refused at 1512×982,
+accepted at 1920×1080). A raw press that reached the session is now answered
+only by an up even when capture state changes mid-press — the menu
+opens-then-collapses double click — with `streamStarted`/`travelStreamed`
+split so the fix does not reintroduce the synthetic release drag (§337 rows
+970–977).
 `v0.1.45` points to the tagged tree (CI run `35970051653`); its notarized DMG is
 **6,339,830** bytes, `sha256:cf92df630f6db259491e4b28a6f166ad11697120e4e64743694e1cd008c4ee04`;
 `releases/latest` answers `v0.1.45` (§336 row 969).

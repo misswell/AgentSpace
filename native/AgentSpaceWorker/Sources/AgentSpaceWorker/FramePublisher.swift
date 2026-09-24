@@ -169,6 +169,7 @@ final class FrameManager {
     private let context: WorkerContext
     private let lock = NSLock()
     private var streams: [UUID: FramePublisher] = [:]
+    private let retinaDesktop: RetinaDesktopLayout
     private let memoryBudget = 256 * 1024 * 1024
     let workerInstanceID = UUID()
     let sessionGeneration = DispatchTime.now().uptimeNanoseconds
@@ -180,19 +181,33 @@ final class FrameManager {
     /// explains the empty window is in a log file the GUI cannot read.
     private var lastAllocationFailure: SharedFrameAllocationFailure?
 
-    init(context: WorkerContext) { self.context = context }
+    init(context: WorkerContext) {
+        self.context = context
+        retinaDesktop = RetinaDesktopLayout(runtimeDirectory: context.paths.directory)
+        retinaDesktop.recoverIfNeeded()
+    }
 
     func open(_ configuration: FrameOpenConfiguration) throws -> FramePublisher {
+        let usesRetinaDesktop = configuration.target == .retinaDesktop
+        if usesRetinaDesktop { try retinaDesktop.acquire() }
         let publisher: FramePublisher
         do {
             publisher = try FramePublisher(configuration: configuration, context: context)
         } catch let failure as SharedFrameAllocationError {
+            if usesRetinaDesktop { retinaDesktop.release() }
             lock.lock(); lastAllocationFailure = failure.failure; lock.unlock()
             throw failure.agentSpaceError
+        } catch {
+            if usesRetinaDesktop { retinaDesktop.release() }
+            throw error
         }
         lock.lock()
         let total = streams.values.reduce(publisher.mappingBytes) { $0 + $1.mappingBytes }
-        guard total <= memoryBudget else { lock.unlock(); publisher.stop(); throw AgentSpaceError(code: .internalError, message: "frame streams would exceed the 256 MB shared-memory budget") }
+        guard total <= memoryBudget else {
+            lock.unlock(); publisher.stop()
+            if usesRetinaDesktop { retinaDesktop.release() }
+            throw AgentSpaceError(code: .internalError, message: "frame streams would exceed the 256 MB shared-memory budget")
+        }
         streams[publisher.streamID] = publisher; lock.unlock()
         return publisher
     }
@@ -215,10 +230,16 @@ final class FrameManager {
     }
 
     func close(_ id: UUID) {
-        lock.lock(); let stream = streams.removeValue(forKey: id); lock.unlock(); stream?.stop()
+        lock.lock(); let stream = streams.removeValue(forKey: id); lock.unlock()
+        stream?.stop()
+        if stream?.target == .retinaDesktop { retinaDesktop.release() }
     }
 
     func stopAll() {
-        lock.lock(); let all = Array(streams.values); streams.removeAll(); lock.unlock(); all.forEach { $0.stop() }
+        lock.lock(); let all = Array(streams.values); streams.removeAll(); lock.unlock()
+        all.forEach { stream in
+            stream.stop()
+            if stream.target == .retinaDesktop { retinaDesktop.release() }
+        }
     }
 }

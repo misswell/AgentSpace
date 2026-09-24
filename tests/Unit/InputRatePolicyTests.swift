@@ -175,6 +175,20 @@ final class RawPointerPhaseTests: XCTestCase {
                        .pointerUp(u: 0.25, v: 0.25, button: .left, clickCount: 2, modifiers: []))
     }
 
+    func testRawPressDoesNotBecomeASecondClickWhenControlEndsBeforeRelease() {
+        var tracker = RemotePointerGestureTracker()
+        tracker.beginControl(rawPhases: true)
+        let point = point(topLeftX: 250, topLeftY: 250)
+        XCTAssertEqual(tracker.beganPressPhases(at: point, button: .left, clickCount: 1,
+                                                modifiers: [], in: square, now: Date()),
+                       .pointerDown(u: 0.25, v: 0.25, button: .left, clickCount: 1, modifiers: []))
+        tracker.endControl()
+        XCTAssertTrue(tracker.releaseTravelPhases(to: point, in: square, now: Date()).gestures.isEmpty)
+        XCTAssertEqual(tracker.endedPress(at: point, clickCount: 1, in: square, now: Date()),
+                       .pointerUp(u: 0.25, v: 0.25, button: .left, clickCount: 1, modifiers: []),
+                       "a raw down must be matched by one up, even if capture changes during the press")
+    }
+
     /// A surface that goes away mid-press must not leave the remote button held.
     func testCancellingARawPressEmitsARelease() {
         var tracker = RemotePointerGestureTracker()

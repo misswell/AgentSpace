@@ -66,7 +66,7 @@ final class DesktopViewerInput: ObservableObject {
             travel = PointerTravelCoalescer(minimumInterval: 1.0 / rate) { [weak self] point in
                 guard let self else { return }
                 if self.client?.state.isReady == true {
-                    self.client?.move(to: point, target: .retinaDisplay)
+                    self.client?.move(to: point, target: .desktop)
                     self.travel?.finished()
                 } else {
                     self.travel?.finished()
@@ -113,13 +113,13 @@ final class DesktopViewerInput: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] presentation in
                 guard let self else { return }
-                guard var presentation, let display = self.display else {
+                guard let presentation, self.display != nil else {
                     self.onCursor?(nil)
                     return
                 }
-                let local = display.localPoint(x: presentation.x, y: presentation.y)
-                presentation.x = local.x
-                presentation.y = local.y
+                // The stream owns a single logical main display; its origin is
+                // (0,0) while it is open. Status may still carry the candidate's
+                // old secondary-screen origin until the next poll.
                 self.onCursor?(presentation)
             }
             .store(in: &subscriptions)
@@ -166,7 +166,7 @@ final class DesktopViewerInput: ObservableObject {
             schedulePendingTravel()
             return
         }
-        let target = InputTarget.retinaDisplay
+        let target = InputTarget.desktop
         switch gesture {
         case .hover:
             break // handled above, on either transport

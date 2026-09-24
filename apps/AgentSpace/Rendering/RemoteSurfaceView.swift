@@ -187,7 +187,11 @@ class RemoteSurfaceNSView: NSView {
     /// Whether this surface may hide the local cursor at all. False until the
     /// worker has promised a cursor of its own.
     var allowsLocalCursorHiding = false {
-        didSet { if !allowsLocalCursorHiding { capture.release() }; refreshCursorRects() }
+        didSet {
+            guard oldValue != allowsLocalCursorHiding else { return }
+            if !allowsLocalCursorHiding { capture.release() }
+            refreshCursorRects()
+        }
     }
     /// The pointer half of this surface's state: capture, the image rect, and
     /// when to hide the local cursor.

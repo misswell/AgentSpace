@@ -173,9 +173,9 @@ struct DesktopViewerView: View {
         // console switch) tears the monitor down instead of leaving it
         // consuming keys.
         .onChange(of: snapshot?.workerOnline) { _ in syncKeyboardState() }
-        .onChange(of: snapshot?.retinaDisplay) { newDisplay in
+        .onChange(of: retinaDesktopRestartKey) { key in
             if lastViewportSize.width > 0 { onViewportSize?(lastViewportSize) }
-            if newDisplay != nil { restartPreviewIfNeeded() } else { stopPreview() }
+            if key.isEmpty { stopPreview() } else { restartPreviewIfNeeded() }
         }
         .onChange(of: snapshot?.acceptsInput) { _ in syncKeyboardState() }
         .onChange(of: hostWindow) { _ in syncKeyboardState() }
@@ -539,7 +539,7 @@ struct DesktopViewerView: View {
         // by 16 px or more, and a first request of (0,0) followed by the real one
         // was one reconnect per window open.
         let limit = captureLimit
-        let client = FrameClient(space: space, target: .display(displayID: display.id), maxFPS: previewFPS,
+        let client = FrameClient(space: space, target: .retinaDesktop, maxFPS: previewFPS,
                                 targetWidth: Int(limit.width), targetHeight: Int(limit.height))
         frameClient = client; client.start()
     }
@@ -558,8 +558,26 @@ struct DesktopViewerView: View {
 
     private func restartPreviewIfNeeded() {
         guard frameClient != nil else { return }
-        stopPreview()
+        // Open the replacement before closing the old stream. Both streams count
+        // as users of the worker's Retina-desktop layout, so this order never
+        // drops the count to zero in between: the agent session's display
+        // arrangement does not flip back to the saved one and get applied again
+        // in the gap that stop-then-start used to produce on every reopen.
+        let previous = frameClient
+        frameClient = nil
         startPreview()
+        previous?.stop()
+    }
+
+    /// Whether the stream should be rebuilt for the Retina display's current
+    /// report: its identity and pixel shape, never its origin. The single-
+    /// Retina-desktop layout the stream itself applies moves that display to
+    /// (0,0), so an origin change is the stream's own doing — restarting on it
+    /// would tear the picture down seconds after every open.
+    private var retinaDesktopRestartKey: String {
+        guard let display = snapshot?.retinaDisplay else { return "" }
+        return "\(display.id) \(display.geometry.width)x\(display.geometry.height)"
+             + " \(display.geometry.pixelWidth)x\(display.geometry.pixelHeight)"
     }
 
     private var livePreviewLabel: String {

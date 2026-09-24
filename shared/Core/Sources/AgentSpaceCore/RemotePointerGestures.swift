@@ -72,6 +72,9 @@ public struct RemotePointerGestureTracker {
         var modifiers: [Modifier]
         var travelled = false
         var streamStarted = false
+        /// A travel phase went out, not just the down. A click that never moved
+        /// must not gain a synthetic drag from its own release position.
+        var travelStreamed = false
     }
 
     private var press: Press?
@@ -214,7 +217,12 @@ public struct RemotePointerGestureTracker {
                                           now: Date) -> RemotePointerGesture? {
         guard beganPress(at: point, button: button, modifiers: modifiers,
                          in: surface, now: now, clickCount: clickCount) else { return nil }
-        guard rawPhases, let press else { return nil }
+        guard rawPhases, var press else { return nil }
+        // This press has already reached the remote session. Capture or cursor
+        // availability can change before mouse-up; its release must remain an
+        // up, never turn into a second complete click.
+        press.streamStarted = true
+        self.press = press
         return .pointerDown(u: press.u, v: press.v, button: press.button,
                             clickCount: press.clickCount, modifiers: press.modifiers)
     }
@@ -262,6 +270,7 @@ public struct RemotePointerGestureTracker {
             press.lastU = fraction.u
             press.lastV = fraction.v
             press.streamStarted = true
+            press.travelStreamed = true
             self.press = press
             return (renewLease, [move])
         }
@@ -271,6 +280,7 @@ public struct RemotePointerGestureTracker {
             button: press.button, modifiers: press.modifiers)
         press.lastU = fraction.u
         press.lastV = fraction.v
+        press.travelStreamed = true
         if press.streamStarted {
             self.press = press
             return (renewLease, [move])
@@ -289,7 +299,7 @@ public struct RemotePointerGestureTracker {
     /// drag began, preserve its final position before sending the release.
     public mutating func releaseTravelPhases(to point: CGPoint, in surface: PreviewMapping,
                                              now: Date) -> (renewLease: Bool, gestures: [RemotePointerGesture]) {
-        if rawPhases, let press, !press.streamStarted,
+        if rawPhases, let press, !press.travelStreamed,
            hypot(point.x - press.viewOrigin.x, point.y - press.viewOrigin.y) <= Self.dragThreshold {
             return (false, [])
         }

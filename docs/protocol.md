@@ -215,9 +215,16 @@ where it was.
 
 Current Desktop and Fusion clients call additive protocol-v1 methods
 `frame.open`, `frame.close`, `frame.configure`, `frame.requestFull` and
-`frame.stats`. `frame.open` names a `display` or `(pid, windowId, generation)`
-window target plus FPS and target pixel dimensions; it returns a stream UUID
-and the per-account `Runtime/<id>/frame.sock` path.
+`frame.stats`. `frame.open` names a `display`, `(pid, windowId, generation)`
+window target, or the additive `retinaDesktop` target (`"kind":
+"retinaDesktop"`) plus FPS and target pixel dimensions; it returns a stream
+UUID and the per-account `Runtime/<id>/frame.sock` path. `retinaDesktop` asks
+for one logical main desktop at the session's real 2× display: while such a
+stream is open the worker makes that display the session's main display and
+mirrors its other displays onto it, and the saved arrangement returns when the
+last such stream closes — through `frame.close`, through the connection
+ending, or, if the worker died mid-stream, from the marker file the next
+worker start reads. A display-id target keeps working unchanged.
 
 The frame socket is one persistent Unix connection. Its first line is a
 `FrameHello` containing protocol version, account UUID, stream UUID, token,
@@ -312,11 +319,14 @@ Three things are deliberately not like the RPC path:
   the remote window server — which is what decides click versus drag — sees it
   while the button is still held.
 
-Coordinates are display points for a `desktop` target and 0…1 fractions of the
-window for a `window` target, which the worker resolves against the window's
-frame *at apply time*. A drag's basis is the frame its `pointerDown` named:
-`GestureFrameStore` holds it by window identity until `pointerUp`, so a title-bar
-drag that moves its own window does not chase its tail.
+Coordinates are display points for the whole-desktop targets (`desktop` names
+the session's main display; the additive `retinaDisplay` role and a `display`
+id are resolved against that display's own geometry and origin) and 0…1
+fractions of the window for a `window` target, which the worker resolves
+against the window's frame *at apply time*. A drag's basis is the frame its
+`pointerDown` named: `GestureFrameStore` holds it by window identity until
+`pointerUp`, so a title-bar drag that moves its own window does not chase its
+tail.
 
 `cursor` packets carry the session pointer's position and, when the shape
 changed, its BGRA pixels, hotspot and size. A worker advertises `cursorShapes`
