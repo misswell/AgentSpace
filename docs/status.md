@@ -5,10 +5,10 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/validation.md`](validation.md).
 
 Last updated: 2026-09-24 on `master`. Current public release: **0.1.44**.
-`v0.1.44` points to the commit whose tree the bundle was built from; the
-release record lands in validation §336 row 967 after CI publishes.
-0.1.43's DMG is `sha256:42eeb5d8034ae7e4fa6a917de10e7f5d21ee4c7ec2e4563e5c4483df72c602da`
-over 6,321,113 bytes (run `35952783573`, §336 row 964).
+`v0.1.44` points to `f9aa34f`; its notarized DMG is **6,324,312** bytes,
+`sha256:239b3c844479194182888d1c8ed151de7cf21a552a95e8d1f93445b14b5ee27f`.
+GitHub Actions run `35967174749` passed validate, gate and sign/notarize/publish;
+`releases/latest` answers `v0.1.44` with that digest (§336 row 967).
 
 0.1.44 (§336 rows 965–966): Desktop Viewer input no longer pins a
 `CGDirectDisplayID` — the id is volatile (22 → 58 measured in one afternoon),
