@@ -98,6 +98,19 @@ final class InputFastProtocolTests: XCTestCase {
         XCTAssertEqual(decoded.y, 490)
     }
 
+    /// The role target carries no id at all: the worker resolves "the session's
+    /// Retina display" per packet, because a pinned `CGDirectDisplayID` goes
+    /// stale across sleep and re-enumeration and every click died with it.
+    func testRetinaRoleTargetRoundTripsWithoutAPinnedID() throws {
+        let packet = InputPointerPacket(target: .retinaDisplay, x: 167.5, y: 84.5)
+        let decoded = try InputPointerPacket(decoding: packet.encoded())
+        XCTAssertEqual(decoded.target, .retinaDisplay)
+        XCTAssertEqual(decoded.target.logDescription, "retina display")
+        XCTAssertFalse(decoded.target.isWindowRelative)
+        XCTAssertEqual(decoded.x, 167.5)
+        XCTAssertEqual(decoded.y, 84.5)
+    }
+
     func testCursorStateRoundTripsWithAndWithoutAnImage() throws {
         let withoutImage = CursorState(sequence: 5, x: 100, y: 200, shapeID: 0xDEADBEEF,
                                        hotSpotX: 1, hotSpotY: 1, width: 0, height: 0)

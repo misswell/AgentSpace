@@ -366,6 +366,18 @@ final class InputConnection {
             let point = try target.resolve(x: x, y: y, canvas: nil)
             try validate(point)
             return point
+        case .retinaDisplay:
+            // Resolved per packet on purpose: the role "the session's Retina
+            // display" is what the viewer means, and a raw display id goes stale
+            // across sleep and re-enumeration (§336 row 965).
+            guard let display = ScreenCapture.retinaViewerDisplay() else {
+                throw AgentSpaceError(code: .invalidTarget,
+                    message: "no Retina display is available in this session")
+            }
+            if let error = CoordinateRules.validate(x: x, y: y, geometry: display.geometry) {
+                throw error
+            }
+            return display.globalPoint(x: x, y: y)
         case .display(let id):
             guard let display = ScreenCapture.viewerDisplays().first(where: { $0.id == id }),
                   display.isRetina else {
@@ -390,7 +402,7 @@ final class InputConnection {
             let point = try target.resolve(x: x, y: y, canvas: nil)
             try validate(point)
             return point
-        case .display:
+        case .display, .retinaDisplay:
             return try resolve(target, x: x, y: y)
         case .window(let identity):
             let frame = try gestureFrames.frame(for: identity) ?? currentWindow(identity).frame

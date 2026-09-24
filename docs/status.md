@@ -4,13 +4,19 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-24 on `master`. Current public release: **0.1.43**.
-`v0.1.43` points to `3cd1c1d`; its notarized DMG is **6,321,113** bytes,
-`sha256:42eeb5d8034ae7e4fa6a917de10e7f5d21ee4c7ec2e4563e5c4483df72c602da`.
-GitHub Actions run `35952783573` passed validate, gate and sign/notarize/publish;
-`releases/latest` answers `v0.1.43` with that digest (§336 row 964).
+Last updated: 2026-09-24 on `master`. Current public release: **0.1.44**.
+`v0.1.44` points to the commit whose tree the bundle was built from; the
+release record lands in validation §336 row 967 after CI publishes.
+0.1.43's DMG is `sha256:42eeb5d8034ae7e4fa6a917de10e7f5d21ee4c7ec2e4563e5c4483df72c602da`
+over 6,321,113 bytes (run `35952783573`, §336 row 964).
 
-0.1.43 (§336): Desktop Viewer requires a real 2× display and uses
+0.1.44 (§336 rows 965–966): Desktop Viewer input no longer pins a
+`CGDirectDisplayID` — the id is volatile (22 → 58 measured in one afternoon),
+and a viewer holding a stale id had every click refused, which the owner felt
+as 「鼠标连点，无法正常操作」. Pointer packets now carry a role target
+(`.retinaDisplay`, wire kind 3) that the Worker resolves per packet through the
+same source status publishes; a stale frame-open id re-resolves the same way.
+0.1.43 (§336 rows 961–964): Desktop Viewer requires a real 2× display and uses
 AgentUse's 1512×982-point / 3024×1964-pixel screen (display 22) for capture,
 input and cursor mapping. It does not move existing windows from the 1× main
 screen or change the host's display layout. A raw mouse click no longer inserts

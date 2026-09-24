@@ -72,7 +72,16 @@ final class CaptureEngine: NSObject {
         let naturalWidth: Int, naturalHeight: Int, sourceScale: Int
         switch target {
         case .display(let requestedID):
-            guard let display = content.displays.first(where: { requestedID == nil || $0.displayID == requestedID! }) else {
+            // A pinned display id goes stale across sleep and re-enumeration, and
+            // the viewer's intent is "the session's Retina display" — so a missing
+            // id re-resolves to that role rather than stranding the stream (§336
+            // row 965). Absent entirely, the refusal is the same as before.
+            let resolvedID = requestedID.flatMap { id in
+                content.displays.contains(where: { $0.displayID == id })
+                    ? id
+                    : ScreenCapture.retinaViewerDisplay()?.id
+            }
+            guard let display = content.displays.first(where: { resolvedID == nil || $0.displayID == resolvedID! }) else {
                 throw AgentSpaceError(code: .noWindowServer, message: "the requested display is not available in this Aqua session")
             }
             filter = SCContentFilter(display: display, excludingWindows: [])

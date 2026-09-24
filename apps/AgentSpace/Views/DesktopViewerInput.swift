@@ -66,7 +66,7 @@ final class DesktopViewerInput: ObservableObject {
             travel = PointerTravelCoalescer(minimumInterval: 1.0 / rate) { [weak self] point in
                 guard let self else { return }
                 if self.client?.state.isReady == true {
-                    self.client?.move(to: point, target: .display(display.id))
+                    self.client?.move(to: point, target: .retinaDisplay)
                     self.travel?.finished()
                 } else {
                     self.travel?.finished()
@@ -166,7 +166,7 @@ final class DesktopViewerInput: ObservableObject {
             schedulePendingTravel()
             return
         }
-        let target = InputTarget.display(display.id)
+        let target = InputTarget.retinaDisplay
         switch gesture {
         case .hover:
             break // handled above, on either transport

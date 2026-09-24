@@ -12,6 +12,14 @@ import Foundation
 public enum InputTarget: Equatable, Hashable, Sendable {
     case desktop
     case display(UInt32)
+    /// The session's current Retina display, resolved by the worker per packet.
+    ///
+    /// A `CGDirectDisplayID` is not durable: it changes across display sleep,
+    /// mode changes and re-enumeration (measured 22 → 58 on one Mac in one
+    /// afternoon), and a viewer that pinned the id it saw when the desktop
+    /// opened had every later click refused — the report behind this target.
+    /// The role is what the viewer means; the worker owns the id.
+    case retinaDisplay
     case window(WindowIdentity)
 
     /// Whether coordinates in a packet with this target are display points
@@ -26,6 +34,7 @@ public enum InputTarget: Equatable, Hashable, Sendable {
         switch self {
         case .desktop: return "desktop"
         case .display(let id): return "display \(id)"
+        case .retinaDisplay: return "retina display"
         case .window(let identity): return "window \(identity.windowID) pid \(identity.pid) gen \(identity.generation)"
         }
     }
@@ -42,6 +51,8 @@ public enum InputTarget: Equatable, Hashable, Sendable {
             self = .window(WindowIdentity(pid: pid, windowID: windowID, generation: generation))
         case 2:
             self = .display(try reader.integer(UInt32.self))
+        case 3:
+            self = .retinaDisplay
         default:
             throw AgentSpaceError(code: .badRequest, message: "unknown input target kind \(kind)")
         }
@@ -54,6 +65,8 @@ public enum InputTarget: Equatable, Hashable, Sendable {
         case .display(let id):
             writer.append(UInt8(2))
             writer.append(id)
+        case .retinaDisplay:
+            writer.append(UInt8(3))
         case .window(let identity):
             writer.append(UInt8(1))
             writer.append(identity.pid)
@@ -70,7 +83,7 @@ public enum InputTarget: Equatable, Hashable, Sendable {
     /// the arithmetic so the worker's live path and the tests use one copy.
     public func resolve(x: Double, y: Double, canvas: InputCanvas?) throws -> (x: Double, y: Double) {
         switch self {
-        case .desktop:
+        case .desktop, .retinaDisplay:
             guard x.isFinite, y.isFinite else {
                 throw AgentSpaceError(code: .invalidCoordinate, message: "pointer coordinates must be finite")
             }
