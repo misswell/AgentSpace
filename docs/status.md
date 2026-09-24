@@ -5,6 +5,10 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/validation.md`](validation.md).
 
 Last updated: 2026-09-24 on `master`. Current public release: **0.1.46**.
+`v0.1.46` points to `c1929e5` (CI run `35987554350`); its notarized DMG is
+**6,358,314** bytes,
+`sha256:e42eb983d0063a1c5e9570427aa303a1942b6a228fd785953a892f2000302ef5`;
+`releases/latest` answers `v0.1.46` (§337 row 978).
 0.1.46 (§337): the Desktop Viewer's stream is now **one logical 2× Retina main
 desktop**. While a `.retinaDesktop` frame stream is open the worker makes the
 session's real 2× display (1512×982 pt / 3024×1964 px) its main display and
