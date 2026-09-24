@@ -5,6 +5,9 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/validation.md`](validation.md).
 
 Last updated: 2026-09-24 on `master`. Current public release: **0.1.45**.
+`v0.1.45` points to the tagged tree (CI run `35970051653`); its notarized DMG is
+**6,339,830** bytes, `sha256:cf92df630f6db259491e4b28a6f166ad11697120e4e64743694e1cd008c4ee04`;
+`releases/latest` answers `v0.1.45` (§336 row 969).
 0.1.45 (§336 row 968): the worker update now terminates a leftover worker process
 running outside launchd before the swap — such a process holds the runtime lock,
 so the files swapped but the old binary kept serving. The hardening was measured
