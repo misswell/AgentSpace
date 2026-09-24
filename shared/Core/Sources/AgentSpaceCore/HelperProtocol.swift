@@ -518,6 +518,35 @@ public enum HelperCommand {
         "\(workerLaunchAgentRoot)/\(workerLabel(spaceID: spaceID)).plist"
     }
 
+    /// Worker processes a restart must terminate, parsed from
+    /// `ps -axo pid=,uid=,command=` output.
+    ///
+    /// Launchd can only replace a job it manages. A worker started outside
+    /// launchd keeps the runtime lock through an install+start, so the new
+    /// process dies with "another worker is already serving this agent" and the
+    /// old binary keeps answering — measured 2026-09-24, when an update swapped
+    /// the files successfully but the account kept serving the previous version
+    /// (§336 row 968). The scan is deliberately narrow: the account's own uid,
+    /// a command line under one of the helper's own worker paths.
+    public static func unmanagedWorkerPids(
+        _ psOutput: String,
+        uid: uid_t,
+        executionPathPrefixes: [String]
+    ) -> [Int32] {
+        var pids: [Int32] = []
+        for line in psOutput.split(separator: "\n") {
+            let fields = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
+            guard fields.count == 3,
+                  let pid = Int32(fields[0]),
+                  let lineUID = uid_t(fields[1]) else { continue }
+            guard lineUID == uid else { continue }
+            let command = fields[2].drop { $0 == " " }
+            guard executionPathPrefixes.contains(where: command.hasPrefix) else { continue }
+            pids.append(pid)
+        }
+        return pids.sorted()
+    }
+
     /// The exact path a worker LaunchAgent is written to inside a Space's home.
     ///
     /// Derived from the validated account name rather than from anything in the

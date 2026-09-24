@@ -562,6 +562,27 @@ final class HelperService: NSObject, HelperXPCProtocol {
         }
     }
 
+    /// Terminate any of this account's worker processes still serving after the
+    /// launchd bootout. Narrow by construction: the account's own uid and a
+    /// command line under one of this helper's own worker paths, both parsed by
+    /// `HelperCommand.unmanagedWorkerPids` so the tests read the same rule.
+    private func terminateUnmanagedWorkerProcesses(uid: uid_t) {
+        let listed = CommandRunner.run(["/bin/ps", "-axo", "pid=,uid=,command="], timeout: 30)
+        let prefixes = [HelperCommand.workerExecutionPath, HelperCommand.workerInstallRoot + "/"]
+        let pids = HelperCommand.unmanagedWorkerPids(listed.standardOutput, uid: uid,
+                                                     executionPathPrefixes: prefixes)
+        guard !pids.isEmpty else { return }
+        for pid in pids { kill(pid, SIGTERM) }
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, pids.contains(where: { kill($0, 0) == 0 }) {
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        for pid in pids where kill(pid, 0) == 0 {
+            kill(pid, SIGKILL)
+        }
+        log.info("terminated \(pids.count) unmanaged worker process(es) of uid \(uid)")
+    }
+
     private func workerControl(_ request: HelperRequest, start: Bool) -> HelperResponse {
         guard let username = request.username, let spaceID = request.spaceID else {
             return HelperResponse(id: request.id, error: AgentSpaceError(code: .helperRejected, message: "this operation needs a username and a space ID"))
@@ -588,6 +609,14 @@ final class HelperService: NSObject, HelperXPCProtocol {
                 // interpret launchctl's localized prose: bootstrap is the
                 // authoritative next operation. If a live job could not be
                 // removed, bootstrap fails rather than starting stale state.
+
+                // After the bootout, any worker process still serving this
+                // account is running outside launchd — and it holds the runtime
+                // lock that a fresh worker needs, so the bootstrap below would
+                // start a process that dies without replacing it. Terminate the
+                // residue before the swap; the fresh kickstart is the only thing
+                // that may answer afterwards.
+                terminateUnmanagedWorkerProcesses(uid: uidValue)
 
                 let bootstrapped = CommandRunner.run(commands.bootstrap, timeout: 60)
                 log.info("\(bootstrapped.displayCommand) → exit \(bootstrapped.exitCode)")

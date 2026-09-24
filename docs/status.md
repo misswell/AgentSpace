@@ -4,7 +4,12 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-24 on `master`. Current public release: **0.1.44**.
+Last updated: 2026-09-24 on `master`. Current public release: **0.1.45**.
+0.1.45 (§336 row 968): the worker update now terminates a残留 worker process
+running outside launchd before the swap — such a process holds the runtime lock,
+so the files swapped but the old binary kept serving. The hardening was measured
+the same afternoon: an orphan from the day's own experiments survived an
+install+start until it was terminated and launchd re-adopted the worker.
 `v0.1.44` points to `f9aa34f`; its notarized DMG is **6,324,312** bytes,
 `sha256:239b3c844479194182888d1c8ed151de7cf21a552a95e8d1f93445b14b5ee27f`.
 GitHub Actions run `35967174749` passed validate, gate and sign/notarize/publish;
