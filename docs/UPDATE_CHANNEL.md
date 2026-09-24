@@ -79,13 +79,14 @@ page instead — `dist/AgentSpace.app` is a notarized artifact, and a silently
 
 The privileged helper (`/Library/PrivilegedHelperTools`) and the installed
 worker (`/Library/Application Support/AgentSpace/Worker/active/agentspace-worker`)
-live outside the bundle. An in-app update cannot and does not touch them; they
-change when the user presses 「重新安装助手…」, which is the only path with a
-password prompt. Workers already running are unaffected either way, because
-they run from the installed copy, not from the bundle.
-
-So after an update the *助手版本过旧* card can still be correct, and it is: the
-bundle moved, the root components did not.
+live outside the bundle. The updater process changes neither. Once the new app
+launches from `/Applications/AgentSpace.app`, it compares each answering worker's `hello` version with its own and
+uses the existing typed helper operation to install the bundled Worker on a
+mismatch. A stale helper is re-registered first; macOS may request administrator
+approval. A failed attempt is shown and is not repeated for that observed Worker
+version during the same app run. The manual 「重新安装助手…」 action remains available.
+Debug bundles and copies outside `/Applications` do not replace an installed
+Worker automatically.
 
 ## Download sources
 

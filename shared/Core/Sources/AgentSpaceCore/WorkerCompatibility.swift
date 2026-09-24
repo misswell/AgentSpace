@@ -56,3 +56,22 @@ public enum WorkerCompatibility {
         return .unavailable
     }
 }
+
+/// One automatic repair attempt per observed stale image. A failed install must
+/// not prompt on every foreground refresh; a newly observed version may retry.
+public struct AutomaticWorkerUpdatePolicy {
+    private var attemptedVersion: [UUID: String] = [:]
+
+    public init() {}
+
+    public mutating func shouldUpdate(accountID: UUID, runningVersion: String?, expectedVersion: String) -> Bool {
+        guard let runningVersion else { return false }
+        if runningVersion == expectedVersion {
+            attemptedVersion[accountID] = nil
+            return false
+        }
+        guard attemptedVersion[accountID] != runningVersion else { return false }
+        attemptedVersion[accountID] = runningVersion
+        return true
+    }
+}

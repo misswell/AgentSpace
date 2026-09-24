@@ -3,6 +3,7 @@ import SwiftUI
 import Darwin
 @preconcurrency import ServiceManagement
 import AgentSpaceCore
+import AgentSpaceUpdaterSupport
 
 /// A runtime record discovered from the attached account's own session.
 ///
@@ -132,6 +133,8 @@ final class AppModel: ObservableObject {
 
     private let service: SpaceService
     private var refreshTask: Task<Void, Never>?
+    private var workerVersionCheckTask: Task<Void, Never>?
+    private var automaticWorkerUpdatePolicy = AutomaticWorkerUpdatePolicy()
     private var accountDiscoveryGeneration = 0
     private var currentAccountDiscoveryGeneration = 0
     @Published private(set) var finishingSetup: UUID?
@@ -893,11 +896,48 @@ final class AppModel: ObservableObject {
         }
         isLoading = false
         discoverCurrentAccountAuthorization()
+        checkWorkerVersions()
 
         if let selected = snapshots.first(where: { $0.id == selection }), let problem = selected.problem {
             // A refusal is normal and is shown in the detail pane, not as an
             // alert. Only something the user did is worth interrupting for.
             _ = problem
+        }
+    }
+
+    /// An app update installs only the app bundle. On foreground refresh, ask
+    /// each answering worker which image is actually running, then use the same
+    /// typed helper operation as the manual repair to bring a stale one current.
+    /// A failed attempt is remembered for that observed image so launchd or an
+    /// approval refusal cannot turn foreground refresh into a prompt loop.
+    private func checkWorkerVersions() {
+        // A debug/dist copy must never register its helper and replace the
+        // installed Worker's signed image merely because its version differs.
+        guard UpdateInstallation.classify(applicationURL: Bundle.main.bundleURL)
+                == .applicationsDirectory else { return }
+        guard workerVersionCheckTask == nil,
+              updatingWorker == nil, finishingSetup == nil,
+              authorizingPermission == nil, provisioning == nil else { return }
+        let accounts = snapshots.filter(\.workerOnline).map(\.space)
+        guard !accounts.isEmpty else { return }
+        workerVersionCheckTask = Task {
+            for space in accounts {
+                let running = await Task.detached(priority: .utility) {
+                    WorkerCompatibility.version(from: Self.workerHello(space))
+                }.value
+                guard automaticWorkerUpdatePolicy.shouldUpdate(
+                    accountID: space.id, runningVersion: running,
+                    expectedVersion: helperVersion) else { continue }
+                updatingWorker = space.id
+                let error = await prepareWorkerForAuthorization(space, mainUser: NSUserName())
+                updatingWorker = nil
+                if let error {
+                    lastError = presented(for: error, space: space)
+                } else {
+                    reload()
+                }
+            }
+            workerVersionCheckTask = nil
         }
     }
 

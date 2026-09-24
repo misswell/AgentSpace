@@ -109,7 +109,7 @@ private func install(_ arguments: UpdaterLaunchPlan.Arguments) throws {
         appendLog(
             "update installed at \(arguments.destinationApplication.path). The installed "
             + "privileged helper and the worker it installed are outside this bundle: "
-            + "they change only when the user reinstalls the helper.",
+            + "the relaunched app checks their versions and updates mismatches through the helper.",
             to: arguments.logURL
         )
     } catch {

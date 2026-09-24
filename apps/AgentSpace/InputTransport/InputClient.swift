@@ -54,7 +54,7 @@ final class InputClient: ObservableObject {
     @Published private(set) var lastRefusal: AgentSpaceError?
 
     let space: AgentAccount
-    private let queue = DispatchQueue(label: BundleIdentifiers.app + ".input-client", qos: .userInteractive)
+    private let workQueues = InputChannelWorkQueues(label: BundleIdentifiers.app + ".input-client")
     private var socket: InputSocketTransport?
     private var sequence: UInt64 = 0
     private var readerRunning = false
@@ -85,7 +85,7 @@ final class InputClient: ObservableObject {
             return
         }
         publish(.connecting)
-        queue.async { [weak self] in
+        workQueues.write { [weak self] in
             guard let self else { return }
             do {
                 let connection = try InputSocketTransport.connect(path: paths.inputSocketPath)
@@ -104,14 +104,20 @@ final class InputClient: ObservableObject {
                 Task { @MainActor in self.install(connection: connection, ack: ack) }
             } catch {
                 let message = (error as? AgentSpaceError)?.message ?? "\(error)"
-                Task { @MainActor in self.noteFailure(message) }
+                Task { @MainActor in
+                    guard !self.stopped else { return }
+                    self.noteFailure(message)
+                    self.scheduleReconnect()
+                }
             }
         }
     }
 
     func disconnect() {
         stopped = true
-        queue.async { [weak self] in self?.socket?.close() }
+        let connection = socket
+        connection?.abort() // Wake the blocking reader before releasing the socket.
+        workQueues.write { connection?.close() }
         socket = nil
         readerRunning = false
         publish(.idle)
@@ -216,7 +222,7 @@ final class InputClient: ObservableObject {
         sequence &+= 1
         let sent = sequence
         if trackLatency { latency.noteSent(sequence: sent, at: InputClock.now()) }
-        queue.async {
+        workQueues.write {
             do {
                 try socket.send(kind: kind, payload: payload, sequence: sent)
             } catch {
@@ -228,6 +234,7 @@ final class InputClient: ObservableObject {
     // MARK: - Receiving
 
     private func install(connection: InputSocketTransport, ack: InputHelloAck) {
+        guard !stopped else { connection.close(); return }
         socket = connection
         capabilities = ack.capabilities
         connectAttempts = 0
@@ -235,7 +242,7 @@ final class InputClient: ObservableObject {
         lastRefusal = nil
         guard !readerRunning else { return }
         readerRunning = true
-        queue.async { [weak self] in self?.readLoop(connection) }
+        workQueues.read { [weak self] in self?.readLoop(connection) }
     }
 
     private func readLoop(_ connection: InputSocketTransport) {
@@ -248,6 +255,7 @@ final class InputClient: ObservableObject {
             }
         }
         Task { @MainActor in
+            guard self.socket === connection else { return }
             self.socket = nil
             self.readerRunning = false
             guard !self.stopped else { return }

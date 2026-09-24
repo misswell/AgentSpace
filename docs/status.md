@@ -4,7 +4,8 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-23 on `master`. Current public release: `0.1.39`, and it is
+Last updated: 2026-09-24 on `master`. Current public release before this round's
+tag: `0.1.39`, and it is
 **the first release cut entirely by GitHub Actions** — that is its only purpose,
 since the product code is 0.1.38's. `v0.1.39` points to `6f9ec92`; the DMG is
 **6,213,665** bytes,
@@ -21,6 +22,15 @@ both its Apple submissions were read back from `asc notarization list` as
 **Accepted** (§330 rows 929–932).
 `0.1.37` was never published: its diff from `0.1.36` is four version strings and
 nothing else.
+
+The 0.1.40 candidate fixes desktop clicks lost against an older Worker and the
+new channel's blocked writer. An installed App now checks Worker versions on
+foreground refresh and uses the existing typed helper path to update a mismatch
+once per observed version; a debug/dist copy cannot replace an installed Worker.
+The old input RPC remains usable during a mismatch. Local gates: Swift 703/703,
+MCP 24/24 and smoke, updater 19/19, and 13/13 GUI checks in AgentUse's separate
+session (§332). Formal publication and the update-channel digest are still to
+be recorded after the CI release completes.
 
 ## 0.1.38 — Desktop input is no longer a request/reply conversation (2026-09-23)
 

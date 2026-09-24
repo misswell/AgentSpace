@@ -35,6 +35,9 @@ final class DesktopViewerInput: ObservableObject {
     private var display: DisplayGeometry?
     private var client: InputClient?
     private var subscriptions: Set<AnyCancellable> = []
+    private var legacyPointer = LegacyDesktopPointer()
+    private let legacyQueue = DispatchQueue(label: BundleIdentifiers.app + ".desktop.legacy-input",
+                                            qos: .userInteractive)
     /// One coalescer, at the display's own rate. Travel is state: at most one
     /// packet is being written while at most one newer position waits behind it,
     /// and a wave across the desktop cannot queue a hundred stale positions ahead
@@ -65,10 +68,24 @@ final class DesktopViewerInput: ObservableObject {
             client = created
             travel = PointerTravelCoalescer(minimumInterval: 1.0 / rate) { [weak self] point in
                 guard let self else { return }
-                self.client?.move(to: point, target: .desktop)
-                // Released at once: the newest position replaces whatever is
-                // pending, which is the whole contract of a travel coalescer.
-                self.travel?.finished()
+                if self.client?.state.isReady == true {
+                    self.client?.move(to: point, target: .desktop)
+                    self.travel?.finished()
+                } else if let space = self.space {
+                    // The old RPC has a reply. Hold the one in-flight slot until
+                    // it arrives so a wave of hovers cannot queue ahead of a click.
+                    self.legacyQueue.async { [weak self] in
+                        let error = SpaceService().input(for: space,
+                                                         actions: [.move(x: point.x, y: point.y)])
+                        Task { @MainActor [weak self] in
+                            self?.present(error, space: space)
+                            self?.travel?.finished()
+                            self?.schedulePendingTravel()
+                        }
+                    }
+                } else {
+                    self.travel?.finished()
+                }
             }
             created.connect()
             observe(created)
@@ -142,12 +159,27 @@ final class DesktopViewerInput: ObservableObject {
     }
 
     func send(_ gesture: RemotePointerGesture) {
-        guard let client, let display else { return }
-        switch gesture {
-        case .hover(let u, let v):
-            let point = Self.point(u, v, display)
-            travel?.offer(point, now: Date())
+        guard let client, let display, let space else { return }
+        if case .hover(let u, let v) = gesture {
+            travel?.offer(Self.point(u, v, display), now: Date())
             schedulePendingTravel()
+            return
+        }
+        // Versions before the fast channel have no input.sock. Keep the
+        // original RPC usable, including the raw phases emitted by Desktop Mode.
+        // Once a press starts there, its release must finish on that path too.
+        if !client.state.isReady || legacyPointer.hasPendingPress {
+            if let action = legacyPointer.action(for: gesture, display: display) {
+                legacyQueue.async { [weak self] in
+                    let error = SpaceService().input(for: space, actions: [action])
+                    Task { @MainActor [weak self] in self?.present(error, space: space) }
+                }
+            }
+            return
+        }
+        switch gesture {
+        case .hover:
+            break // handled above, on either transport
 
         case .click(let u, let v, let button, let count, let modifiers):
             // A click is still expressible as down + up on the fast channel, and
@@ -235,6 +267,7 @@ final class DesktopViewerInput: ObservableObject {
         pendingTravelPump = nil
         dragActive = false
         lastPressPoint = nil
+        legacyPointer.reset()
         travel?.reset()
         client?.releaseHuman()
     }
@@ -254,6 +287,15 @@ final class DesktopViewerInput: ObservableObject {
     /// letterbox and a screenshot's downscale both resolve through it.
     private static func point(_ u: Double, _ v: Double, _ display: DisplayGeometry) -> (x: Double, y: Double) {
         PreviewMapping.displayPoint(u: u, v: v, displayWidth: display.width, displayHeight: display.height)
+    }
+
+    private func present(_ error: AgentSpaceError?, space: AgentAccount) {
+        guard let error else {
+            if refusal != nil { refusal = nil }
+            return
+        }
+        refusal = AppModel.PresentedError(code: error.code.rawValue, message: error.message,
+                                          fix: error.code.remediation, spaceName: space.name)
     }
 
     /// A last hover can arrive inside one display-refresh interval just after the
