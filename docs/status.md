@@ -4,13 +4,13 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-24 on `master`. Current public release: **0.1.41**.
-`v0.1.41` points to `8bbe015`; its notarized, stapled DMG is **6,289,192** bytes,
-`sha256:8ab509b98180e6aff97c185be138686c9071afea6a91d66bd01194d510c228e9`.
-GitHub Actions run `35943611102` passed validate, gate and sign/notarize/publish;
-`releases/latest` answers `v0.1.41` with that digest (§335 row 956).
+Last updated: 2026-09-24 on `master`. Current public release: **0.1.42**.
+`v0.1.42` points to `7eaa87a`; its notarized, stapled DMG is **6,304,420** bytes,
+`sha256:934b7806d67ae079b05afa994b913f8467aef8d09ae430fc71a9654a0d307474`.
+GitHub Actions run `35947723915` passed validate, gate and sign/notarize/publish;
+`releases/latest` answers `v0.1.42` with that digest (§335 row 960).
 
-0.1.42 candidate: the visible Desktop Viewer now refreshes that account's
+0.1.42: the visible Desktop Viewer now refreshes that account's
 lightweight status every three seconds, so a recovered background session can
 accept clicks again. Successful fast-channel input clears an old refusal in
 the UI. A zoomed capture request is capped at the actual source pixel size,
