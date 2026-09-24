@@ -5,7 +5,7 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/validation.md`](validation.md).
 
 Last updated: 2026-09-24 on `master`. Current public release: **0.1.45**.
-0.1.45 (§336 row 968): the worker update now terminates a残留 worker process
+0.1.45 (§336 row 968): the worker update now terminates a leftover worker process
 running outside launchd before the swap — such a process holds the runtime lock,
 so the files swapped but the old binary kept serving. The hardening was measured
 the same afternoon: an orphan from the day's own experiments survived an
