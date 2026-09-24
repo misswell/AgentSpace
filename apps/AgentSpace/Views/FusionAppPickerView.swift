@@ -46,7 +46,7 @@ struct FusionAppPickerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Choose an App to Fuse")
+            Text("Choose an App to Launch")
                 .font(.headline)
 
             HStack(spacing: 6) {
@@ -79,7 +79,7 @@ struct FusionAppPickerView: View {
             }
 
             HStack {
-                Text("Fusing an app starts it inside \(space.name)'s own desktop, not on this Mac.")
+                Text("Apps launch on the agent desktop. Open a local window separately with Open Apps.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -157,14 +157,14 @@ struct FusionAppPickerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 8)
             if app.isRunning {
-                // Already up in that session: the useful action is to show the
-                // windows it has, not to start a second copy of it.
+                // Already up in that session: activate it there. Opening one
+                // of its windows here is a separate, explicit action.
                 Text("Running").font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("fusionAppRunningBadge")
-                Button(NSLocalizedString("Show Windows", comment: "")) { fuse(app) }
+                Button(NSLocalizedString("Activate", comment: "")) { fuse(app) }
                     .accessibilityIdentifier("fusionAppShowButton")
             } else {
-                Button(NSLocalizedString("Fuse", comment: "")) { fuse(app) }
+                Button(NSLocalizedString("Launch App", comment: "")) { fuse(app) }
                     .accessibilityIdentifier("fusionAppFuseButton")
                     .disabled(launching != nil)
             }

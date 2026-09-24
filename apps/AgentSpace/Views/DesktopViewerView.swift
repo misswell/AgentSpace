@@ -21,9 +21,11 @@ struct DesktopViewerView: View {
     /// Pin a detached viewer to the account that opened it.  A nil value keeps
     /// the selected-account behaviour used by previews and older callers.
     private let spaceID: UUID?
+    private let onViewportSize: ((CGSize) -> Void)?
 
-    init(spaceID: UUID? = nil) {
+    init(spaceID: UUID? = nil, onViewportSize: ((CGSize) -> Void)? = nil) {
         self.spaceID = spaceID
+        self.onViewportSize = onViewportSize
     }
 
     /// The viewer's scale is deliberately independent from the agent's
@@ -81,6 +83,7 @@ struct DesktopViewerView: View {
     @State private var lastCapture: Date?
     @State private var captureError: AppModel.PresentedError?
     @State private var frameClient: FrameClient?
+    @State private var lastViewportSize: CGSize = .zero
     /// The capture rate actually asked for, which differs from the stored
     /// preference while a gesture is live: a drag raises the stream to 60 FPS
     /// whatever the preference says, because a dragged window that updates at
@@ -140,6 +143,9 @@ struct DesktopViewerView: View {
             header
             Divider()
             content
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: DesktopViewportSizeKey.self, value: geometry.size)
+                })
             Divider()
             footer
         }
@@ -159,11 +165,20 @@ struct DesktopViewerView: View {
         // console switch) tears the monitor down instead of leaving it
         // consuming keys.
         .onChange(of: snapshot?.workerOnline) { _ in syncKeyboardState() }
+        .onChange(of: snapshot?.display) { _ in
+            if lastViewportSize.width > 0 { onViewportSize?(lastViewportSize) }
+        }
         .onChange(of: snapshot?.acceptsInput) { _ in syncKeyboardState() }
         .onChange(of: hostWindow) { _ in syncKeyboardState() }
         .onChange(of: previewFPS) { _ in restartPreviewIfNeeded() }
         .onChange(of: displayQuality) { _ in
             restartPreviewIfNeeded()
+        }
+        .onPreferenceChange(DesktopViewportSizeKey.self) { size in
+            if size.width > 0, size.height > 0 {
+                lastViewportSize = size
+                onViewportSize?(size)
+            }
         }
     }
 
@@ -579,6 +594,14 @@ struct DesktopViewerView: View {
         input.setPointerRate(policy.pointerRate)
     }
 
+}
+
+private struct DesktopViewportSizeKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        let next = nextValue()
+        if next.width > 0, next.height > 0 { value = next }
+    }
 }
 
 /// Captures the SwiftUI host window so the keyboard monitor can tell which

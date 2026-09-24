@@ -370,6 +370,24 @@ final class SpaceService {
         }
     }
 
+    /// Resize the actual app window while keeping its position in the agent's desktop.
+    /// The worker reads the current position, so a window moved since the last
+    /// Fusion poll is not sent back to its old coordinates.
+    func windowSetSize(for space: AgentAccount, window: RemoteWindow, width: Double, height: Double) -> Result<CGRectValue, AgentSpaceError> {
+        var params = identityParams(window)
+        params["frame"] = .obj(["width": .double(width), "height": .double(height)])
+        switch fusionCall(space: space, method: Method.windowSetFrame, params: .object(params)) {
+        case .failure(let error): return .failure(error)
+        case .success(let value):
+            guard let frame = value["frame"],
+                  let x = frame["x"]?.doubleValue, let y = frame["y"]?.doubleValue,
+                  let width = frame["width"]?.doubleValue, let height = frame["height"]?.doubleValue else {
+                return .failure(AgentSpaceError(code: .internalError, message: "the worker returned no remote window frame"))
+            }
+            return .success(CGRectValue(x: x, y: y, width: width, height: height))
+        }
+    }
+
     private func identityParams(_ window: RemoteWindow) -> [String: JSONValue] {
         [
             "windowId": .int(Int(window.id)),

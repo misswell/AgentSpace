@@ -12,6 +12,10 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private let queue: DispatchQueue
     private var startingCapture = false
     private var frameClient: FrameClient?
+    private var resizeWork: DispatchWorkItem?
+    private var resizingFromAgent = false
+    private var hasShown = false
+    private var lastRequestedSize: NSSize?
     /// The account's shared fast input channel, aimed at this window's identity.
     /// One connection per account serves every surface: a packet names its
     /// target, so a proxy's backlog can never sit in front of a desktop click.
@@ -38,21 +42,26 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         self.space = space
         self.remoteWindow = remoteWindow
         self.queue = DispatchQueue(label: BundleIdentifiers.app + ".fusion.\(remoteWindow.pid).\(remoteWindow.id)")
+        let visible = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1200, height: 900)
         let size = NSSize(
-            width: max(420, min(1200, remoteWindow.frame.width)),
-            height: max(300, min(900, remoteWindow.frame.height)))
+            width: min(remoteWindow.frame.width, visible.width),
+            height: min(remoteWindow.frame.height, visible.height))
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false)
+        // The title bar occupies part of the visible screen too.
+        let titlebarHeight = window.frame.height - size.height
+        if window.frame.height > visible.height {
+            window.setContentSize(NSSize(width: size.width,
+                                         height: max(80, visible.height - titlebarHeight)))
+        }
         window.title = "\(space.displayName) — \(remoteWindow.appName)"
         window.isReleasedWhenClosed = false
         window.isMovable = true
         window.collectionBehavior = [.managed, .participatesInCycle]
-        window.minSize = NSSize(width: 420, height: 300)
-        window.setFrameAutosaveName(
-            "AgentSpace.Fusion.\(space.id.uuidString).\(remoteWindow.pid).\(remoteWindow.id)")
+        window.contentMinSize = NSSize(width: 80, height: 80)
         super.init(window: window)
         window.delegate = self
         window.contentView = NSHostingView(rootView: FusionWindowView(
@@ -134,6 +143,10 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         window?.center()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
+        hasShown = true
+        // The host screen may be smaller than the agent's existing window.
+        // Bring the actual app to the size the person can see here.
+        requestResize()
         startCapture()
     }
 
@@ -145,6 +158,7 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     func resumeCapture() { startCapture() }
 
     func stop() {
+        resizeWork?.cancel(); resizeWork = nil
         frameClient?.stop(); frameClient = nil; state.frameClient = nil
         startingCapture = false
         // A position collected for a window that is no longer being watched must
@@ -205,6 +219,55 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     func windowDidMiniaturize(_ notification: Notification) { stop() }
     func windowDidDeminiaturize(_ notification: Notification) { startCapture() }
 
+    func windowDidResize(_ notification: Notification) {
+        guard hasShown, !resizingFromAgent, window?.isMiniaturized != true else { return }
+        requestResize()
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) { requestResize(immediate: true) }
+
+    /// Size is expressed in points on both desktops. The frame client separately
+    /// requests enough device pixels for the local display's backing scale.
+    private func requestResize(immediate: Bool = false) {
+        guard let size = window?.contentView?.bounds.size, size.width > 40, size.height > 40 else { return }
+        resizeWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.lastRequestedSize != size || immediate else { return }
+            self.lastRequestedSize = size
+            let space = self.space, remote = self.remoteWindow
+            self.queue.async { [weak self] in
+                let result = SpaceService().windowSetSize(for: space, window: remote,
+                                                          width: size.width, height: size.height)
+                Task { @MainActor in
+                    guard let self else { return }
+                    switch result {
+                    case .success(let actual):
+                        self.state.error = nil
+                        // Apps can impose a minimum or maximum. Match what the
+                        // app actually accepted once the person releases the edge.
+                        guard self.window?.isVisible == true else { return }
+                        guard self.window?.contentView?.inLiveResize != true else { return }
+                        let current = self.window?.contentView?.bounds.size ?? .zero
+                        guard abs(current.width - size.width) <= 1,
+                              abs(current.height - size.height) <= 1 else { return }
+                        let accepted = NSSize(width: actual.width, height: actual.height)
+                        if abs(accepted.width - size.width) > 1 || abs(accepted.height - size.height) > 1 {
+                            self.resizingFromAgent = true
+                            self.window?.setContentSize(accepted)
+                            self.resizingFromAgent = false
+                            self.lastRequestedSize = accepted
+                        }
+                    case .failure(let error):
+                        self.lastRequestedSize = nil
+                        self.state.error = error
+                    }
+                }
+            }
+        }
+        resizeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + (immediate ? 0 : 0.08), execute: work)
+    }
+
     /// The mirror always closes, and closing it never touches the agent's window.
     ///
     /// This button used to *mean* "close the remote window": it asked the worker and
@@ -253,7 +316,8 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         let fps = configuredFPS == 0
             ? (window?.isKeyWindow == true ? Self.keyWindowFPS : Self.backgroundFPS)
             : configuredFPS
-        let client = FrameClient(space: space, target: .window(remoteWindow.identity), maxFPS: fps, targetWidth: Int(window?.contentView?.bounds.width ?? 0), targetHeight: Int(window?.contentView?.bounds.height ?? 0))
+        let scale = window?.backingScaleFactor ?? 1
+        let client = FrameClient(space: space, target: .window(remoteWindow.identity), maxFPS: fps, targetWidth: Int((window?.contentView?.bounds.width ?? 0) * scale), targetHeight: Int((window?.contentView?.bounds.height ?? 0) * scale))
         frameClient = client; state.frameClient = client; startingCapture = false; client.start()
         // Once the cursor channel is up, the picture must stop painting a cursor
         // of its own: two cursors drawn from two sources is the trailing ghost

@@ -35,12 +35,14 @@ final class FusionSession {
         controllers.removeAll()
     }
 
-    func showAll() {
-        controllers.values.forEach { $0.showAndResume() }
-        // Opening the proxies by hand is worth an immediate poll even inside a
-        // backoff window; it is one request the user asked for, not a loop.
-        nextPollAt = .distantPast
-        refresh()
+    func open(_ remote: RemoteWindow) {
+        if let controller = controllers[remote.identity] {
+            controller.showAndResume()
+            return
+        }
+        let controller = FusionWindowController(space: space, remoteWindow: remote)
+        controllers[remote.identity] = controller
+        controller.show()
     }
 
     private func tick() {
@@ -87,11 +89,6 @@ final class FusionSession {
                 gone.stop()
                 gone.close()
             }
-        }
-        for remote in windows where controllers[remote.identity] == nil {
-            let controller = FusionWindowController(space: space, remoteWindow: remote)
-            controllers[remote.identity] = controller
-            controller.show()
         }
         for identity in incoming {
             // Includes the identities `suspend(for:)` stopped: their timer is

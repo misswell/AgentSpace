@@ -582,6 +582,14 @@
 "Loading applications…" = "Loading applications…";
 "Could not list applications" = "Could not list applications";
 "No application matches that search" = "No application matches that search";
+"Launch in Agent…" = "Launch in Agent…";
+"Choose an App to Launch" = "Choose an App to Launch";
+"Launch App" = "Launch App";
+"Activate" = "Activate";
+"Apps launch on the agent desktop. Open a local window separately with Open Apps." = "Apps launch on the agent desktop. Open a local window separately with Open Apps.";
+"Choose a Window to Open" = "Choose a Window to Open";
+"Open Window" = "Open Window";
+"No app windows are available" = "No app windows are available";
 
 /* Desktop viewer: how the pointer behaves over the agent's desktop. */
 "Mouse Capture" = "Mouse Capture";

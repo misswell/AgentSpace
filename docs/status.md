@@ -10,6 +10,23 @@ Last updated: 2026-09-24 on `master`. Current public release: **0.1.40**.
 GitHub Actions run `35940848637` passed its validate, gate and sign/notarize/publish
 jobs; `releases/latest` answers `v0.1.40` with that same asset digest (§332 row 949).
 
+0.1.41 candidate: a standalone Fusion proxy now begins at the remote App
+window's size within the host screen's visible bounds. Dragging the local edge
+requests a real resize of the App window in the agent session; the worker keeps
+its current position, returns the size the App accepted, and capture targets
+the host display's backing pixels (§333 rows 950–952). App launch and window
+discovery no longer create proxies; the user selects a window and presses
+「打开窗口」 (§333 row 953). The App and Worker both
+need 0.1.41. Live drag acceptance against an installed 0.1.41 Worker remains
+unmeasured; local source, MCP, updater and isolated session UI checks pass.
+
+Desktop Viewer 0.1.41 candidate: the whole desktop fills its viewport by
+constraining the viewer's resize ratio while accounting for its controls
+(§334 rows 954–955). AgentUse's display exposes only 1920×1080; a tested
+virtual display appeared in the owner's display list, so the user chose this
+no-crop, no-bars path instead of changing the system display layout. Live
+viewer resizing is still to be accepted on the installed bundle.
+
 0.1.40 fixes desktop clicks lost against an older Worker and the new channel's
 blocked writer. An installed App checks Worker versions on foreground refresh
 and uses the existing typed helper path to update a mismatch once per observed

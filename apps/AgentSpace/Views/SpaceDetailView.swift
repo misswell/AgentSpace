@@ -95,6 +95,7 @@ struct SpaceDetailView: View {
     @State private var showingApps = false
     @State private var showingPermissionGuide = false
     @State private var showingFusionPicker = false
+    @State private var showingFusionWindows = false
 
     var body: some View {
         Group {
@@ -187,9 +188,7 @@ struct SpaceDetailView: View {
                 .disabled(model.selected?.display == nil)
 
                 Button {
-                    if let space = model.selected?.space {
-                        FusionManager.shared.openApps(for: space)
-                    }
+                    showingFusionWindows = true
                 } label: {
                     Label(NSLocalizedString("Open Apps", comment: ""), systemImage: "macwindow.on.rectangle")
                 }
@@ -197,14 +196,12 @@ struct SpaceDetailView: View {
                     || model.selected?.screenRecording != true
                     || model.selected?.accessibility != true)
 
-                // 「Open Apps」 mirrors what is already running. This is the other
-                // direction — pick something from what is *installed* and start
-                // it in that session — which is what the Fusion promise needs
-                // before anything has been launched there.
+                // Launching an App in the agent session does not open a local
+                // proxy. Open Apps lists windows for a separate manual choice.
                 Button {
                     showingFusionPicker = true
                 } label: {
-                    Label(NSLocalizedString("Fuse App…", comment: ""), systemImage: "plus.rectangle.on.rectangle")
+                    Label(NSLocalizedString("Launch in Agent…", comment: ""), systemImage: "plus.rectangle.on.rectangle")
                 }
                 .accessibilityIdentifier("fusionAppPickerButton")
                 .disabled(model.selected?.acceptsInput != true
@@ -238,6 +235,11 @@ struct SpaceDetailView: View {
         .sheet(isPresented: $showingFusionPicker) {
             if let space = model.selected?.space {
                 FusionAppPickerView(space: space)
+            }
+        }
+        .sheet(isPresented: $showingFusionWindows) {
+            if let space = model.selected?.space {
+                FusionWindowPickerView(space: space)
             }
         }
     }

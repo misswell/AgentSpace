@@ -39,6 +39,10 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
     let space: AgentAccount
     private weak var model: AppModel?
     private var hasShown = false
+    /// Header, footer and dividers are outside the captured desktop. The
+    /// viewport reports their combined height after SwiftUI lays them out.
+    private var controlsHeight: CGFloat?
+    private var conforming = false
 
     init(space: AgentAccount, model: AppModel) {
         self.space = space
@@ -59,7 +63,9 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
         super.init(window: window)
         window.delegate = self
         window.contentView = NSHostingView(
-            rootView: DesktopViewerView(spaceID: space.id)
+            rootView: DesktopViewerView(spaceID: space.id, onViewportSize: { [weak self] size in
+                self?.viewportDidLayout(size)
+            })
                 .environmentObject(model))
     }
 
@@ -80,5 +86,55 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
     func windowWillClose(_ notification: Notification) {
         model?.showingDesktopViewer = false
         DesktopViewerWindowManager.shared.remove(spaceID: space.id)
+    }
+
+    func windowDidChangeScreen(_ notification: Notification) {
+        guard let window, controlsHeight != nil else { return }
+        let frame = windowWillResize(window, to: window.frame.size)
+        if abs(frame.width - window.frame.width) > 1 || abs(frame.height - window.frame.height) > 1 {
+            window.setFrame(NSRect(origin: window.frame.origin, size: frame), display: true)
+        }
+    }
+
+    /// Keep the *desktop viewport*, not the entire decorated window, at the
+    /// agent display's aspect ratio. This preserves every desktop pixel while
+    /// leaving no unused strips above or below it.
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        guard let controlsHeight, let display = currentDisplay else { return frameSize }
+        let content = sender.contentRect(forFrameRect: NSRect(origin: .zero, size: frameSize))
+        let screen = sender.screen ?? NSScreen.main
+        let titlebar = frameSize.height - content.height
+        let maximumHeight = screen?.visibleFrame.height ?? .greatestFiniteMagnitude
+        let fitted = DesktopViewportSizing.contentSize(
+            proposedWidth: min(content.width, screen?.visibleFrame.width ?? .greatestFiniteMagnitude),
+            controlsHeight: controlsHeight,
+            titlebarHeight: titlebar, maximumFrameHeight: maximumHeight,
+            displayWidth: Double(display.width), displayHeight: Double(display.height))
+        let adjusted = NSRect(origin: .zero,
+                              size: NSSize(width: fitted.width, height: fitted.height))
+        return sender.frameRect(forContentRect: adjusted).size
+    }
+
+    private var currentDisplay: DisplayGeometry? {
+        model?.snapshots.first(where: { $0.space.id == space.id })?.display
+    }
+
+    private var displayAspectRatio: CGFloat? {
+        guard let display = currentDisplay,
+              display.width > 0, display.height > 0 else { return nil }
+        return CGFloat(display.width) / CGFloat(display.height)
+    }
+
+    private func viewportDidLayout(_ viewport: CGSize) {
+        guard let window, let ratio = displayAspectRatio, !conforming else { return }
+        let controls = max(0, window.contentView!.bounds.height - viewport.height)
+        controlsHeight = controls
+        guard !window.inLiveResize else { return }
+        let expectedHeight = viewport.width / ratio
+        guard abs(viewport.height - expectedHeight) > 1 else { return }
+        conforming = true
+        let frame = windowWillResize(window, to: window.frame.size)
+        window.setFrame(NSRect(origin: window.frame.origin, size: frame), display: true)
+        conforming = false
     }
 }

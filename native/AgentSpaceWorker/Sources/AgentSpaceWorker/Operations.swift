@@ -1087,14 +1087,18 @@ struct Operations {
         try requireDesktopSession("resize a Fusion window")
         let window = try windowCatalog.window(matching: windowIdentity(params))
         guard let value = params["frame"],
-              let x = value["x"]?.doubleValue, let y = value["y"]?.doubleValue,
               let width = value["width"]?.doubleValue, width > 40,
               let height = value["height"]?.doubleValue, height > 40 else {
-            throw AgentSpaceError(code: .badRequest, message: "window.setFrame requires a frame with x, y, width and height")
+            throw AgentSpaceError(code: .badRequest, message: "window.setFrame requires a frame with width and height")
         }
-        try WindowActions.setFrame(
-            CGRectValue(x: x, y: y, width: width, height: height), window: window)
-        return .obj(["performed": .bool(true)])
+        let actual = try WindowActions.setFrame(
+            CGRectValue(x: value["x"]?.doubleValue ?? window.frame.x,
+                        y: value["y"]?.doubleValue ?? window.frame.y,
+                        width: width, height: height), window: window)
+        return .obj(["performed": .bool(true), "frame": .obj([
+            "x": .double(actual.x), "y": .double(actual.y),
+            "width": .double(actual.width), "height": .double(actual.height),
+        ])])
     }
 
     private func windowIdentity(_ params: JSONValue) throws -> WindowIdentity {

@@ -7,14 +7,13 @@ final class FusionManager {
     static let shared = FusionManager()
     private var sessions: [UUID: FusionSession] = [:]
 
-    func openApps(for space: AgentAccount) {
+    func openWindow(_ remote: RemoteWindow, for space: AgentAccount) {
         if sessions[space.id] == nil {
             let session = FusionSession(space: space)
             sessions[space.id] = session
             session.start()
-        } else {
-            sessions[space.id]?.showAll()
         }
+        sessions[space.id]?.open(remote)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -24,7 +23,8 @@ final class FusionManager {
 
     // MARK: - The app picker's verbs
 
-    /// Bring one application up in the Space, then mirror its windows here.
+    /// Bring one application up in the Space. Its windows are opened separately
+    /// through the window picker when the person asks for one.
     ///
     /// An app that is already running is *activated* rather than launched: the
     /// picker labels that row 「已在运行」, and starting a second copy would give
@@ -42,10 +42,6 @@ final class FusionManager {
                     completion(error)
                     return
                 }
-                // Start (or wake) the window session *after* the launch: proxies
-                // are built from `window.list`, and an app that has not
-                // registered a window yet has nothing to mirror.
-                self.openApps(for: space)
                 completion(nil)
             }
         }

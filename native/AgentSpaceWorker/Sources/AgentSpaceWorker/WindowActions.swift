@@ -83,7 +83,7 @@ enum WindowActions {
         }
     }
 
-    static func setFrame(_ frame: CGRectValue, window: RemoteWindow) throws {
+    static func setFrame(_ frame: CGRectValue, window: RemoteWindow) throws -> CGRectValue {
         guard AccessibilityBridge.trusted() else {
             throw AgentSpaceError(code: .accessibilityDenied, message: "Accessibility is required for window actions.")
         }
@@ -95,11 +95,22 @@ enum WindowActions {
         var point = CGPoint(x: frame.x, y: frame.y)
         var size = CGSize(width: frame.width, height: frame.height)
         guard let pointValue = AXValueCreate(.cgPoint, &point),
-              let sizeValue = AXValueCreate(.cgSize, &size),
-              AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, pointValue) == .success,
+              let sizeValue = AXValueCreate(.cgSize, &size) else {
+            throw AgentSpaceError(code: .badRequest, message: "macOS refused the requested remote window frame")
+        }
+        // Avoid a position write for a size-only change. Some apps interpret it
+        // as a move even when the coordinates are unchanged.
+        let positionStatus = frame.x == window.frame.x && frame.y == window.frame.y
+            ? AXError.success
+            : AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, pointValue)
+        guard positionStatus == .success,
               AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeValue) == .success else {
             throw AgentSpaceError(code: .badRequest, message: "macOS refused the requested remote window frame")
         }
+        guard let actual = frameAttribute(element) else {
+            throw AgentSpaceError(code: .badRequest, message: "macOS did not report the resized remote window")
+        }
+        return CGRectValue(x: actual.minX, y: actual.minY, width: actual.width, height: actual.height)
     }
 
     /// The one accessibility window a remote window maps onto.
