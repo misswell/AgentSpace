@@ -21,6 +21,8 @@ struct SpaceSnapshot: Identifiable, Equatable {
     /// worker never looked" must not render as "denied".
     var fileAccess: Bool? = nil
     var display: DisplayGeometry?
+    /// The real 2× (or sharper) display available to the Desktop Viewer.
+    var retinaDisplay: ViewerDisplay?
     var resources: ResourceUsage?
     /// Set when the last refresh failed, so the detail view can explain why
     /// rather than just looking empty.
@@ -173,6 +175,24 @@ final class SpaceService {
                     pixelWidth: display["pixelWidth"]?.intValue ?? 0,
                     pixelHeight: display["pixelHeight"]?.intValue ?? 0,
                     scale: display["scale"]?.intValue ?? 1)
+            }
+            if let retina = result["retinaDisplay"],
+               let id = retina["id"]?.intValue, id >= 0, id <= Int(UInt32.max),
+               let originX = retina["originX"]?.doubleValue,
+               let originY = retina["originY"]?.doubleValue,
+               originX.isFinite, originY.isFinite {
+                let viewerDisplay = ViewerDisplay(
+                    id: UInt32(id), originX: originX, originY: originY,
+                    geometry: DisplayGeometry(
+                        width: retina["width"]?.intValue ?? 0,
+                        height: retina["height"]?.intValue ?? 0,
+                        pixelWidth: retina["pixelWidth"]?.intValue ?? 0,
+                        pixelHeight: retina["pixelHeight"]?.intValue ?? 0,
+                        scale: retina["scale"]?.intValue ?? 1))
+                if viewerDisplay.isRetina,
+                   viewerDisplay.geometry.width > 0, viewerDisplay.geometry.height > 0 {
+                    snapshot.retinaDisplay = viewerDisplay
+                }
             }
             if let resources = result["resources"] {
                 snapshot.resources = ResourceUsage(

@@ -10,6 +10,15 @@ Last updated: 2026-09-24 on `master`. Current public release: **0.1.42**.
 GitHub Actions run `35947723915` passed validate, gate and sign/notarize/publish;
 `releases/latest` answers `v0.1.42` with that digest (§335 row 960).
 
+0.1.43 candidate (§336): Desktop Viewer requires a real 2× display and uses
+AgentUse's 1512×982-point / 3024×1964-pixel screen (display 22) for capture,
+input and cursor mapping. It does not move existing windows from the 1× main
+screen or change the host's display layout. A raw mouse click no longer inserts
+a zero-distance drag before the release; this was reproduced by a failing
+gesture test after the owner saw close/minimise buttons highlight without
+acting. The selected-display screenshot reply now reports that display's own
+backing pixels and scale. An App/Worker version match is required.
+
 0.1.42: the visible Desktop Viewer now refreshes that account's
 lightweight status every three seconds, so a recovered background session can
 accept clicks again. Successful fast-channel input clears an old refusal in

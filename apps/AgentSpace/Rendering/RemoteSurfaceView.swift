@@ -423,7 +423,7 @@ class RemoteSurfaceNSView: NSView {
         let point = viewPoint(of: event)
         // The final position must reach the agent before mouse-up. It is also
         // the first streamed point if the threshold was crossed only on release.
-        let update = gestures.draggedPhases(to: point, in: surfaceMapping(), now: Date())
+        let update = gestures.releaseTravelPhases(to: point, in: surfaceMapping(), now: Date())
         for gesture in update.gestures { forward(gesture) }
         forward(gestures.endedPress(at: point, clickCount: clickCount,
                                     in: surfaceMapping(), now: Date()))

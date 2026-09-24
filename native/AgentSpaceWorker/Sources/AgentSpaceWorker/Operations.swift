@@ -222,6 +222,18 @@ struct Operations {
                 "writableRoots": .array(context.writableRoots.sorted().map { .string($0) }),
             ]),
         ]
+        if let retina = ScreenCapture.retinaViewerDisplay() {
+            object["retinaDisplay"] = .obj([
+                "id": .int(Int(retina.id)),
+                "originX": .double(retina.originX),
+                "originY": .double(retina.originY),
+                "width": .int(retina.geometry.width),
+                "height": .int(retina.geometry.height),
+                "pixelWidth": .int(retina.geometry.pixelWidth),
+                "pixelHeight": .int(retina.geometry.pixelHeight),
+                "scale": .int(retina.geometry.scale),
+            ])
+        }
         // Resource sampling forks `ps`, so it is opt-in: plan §53 wants status
         // polling every 2-5s to be nearly free.
         if let resources = params["resources"]?.stringValue, resources == "full" || resources == "disk" {

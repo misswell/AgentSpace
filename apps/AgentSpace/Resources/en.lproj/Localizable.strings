@@ -601,3 +601,5 @@
 
 /* Fusion: the window an input names no longer exists. */
 "The window this input names is gone or has been re-created. Re-open the Fusion window list and try again." = "The window this input names is gone or has been re-created. Re-open the Fusion window list and try again.";
+"A 2× display is required to open this desktop." = "A 2× display is required to open this desktop.";
+"Connect a Retina display to the agent session or update its Worker, then reconnect." = "Connect a Retina display to the agent session or update its Worker, then reconnect.";

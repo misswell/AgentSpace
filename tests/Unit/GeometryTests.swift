@@ -23,6 +23,21 @@ final class GeometryTests: XCTestCase {
         XCTAssertEqual(geometry.pixelWidth, 1920)
     }
 
+    func testViewerSelectsRealRetinaScreenAndMapsItsLocalPoints() {
+        let main = ViewerDisplay(id: 23, originX: 0, originY: 0,
+            geometry: DisplayGeometry(width: 1920, height: 1080,
+                                      pixelWidth: 1920, pixelHeight: 1080, scale: 1))
+        let retina = ViewerDisplay(id: 22, originX: 1920, originY: 98,
+            geometry: DisplayGeometry(width: 1512, height: 982,
+                                      pixelWidth: 3024, pixelHeight: 1964, scale: 2))
+        XCTAssertNil(ViewerDisplay.preferredRetina(in: [main]))
+        XCTAssertEqual(ViewerDisplay.preferredRetina(in: [main, retina]), retina)
+        let global = retina.globalPoint(x: 756, y: 491)
+        XCTAssertEqual(global.x, 2676)
+        XCTAssertEqual(global.y, 589)
+        XCTAssertEqual(retina.localPoint(x: global.x, y: global.y).x, 756)
+    }
+
     func testDegenerateModeFallsBackToOne() {
         let geometry = DisplayGeometry(modeWidth: 0, modePixelWidth: 0,
                                        boundsWidth: 1440, boundsHeight: 900)

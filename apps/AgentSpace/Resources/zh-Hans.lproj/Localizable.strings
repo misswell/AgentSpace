@@ -601,3 +601,5 @@
 
 /* Fusion: the window an input names no longer exists. */
 "The window this input names is gone or has been re-created. Re-open the Fusion window list and try again." = "这条输入指向的窗口已不存在或已被重新创建。请重新打开融合窗口列表后重试。";
+"A 2× display is required to open this desktop." = "打开桌面至少需要一块 2× 显示器。";
+"Connect a Retina display to the agent session or update its Worker, then reconnect." = "请确认 Agent 会话有 Retina 显示器并更新 Worker，然后重新连接。";

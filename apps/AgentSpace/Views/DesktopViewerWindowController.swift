@@ -116,7 +116,7 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
     }
 
     private var currentDisplay: DisplayGeometry? {
-        model?.snapshots.first(where: { $0.space.id == space.id })?.display
+        model?.snapshots.first(where: { $0.space.id == space.id })?.retinaDisplay?.geometry
     }
 
     private var displayAspectRatio: CGFloat? {

@@ -52,6 +52,26 @@ enum ScreenCapture {
             boundsHeight: Int(bounds.height.rounded()))
     }
 
+    /// Actual online backing modes in this Aqua session. The viewer selects a
+    /// real 2× display; it never changes display modes or adds a virtual screen.
+    static func viewerDisplays() -> [ViewerDisplay] {
+        var ids = [CGDirectDisplayID](repeating: 0, count: 32)
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(UInt32(ids.count), &ids, &count) == .success else { return [] }
+        return ids.prefix(Int(count)).compactMap { id in
+            guard let mode = CGDisplayCopyDisplayMode(id) else { return nil }
+            let bounds = CGDisplayBounds(id)
+            return ViewerDisplay(id: id, originX: bounds.origin.x, originY: bounds.origin.y,
+                geometry: DisplayGeometry(modeWidth: mode.width, modePixelWidth: mode.pixelWidth,
+                                          boundsWidth: Int(bounds.width.rounded()),
+                                          boundsHeight: Int(bounds.height.rounded())))
+        }
+    }
+
+    static func retinaViewerDisplay() -> ViewerDisplay? {
+        ViewerDisplay.preferredRetina(in: viewerDisplays())
+    }
+
     static func permissionGranted() -> Bool {
         CGPreflightScreenCaptureAccess()
     }
@@ -104,7 +124,12 @@ enum ScreenCapture {
                 message: "screencapture reported success but wrote no file at \(destination)")
         }
 
-        let geometry = mainDisplayGeometry()
+        // `-D` can capture a second Retina display. Report *that* display's
+        // backing store and scale, not the main display's 1× mode.
+        let geometry = display.flatMap { index in
+            let displays = viewerDisplays()
+            return displays.indices.contains(index - 1) ? displays[index - 1].geometry : nil
+        } ?? mainDisplayGeometry()
         var width = geometry.pixelWidth
         var height = geometry.pixelHeight
         if let header = pngHeader(path: destination) {

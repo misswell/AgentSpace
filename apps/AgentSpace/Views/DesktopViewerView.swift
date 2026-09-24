@@ -125,7 +125,7 @@ struct DesktopViewerView: View {
     /// stream opens at the worker's own natural size — which is the mode's own
     /// answer anyway, so the first frame is not a downgrade.
     private var captureLimit: CGSize {
-        guard let display = snapshot?.display else { return .zero }
+        guard let display = snapshot?.retinaDisplay?.geometry else { return .zero }
         let size = quality.captureSize(sourceWidth: display.pixelWidth, sourceHeight: display.pixelHeight)
         return CGSize(width: size.width, height: size.height)
     }
@@ -133,7 +133,7 @@ struct DesktopViewerView: View {
     /// The width a still snapshot is resampled to; `0` leaves the PNG at the
     /// framebuffer's own size. The same mode, one step outside the live stream.
     private var snapshotMaxWidth: Int {
-        guard let display = snapshot?.display else { return 0 }
+        guard let display = snapshot?.retinaDisplay?.geometry else { return 0 }
         let width = quality.captureSize(sourceWidth: display.pixelWidth, sourceHeight: display.pixelHeight).width
         return width >= display.pixelWidth ? 0 : width
     }
@@ -173,8 +173,9 @@ struct DesktopViewerView: View {
         // console switch) tears the monitor down instead of leaving it
         // consuming keys.
         .onChange(of: snapshot?.workerOnline) { _ in syncKeyboardState() }
-        .onChange(of: snapshot?.display) { _ in
+        .onChange(of: snapshot?.retinaDisplay) { newDisplay in
             if lastViewportSize.width > 0 { onViewportSize?(lastViewportSize) }
+            if newDisplay != nil { restartPreviewIfNeeded() } else { stopPreview() }
         }
         .onChange(of: snapshot?.acceptsInput) { _ in syncKeyboardState() }
         .onChange(of: hostWindow) { _ in syncKeyboardState() }
@@ -331,6 +332,15 @@ struct DesktopViewerView: View {
                 .padding(16)
                 Spacer()
             }
+        } else if let snapshot, snapshot.workerOnline, snapshot.retinaDisplay == nil {
+            VStack(spacing: 10) {
+                Image(systemName: "display.trianglebadge.exclamationmark").font(.title)
+                Text("A 2× display is required to open this desktop.")
+                    .font(.headline)
+                Text("Connect a Retina display to the agent session or update its Worker, then reconnect.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let frameClient, let snapshot {
             ZStack {
                 Color.black
@@ -339,8 +349,8 @@ struct DesktopViewerView: View {
                     captureLimit: captureLimit,
                     captureMagnification: zoom.factor,
                     acceptsInput: snapshot.acceptsInput,
-                    remoteContentSize: CGSize(width: snapshot.display?.width ?? 0,
-                                              height: snapshot.display?.height ?? 0),
+                    remoteContentSize: CGSize(width: snapshot.retinaDisplay?.geometry.width ?? 0,
+                                              height: snapshot.retinaDisplay?.geometry.height ?? 0),
                     capturePolicy: snapshot.acceptsInput ? pointerPolicy : .watchOnly,
                     // The local cursor is hidden only once the worker has proved
                     // it publishes one of its own. Hiding it earlier would leave
@@ -482,7 +492,7 @@ struct DesktopViewerView: View {
                 // 「原生」 on a 2x panel should read two equal numbers here; two
                 // different ones mean the source is smaller than the window, or a
                 // ceiling is in play.
-                if let size = liveSurfaceSize, let display = snapshot?.display {
+                if let size = liveSurfaceSize, let display = snapshot?.retinaDisplay?.geometry {
                     Text(String(format: NSLocalizedString("Stream %1$ld×%2$ld px · desktop %3$ld×%4$ld pt · %5$ld×%6$ld px (%7$ld×)", comment: ""),
                                 Int(size.width), Int(size.height), display.width, display.height,
                                 display.pixelWidth, display.pixelHeight, display.scale))
@@ -507,7 +517,8 @@ struct DesktopViewerView: View {
 
     private func startPreview() {
         guard frameClient == nil else { return }
-        guard let space = snapshot?.space else { return }
+        guard let space = snapshot?.space,
+              let display = snapshot?.retinaDisplay else { return }
         // The cursor channel and the capture's own cursor are mutually
         // exclusive: while the overlay draws the agent's pointer, the picture
         // must stop painting one, or the person sees two — the trailing ghost
@@ -521,14 +532,14 @@ struct DesktopViewerView: View {
             // the desktop with no pointer at all.
             frameClient?.setEmbeddedCursor(!active)
         }
-        if let display = snapshot?.display { input.configure(space: space, display: display) }
+        input.configure(space: space, display: display)
         // Opened at the mode's own size rather than at "whatever the worker
         // thinks", so the first stream and the first `layout()` agree: the
         // surface's debounce reopens the stream when the requested size changes
         // by 16 px or more, and a first request of (0,0) followed by the real one
         // was one reconnect per window open.
         let limit = captureLimit
-        let client = FrameClient(space: space, target: .display(displayID: nil), maxFPS: previewFPS,
+        let client = FrameClient(space: space, target: .display(displayID: display.id), maxFPS: previewFPS,
                                 targetWidth: Int(limit.width), targetHeight: Int(limit.height))
         frameClient = client; client.start()
     }
@@ -581,7 +592,7 @@ struct DesktopViewerView: View {
     /// and a click is translated through the geometry that desktop reported, never
     /// forwarded as a local point.
     private func send(_ gesture: RemotePointerGesture, snapshot: SpaceSnapshot) {
-        guard snapshot.acceptsInput, let display = snapshot.display else { return }
+        guard snapshot.acceptsInput, let display = snapshot.retinaDisplay else { return }
         input.configure(space: snapshot.space, display: display)
         input.send(gesture)
     }

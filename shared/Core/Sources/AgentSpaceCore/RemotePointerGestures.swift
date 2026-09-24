@@ -249,6 +249,13 @@ public struct RemotePointerGestureTracker {
             return (renewLease, [])
         }
         if rawPhases {
+            // The NSView also calls this on mouse-up to capture a final position.
+            // If the pointer did not move, a drag event here turns a click on a
+            // macOS window button into a drag gesture: the button highlights on
+            // down but does not close/minimise on up.
+            guard fraction.u != press.lastU || fraction.v != press.lastV else {
+                return (renewLease, [])
+            }
             let move = RemotePointerGesture.pointerDrag(
                 fromU: press.lastU, fromV: press.lastV, toU: fraction.u, toV: fraction.v,
                 button: press.button, modifiers: press.modifiers)
@@ -275,6 +282,18 @@ public struct RemotePointerGestureTracker {
                          clickCount: press.clickCount, modifiers: press.modifiers),
             move,
         ])
+    }
+
+    /// The release may be one point away from the press without any drag event
+    /// having occurred. Keep that ordinary click as down+up; once an actual
+    /// drag began, preserve its final position before sending the release.
+    public mutating func releaseTravelPhases(to point: CGPoint, in surface: PreviewMapping,
+                                             now: Date) -> (renewLease: Bool, gestures: [RemotePointerGesture]) {
+        if rawPhases, let press, !press.streamStarted,
+           hypot(point.x - press.viewOrigin.x, point.y - press.viewOrigin.y) <= Self.dragThreshold {
+            return (false, [])
+        }
+        return draggedPhases(to: point, in: surface, now: now)
     }
 
     /// Events to send before the local button comes up. Starting only after

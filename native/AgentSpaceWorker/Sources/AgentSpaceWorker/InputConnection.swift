@@ -366,6 +366,16 @@ final class InputConnection {
             let point = try target.resolve(x: x, y: y, canvas: nil)
             try validate(point)
             return point
+        case .display(let id):
+            guard let display = ScreenCapture.viewerDisplays().first(where: { $0.id == id }),
+                  display.isRetina else {
+                throw AgentSpaceError(code: .invalidTarget,
+                    message: "the requested Retina display is no longer available")
+            }
+            if let error = CoordinateRules.validate(x: x, y: y, geometry: display.geometry) {
+                throw error
+            }
+            return display.globalPoint(x: x, y: y)
         case .window(let identity):
             let frame = try gestureFrames.frame(for: identity) ?? currentWindow(identity).frame
             return try target.resolve(x: x, y: y, canvas: InputCanvas(frame: frame))
@@ -380,6 +390,8 @@ final class InputConnection {
             let point = try target.resolve(x: x, y: y, canvas: nil)
             try validate(point)
             return point
+        case .display:
+            return try resolve(target, x: x, y: y)
         case .window(let identity):
             let frame = try gestureFrames.frame(for: identity) ?? currentWindow(identity).frame
             return try target.resolve(x: x, y: y, canvas: InputCanvas(frame: frame))

@@ -89,6 +89,15 @@ final class InputFastProtocolTests: XCTestCase {
         XCTAssertEqual(decoded.x, 0.25)
     }
 
+    func testRetinaDisplayTargetRoundTripsWithoutChangingLegacyTargets() throws {
+        let packet = InputPointerPacket(target: .display(22), x: 750, y: 490)
+        let decoded = try InputPointerPacket(decoding: packet.encoded())
+        XCTAssertEqual(decoded.target, .display(22))
+        XCTAssertFalse(decoded.target.isWindowRelative)
+        XCTAssertEqual(decoded.x, 750)
+        XCTAssertEqual(decoded.y, 490)
+    }
+
     func testCursorStateRoundTripsWithAndWithoutAnImage() throws {
         let withoutImage = CursorState(sequence: 5, x: 100, y: 200, shapeID: 0xDEADBEEF,
                                        hotSpotX: 1, hotSpotY: 1, width: 0, height: 0)

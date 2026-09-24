@@ -87,6 +87,27 @@ final class RemotePointerGestureTests: XCTestCase {
                        .pointerUp(u: 0.75, v: 0.75, button: .left, clickCount: 1, modifiers: []))
     }
 
+    /// Desktop Mode calls draggedPhases on mouse-up even when the hand did not
+    /// move. That must remain down+up: a synthetic zero-distance drag makes
+    /// macOS traffic-light buttons highlight without closing or minimising.
+    func testRawClickDoesNotInsertADragBeforeMouseUp() {
+        var tracker = RemotePointerGestureTracker()
+        tracker.beginControl(rawPhases: true)
+        let point = point(480, 270)
+        XCTAssertEqual(tracker.beganPressPhases(at: point, button: .left,
+                                                clickCount: 1, modifiers: [],
+                                                in: square, now: start),
+                       .pointerDown(u: 0.5, v: 0.5, button: .left,
+                                    clickCount: 1, modifiers: []))
+        let released = self.point(481, 270)
+        XCTAssertTrue(tracker.releaseTravelPhases(to: released, in: square,
+                                                   now: start.addingTimeInterval(0.1)).gestures.isEmpty)
+        XCTAssertEqual(tracker.endedPress(at: released, clickCount: 1, in: square,
+                                         now: start.addingTimeInterval(0.1)),
+                       .pointerUp(u: 481.0 / 960, v: 0.5, button: .left,
+                                  clickCount: 1, modifiers: []))
+    }
+
     /// Three points of jitter is still a click; four is a drag. Both surfaces have
     /// to agree on where that line is, or the same hand means different things in
     /// a viewer and in a proxy.

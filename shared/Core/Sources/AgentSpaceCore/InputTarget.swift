@@ -11,6 +11,7 @@ import Foundation
 /// drag bound to the window it started in even if the pointer leaves it.
 public enum InputTarget: Equatable, Hashable, Sendable {
     case desktop
+    case display(UInt32)
     case window(WindowIdentity)
 
     /// Whether coordinates in a packet with this target are display points
@@ -24,6 +25,7 @@ public enum InputTarget: Equatable, Hashable, Sendable {
     public var logDescription: String {
         switch self {
         case .desktop: return "desktop"
+        case .display(let id): return "display \(id)"
         case .window(let identity): return "window \(identity.windowID) pid \(identity.pid) gen \(identity.generation)"
         }
     }
@@ -38,6 +40,8 @@ public enum InputTarget: Equatable, Hashable, Sendable {
             let windowID = try reader.integer(UInt32.self)
             let generation = try reader.integer(UInt64.self)
             self = .window(WindowIdentity(pid: pid, windowID: windowID, generation: generation))
+        case 2:
+            self = .display(try reader.integer(UInt32.self))
         default:
             throw AgentSpaceError(code: .badRequest, message: "unknown input target kind \(kind)")
         }
@@ -47,6 +51,9 @@ public enum InputTarget: Equatable, Hashable, Sendable {
         switch self {
         case .desktop:
             writer.append(UInt8(0))
+        case .display(let id):
+            writer.append(UInt8(2))
+            writer.append(id)
         case .window(let identity):
             writer.append(UInt8(1))
             writer.append(identity.pid)
@@ -68,6 +75,9 @@ public enum InputTarget: Equatable, Hashable, Sendable {
                 throw AgentSpaceError(code: .invalidCoordinate, message: "pointer coordinates must be finite")
             }
             return (x, y)
+        case .display:
+            throw AgentSpaceError(code: .invalidTarget,
+                message: "a display-target packet must be resolved against its live display origin")
         case .window:
             guard let canvas else {
                 throw AgentSpaceError(
