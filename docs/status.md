@@ -4,33 +4,25 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-24 on `master`. Current public release before this round's
-tag: `0.1.39`, and it is
-**the first release cut entirely by GitHub Actions** — that is its only purpose,
-since the product code is 0.1.38's. `v0.1.39` points to `6f9ec92`; the DMG is
-**6,213,665** bytes,
-`sha256:28ac99d1126d318842cf90ac25da8f49fa2db0b3ae77ced57bd5074384bd7cf1`, and
-both of those were confirmed by downloading it back and mounting it: `stapler
-validate` worked on the app *inside* the DMG, `spctl` answered `source=Notarized
-Developer ID`, and the bundle reads 0.1.39 (§331 rows 942–943).
-`releases/latest` — the endpoint `SoftwareUpdater` reads — answered the new tag
-with that digest on three samples. The previous release, `0.1.38`
-(`e944271`, `CFBundleVersion` 432), was cut locally with all four gate layers,
-including layer 4 on the console at 13/13; its DMG is 6,262,399 bytes,
-`sha256:2600ef02aff70aa96d93e2b8ae7ad2158d7b63a004e97eee438a1e00eabb01d5`, and
-both its Apple submissions were read back from `asc notarization list` as
-**Accepted** (§330 rows 929–932).
-`0.1.37` was never published: its diff from `0.1.36` is four version strings and
-nothing else.
+Last updated: 2026-09-24 on `master`. Current public release: **0.1.40**.
+`v0.1.40` points to `8d96184`; its notarized, stapled DMG is **6,253,135** bytes,
+`sha256:f673af39a78eaaa0af4405032148d0b1f245f8f3612cc2ce2523dd475898440d`.
+GitHub Actions run `35940848637` passed its validate, gate and sign/notarize/publish
+jobs; `releases/latest` answers `v0.1.40` with that same asset digest (§332 row 949).
 
-The 0.1.40 candidate fixes desktop clicks lost against an older Worker and the
-new channel's blocked writer. An installed App now checks Worker versions on
-foreground refresh and uses the existing typed helper path to update a mismatch
-once per observed version; a debug/dist copy cannot replace an installed Worker.
-The old input RPC remains usable during a mismatch. Local gates: Swift 703/703,
-MCP 24/24 and smoke, updater 19/19, and 13/13 GUI checks in AgentUse's separate
-session (§332). Formal publication and the update-channel digest are still to
-be recorded after the CI release completes.
+0.1.40 fixes desktop clicks lost against an older Worker and the new channel's
+blocked writer. An installed App checks Worker versions on foreground refresh
+and uses the existing typed helper path to update a mismatch once per observed
+version; a debug/dist copy cannot replace an installed Worker. The old input
+RPC remains usable during a mismatch. Local gates: Swift 703/703, MCP 24/24
+and smoke, updater 19/19, and 13/13 GUI checks in AgentUse's separate session
+(§332). Live click-through of the installed 0.1.40 viewer and automatic
+privileged Worker replacement are still unmeasured; the release notes state
+the required macOS administrator prompt.
+
+The previous public release `0.1.39` was the first cut entirely by GitHub
+Actions; its code was otherwise 0.1.38's (§331 rows 942–943). `0.1.37` was
+never published.
 
 ## 0.1.38 — Desktop input is no longer a request/reply conversation (2026-09-23)
 
