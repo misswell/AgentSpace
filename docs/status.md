@@ -4,13 +4,13 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-24 on `master`. Current public release: **0.1.42**.
-`v0.1.42` points to `7eaa87a`; its notarized, stapled DMG is **6,304,420** bytes,
-`sha256:934b7806d67ae079b05afa994b913f8467aef8d09ae430fc71a9654a0d307474`.
-GitHub Actions run `35947723915` passed validate, gate and sign/notarize/publish;
-`releases/latest` answers `v0.1.42` with that digest (§335 row 960).
+Last updated: 2026-09-24 on `master`. Current public release: **0.1.43**.
+`v0.1.43` points to `3cd1c1d`; its notarized DMG is **6,321,113** bytes,
+`sha256:42eeb5d8034ae7e4fa6a917de10e7f5d21ee4c7ec2e4563e5c4483df72c602da`.
+GitHub Actions run `35952783573` passed validate, gate and sign/notarize/publish;
+`releases/latest` answers `v0.1.43` with that digest (§336 row 964).
 
-0.1.43 candidate (§336): Desktop Viewer requires a real 2× display and uses
+0.1.43 (§336): Desktop Viewer requires a real 2× display and uses
 AgentUse's 1512×982-point / 3024×1964-pixel screen (display 22) for capture,
 input and cursor mapping. It does not move existing windows from the 1× main
 screen or change the host's display layout. A raw mouse click no longer inserts
