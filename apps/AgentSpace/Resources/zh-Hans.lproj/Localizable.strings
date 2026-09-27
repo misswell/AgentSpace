@@ -159,6 +159,12 @@
 "Information" = "信息";
 "Pause Preview" = "暂停预览";
 "Resume Preview" = "继续预览";
+"Performance HUD" = "性能信息浮层";
+"Frame %.0f FPS" = "画面 %.0f FPS";
+"Move p50 %.1f / p95 %.1f ms" = "移动 p50 %.1f / p95 %.1f 毫秒";
+"Input p50 %.1f / p95 %.1f ms" = "输入 p50 %.1f / p95 %.1f 毫秒";
+"Frame p50 %.1f / p95 %.1f ms" = "画面 p50 %.1f / p95 %.1f 毫秒";
+"Render p50 %.1f ms" = "渲染 p50 %.1f 毫秒";
 "click outside the desktop: ignored" = "点击落在桌面之外：已忽略";
 "click → %1$ld, %2$ld" = "点击 → %1$ld, %2$ld";
 "right click → %1$ld, %2$ld" = "右键点击 → %1$ld, %2$ld";

@@ -71,17 +71,20 @@ rm -f "$ZIP"
 trap 'rm -f "$ZIP"' EXIT
 ditto -c -k --keepParent "$APP" "$ZIP"
 
-# notarytool --wait is an HTTP long-poll, and its client can time out while
-# the submission itself is fine at Apple's end (observed: upload completed,
-# submission recorded, connectTimeout mid-poll). Treat a --wait failure as
-# "unknown", not "failed": poll by submission id before ever resubmitting,
-# because resubmitting good bytes wastes a full review cycle and leaves two
-# submissions to reconcile.
+# Submit once without `--wait`, then poll by the returned id. Apple's status
+# can be Accepted while `notarytool submit --wait` is still blocked in its
+# HTTP long-poll (observed on the 0.1.47 runner); waiting inside that command
+# also hides the id from this script until the command eventually exits.
 await_notarization() { # <file>
   local file="$1" id status out attempt
   if [[ "$MODE" == "notarytool" ]]; then
-    id=$(xcrun notarytool submit "$file" --keychain-profile "$PROFILE" --wait 2>&1 \
-         | tee /dev/stderr | grep -m1 'id: ' | awk '{print $2}')
+    if ! out=$(xcrun notarytool submit "$file" --keychain-profile "$PROFILE" 2>&1); then
+      printf '%s\n' "$out" >&2
+      echo "submission of $file did not return a usable result; check Apple's history before retrying." >&2
+      return 1
+    fi
+    printf '%s\n' "$out" >&2
+    id=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*id:[[:space:]]*//p' | head -1)
     if [[ -z "$id" ]]; then
       # Without an id there is nothing to reconcile the submission against, so
       # "unknown" cannot be resolved into a verdict — say so rather than poll

@@ -159,6 +159,12 @@
 "Information" = "Information";
 "Pause Preview" = "Pause Preview";
 "Resume Preview" = "Resume Preview";
+"Performance HUD" = "Performance HUD";
+"Frame %.0f FPS" = "Frame %.0f FPS";
+"Move p50 %.1f / p95 %.1f ms" = "Move p50 %.1f / p95 %.1f ms";
+"Input p50 %.1f / p95 %.1f ms" = "Input p50 %.1f / p95 %.1f ms";
+"Frame p50 %.1f / p95 %.1f ms" = "Frame p50 %.1f / p95 %.1f ms";
+"Render p50 %.1f ms" = "Render p50 %.1f ms";
 "click outside the desktop: ignored" = "click outside the desktop: ignored";
 "click → %1$ld, %2$ld" = "click → %1$ld, %2$ld";
 "right click → %1$ld, %2$ld" = "right click → %1$ld, %2$ld";

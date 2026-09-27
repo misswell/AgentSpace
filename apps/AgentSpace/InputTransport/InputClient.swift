@@ -67,6 +67,8 @@ final class InputClient: ObservableObject {
     /// Latency samples, client-event → worker-applied, for the instrument §34
     /// asks for. Bounded: a running window of the last 512 packets.
     private var latency = InputLatencyWindows()
+    private var recentAppliedLatency = LatencyWindow()
+    private var recentMoveLatency = LatencyWindow()
     private var connectAttempts = 0
     private var cursorShapeCache: [UInt32: Data] = [:]
 
@@ -140,7 +142,7 @@ final class InputClient: ObservableObject {
     func move(to point: (x: Double, y: Double), target: InputTarget, phase: PointerPhase = .move) {
         var packet = InputPointerPacket(target: target, x: point.x, y: point.y)
         packet.clickCount = 1
-        sendForKind(phase.kind, payload: packet.encoded(), trackLatency: false)
+        sendForKind(phase.kind, payload: packet.encoded(), trackLatency: true)
     }
 
     func pointerDown(at point: (x: Double, y: Double), target: InputTarget,
@@ -221,7 +223,9 @@ final class InputClient: ObservableObject {
         guard let socket, !socket.isDead else { return }
         sequence &+= 1
         let sent = sequence
-        if trackLatency { latency.noteSent(sequence: sent, at: InputClock.now()) }
+        if trackLatency {
+            latency.noteSent(sequence: sent, at: InputClock.now(), isPointerMove: kind == .pointerMove)
+        }
         workQueues.write {
             do {
                 try socket.send(kind: kind, payload: payload, sequence: sent)
@@ -282,8 +286,14 @@ final class InputClient: ObservableObject {
 
         case .ack:
             guard let ack = try? InputAck(decoding: packet.payload) else { return }
-            if let received = latency.noteAcked(sequence: ack.sequence, workerPostedAt: ack.cgEventPostedNs) {
-                InputLatencyLog.shared.record(roundTripNanoseconds: received)
+            if let sample = latency.noteAcked(sequence: ack.sequence, workerPostedAt: ack.cgEventPostedNs) {
+                InputLatencyLog.shared.record(postedNanoseconds: sample.nanoseconds)
+                let milliseconds = Double(sample.nanoseconds) / 1_000_000
+                if sample.isPointerMove {
+                    recentMoveLatency.record(milliseconds)
+                } else {
+                    recentAppliedLatency.record(milliseconds)
+                }
             }
             switch ack.status {
             case .ok:
@@ -321,6 +331,11 @@ final class InputClient: ObservableObject {
         }
     }
 
+    var appliedInputP50ms: Double? { recentAppliedLatency.median }
+    var appliedInputP95ms: Double? { recentAppliedLatency.p95 }
+    var appliedMoveP50ms: Double? { recentMoveLatency.median }
+    var appliedMoveP95ms: Double? { recentMoveLatency.p95 }
+
     private func scheduleReconnect() {
         guard !stopped else { return }
         connectAttempts += 1
@@ -340,19 +355,19 @@ final class InputClient: ObservableObject {
     }
 }
 
-/// A bounded window of client→worker round trips.
+/// A bounded window of client-send→worker-post measurements.
 ///
 /// The number that matters is not the socket write, which is a few microseconds
 /// on a local unix socket, but the whole trip: the client handed a packet to the
 /// kernel, and the worker had built and posted a `CGEvent`. Both ends stamp with
 /// the same host clock, so the difference is a measurement.
 struct InputLatencyWindows {
-    private var sent: [UInt64: UInt64] = [:]
+    private var sent: [UInt64: (at: UInt64, isPointerMove: Bool)] = [:]
     private var order: [UInt64] = []
     private static let windowSize = 512
 
-    mutating func noteSent(sequence: UInt64, at time: UInt64) {
-        sent[sequence] = time
+    mutating func noteSent(sequence: UInt64, at time: UInt64, isPointerMove: Bool) {
+        sent[sequence] = (time, isPointerMove)
         order.append(sequence)
         while order.count > Self.windowSize {
             let oldest = order.removeFirst()
@@ -360,23 +375,22 @@ struct InputLatencyWindows {
         }
     }
 
-    /// The round trip for a sequence whose application has been confirmed, or
+    /// The posting time for a sequence whose application has been confirmed, or
     /// nil when the sample no longer exists (an ack about a sampled move can
     /// arrive long after the packet left the window).
-    mutating func noteAcked(sequence: UInt64, workerPostedAt: UInt64) -> UInt64? {
-        guard let sentAt = sent.removeValue(forKey: sequence) else { return nil }
+    mutating func noteAcked(sequence: UInt64, workerPostedAt: UInt64) -> (nanoseconds: UInt64, isPointerMove: Bool)? {
+        guard let sample = sent.removeValue(forKey: sequence) else { return nil }
         if let index = order.firstIndex(of: sequence) { order.remove(at: index) }
-        guard workerPostedAt > 0 else { return nil }
-        return workerPostedAt > sentAt ? workerPostedAt - sentAt : 0
+        guard workerPostedAt >= sample.at else { return nil }
+        return (workerPostedAt - sample.at, sample.isPointerMove)
     }
 }
 
 /// One log line per connection summarizing the input latency the person actually
 /// experienced, in the shape the frame timeline already uses.
 ///
-/// Kept off the window on purpose: a person moving a mouse does not need a
-/// percentile, and the number is only meaningful next to the operation that
-/// produced it — which is what `docs/validation.md` records.
+/// Logged without requiring the optional performance HUD. The same samples
+/// can be viewed in the HUD while diagnosing a live gesture.
 final class InputLatencyLog {
     static let shared = InputLatencyLog()
 
@@ -401,9 +415,9 @@ final class InputLatencyLog {
     private var samples: [UInt64] = []
     private var lastReport = Date.distantPast
 
-    func record(roundTripNanoseconds: UInt64) {
+    func record(postedNanoseconds: UInt64) {
         lock.lock()
-        samples.append(roundTripNanoseconds)
+        samples.append(postedNanoseconds)
         if samples.count > 4096 { samples.removeFirst(samples.count - 4096) }
         let due = Date().timeIntervalSince(lastReport) > 30
         let snapshot = due ? samples : []

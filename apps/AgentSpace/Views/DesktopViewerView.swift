@@ -89,6 +89,7 @@ struct DesktopViewerView: View {
     /// whatever the preference says, because a dragged window that updates at
     /// 15 FPS does not look like it is being dragged.
     @State private var liveFPS: Int?
+    @State private var activityClock = ViewerActivityClock()
     /// The viewer's own input path: gestures in, `input` calls out, with the
     /// pointer-travel coalescing a proxy uses.
     @StateObject private var input = DesktopViewerInput()
@@ -101,6 +102,7 @@ struct DesktopViewerView: View {
     /// The display-quality mode, on the same key Settings' picker writes.
     @AppStorage(DisplayQuality.storageKey) private var displayQuality = DisplayQuality.default.rawValue
     @AppStorage("previewFPS") private var previewFPS = 30
+    @AppStorage("desktopPerformanceHUD") private var showsPerformanceHUD = false
     /// How the pointer behaves over the agent's desktop. See `MouseCaptureMode`:
     /// the default hands the pointer over on entry, which is what makes Desktop
     /// Mode feel like the machine in front of the person rather than a picture of
@@ -159,6 +161,12 @@ struct DesktopViewerView: View {
                     await model.refreshViewerStatus(for: id)
                 }
                 try? await Task.sleep(for: .seconds(3))
+            }
+        }
+        .task {
+            while !Task.isCancelled {
+                updateCaptureRate()
+                try? await Task.sleep(for: .milliseconds(250))
             }
         }
         .onDisappear {
@@ -416,6 +424,13 @@ struct DesktopViewerView: View {
                     onDragActivity: { active in setDragActivity(active) })
                 if !snapshot.acceptsInput { inputBlockedOverlay(snapshot) }
                 VStack { HStack { FrameClientStatusOverlay(client: frameClient); Spacer() }; Spacer() }
+                if showsPerformanceHUD {
+                    VStack {
+                        HStack { Spacer(); performanceHUD(frameClient) }
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                }
             }
         } else {
             VStack(spacing: 10) {
@@ -489,9 +504,37 @@ struct DesktopViewerView: View {
                     Label("Reveal File", systemImage: "folder")
                 }
             }
+            Toggle("Performance HUD", isOn: $showsPerformanceHUD)
         }
         .frame(width: 360, alignment: .leading)
         .padding(16)
+    }
+
+    private func performanceHUD(_ client: FrameClient) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            let metrics = client.performance
+            let fps = FrameClock.uptime() - metrics.updatedAt > 2.5 ? 0 : metrics.framesPerSecond
+            VStack(alignment: .leading, spacing: 4) {
+                Text(String(format: NSLocalizedString("Frame %.0f FPS", comment: ""), fps))
+                if let p50 = input.appliedMoveP50ms, let p95 = input.appliedMoveP95ms {
+                    Text(String(format: NSLocalizedString("Move p50 %.1f / p95 %.1f ms", comment: ""), p50, p95))
+                }
+                if let p50 = input.appliedInputP50ms, let p95 = input.appliedInputP95ms {
+                    Text(String(format: NSLocalizedString("Input p50 %.1f / p95 %.1f ms", comment: ""), p50, p95))
+                }
+                if let p50 = metrics.captureToRenderP50, let p95 = metrics.captureToRenderP95 {
+                    Text(String(format: NSLocalizedString("Frame p50 %.1f / p95 %.1f ms", comment: ""), p50, p95))
+                }
+                if let render = metrics.receiveToRenderP50 {
+                    Text(String(format: NSLocalizedString("Render p50 %.1f ms", comment: ""), render))
+                }
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.white)
+            .padding(9)
+            .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+            .padding(12)
+        }
     }
 
     // MARK: - Capture
@@ -529,10 +572,18 @@ struct DesktopViewerView: View {
         let limit = captureLimit
         let client = FrameClient(space: space, target: .retinaDesktop, maxFPS: previewFPS,
                                 targetWidth: Int(limit.width), targetHeight: Int(limit.height))
+        activityClock.tracker = FrameActivityTracker()
+        liveFPS = previewFPS
+        client.onFrameArrived = { [weak client] in
+            guard let client, frameClient === client else { return }
+            activityClock.tracker.noteChange(at: Date())
+            updateCaptureRate()
+        }
         frameClient = client; client.start()
     }
 
     private func stopPreview() {
+        frameClient?.onFrameArrived = nil
         frameClient?.stop(); frameClient = nil
         liveFPS = nil
         // Nothing collected for a desktop that is no longer being watched may
@@ -552,6 +603,7 @@ struct DesktopViewerView: View {
         // arrangement does not flip back to the saved one and get applied again
         // in the gap that stop-then-start used to produce on every reopen.
         let previous = frameClient
+        previous?.onFrameArrived = nil
         frameClient = nil
         startPreview()
         previous?.stop()
@@ -600,7 +652,14 @@ struct DesktopViewerView: View {
     /// forwarded as a local point.
     private func send(_ gesture: RemotePointerGesture, snapshot: SpaceSnapshot) {
         guard snapshot.acceptsInput, let display = snapshot.retinaDisplay else { return }
+        if case .scroll = gesture {
+            activityClock.tracker.noteScroll(at: Date())
+        } else {
+            activityClock.tracker.noteChange(at: Date())
+        }
+        updateCaptureRate()
         input.configure(space: snapshot.space, display: display)
+        input.setPointerRate(HostDisplayRefresh.pointerRate(for: hostWindow))
         input.send(gesture)
     }
 
@@ -613,14 +672,27 @@ struct DesktopViewerView: View {
     /// reopening the stream would rebuild the shared region and restart the
     /// decoder to move one number.
     private func setDragActivity(_ active: Bool) {
-        let policy = InputRatePolicy(ceiling: previewFPS)
-        let target = policy.frames(for: active ? .interactive : .active)
+        activityClock.tracker.notePress(active, at: Date())
+        updateCaptureRate()
+    }
+
+    private func updateCaptureRate() {
+        guard let frameClient else { return }
+        let policy = InputRatePolicy(ceiling: previewFPS,
+                                     pointerRate: HostDisplayRefresh.pointerRate(for: hostWindow))
+        let target = policy.frames(for: activityClock.tracker.activity(at: Date()))
         guard liveFPS != target else { return }
         liveFPS = target
-        frameClient?.setFPS(target)
+        frameClient.setFPS(target)
         input.setPointerRate(policy.pointerRate)
     }
 
+}
+
+/// Frame callbacks are frequent; changing this reference's value does not
+/// invalidate the entire SwiftUI viewer for every arriving picture.
+private final class ViewerActivityClock {
+    var tracker = FrameActivityTracker()
 }
 
 private struct DesktopViewportSizeKey: PreferenceKey {

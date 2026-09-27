@@ -20,12 +20,14 @@ final class RemoteCursorOverlayLayer: CALayer {
     /// How far the drawn position may drift from the worker's before it is
     /// corrected. Below this the difference is rounding and event coalescing,
     /// and snapping on it would look like a twitch.
-    static let correctionThreshold: Double = 2
-
     /// The last position the worker confirmed, in display points.
     private var authoritative: CGPoint?
+    private var authoritativeAt: TimeInterval?
     /// The position this client last sent, which is what the hand actually did.
     private var predicted: CGPoint?
+    private var predictedAt: TimeInterval?
+    private var settleWork: DispatchWorkItem?
+    private var smoothNextCorrection = false
     private var sprite: CGImage?
     private var shapeID: UInt32 = 0
     private var hotSpot = CGPoint.zero
@@ -57,11 +59,9 @@ final class RemoteCursorOverlayLayer: CALayer {
     func apply(_ presentation: InputClient.CursorPresentation) {
         let authoritativePoint = CGPoint(x: presentation.x, y: presentation.y)
         self.authoritative = authoritativePoint
-        if let predicted, hypot(predicted.x - authoritativePoint.x, predicted.y - authoritativePoint.y) <= Self.correctionThreshold {
-            // Close enough: keep the prediction. It is at worst one event ahead.
-        } else {
-            self.predicted = authoritativePoint
-        }
+        let now = ProcessInfo.processInfo.systemUptime
+        authoritativeAt = now
+        reconcile(now: now)
         if presentation.shapeID != shapeID || sprite == nil {
             shapeID = presentation.shapeID
             hotSpot = CGPoint(x: presentation.hotSpotX, y: presentation.hotSpotY)
@@ -77,15 +77,55 @@ final class RemoteCursorOverlayLayer: CALayer {
     /// whole point of the overlay is that it does not wait for a round trip.
     func predict(displayPoint: CGPoint) {
         predicted = displayPoint
+        predictedAt = ProcessInfo.processInfo.systemUptime
+        settleWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.reconcile(now: ProcessInfo.processInfo.systemUptime)
+        }
+        settleWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + CursorCorrectionPolicy.settleDelay, execute: work)
         markNeedsLayout()
     }
 
     func clear() {
+        settleWork?.cancel()
+        settleWork = nil
         predicted = nil
+        predictedAt = nil
         authoritative = nil
+        authoritativeAt = nil
+        smoothNextCorrection = false
         sprite = nil
         shapeID = 0
         isHidden = true
+    }
+
+    private func reconcile(now: TimeInterval) {
+        guard let authoritative else { return }
+        guard let predicted, let predictedAt else {
+            self.predicted = authoritative
+            markNeedsLayout()
+            return
+        }
+        // A timer may fire before the worker samples the latest move. Its old
+        // position is not a correction, so wait for a post-prediction report.
+        guard let authoritativeAt, authoritativeAt >= predictedAt else { return }
+        switch CursorCorrectionPolicy.decision(
+            predictedX: predicted.x, predictedY: predicted.y,
+            confirmedX: authoritative.x, confirmedY: authoritative.y,
+            predictionAge: now - predictedAt) {
+        case .keepPrediction:
+            break
+        case .smooth:
+            smoothNextCorrection = true
+            self.predicted = authoritative
+            self.predictedAt = nil
+            markNeedsLayout()
+        case .snap:
+            self.predicted = authoritative
+            self.predictedAt = nil
+            markNeedsLayout()
+        }
     }
 
     /// Position the sprite. Called on layout and on every update; setting a
@@ -111,8 +151,13 @@ final class RemoteCursorOverlayLayer: CALayer {
         let originY = (mapping.viewHeight - viewPoint.y) - (height - hotSpot.y / scale)
         let originX = viewPoint.x - hotSpot.x / scale
         CATransaction.begin()
-        CATransaction.setDisableActions(true)
+        CATransaction.setDisableActions(!smoothNextCorrection)
+        if smoothNextCorrection { CATransaction.setAnimationDuration(0.06) }
         frame = CGRect(x: originX, y: originY, width: width, height: height)
+        CATransaction.commit()
+        smoothNextCorrection = false
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         contents = sprite
         CATransaction.commit()
         isHidden = false

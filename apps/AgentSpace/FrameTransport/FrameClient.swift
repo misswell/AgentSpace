@@ -3,6 +3,14 @@ import CoreVideo
 import os
 import AgentSpaceCore
 
+struct FramePerformanceSnapshot: Equatable {
+    var updatedAt: TimeInterval = 0
+    var framesPerSecond: Double = 0
+    var captureToRenderP50: Double?
+    var captureToRenderP95: Double?
+    var receiveToRenderP50: Double?
+}
+
 /// One viewer's side of a frame stream.
 ///
 /// The client owns three things the worker cannot see: whether the frames it was
@@ -16,6 +24,7 @@ final class FrameClient: ObservableObject {
 
     @Published private(set) var state: State = .idle
     @Published private(set) var surfaceSize: CGSize = .zero
+    @Published private(set) var performance = FramePerformanceSnapshot()
     @Published private(set) var lastError: AgentSpaceError?
     /// What the overlay says about a stream that will not come up. Kept separate
     /// from `lastError` because the two audiences are different: the error carries
@@ -28,7 +37,7 @@ final class FrameClient: ObservableObject {
 
     let space: AgentAccount
     let target: CaptureTarget
-    private let maxFPS: Int
+    private var desiredFPS: Int
     private var targetWidth: Int
     private var targetHeight: Int
     private let queue: DispatchQueue
@@ -48,14 +57,19 @@ final class FrameClient: ObservableObject {
     private var renderStats = FrameRenderStats()
     private var renderRate = RateMeter()
     private var latency = FrameLatency()
+    private var lastPerformanceUpdate: TimeInterval = 0
     private var configureWork: DispatchWorkItem?
     private lazy var videoDecoder = VideoFrameDecoder { [weak self] buffer in self?.handleVideoFrame?(buffer) }
     var handleSharedFrame: ((SharedFrameMapping, FrameHeader, SharedFrameNotice, SharedFrameSlotHeader, [SharedPatchDescriptor], @escaping (TimeInterval) -> Void) -> SurfaceApplyOutcome)?
     var handleVideoFrame: ((CVPixelBuffer) -> Void)?
+    /// Delivered on the main queue for each changed picture, including video.
+    /// A viewer uses it to return from the idle capture rate as soon as the
+    /// remote desktop starts changing on its own.
+    var onFrameArrived: (() -> Void)?
     var resetSurface: (() -> Void)?
 
     init(space: AgentAccount, target: CaptureTarget, maxFPS: Int = 15, targetWidth: Int = 0, targetHeight: Int = 0) {
-        self.space = space; self.target = target; self.maxFPS = maxFPS
+        self.space = space; self.target = target; self.desiredFPS = maxFPS
         self.targetWidth = targetWidth; self.targetHeight = targetHeight
         self.queue = DispatchQueue(label: BundleIdentifiers.app + ".frame-client.\(UUID().uuidString)", qos: .userInitiated)
     }
@@ -109,7 +123,7 @@ final class FrameClient: ObservableObject {
     /// an error here — the stream keeps the rate it was opened at, which is the
     /// behaviour that worker had anyway.
     func setFPS(_ fps: Int) {
-        lock.lock(); let id = streamID; let stopped = self.stopped; lock.unlock()
+        lock.lock(); desiredFPS = fps; let id = streamID; let stopped = self.stopped; lock.unlock()
         guard !stopped, let id else { return }
         let space = space
         queue.async {
@@ -169,9 +183,11 @@ final class FrameClient: ObservableObject {
     private func openAndRead() throws {
         let connection = SpaceConnection(space: space)
         guard let token = connection.token else { throw AgentSpaceError(code: .unauthorized, message: "the frame session token is missing") }
-        lock.lock(); let requestedWidth = targetWidth, requestedHeight = targetHeight; lock.unlock()
+        lock.lock()
+        let requestedWidth = targetWidth, requestedHeight = targetHeight, requestedFPS = desiredFPS
+        lock.unlock()
         let response = try connection.client.call(method: Method.frameOpen, params: .obj([
-            "target": target.jsonValue, "maxFPS": .int(maxFPS),
+            "target": target.jsonValue, "maxFPS": .int(requestedFPS),
             "targetPixelWidth": .int(requestedWidth), "targetPixelHeight": .int(requestedHeight),
             "preferredMode": .string("auto"),
         ]), token: token)
@@ -226,6 +242,9 @@ final class FrameClient: ObservableObject {
                     try feedback(socket, slot: slotIndex, sequence: header.sequence, acceptance: .duplicate)
                     continue
                 case .accepted:
+                    if let onFrameArrived {
+                        DispatchQueue.main.async { onFrameArrived() }
+                    }
                     let handling = FrameSignpost.begin("FrameReceive")
                     let outcome = handleSharedFrame?(mapping, header, notice, slot, patches) { [weak self] presentedAt in
                         // Metal finishes on its own queue. The hop back to this
@@ -243,6 +262,9 @@ final class FrameClient: ObservableObject {
                     if outcome != .refused { publishSize(CGSize(width: Int(header.width), height: Int(header.height))) }
                 }
             case .h264:
+                if let onFrameArrived {
+                    DispatchQueue.main.async { onFrameArrived() }
+                }
                 let handling = FrameSignpost.begin("H264Decode")
                 try videoDecoder.decode(payload)
                 FrameSignpost.end(handling)
@@ -286,6 +308,15 @@ final class FrameClient: ObservableObject {
         let presented = UInt64(max(0, presentedAt) * 1_000_000_000)
         latency.record(receiveToRendered: Int64(presented) - Int64(receivedAt))
         latency.record(captureToRendered: Int64(presented) - Int64(header.timestampNanoseconds))
+        guard presentedAt - lastPerformanceUpdate >= 1 else { return }
+        lastPerformanceUpdate = presentedAt
+        let snapshot = FramePerformanceSnapshot(
+            updatedAt: presentedAt,
+            framesPerSecond: renderRate.current(at: presentedAt),
+            captureToRenderP50: latency.captureToRender.median,
+            captureToRenderP95: latency.captureToRender.p95,
+            receiveToRenderP50: latency.receiveToRender.median)
+        DispatchQueue.main.async { self.performance = snapshot }
     }
 
     /// The connection's summary, logged where the frame timeline already lives.

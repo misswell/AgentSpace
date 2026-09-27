@@ -12,6 +12,9 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private let queue: DispatchQueue
     private var startingCapture = false
     private var frameClient: FrameClient?
+    private var activityTracker = FrameActivityTracker()
+    private var captureRateTimer: Timer?
+    private var liveCaptureFPS: Int?
     private var resizeWork: DispatchWorkItem?
     private var resizingFromAgent = false
     private var hasShown = false
@@ -71,7 +74,7 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
             releaseHuman: { [weak self] in self?.releaseHuman() },
             overlay: overlay,
             sendKey: { [weak self] action in self?.sendKey(action) }))
-        travel = PointerTravelCoalescer(minimumInterval: 1.0 / DisplayRefresh.defaultPointerRate) { [weak self] point in
+        travel = PointerTravelCoalescer(minimumInterval: 1.0 / HostDisplayRefresh.pointerRate(for: window)) { [weak self] point in
             guard let self else { return }
             self.deliverTravel(point)
             // Released at once: the newest position replaces whatever is pending,
@@ -159,7 +162,10 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
 
     func stop() {
         resizeWork?.cancel(); resizeWork = nil
+        captureRateTimer?.invalidate(); captureRateTimer = nil
+        frameClient?.onFrameArrived = nil
         frameClient?.stop(); frameClient = nil; state.frameClient = nil
+        liveCaptureFPS = nil
         startingCapture = false
         // A position collected for a window that is no longer being watched must
         // not be posted to the agent afterwards, and a person who left must not
@@ -176,7 +182,10 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     /// the idle watchdog the moment this proxy stops pulling.
     func suspend(for error: AgentSpaceError) {
         startingCapture = false
+        captureRateTimer?.invalidate(); captureRateTimer = nil
+        frameClient?.onFrameArrived = nil
         frameClient?.stop(); frameClient = nil; state.frameClient = nil
+        liveCaptureFPS = nil
         travel?.reset()
         overlay.detach()
         channelClient?.releaseHuman()
@@ -202,9 +211,7 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     /// A background proxy does not need to move at the key window's rate, and a
     /// minimised one needs to move not at all.
     private func setCaptureRateForFocus() {
-        guard UserDefaults.standard.integer(forKey: "fusionFPSPolicy") == 0 else { return }
-        let target = window?.isKeyWindow == true ? Self.keyWindowFPS : Self.backgroundFPS
-        frameClient?.setFPS(target)
+        updateCaptureRate()
     }
 
     /// The key window's rate. Was 15 while the cursor lived inside the frames;
@@ -222,6 +229,10 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     func windowDidResize(_ notification: Notification) {
         guard hasShown, !resizingFromAgent, window?.isMiniaturized != true else { return }
         requestResize()
+    }
+
+    func windowDidChangeScreen(_ notification: Notification) {
+        travel?.setMinimumInterval(1.0 / HostDisplayRefresh.pointerRate(for: window))
     }
 
     func windowDidEndLiveResize(_ notification: Notification) { requestResize(immediate: true) }
@@ -318,7 +329,18 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
             : configuredFPS
         let scale = window?.backingScaleFactor ?? 1
         let client = FrameClient(space: space, target: .window(remoteWindow.identity), maxFPS: fps, targetWidth: Int((window?.contentView?.bounds.width ?? 0) * scale), targetHeight: Int((window?.contentView?.bounds.height ?? 0) * scale))
+        activityTracker = FrameActivityTracker()
+        liveCaptureFPS = fps
+        client.onFrameArrived = { [weak self, weak client] in
+            guard let self, self.frameClient === client else { return }
+            self.activityTracker.noteChange(at: Date())
+            self.updateCaptureRate()
+        }
         frameClient = client; state.frameClient = client; startingCapture = false; client.start()
+        captureRateTimer?.invalidate()
+        captureRateTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.updateCaptureRate() }
+        }
         // Once the cursor channel is up, the picture must stop painting a cursor
         // of its own: two cursors drawn from two sources is the trailing ghost
         // this path exists to remove, and zero is worse than both.
@@ -335,6 +357,12 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     /// Travel goes through the coalescer first — it is the only input that is
     /// *state* — while a deliberate gesture goes straight out, in order.
     private func send(_ gesture: RemotePointerGesture) {
+        if case .scroll = gesture {
+            activityTracker.noteScroll(at: Date())
+        } else {
+            activityTracker.noteChange(at: Date())
+        }
+        updateCaptureRate()
         guard let client = channelClient, client.state.isReady else {
             // No fast channel: a worker from before it, or one that is not up
             // yet. The RPC path is still correct, so this is a fallback.
@@ -397,9 +425,20 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     /// A gesture is in progress: the window has to move with the hand, which means
     /// the capture rate follows the gesture rather than the preference.
     private func setGestureRate(_ active: Bool) {
-        guard UserDefaults.standard.integer(forKey: "fusionFPSPolicy") == 0 else { return }
-        frameClient?.setFPS(active ? Self.gestureFPS : (window?.isKeyWindow == true ? Self.keyWindowFPS : Self.backgroundFPS))
+        activityTracker.notePress(active, at: Date())
+        updateCaptureRate()
         channelClient?.acquireHuman()
+    }
+
+    private func updateCaptureRate() {
+        guard UserDefaults.standard.integer(forKey: "fusionFPSPolicy") == 0,
+              let frameClient else { return }
+        let target = window?.isKeyWindow == true
+            ? InputRatePolicy(ceiling: Self.keyWindowFPS).frames(for: activityTracker.activity(at: Date()))
+            : Self.backgroundFPS
+        guard liveCaptureFPS != target else { return }
+        liveCaptureFPS = target
+        frameClient.setFPS(target)
     }
 
     /// The pre-0.1.38 path: one `window.input` RPC per action, through the JSON

@@ -145,6 +145,10 @@ final class DesktopViewerInput: ObservableObject {
     var onCursorChannelChange: ((Bool) -> Void)?
 
     var remoteCursor: InputClient.CursorPresentation? { client?.remoteCursor }
+    var appliedInputP50ms: Double? { client?.appliedInputP50ms }
+    var appliedInputP95ms: Double? { client?.appliedInputP95ms }
+    var appliedMoveP50ms: Double? { client?.appliedMoveP50ms }
+    var appliedMoveP95ms: Double? { client?.appliedMoveP95ms }
 
     /// Follow the display's pointer rate, which the viewer adjusts with the
     /// capture rate: a 60 FPS drag wants 60 Hz travel, and a still desktop does

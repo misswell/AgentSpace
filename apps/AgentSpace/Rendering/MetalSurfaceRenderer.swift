@@ -1,5 +1,4 @@
 import AppKit
-import CoreImage
 import Metal
 import CoreVideo
 import QuartzCore
@@ -11,22 +10,24 @@ final class MetalSurfaceRenderer {
     let layer: CAMetalLayer
     private let device: MTLDevice
     private let queue: MTLCommandQueue
-    private let context: CIContext
+    private let pipeline: MTLRenderPipelineState
     private var texture: MTLTexture?
     private var textureCache: CVMetalTextureCache?
     private var width = 0, height = 0
-    private let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+    private static let pipelineLock = NSLock()
+    private static var pipelines: [UInt64: MTLRenderPipelineState] = [:]
     /// Presents in flight. Two, because that is one being drawn and one waiting;
     /// a third means the GPU is slower than the stream and the extra work is
     /// latency that will never be paid back.
     private let budget = InFlightBudget(capacity: 2)
 
     init?() {
-        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return nil }
-        self.device = device; self.queue = queue; self.context = CIContext(mtlDevice: device)
+        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue(),
+              let pipeline = Self.pipeline(for: device) else { return nil }
+        self.device = device; self.queue = queue; self.pipeline = pipeline
         CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &textureCache)
         layer = CAMetalLayer(); layer.device = device; layer.pixelFormat = .bgra8Unorm
-        layer.framebufferOnly = false; layer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
+        layer.framebufferOnly = true; layer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2
         // Two drawables, and presents not tied to a transaction.
         //
         // The count is a latency decision rather than a tuning knob: a layer with
@@ -110,27 +111,28 @@ final class MetalSurfaceRenderer {
     private func present(_ texture: MTLTexture, presented: @escaping (TimeInterval) -> Void = { _ in }) -> Bool {
         guard budget.begin() else { return false }
         let interval = FrameSignpost.begin("MetalPresent")
-        guard let drawable = layer.nextDrawable(), let command = queue.makeCommandBuffer(), var image = CIImage(mtlTexture: texture, options: [.colorSpace: colorSpace]) else {
+        guard let drawable = layer.nextDrawable(), let command = queue.makeCommandBuffer() else {
             budget.end(); FrameSignpost.end(interval); return false
         }
-        let destination = CGRect(origin: .zero, size: layer.drawableSize)
-        // `CIImage(mtlTexture:)` reads row 0 of a texture as its *bottom* row, while
-        // every writer here — the capture, the shared region, the CPU fallback —
-        // puts row 0 at the *top*, because that is what a screen is. Unflipped, the
-        // desktop draws with its menu bar along the bottom of the window, and the
-        // two render paths disagree with each other, since
-        // `CALayer.contents = CGImage` needs no such flip.
-        //
-        // Written as a matrix rather than composed with `translatedBy`, because
-        // `translatedBy` prepends: `scale(1,-1).translatedBy(0,h)` is
-        // `y -> -(y+h)`, which moves the picture below the drawable and shows
-        // nothing at all. `d: -1, ty: h` is the flip that was meant — `y -> h-y`.
-        image = image.transformed(by: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: CGFloat(height)))
+        let destination = layer.drawableSize
         let scale = min(destination.width / CGFloat(width), destination.height / CGFloat(height))
-        image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        let dx = (destination.width - image.extent.width) / 2, dy = (destination.height - image.extent.height) / 2
-        image = image.transformed(by: CGAffineTransform(translationX: dx, y: dy))
-        context.render(image, to: drawable.texture, commandBuffer: command, bounds: destination, colorSpace: colorSpace)
+        let fittedWidth = CGFloat(width) * scale, fittedHeight = CGFloat(height) * scale
+        var fitted = SIMD4<Float>(Float((destination.width - fittedWidth) / 2),
+                                  Float((destination.height - fittedHeight) / 2),
+                                  Float(fittedWidth), Float(fittedHeight))
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = drawable.texture
+        pass.colorAttachments[0].loadAction = .clear
+        pass.colorAttachments[0].storeAction = .store
+        pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
+        guard let encoder = command.makeRenderCommandEncoder(descriptor: pass) else {
+            budget.end(); FrameSignpost.end(interval); return false
+        }
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentTexture(texture, index: 0)
+        encoder.setFragmentBytes(&fitted, length: MemoryLayout<SIMD4<Float>>.size, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
         command.present(drawable)
         command.addCompletedHandler { [budget] _ in
             budget.end()
@@ -139,5 +141,21 @@ final class MetalSurfaceRenderer {
         }
         command.commit()
         return true
+    }
+
+    private static func pipeline(for device: MTLDevice) -> MTLRenderPipelineState? {
+        pipelineLock.lock()
+        defer { pipelineLock.unlock() }
+        if let existing = pipelines[device.registryID] { return existing }
+        guard let library = try? device.makeLibrary(source: MetalSurfaceShader.source, options: nil),
+              let vertex = library.makeFunction(name: "surfaceVertex"),
+              let fragment = library.makeFunction(name: "surfaceFragment") else { return nil }
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertex
+        descriptor.fragmentFunction = fragment
+        descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+        guard let pipeline = try? device.makeRenderPipelineState(descriptor: descriptor) else { return nil }
+        pipelines[device.registryID] = pipeline
+        return pipeline
     }
 }

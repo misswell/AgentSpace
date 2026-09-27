@@ -14,6 +14,7 @@ final class InputRatePolicyTests: XCTestCase {
         let idle = policy.frames(for: .idle)
         XCTAssertGreaterThan(idle, 0, "a still stream still has to notice the next change")
         XCTAssertLessThan(idle, 30)
+        XCTAssertEqual(idle, 5)
     }
 
     func testAnActiveDesktopRunsAtExactlyTheConfiguredRate() {
@@ -88,6 +89,16 @@ final class InputRatePolicyTests: XCTestCase {
         var tracker = FrameActivityTracker(now: start)
         tracker.noteSustainedDamage(true)
         XCTAssertEqual(tracker.activity(at: start.addingTimeInterval(FrameActivityTracker.idleAfter * 10)), .video)
+    }
+
+    func testScrollTemporarilyRaisesTheRateThenReturnsToActiveAndIdle() {
+        let start = Date()
+        var tracker = FrameActivityTracker(now: start)
+        tracker.noteScroll(at: start)
+        XCTAssertEqual(tracker.activity(at: start.addingTimeInterval(0.2)), .scrolling)
+        XCTAssertEqual(InputRatePolicy(ceiling: 30).frames(for: .scrolling), 60)
+        XCTAssertEqual(tracker.activity(at: start.addingTimeInterval(0.5)), .active)
+        XCTAssertEqual(tracker.activity(at: start.addingTimeInterval(2)), .idle)
     }
 
     // MARK: - Display refresh

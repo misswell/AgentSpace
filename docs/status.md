@@ -5,6 +5,24 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/validation.md`](validation.md).
 
 Last updated: 2026-09-27 on `master`. Current public release: **0.1.46**.
+0.1.48 performance candidate (§339): the App now delays stale cursor
+correction, follows the host display's pointer rate, switches Desktop and
+Fusion capture among idle 5, active 30 and gesture 60 FPS, renders BGRA with
+a direct Metal pipeline, and offers an optional measured latency HUD. Swift
+719/719, MCP 24/24 plus smoke, updater 19/19, and an offscreen Metal pixel
+probe pass. The first AgentUse AX reads returned only an `AXApplication` shell
+for both 0.1.48 and the previously green 0.1.47 bundle, although a screenshot
+showed the window; a later retry on the same candidate passed **13/13**. The
+owner-console gate would close the owner's running App, so it was not used. No latency
+or CPU target is claimed met by this candidate (§339 rows 982–986).
+0.1.47 was pushed as `21daef5` and tagged, but its release workflow
+`36319335076` was cancelled after more than an hour blocked inside
+`notarytool submit --wait`. Apple reports the App ZIP submission
+`a210eb3f-69d6-403d-b6b9-91b061e8eceb` Accepted; no DMG was submitted
+and no 0.1.47 release was published. Do not reuse that tag. The 0.1.48
+candidate contains the top-bar change as well as the performance work.
+The next source release uses submit-then-poll instead of `notarytool --wait`
+so the accepted submission id is available before stapling (§339 row 987).
 0.1.47 candidate (§338): Desktop Viewer removes its two-row footer and puts
 reconnect, preview, zoom, quality, frame rate, mouse capture, snapshot, details
 and close in one compact top strip. Stream, desktop, status, refusal and saved

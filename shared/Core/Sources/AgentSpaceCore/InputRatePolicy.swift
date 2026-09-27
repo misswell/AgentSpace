@@ -57,10 +57,12 @@ public enum DisplayRefresh {
 /// - `active` — the desktop is changing, or the pointer is moving inside it.
 /// - `interactive` — a button is held. A drag or a resize is the case where the
 ///   picture and the hand are the same motion.
+/// - `scrolling` — keep successive scroll steps at the interactive rate.
 public enum FrameActivity: Equatable, Sendable {
     case idle
     case active
     case interactive
+    case scrolling
     /// A video is playing: sustained, high-damage content. It wants the top
     /// rate that the budget allows.
     case video
@@ -69,10 +71,9 @@ public enum FrameActivity: Equatable, Sendable {
 /// The frame rate policy, as a value: what to ask the capture for, and what
 /// pointer rate makes sense beside it.
 ///
-/// The ceiling is the *viewer's* configured rate (`previewFPS`), which is why
-/// every rate here is a fraction of it rather than an absolute: a person who set
-/// 10 FPS on purpose has said what they want, and a policy that overrode it
-/// during a drag would be spending their bandwidth against their instruction.
+/// The ceiling is the viewer's configured rate (`previewFPS`) for active
+/// content. A held button or a scroll temporarily requests 60 FPS so the
+/// picture follows the gesture even when the stored preference is lower.
 public struct InputRatePolicy: Equatable, Sendable {
     /// What the person configured, in frames per second.
     public var ceiling: Int
@@ -86,27 +87,21 @@ public struct InputRatePolicy: Equatable, Sendable {
         self.pointerRate = min(120, max(30, pointerRate))
     }
 
-    /// How much of the ceiling a situation is worth.
-    ///
-    /// A still desktop gets a third of the ceiling rather than zero: the stream
-    /// has to notice the next change immediately, and the cost of an idle
-    /// frame on a local socket is one dirty-region comparison. The rate is
-    /// never zero for exactly that reason, and never above the ceiling because
-    /// that is what the person asked for.
+    /// A still desktop keeps a 5 FPS probe so a new change can wake the stream.
     public func frames(for activity: FrameActivity) -> Int {
         switch activity {
         case .idle:
-            return max(2, min(ceiling, Int(Double(ceiling) / 2.5)))
+            return min(ceiling, 5)
         case .active:
             return ceiling
-        case .interactive, .video:
+        case .interactive, .scrolling, .video:
             // The one case that deliberately exceeds the stored preference, and
             // only because a drag looks broken below the panel's rate: the
             // desktop a person is dragging has to move with their hand. 60 is
             // the top rate the capture path is asked for at all — the frame
             // budget's own ceiling — and a viewer set to 30 gets 60 while its
             // button is down.
-            return min(60, max(ceiling, 60))
+            return 60
         }
     }
 
@@ -117,7 +112,7 @@ public struct InputRatePolicy: Equatable, Sendable {
     public func pointerInterval(for activity: FrameActivity) -> TimeInterval {
         switch activity {
         case .idle: return 1.0 / min(pointerRate, 60)
-        case .active, .interactive, .video: return 1.0 / pointerRate
+        case .active, .interactive, .scrolling, .video: return 1.0 / pointerRate
         }
     }
 }
@@ -135,6 +130,7 @@ public struct FrameActivityTracker {
     private var lastActivity: Date
     private var pressHeld = false
     private var sustainedDamage = false
+    private var lastScroll: Date = .distantPast
 
     public init(now: Date = Date()) {
         lastActivity = now
@@ -147,11 +143,17 @@ public struct FrameActivityTracker {
         if held { lastActivity = now }
     }
 
+    public mutating func noteScroll(at now: Date) {
+        lastScroll = now
+        lastActivity = now
+    }
+
     /// High-damage content over several frames: a video, an animation.
     public mutating func noteSustainedDamage(_ value: Bool) { sustainedDamage = value }
 
     public func activity(at now: Date) -> FrameActivity {
         if pressHeld { return .interactive }
+        if now.timeIntervalSince(lastScroll) < 0.35 { return .scrolling }
         if sustainedDamage { return .video }
         return now.timeIntervalSince(lastActivity) < Self.idleAfter ? .active : .idle
     }
