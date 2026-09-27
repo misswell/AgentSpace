@@ -4,7 +4,16 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-24 on `master`. Current public release: **0.1.46**.
+Last updated: 2026-09-27 on `master`. Current public release: **0.1.46**.
+0.1.47 candidate (§338): Desktop Viewer removes its two-row footer and puts
+reconnect, preview, zoom, quality, frame rate, mouse capture, snapshot, details
+and close in one compact top strip. Stream, desktop, status, refusal and saved
+snapshot details live in the information popover. The viewport now receives
+the reclaimed height, and the existing aspect-ratio window sizing uses that
+measured viewport. The App-only candidate compiled and passed Swift 715/715,
+MCP 24/24 plus smoke, updater 19/19, and 13/13 GUI checks in AgentUse's own
+session using a temporary bundle; actual Desktop Viewer interaction remains
+unmeasured (§338 rows 979–981).
 `v0.1.46` points to `c1929e5` (CI run `35987554350`); its notarized DMG is
 **6,358,314** bytes,
 `sha256:e42eb983d0063a1c5e9570427aa303a1942b6a228fd785953a892f2000302ef5`;

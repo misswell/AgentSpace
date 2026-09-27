@@ -156,6 +156,9 @@
 "Live preview (1 FPS)" = "Live preview (1 FPS)";
 "updated %@" = "updated %@";
 "Reveal File" = "Reveal File";
+"Information" = "Information";
+"Pause Preview" = "Pause Preview";
+"Resume Preview" = "Resume Preview";
 "click outside the desktop: ignored" = "click outside the desktop: ignored";
 "click → %1$ld, %2$ld" = "click → %1$ld, %2$ld";
 "right click → %1$ld, %2$ld" = "right click → %1$ld, %2$ld";

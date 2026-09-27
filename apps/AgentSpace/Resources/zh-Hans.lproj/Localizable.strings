@@ -156,6 +156,9 @@
 "Live preview (1 FPS)" = "实时预览（1 FPS）";
 "updated %@" = "更新于 %@";
 "Reveal File" = "显示文件";
+"Information" = "信息";
+"Pause Preview" = "暂停预览";
+"Resume Preview" = "继续预览";
 "click outside the desktop: ignored" = "点击落在桌面之外：已忽略";
 "click → %1$ld, %2$ld" = "点击 → %1$ld, %2$ld";
 "right click → %1$ld, %2$ld" = "右键点击 → %1$ld, %2$ld";

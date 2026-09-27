@@ -107,6 +107,7 @@ struct DesktopViewerView: View {
     /// one.
     @AppStorage(MouseCaptureMode.storageKey) private var captureMode = MouseCaptureMode.default.rawValue
     @State private var zoom = ViewerZoom.fit
+    @State private var showingDetails = false
 
     /// The mode in force, with anything unreadable falling back to the default
     /// rather than to a guess.
@@ -141,13 +142,10 @@ struct DesktopViewerView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider()
             content
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: DesktopViewportSizeKey.self, value: geometry.size)
                 })
-            Divider()
-            footer
         }
         .frame(minWidth: 720, idealWidth: 1120, minHeight: 520, idealHeight: 760)
         .background(WindowCapture { hostWindow = $0 })
@@ -277,31 +275,79 @@ struct DesktopViewerView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Compact controls
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             if let snapshot {
                 StatusDot(state: snapshot.effectiveState)
                 Text(String(format: NSLocalizedString("%@ Desktop", comment: ""), snapshot.space.displayName))
-                    .font(.headline)
-                Text(snapshot.effectiveState.displayName)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                if snapshot.space.uid != 0 {
-                    Text(String(format: NSLocalizedString("uid %u", comment: ""), snapshot.space.uid))
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.tertiary)
-                }
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .frame(maxWidth: 150, alignment: .leading)
             } else {
-                Text("No agent selected").font(.headline)
+                Text("No agent selected").font(.subheadline)
             }
-            Spacer()
-            if let result {
-                Text(String(format: NSLocalizedString("%1$ld×%2$ld px · scale %3$ld", comment: ""), result.width, result.height, result.scale))
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            Button { restartPreviewIfNeeded() } label: {
+                Image(systemName: "arrow.clockwise")
             }
+            .help(Text("Reconnect"))
+            .accessibilityLabel(Text("Reconnect"))
+            .disabled(snapshot == nil)
+
+            Button { frameClient == nil ? startPreview() : stopPreview() } label: {
+                Image(systemName: frameClient == nil ? "play.fill" : "pause.fill")
+            }
+            .help(previewActionLabel)
+            .accessibilityLabel(Text(previewActionLabel))
+            .accessibilityIdentifier("desktopViewerPreviewToggle")
+            .disabled(snapshot == nil)
+
+            Picker("Zoom", selection: $zoom) {
+                ForEach(ViewerZoom.allCases) { value in Text(value.title).tag(value) }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .accessibilityIdentifier("desktopViewerZoomPicker")
+
+            DisplayQualityPicker(identifier: "desktopViewerQualityPicker")
+                .labelsHidden()
+
+            Picker("Frame rate", selection: $previewFPS) {
+                ForEach(Self.frameRateOptions, id: \.self) { fps in
+                    Text("\(fps) FPS").tag(fps)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .accessibilityIdentifier("desktopViewerFPSPicker")
+
+            Picker("Mouse Capture", selection: $captureMode) {
+                Text("Auto").tag(MouseCaptureMode.auto.rawValue)
+                Text("Click to Capture").tag(MouseCaptureMode.clickToCapture.rawValue)
+                Text("Off").tag(MouseCaptureMode.off.rawValue)
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .accessibilityIdentifier("desktopViewerCaptureModePicker")
+            .help(Text("When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back."))
+
+            Button { capture() } label: { Image(systemName: "camera") }
+                .help(Text("Save Snapshot"))
+                .accessibilityLabel(Text("Save Snapshot"))
+                .accessibilityIdentifier("desktopViewerSnapshot")
+                .disabled(snapshot == nil)
+
+            Button { showingDetails.toggle() } label: {
+                Image(systemName: input.refusal == nil ? "info.circle" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(input.refusal == nil ? Color.primary : Color.orange)
+            }
+            .popover(isPresented: $showingDetails, arrowEdge: .bottom) { details }
+            .help(input.refusal?.message ?? snapshot?.effectiveState.displayName ?? "")
+            .accessibilityLabel(Text("Information"))
+            .accessibilityIdentifier("desktopViewerDetails")
+
             Button {
                 model.showingDesktopViewer = false
                 if let hostWindow {
@@ -310,13 +356,18 @@ struct DesktopViewerView: View {
                     dismiss()
                 }
             } label: {
-                Label(NSLocalizedString("Close", comment: ""), systemImage: "xmark")
+                Image(systemName: "xmark")
             }
+            .help(Text("Close"))
+            .accessibilityLabel(Text("Close"))
             .keyboardShortcut(.cancelAction)
             .accessibilityIdentifier("closeDesktopViewer")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(.bar)
     }
 
     // MARK: - Content
@@ -399,111 +450,48 @@ struct DesktopViewerView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    // MARK: - Footer
+    // MARK: - Details
 
-    private var footer: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 10) {
-                Button {
-                    restartPreviewIfNeeded()
-                } label: {
-                    Label("Reconnect", systemImage: "arrow.clockwise")
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let snapshot {
+                HStack(spacing: 8) {
+                    StatusDot(state: snapshot.effectiveState)
+                    Text(snapshot.space.displayName).font(.headline)
+                    Text(snapshot.effectiveState.displayName).foregroundStyle(.secondary)
                 }
-                .disabled(snapshot == nil)
-
-                Toggle(livePreviewLabel, isOn: Binding(
-                    get: { frameClient != nil },
-                    set: { $0 ? startPreview() : stopPreview() }))
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-
-                if let refusal = input.refusal {
-                    // A gesture the worker refused is said where the desktop stays
-                    // visible: the refusal is about one click, and replacing a live
-                    // desktop with a banner would make it about nothing.
-                    Text(refusal.message)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
-                        .help(refusal.message)
-                } else if let pendingAction {
-                    Text(pendingAction)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                if let lastCapture {
-                    Text(String(format: NSLocalizedString("updated %@", comment: ""), lastCapture.formatted(date: .omitted, time: .standard)))
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                }
-
-                Button {
-                    capture()
-                } label: {
-                    Label("Save Snapshot", systemImage: "camera")
-                }
-                .disabled(snapshot == nil)
-                if let result {
-                    Button { NSWorkspace.shared.selectFile(result.path, inFileViewerRootedAtPath: "") } label: { Label("Reveal File", systemImage: "folder") }
+                if snapshot.space.uid != 0 {
+                    Text(String(format: NSLocalizedString("uid %u", comment: ""), snapshot.space.uid))
+                        .font(.caption.monospaced()).foregroundStyle(.secondary)
                 }
             }
-
-            HStack(spacing: 12) {
-                Picker("Zoom", selection: $zoom) {
-                    ForEach(ViewerZoom.allCases) { value in
-                        Text(value.title).tag(value)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("desktopViewerZoomPicker")
-
-                DisplayQualityPicker(identifier: "desktopViewerQualityPicker")
-
-                Picker("Frame rate", selection: $previewFPS) {
-                    ForEach(Self.frameRateOptions, id: \.self) { fps in
-                        Text("\(fps) FPS").tag(fps)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("desktopViewerFPSPicker")
-
-                // Mouse capture is a preference rather than a fixed behaviour:
-                // taking the pointer on entry is what makes the desktop feel
-                // local, and it is also the thing a person may not want if they
-                // are watching the agent work.
-                Picker("Mouse Capture", selection: $captureMode) {
-                    Text("Auto").tag(MouseCaptureMode.auto.rawValue)
-                    Text("Click to Capture").tag(MouseCaptureMode.clickToCapture.rawValue)
-                    Text("Off").tag(MouseCaptureMode.off.rawValue)
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("desktopViewerCaptureModePicker")
-                .help(Text("When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back."))
-
-                Spacer(minLength: 0)
-
-                // What the stream actually is, in the two sizes that answer every
-                // "why is this not sharp?" question: the buffer the worker is
-                // sending, and the desktop it was taken from. A viewer set to
-                // 「原生」 on a 2x panel should read two equal numbers here; two
-                // different ones mean the source is smaller than the window, or a
-                // ceiling is in play.
-                if let size = liveSurfaceSize, let display = snapshot?.retinaDisplay?.geometry {
-                    Text(String(format: NSLocalizedString("Stream %1$ld×%2$ld px · desktop %3$ld×%4$ld pt · %5$ld×%6$ld px (%7$ld×)", comment: ""),
-                                Int(size.width), Int(size.height), display.width, display.height,
-                                display.pixelWidth, display.pixelHeight, display.scale))
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("desktopViewerStreamSize")
+            if let refusal = input.refusal {
+                Text(refusal.message).foregroundStyle(.red)
+            } else if let pendingAction {
+                Text(pendingAction).foregroundStyle(.secondary)
+            }
+            if let size = liveSurfaceSize, let display = snapshot?.retinaDisplay?.geometry {
+                Text(String(format: NSLocalizedString("Stream %1$ld×%2$ld px · desktop %3$ld×%4$ld pt · %5$ld×%6$ld px (%7$ld×)", comment: ""),
+                            Int(size.width), Int(size.height), display.width, display.height,
+                            display.pixelWidth, display.pixelHeight, display.scale))
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("desktopViewerStreamSize")
+            }
+            if let lastCapture {
+                Text(String(format: NSLocalizedString("updated %@", comment: ""), lastCapture.formatted(date: .omitted, time: .standard)))
+                    .font(.caption.monospaced()).foregroundStyle(.secondary)
+            }
+            if let result {
+                Text(String(format: NSLocalizedString("%1$ld×%2$ld px · scale %3$ld", comment: ""), result.width, result.height, result.scale))
+                    .font(.caption.monospaced()).foregroundStyle(.secondary)
+                Button { NSWorkspace.shared.selectFile(result.path, inFileViewerRootedAtPath: "") } label: {
+                    Label("Reveal File", systemImage: "folder")
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .frame(width: 360, alignment: .leading)
+        .padding(16)
     }
 
     // MARK: - Capture
@@ -580,8 +568,9 @@ struct DesktopViewerView: View {
              + " \(display.geometry.pixelWidth)x\(display.geometry.pixelHeight)"
     }
 
-    private var livePreviewLabel: String {
-        String(format: NSLocalizedString("Live preview (%ld FPS)", comment: ""), previewFPS)
+    private var previewActionLabel: String {
+        frameClient == nil ? NSLocalizedString("Resume Preview", comment: "")
+                           : NSLocalizedString("Pause Preview", comment: "")
     }
 
     private func capture() {
