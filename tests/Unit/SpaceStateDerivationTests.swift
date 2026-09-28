@@ -100,4 +100,45 @@ final class SpaceStateDerivationTests: XCTestCase {
         XCTAssertFalse(SystemSessions.hasLiveProcesses(uid: 40000),
                        "a uid that owns no processes must report none")
     }
+
+    // MARK: - §346: the record advances when reality outruns it
+
+    /// Measured 2026-09-28: a first worker start outlived the attach's
+    /// readiness probe, the record stayed `.offline`, and the sidebar read
+    /// Sleeping over an answering worker. Reconciliation is what moves the
+    /// record the moment any refresh proves it wrong.
+    func testAnAnsweringWorkerAdvancesAnOfflineRecord() {
+        XCTAssertEqual(
+            SpaceState.reconciled(stored: .offline, workerOnline: true,
+                                  accessibility: false, screenRecording: false),
+            .needsPermission)
+        XCTAssertEqual(
+            SpaceState.reconciled(stored: .offline, workerOnline: true,
+                                  accessibility: true, screenRecording: true),
+            .ready)
+        // A grant given after the record said Needs Permission advances it
+        // too — the same refresh that proves the grants exist proves the
+        // Sleeping/Needs-Permission label wrong.
+        XCTAssertEqual(
+            SpaceState.reconciled(stored: .needsPermission, workerOnline: true,
+                                  accessibility: true, screenRecording: true),
+            .ready)
+    }
+
+    func testReconciliationNeverMovesStatesItDoesNotOwn() {
+        for stored in [SpaceState.created, .needsLogin, .ready, .running, .console, .error] {
+            XCTAssertNil(
+                SpaceState.reconciled(stored: stored, workerOnline: true,
+                                      accessibility: true, screenRecording: true),
+                "\(stored) is another writer's verdict; reconciliation only advances the two waiting states")
+        }
+        // A worker that is not answering proves nothing new.
+        XCTAssertNil(
+            SpaceState.reconciled(stored: .offline, workerOnline: false,
+                                  accessibility: false, screenRecording: false))
+        // An accurate record costs no write.
+        XCTAssertNil(
+            SpaceState.reconciled(stored: .needsPermission, workerOnline: true,
+                                  accessibility: false, screenRecording: false))
+    }
 }

@@ -259,13 +259,79 @@ struct ProvisioningView: View {
                 .padding(14)
             }
 
-            if provisioning.finished && provisioning.offersLoginInstructions {
+            if provisioning.finished, provisioning.nextStep == .finishSetup {
                 Divider()
                 LoginInstructions()
+                    .padding(14)
+            } else if provisioning.finished, provisioning.nextStep == .authorize {
+                Divider()
+                AttachSuccessInstructions(provisioning: provisioning, dismiss: dismiss)
                     .padding(14)
             }
         }
         .frame(width: 560, height: 460)
+    }
+}
+
+/// The bridge a successful connect owes the person: the account is attached
+/// and its worker is running, and exactly one step remains — the privacy
+/// grants, which macOS will only accept from the account's own session. The
+/// old ending dropped the user back into a wizard with nothing left to do,
+/// where the only button left was one that re-ran an attach that had already
+/// succeeded.
+struct AttachSuccessInstructions: View {
+    @EnvironmentObject private var model: AppModel
+    let provisioning: AppModel.Provisioning
+    let dismiss: () -> Void
+
+    private var spaceName: String? {
+        guard let id = provisioning.attachedSpaceID else { return nil }
+        return model.snapshots.first { $0.id == id }?.space.name
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(NSLocalizedString("Connected", comment: ""), systemImage: "checkmark.circle.fill")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.green)
+            if let spaceName {
+                Text(String(format: NSLocalizedString("The worker is installed and running in %@'s own session.", comment: ""), spaceName))
+                    .font(.callout)
+            } else {
+                Text(NSLocalizedString("The worker is installed and running in the account's own session.", comment: ""))
+                    .font(.callout)
+            }
+            Text(NSLocalizedString("One step remains, and only you can make it: macOS requires the worker's privacy grants to be approved in the account's own session. AgentSpace opens the right System Settings pane there; you approve, then switch back.", comment: ""))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                Button {
+                    // §269: a window presents one sheet at a time. The wizard
+                    // goes down first; the guide presents after the sheet is
+                    // gone — a request raised in the same breath would be
+                    // swallowed by the sheet that is still coming down.
+                    dismiss()
+                    model.showingNewSpace = false
+                    if let id = provisioning.attachedSpaceID {
+                        model.selection = id
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            model.permissionGuideRequest = id
+                        }
+                    }
+                } label: {
+                    Text(NSLocalizedString("Start authorization…", comment: ""))
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("attachSuccessAuthorize")
+                Button(NSLocalizedString("Later", comment: "")) {
+                    dismiss()
+                    model.showingNewSpace = false
+                }
+                .accessibilityIdentifier("attachSuccessLater")
+            }
+            .padding(.top, 2)
+        }
     }
 }
 

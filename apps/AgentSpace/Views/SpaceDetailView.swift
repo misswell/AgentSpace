@@ -93,7 +93,6 @@ struct SpaceDetailView: View {
     @State private var apps: [AppEntry] = []
     @State private var appsError: AppModel.PresentedError?
     @State private var showingApps = false
-    @State private var showingPermissionGuide = false
     @State private var showingFusionPicker = false
     @State private var showingFusionWindows = false
 
@@ -108,6 +107,10 @@ struct SpaceDetailView: View {
                                 code: problem.code.rawValue,
                                 message: problem.message,
                                 fix: problem.code.remediation)
+                        }
+                        if snapshot.workerOnline,
+                           !snapshot.accessibility || !snapshot.screenRecording {
+                            setupBanner(snapshot)
                         }
                         overviewCard(snapshot)
                         permissionsCard(snapshot)
@@ -192,8 +195,16 @@ struct SpaceDetailView: View {
                 .disabled(model.isLoading)
             }
         }
-        .sheet(isPresented: $showingPermissionGuide) {
-            if let snapshot = model.snapshots.first(where: { $0.id == model.selection }) {
+        // The guide request lives on the model, not in local state: the New
+        // Agent wizard's completion step raises it after the wizard sheet is
+        // down (§269 — one sheet at a time), from a view that cannot reach a
+        // @State here.
+        .sheet(isPresented: Binding(
+            get: { model.permissionGuideRequest != nil },
+            set: { if !$0 { model.permissionGuideRequest = nil }
+            })) {
+            if let requestID = model.permissionGuideRequest,
+               let snapshot = model.snapshots.first(where: { $0.id == requestID }) {
                 PermissionGuideView(spaceID: snapshot.space.id)
                     .environmentObject(model)
             }
@@ -311,7 +322,7 @@ struct SpaceDetailView: View {
 
             HStack(spacing: 8) {
                 Button {
-                    showingPermissionGuide = true
+                    model.permissionGuideRequest = snapshot.space.id
                 } label: {
                     Label(NSLocalizedString("Open authorization guide", comment: ""), systemImage: "checklist")
                 }
@@ -326,6 +337,45 @@ struct SpaceDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// The one thing a freshly connected account still needs, impossible to
+    /// scroll past: the worker is answering and the desktop cannot be operated
+    /// until its privacy grants exist. The grants belong to the account's own
+    /// session, so this banner's button opens the guide that walks it — it
+    /// does not print the instructions a second time.
+    private func setupBanner(_ snapshot: SpaceSnapshot) -> some View {
+        let missing = (snapshot.accessibility ? 0 : 1) + (snapshot.screenRecording ? 0 : 1)
+        return HStack(spacing: 14) {
+            Image(systemName: "checklist")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(String(format: NSLocalizedString("%ld approval(s) away from a usable desktop", comment: ""), missing))
+                    .font(.callout.weight(.semibold))
+                Text(String(format: NSLocalizedString("The grants belong to %@'s own session. AgentSpace opens the right System Settings pane there; you approve, then switch back.", comment: ""), snapshot.space.username))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Button {
+                model.permissionGuideRequest = snapshot.space.id
+            } label: {
+                Text(NSLocalizedString("Start authorization…", comment: ""))
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("setupBannerAuthorize")
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.30), lineWidth: 1)
+        )
     }
 
     private func permissionButton(

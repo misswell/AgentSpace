@@ -402,14 +402,21 @@ public struct AccountAttachService {
 
     private static func waitUntilWorkerReady(_ account: AgentAccount) -> Bool {
         let connection = SpaceConnection(space: account)
-        for _ in 0..<20 {
+        // Measured on this machine, 2026-09-28: the FIRST start of a freshly
+        // installed worker — launchd spawn, runtime verification, first socket
+        // bind — outlived the previous ~7 s budget (20 × 0.35 s), so a healthy
+        // first connect saved `.offline` and the account read Sleeping over a
+        // worker that was answering. Twenty seconds covers a first launch
+        // without making a failed one feel like a hang: the step list narrates
+        // the wait either way.
+        for _ in 0..<50 {
             if let response = try? connection.client.call(
                 method: Method.status,
                 token: connection.token,
                 timeout: 0.25), response.error == nil {
                 return true
             }
-            Thread.sleep(forTimeInterval: 0.1)
+            Thread.sleep(forTimeInterval: 0.15)
         }
         return false
     }

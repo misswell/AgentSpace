@@ -93,6 +93,31 @@ public enum SpaceState: String, Codable, Sendable, CaseIterable {
         }
         return stored
     }
+
+    /// The state a live snapshot justifies writing back to the registry, or
+    /// `nil` when the record is already right.
+    ///
+    /// The registry records the account's lifecycle, and the lifecycle does
+    /// not stop at attach. Measured on this machine, 2026-09-28: the first
+    /// start of a freshly installed worker outlived the attach's readiness
+    /// probe, the record stayed `.offline`, and the sidebar read 「休眠」 over a
+    /// worker that was answering — a display that tells the person the
+    /// opposite of the truth the moment they most need it. The reconciliation
+    /// is deliberately narrow: only the two states that mean "waiting on
+    /// reality" (`.offline`, `.needsPermission`) advance, and only on a
+    /// worker that is actually answering. Everything else is someone else's
+    /// verdict to change.
+    public static func reconciled(
+        stored: SpaceState,
+        workerOnline: Bool,
+        accessibility: Bool,
+        screenRecording: Bool
+    ) -> SpaceState? {
+        guard workerOnline else { return nil }
+        guard stored == .offline || stored == .needsPermission else { return nil }
+        let target: SpaceState = accessibility && screenRecording ? .ready : .needsPermission
+        return target == stored ? nil : target
+    }
 }
 
 /// Which TCC grants the agent session has (plan §19).

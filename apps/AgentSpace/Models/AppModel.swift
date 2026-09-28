@@ -94,17 +94,37 @@ final class AppModel: ObservableObject {
         var operation: String
         var steps: [String] = []
         var finished = false
-        /// An attach that ended with a usable account. The sign-in instructions
-        /// are shown only for this — never for a failed attach or a detach.
-        var offersLoginInstructions = false
+        /// What a finished operation should point at next. An attach whose
+        /// worker is up is one authorization away from usable — the overlay
+        /// says so and hands the user there, instead of dropping them back
+        /// into a wizard that has nothing left to do. One that ended without
+        /// a session keeps the sign-in instructions; everything else ends.
+        var nextStep: NextStep = .none
+        /// The account an attach created, so its authorization guide can open
+        /// directly from the completion step.
+        var attachedSpaceID: UUID?
         /// The failure, phrased for a human, rendered inside the overlay itself:
         /// while the wizard sheet is open no alert can present over it (§269),
         /// so an error routed only to `lastError` was swallowed.
         var error: PresentedError?
+
+        enum NextStep: Equatable {
+            case none
+            /// The worker is installed and running: the remaining step is the
+            /// account's own privacy grants.
+            case authorize
+            /// No GUI session existed at attach time: the first-login path.
+            case finishSetup
+        }
     }
     @Published private(set) var isLoading = false
     @Published var showingNewSpace = false
     @Published var showingDoctor = false
+    /// Raise to open the authorization guide for this account. The account
+    /// detail view hosts the sheet; the wizard's completion bridge raises it
+    /// only after the wizard sheet is down, because a window presents one
+    /// sheet at a time (§269) — a request raised earlier would be swallowed.
+    @Published var permissionGuideRequest: UUID?
     @Published private(set) var doctorReport: Doctor.Report?
     /// AgentSpace-named accounts with no agent record, as last computed by
     /// `runDoctor`. Empty when the helper could not be reached, so the delete
@@ -436,7 +456,13 @@ final class AppModel: ObservableObject {
             // what the user needs if something went wrong.
             self.provisioning?.steps = outcome.steps.map(Self.describe)
             self.provisioning?.finished = true
-            self.provisioning?.offersLoginInstructions = outcome.ok
+            if outcome.ok, let account = outcome.account {
+                self.provisioning?.attachedSpaceID = account.id
+                // The account record knows whether a session existed: one that
+                // ended needsLogin owes a first login; one whose worker was
+                // started owes exactly one more thing — its privacy grants.
+                self.provisioning?.nextStep = account.state == .needsLogin ? .finishSetup : .authorize
+            }
 
             // The error goes into the overlay, not `lastError`: the wizard sheet
             // absorbs alerts (§269), and a create that failed while the overlay
@@ -950,6 +976,7 @@ final class AppModel: ObservableObject {
         snapshots = spaces.map { space in
             service.snapshot(for: space, includeResources: space.id == selection)
         }
+        reconcileStates(registry: registry)
         isLoading = false
         discoverCurrentAccountAuthorization()
         checkWorkerVersions()
@@ -959,6 +986,34 @@ final class AppModel: ObservableObject {
             // alert. Only something the user did is worth interrupting for.
             _ = problem
         }
+    }
+
+    /// Advance registry records that a live snapshot has outrun, and save only
+    /// when something actually moved.
+    ///
+    /// The attach flow probes the worker for up to twenty seconds and still
+    /// loses to a first launch sometimes; without this, the record it saved
+    /// (`.offline`) was the last word forever, and the sidebar read 「休眠」 over
+    /// an answering worker. The decision itself lives in Core
+    /// (`SpaceState.reconciled`) so the CLI, the GUI and the tests cannot
+    /// disagree about it. Writes are change-gated: a refresh that proves
+    /// nothing costs no disk write.
+    private func reconcileStates(registry: SpaceRegistry) {
+        var reconciled = registry
+        var changed = false
+        for index in reconciled.spaces.indices {
+            let space = reconciled.spaces[index]
+            guard let snapshot = snapshots.first(where: { $0.id == space.id }),
+                  let target = SpaceState.reconciled(
+                    stored: space.state,
+                    workerOnline: snapshot.workerOnline,
+                    accessibility: snapshot.accessibility,
+                    screenRecording: snapshot.screenRecording) else { continue }
+            reconciled.spaces[index].state = target
+            changed = true
+        }
+        guard changed else { return }
+        try? service.save(reconciled)
     }
 
     /// A detached desktop viewer stays open across fast user switches and
