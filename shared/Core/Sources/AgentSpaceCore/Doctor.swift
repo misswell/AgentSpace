@@ -422,6 +422,20 @@ public enum Doctor {
                 // is the UI path that swaps it — never a terminal command.
                 actionHint: "reinstallHelper")
         }
+        // Not answering has two different cures, and naming the wrong one sends
+        // the user pressing a button that cannot help: an unregistered helper
+        // needs the installer, while one macOS is holding for approval is
+        // refused by that same installer ("Operation not permitted") — its only
+        // cure is the Login Items toggle, which only the person at the machine
+        // can flip. `openLoginItems` is rendered as that button in the app.
+        if state.isThisProcessTheApp, state.appServiceStatus == .requiresApproval {
+            return Check(
+                name: NSLocalizedString("Privileged helper", comment: ""),
+                status: .warn,
+                detail: "not available: \(state.summary). Creating and deleting agents needs it; driving an existing agent does not.",
+                fix: state.fix,
+                actionHint: "openLoginItems")
+        }
         return Check(
             name: NSLocalizedString("Privileged helper", comment: ""),
             status: .warn,
@@ -464,6 +478,13 @@ public enum BundleIdentifiers {
     public static let workerLaunchAgent = "com.agentspace.AgentSpace.Worker"
     public static let cli = "agentspace"
     public static let mcp = "@agentspace/mcp"
+
+    /// The code-signing identifier the CLI Mach-O is signed with
+    /// (`scripts/bundle-app.sh`). Distinct from `cli`, which is the command
+    /// name — and distinct from `app`, which the CLI does *not* carry: a nested
+    /// Mach-O keeps its own identifier, and the helper's caller requirement
+    /// must name the one the CLI actually has or it refuses every CLI call.
+    public static let cliCode = "com.agentspace.AgentSpace.CLI"
 
     /// The launchd plist file name for the helper daemon (§47).
     public static let helperPlist = helper + ".plist"

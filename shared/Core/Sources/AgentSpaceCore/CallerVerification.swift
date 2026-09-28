@@ -1,6 +1,5 @@
 import Foundation
 import Security
-import AgentSpaceCore
 
 /// Verifies that the process connecting to the helper is the AgentSpace app.
 ///
@@ -18,12 +17,19 @@ public enum CodeSigningRequirement {
 
     public static let appIdentifier = BundleIdentifiers.app
     public static let helperIdentifier = BundleIdentifiers.helper
+    public static let cliIdentifier = BundleIdentifiers.cliCode
 
     /// The requirement string the helper enforces in release builds.
     ///
     /// Read it as: signed by Apple's Developer ID chain, with *our* team, and
-    /// either the app or the helper (the helper is a separate Mach-O, and the CLI
-    /// ships inside the app bundle so it carries the app's identity).
+    /// one of the three Mach-O identities this product actually signs — the
+    /// app, the helper, or the CLI. The CLI is the one this list is a lesson
+    /// about: it ships inside the app bundle, but a nested Mach-O keeps its
+    /// *own* signing identifier (`com.agentspace.AgentSpace.CLI`), so a list
+    /// naming only the app refused every CLI connection — the CLI's doctor
+    /// reported "not answering" against a helper that was running and answering
+    /// the app the whole time (measured 2026-09-28: `log stream` shows the
+    /// refusal verbatim while launchd holds the daemon `state = running`).
     ///
     /// `anchor apple generic` is what makes this meaningful: it requires the
     /// certificate chain to reach Apple, so a self-signed certificate with a
@@ -31,7 +37,9 @@ public enum CodeSigningRequirement {
     public static var requirement: String {
         "anchor apple generic"
         + " and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
-        + " and (identifier \"\(appIdentifier)\" or identifier \"\(helperIdentifier)\")"
+        + " and (identifier \"\(appIdentifier)\""
+        + " or identifier \"\(helperIdentifier)\""
+        + " or identifier \"\(cliIdentifier)\")"
     }
 
     /// What a locally built, ad-hoc-signed debug binary can actually satisfy.
@@ -41,7 +49,9 @@ public enum CodeSigningRequirement {
     /// Selected at compile time, never at run time: "skip the signature check
     /// when a file exists" is how backdoors are born.
     public static var developmentRequirement: String {
-        "identifier \"\(appIdentifier)\" or identifier \"\(helperIdentifier)\""
+        "identifier \"\(appIdentifier)\""
+        + " or identifier \"\(helperIdentifier)\""
+        + " or identifier \"\(cliIdentifier)\""
     }
 
     public static var enforcedRequirement: String {

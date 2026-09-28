@@ -157,6 +157,28 @@ private struct CheckRow: View {
                         .padding(.top, 2)
                         HelperFailureBanner()
                             .padding(.top, 6)
+                    } else if check.actionHint == "openLoginItems" {
+                        // A helper macOS is holding for approval cannot be
+                        // fixed by reinstalling it — register() answers
+                        // "Operation not permitted" until the person allows
+                        // the background item. The doctor names the pane and
+                        // then takes the user there, with a re-run next to it
+                        // so the check turns green without leaving the sheet.
+                        HStack(spacing: 8) {
+                            Button {
+                                model.openLoginItemsSettings()
+                            } label: {
+                                Text(NSLocalizedString("Open System Settings", comment: ""))
+                            }
+                            .accessibilityIdentifier("openLoginItemsButton")
+                            Button {
+                                model.runDoctor()
+                            } label: {
+                                Text(NSLocalizedString("Recheck", comment: ""))
+                            }
+                            .accessibilityIdentifier("recheckHelperButton")
+                        }
+                        .padding(.top, 2)
                     }
                 }
             }

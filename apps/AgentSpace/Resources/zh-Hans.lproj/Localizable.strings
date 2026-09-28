@@ -237,7 +237,7 @@
 "unknown state" = "未知状态";
 "not answering" = "无响应";
 "Run scripts/bundle-app.sh to produce a complete AgentSpace.app, then open it and choose “Install Helper”." = "运行 scripts/bundle-app.sh 生成完整的 AgentSpace.app，打开它并选择「安装助手」。";
-"System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run the Doctor check again." = "System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run the Doctor check again.";
+"System Settings → General → Login Items & Extensions → allow the AgentSpace background item, then run the Doctor check again." = "系统设置 → 通用 → 登录项与扩展 → 允许 AgentSpace 后台项，然后重新运行 Doctor 检查。";
 "It is registered but silent, which usually means a code-signature mismatch: the daemon refuses callers that do not satisfy its requirement and records the refusal. Use Export Diagnostics in the app to collect the log." = "它已注册但沉默，这通常意味着代码签名不匹配：守护进程会拒绝不满足其要求的调用方并记录拒绝。请使用应用内的“导出诊断信息”收集日志。";
 "Open the AgentSpace app and choose “Install Helper”. macOS will ask for your password, because only an administrator can add a LaunchDaemon." = "打开 AgentSpace 应用并选择「安装助手」。macOS 会要求输入密码，因为只有管理员才能添加 LaunchDaemon。";
 "plan workspace" = "规划工作区";
@@ -618,3 +618,12 @@
 
 "Status" = "状态";
 "Stops this account's background worker. The macOS session stays signed in." = "停止该账号的后台 Worker。macOS 会话保持登录。";
+
+/* 特权助手：macOS 批准流程（§345）。macOS 会先注册助手，再在「登录项与扩展」中
+   等待用户批准；未批准期间 register() 返回 "Operation not permitted"，
+   应用只能打开对应设置面板并重新检查。 */
+"macOS is waiting for you to approve the helper" = "macOS 正在等待你批准助手";
+"The helper is registered, but macOS will not start it until you allow it. This cannot be approved from the app: it is a security decision only you can make." = "助手已注册，但在你允许之前，macOS 不会启动它。这一步无法在应用内完成：这是只有你本人才能做的安全决定。";
+"Recheck" = "重新检查";
+"macOS is holding the helper for your approval, so the registration was refused." = "macOS 正在等待你批准该助手，因此注册被拒绝。";
+"System Settings → General → Login Items & Extensions → turn on AgentSpace under “Allow in the Background”, then come back and press Recheck." = "系统设置 → 通用 → 登录项与扩展 → 在「允许在后台」中打开 AgentSpace，然后回到这里点「重新检查」。";

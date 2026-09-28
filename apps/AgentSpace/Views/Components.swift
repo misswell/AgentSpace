@@ -162,11 +162,23 @@ struct HelperFailureBanner: View {
 
     var body: some View {
         if let failure = model.helperFailure {
-            RefusalBanner(
-                title: NSLocalizedString("The helper was not changed", comment: ""),
-                code: failure.code,
-                message: failure.message,
-                fix: failure.fix)
+            VStack(alignment: .leading, spacing: 8) {
+                RefusalBanner(
+                    title: NSLocalizedString("The helper was not changed", comment: ""),
+                    code: failure.code,
+                    message: failure.message,
+                    fix: failure.fix)
+                // A pending-approval refusal carries the one button that can
+                // help — the pane where approval lives. Rendering it here is
+                // the difference between being told where to go and being
+                // taken there.
+                if let actionTitle = failure.actionTitle, let action = failure.action {
+                    Button(actionTitle) {
+                        action()
+                    }
+                    .accessibilityIdentifier("helperFailureActionButton")
+                }
+            }
         }
     }
 }

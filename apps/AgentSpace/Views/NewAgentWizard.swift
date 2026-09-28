@@ -341,6 +341,34 @@ struct HelperCard: View {
                 Text("The helper is installed and answering. It installs a root-owned worker and an account-specific runtime; it never creates or deletes macOS users.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            } else if model.helperState.isThisProcessTheApp,
+                      model.helperState.appServiceStatus == .requiresApproval {
+                // macOS registered the helper and is holding it for approval.
+                // The installer is the wrong button here — while the item is
+                // unapproved, register() is refused with "Operation not
+                // permitted" and macOS never re-prompts — so this state offers
+                // the pane where approval lives, a recheck, and the poll below
+                // that flips the card the moment approval lands.
+                RefusalBanner(
+                    title: NSLocalizedString("macOS is waiting for you to approve the helper", comment: ""),
+                    code: "HELPER_NEEDS_APPROVAL",
+                    message: NSLocalizedString("The helper is registered, but macOS will not start it until you allow it. This cannot be approved from the app: it is a security decision only you can make.", comment: ""),
+                    fix: model.helperState.fix)
+                HStack(spacing: 10) {
+                    Button {
+                        model.openLoginItemsSettings()
+                    } label: {
+                        Text(NSLocalizedString("Open System Settings", comment: ""))
+                    }
+                    .accessibilityIdentifier("openLoginItemsButton")
+                    Button {
+                        Task { await model.recheckHelper() }
+                    } label: {
+                        Text(NSLocalizedString("Recheck", comment: ""))
+                    }
+                    .accessibilityIdentifier("recheckHelperButton")
+                }
+                .padding(.top, 2)
             } else {
                 RefusalBanner(
                     title: NSLocalizedString("Connecting an account needs the privileged helper", comment: ""),
@@ -360,9 +388,31 @@ struct HelperCard: View {
                     }
                     .disabled(model.isInstallingHelper)
                     .help(Text("macOS will ask for your password: only an administrator can add a LaunchDaemon."))
+                    Button {
+                        Task { await model.recheckHelper() }
+                    } label: {
+                        Text(NSLocalizedString("Recheck", comment: ""))
+                    }
+                    .accessibilityIdentifier("recheckHelperButton")
                 }
             }
             HelperFailureBanner()
+        }
+        // While macOS holds the registration for approval, poll: the moment the
+        // item is allowed in System Settings the card re-reads its own state,
+        // turns green, and Connect arms without reopening anything. Three
+        // seconds matches the plan's polling floor, and the ping fails fast
+        // while the daemon is not yet allowed to run, so the loop is cheap for
+        // exactly as long as the approval is pending.
+        .task {
+            while !Task.isCancelled,
+                  !model.helperState.isReachable,
+                  model.helperState.isThisProcessTheApp,
+                  model.helperState.appServiceStatus == .requiresApproval {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if Task.isCancelled { break }
+                await model.recheckHelper()
+            }
         }
     }
 }

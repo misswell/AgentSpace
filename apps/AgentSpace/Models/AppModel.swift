@@ -183,10 +183,25 @@ final class AppModel: ObservableObject {
             self.helperState = HelperInstallation.inspect()
             self.isInstallingHelper = false
             if case .failure(let error) = result {
+                // The raw localizedDescription of a pending-approval refusal is
+                // "Operation not permitted" — a sentence that reads like a bug
+                // in the app and sends the person back to the very button that
+                // can never succeed. Ask SMAppService what it is actually doing
+                // and say that instead, with the one action that can help.
+                let status = HelperInstallation.inspect(ping: false).appServiceStatus
+                let refusal = HelperRegistrationGuidance.refusal(for: error, status: status)
                 self.helperFailure = PresentedError(
                     code: "HELPER_UNAVAILABLE",
-                    message: error.localizedDescription,
-                    fix: HelperInstallation.inspect(ping: false).fix)
+                    message: refusal.message,
+                    fix: refusal.approvalPending
+                        ? refusal.fix
+                        : HelperInstallation.inspect(ping: false).fix,
+                    actionTitle: refusal.approvalPending
+                        ? NSLocalizedString("Open System Settings", comment: "")
+                        : nil,
+                    action: refusal.approvalPending
+                        ? { [weak self] in self?.openLoginItemsSettings() }
+                        : nil)
             } else if !self.helperState.isReachable {
                 // Registered but silent is a real state (approval pending, or a
                 // signature mismatch) and silently reporting success would send the
@@ -236,6 +251,37 @@ final class AppModel: ObservableObject {
             let state = HelperInstallation.inspect()
             await MainActor.run { self.helperState = state }
         }
+    }
+
+    /// Ask the helper directly, once, and publish what it said — the awaitable
+    /// form the wizard's approval poll uses.
+    ///
+    /// While macOS holds a registration for approval, the wizard's helper card
+    /// polls this every few seconds, so the moment the background item is
+    /// allowed the card turns green and Connect arms by itself. Without it, a
+    /// card that never re-reads its own state turns "approved in System
+    /// Settings" into "close the wizard and pray" — the dead end this exists
+    /// to remove. A success also retires a visible failure: the banner must
+    /// stop offering a fix the machine no longer needs.
+    func recheckHelper() async {
+        let state = await Task.detached(priority: .userInitiated) {
+            HelperInstallation.inspect()
+        }.value
+        helperState = state
+        if state.isReachable { helperFailure = nil }
+    }
+
+    /// Open macOS's Login Items pane, where a pending background item is
+    /// approved.
+    ///
+    /// `SMAppService.register()` cannot re-prompt once the item is registered
+    /// and unapproved — it answers "Operation not permitted" — and macOS offers
+    /// no API to approve it, by design: that decision belongs to the person at
+    /// the machine. Opening the pane that decision lives in is the one thing
+    /// the app can do, so the button does exactly that instead of describing
+    /// the route in prose and stopping there.
+    func openLoginItemsSettings() {
+        SMAppService.openSystemSettingsLoginItems()
     }
 
     func uninstallHelper() {
@@ -331,10 +377,19 @@ final class AppModel: ObservableObject {
         helperState = state
         isInstallingHelper = false
         if case .failure(let error) = result {
+            let refusal = HelperRegistrationGuidance.refusal(
+                for: error,
+                status: HelperInstallation.inspect(ping: false).appServiceStatus)
             lastError = PresentedError(
                 code: "HELPER_UNAVAILABLE",
-                message: error.localizedDescription,
-                fix: HelperInstallation.inspect(ping: false).fix)
+                message: refusal.message,
+                fix: refusal.fix,
+                actionTitle: refusal.approvalPending
+                    ? NSLocalizedString("Open System Settings", comment: "")
+                    : nil,
+                action: refusal.approvalPending
+                    ? { [weak self] in self?.openLoginItemsSettings() }
+                    : nil)
             return false
         }
         guard state.isReachable && !state.isStaleBinary else {

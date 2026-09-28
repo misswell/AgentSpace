@@ -618,3 +618,13 @@
 
 "Status" = "Status";
 "Stops this account's background worker. The macOS session stays signed in." = "Stops this account's background worker. The macOS session stays signed in.";
+
+/* Privileged helper: the macOS approval flow (§345). macOS registers the
+   helper, then holds it for approval in Login Items & Extensions; while it is
+   unapproved, register() answers "Operation not permitted" and the app can
+   only open the pane and recheck. */
+"macOS is waiting for you to approve the helper" = "macOS is waiting for you to approve the helper";
+"The helper is registered, but macOS will not start it until you allow it. This cannot be approved from the app: it is a security decision only you can make." = "The helper is registered, but macOS will not start it until you allow it. This cannot be approved from the app: it is a security decision only you can make.";
+"Recheck" = "Recheck";
+"macOS is holding the helper for your approval, so the registration was refused." = "macOS is holding the helper for your approval, so the registration was refused.";
+"System Settings → General → Login Items & Extensions → turn on AgentSpace under “Allow in the Background”, then come back and press Recheck." = "System Settings → General → Login Items & Extensions → turn on AgentSpace under “Allow in the Background”, then come back and press Recheck.";
