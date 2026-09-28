@@ -55,6 +55,10 @@ struct PermissionGuideView: View {
             Text(String(format: NSLocalizedString("You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. Switch to %@ only to approve it, then return here.", comment: ""), snapshot.space.username, snapshot.space.username))
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
+            Text(NSLocalizedString("If no entry appears in the list, the worker has not asked yet. Pressing Open settings below asks on the worker's behalf and opens the pane in one step; the prompt then waits in the account's own session.", comment: ""))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 10) {
                 permissionRow(

@@ -638,3 +638,6 @@
 "Later" = "稍后";
 "%ld approval(s) away from a usable desktop" = "还差 %ld 项授权，桌面还不能使用";
 "The grants belong to %@'s own session. AgentSpace opens the right System Settings pane there; you approve, then switch back." = "授权属于 %@ 自己的会话。AgentSpace 会在那边打开对应的系统设置面板；你批准后切回即可。";
+
+/* 隐私列表里只会出现主动请求过的进程；把「列表为空」变成一步可解的操作而不是死路（§347）。 */
+"If no entry appears in the list, the worker has not asked yet. Pressing Open settings below asks on the worker's behalf and opens the pane in one step; the prompt then waits in the account's own session." = "如果列表里还没有条目，说明 worker 还没有发起过请求。点下方的「打开设置」会代 worker 发起请求，并一步打开对应面板；提示弹窗会等在账号自己的会话里。";

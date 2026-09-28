@@ -571,6 +571,30 @@ case .success(let arguments):
         FileHandle.standardError.write(Data(("agentspace-worker: " + message + "\n").utf8))
     }
 
+    // The setup prompts. macOS registers a process in the account's privacy
+    // lists — and shows its prompt — only when the process itself asks, and
+    // until now the asking happened only through the app's authorization
+    // buttons. Measured 2026-09-28: a person who switched into the account to
+    // approve found no prompt and empty Accessibility and Screen Recording
+    // lists, because nothing had ever asked; the preflight checks a status
+    // read uses register nothing. A worker that starts with grants missing
+    // asks now, so the prompt and the list entries are waiting in this
+    // session the moment the person switches in. macOS shows its own dialog
+    // and the user still approves in System Settings; a worker with both
+    // grants costs two preflights. Test harnesses run with an overridden
+    // root and are exempt — a smoke test must not raise dialogs.
+    if AgentSpaceEnvironment.rootOverride == nil, desktopReadiness.isReady {
+        if !AXIsProcessTrusted() {
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+            _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
+            Log.session.info("accessibility not granted yet; asked macOS to register the worker and prompt")
+        }
+        if !CGPreflightScreenCaptureAccess() {
+            _ = CGRequestScreenCaptureAccess()
+            Log.session.info("screen recording not granted yet; asked macOS to register the worker and prompt")
+        }
+    }
+
     // Create the runtime directory if this is a development/first run. In
     // production the helper has already made it with the right ACL.
     try? FileManager.default.createDirectory(
