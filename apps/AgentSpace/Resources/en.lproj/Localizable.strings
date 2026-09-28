@@ -615,3 +615,6 @@
 
 "Capture" = "Capture";
 "Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control." = "Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control.";
+
+"Status" = "Status";
+"Stops this account's background worker. The macOS session stays signed in." = "Stops this account's background worker. The macOS session stays signed in.";

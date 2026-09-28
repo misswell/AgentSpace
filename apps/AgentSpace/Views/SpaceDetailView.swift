@@ -102,7 +102,6 @@ struct SpaceDetailView: View {
             if let snapshot = model.selected {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        header(snapshot)
                         if let problem = snapshot.problem {
                             RefusalBanner(
                                 title: refusalTitle(for: problem),
@@ -112,9 +111,6 @@ struct SpaceDetailView: View {
                         }
                         overviewCard(snapshot)
                         permissionsCard(snapshot)
-                        if let display = snapshot.display {
-                            displayCard(display)
-                        }
                         if let resources = snapshot.resources {
                             resourcesCard(resources) { model.measureDisk(for: snapshot.space) }
                         }
@@ -139,45 +135,14 @@ struct SpaceDetailView: View {
             }
         }
         .navigationTitle(model.selected?.space.name ?? "AgentSpace")
+        // One group of direct actions, no menus. The Authorize shield menu and
+        // the Agent gear menu used to sit here, but every item they offered was
+        // already on the page — the authorization card and the maintenance
+        // card — so the toolbar repeated the window instead of adding to it.
+        // Stop Agent, the one command that had no card home, moved into
+        // Maintenance.
         .toolbar {
             ToolbarItemGroup {
-                Menu {
-                    if let space = model.selected?.space {
-                        Button {
-                            model.authorizeAgent(space, pane: .accessibility)
-                        } label: {
-                            Label(NSLocalizedString("Accessibility", comment: ""), systemImage: "person.crop.circle.badge.checkmark")
-                        }
-                        Button {
-                            model.authorizeAgent(space, pane: .screenRecording)
-                        } label: {
-                            Label(NSLocalizedString("Screen Recording", comment: ""), systemImage: "record.circle")
-                        }
-                        Divider()
-                        Button {
-                            showingPermissionGuide = true
-                        } label: {
-                            Label(NSLocalizedString("Open authorization guide", comment: ""), systemImage: "checklist")
-                        }
-                    }
-                } label: {
-                    Label(NSLocalizedString("Authorize", comment: ""), systemImage: "lock.shield")
-                }
-                .accessibilityIdentifier("openAgentPermissionToolbar")
-                .disabled(model.selected == nil
-                    || model.authorizingPermission != nil
-                    || model.openingSystemSettings != nil
-                    || model.updatingWorker != nil
-                    || model.finishingSetup != nil)
-
-                Button {
-                    showingApps.toggle()
-                    if showingApps { loadApps() }
-                } label: {
-                    Label("Apps", systemImage: "square.grid.2x2")
-                }
-                .disabled(model.selected == nil)
-
                 Button {
                     if let space = model.selected?.space {
                         DesktopViewerWindowManager.shared.open(for: space, model: model)
@@ -208,22 +173,23 @@ struct SpaceDetailView: View {
                     || model.selected?.screenRecording != true
                     || model.selected?.accessibility != true)
 
-                // Stop keeps the session; Disconnect removes only
-                // AgentSpace-owned setup.
-                Menu {
-                    Button("Stop Agent") {
-                        if let space = model.selected?.space { model.stopWorker(space) }
-                    }
-                    .disabled(model.selected?.workerOnline != true)
-                    Divider()
-                    Button(NSLocalizedString("Disconnect Account…", comment: ""), role: .destructive) {
-                        showingDelete = true
-                    }
-                    .disabled(model.selected == nil)
+                Button {
+                    showingApps.toggle()
+                    if showingApps { loadApps() }
                 } label: {
-                    Label(NSLocalizedString("Agent", comment: ""), systemImage: "gearshape")
+                    Label("Apps", systemImage: "square.grid.2x2")
                 }
                 .disabled(model.selected == nil)
+
+                // The one refresh on this page. The page header and the
+                // authorization card each carried a button that ran this same
+                // full reload; ⌘R still runs it from the menu bar too.
+                Button {
+                    model.reload()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .disabled(model.isLoading)
             }
         }
         .sheet(isPresented: $showingPermissionGuide) {
@@ -244,26 +210,7 @@ struct SpaceDetailView: View {
         }
     }
 
-    // MARK: - Header
-
-    private func header(_ snapshot: SpaceSnapshot) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            StatusDot(state: snapshot.effectiveState)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(snapshot.space.name).font(.title2.weight(.semibold))
-                Text(snapshot.effectiveState.displayName)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button {
-                model.refreshSelectedResources()
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            .disabled(snapshot.problem?.code == .workerOffline)
-        }
-    }
+    // MARK: - Cards
 
     private func refusalTitle(for error: AgentSpaceError) -> String {
         switch error.code {
@@ -276,10 +223,14 @@ struct SpaceDetailView: View {
         }
     }
 
-    // MARK: - Cards
-
+    /// The account at a glance: its state, its session facts and its display
+    /// geometry. The old in-page title header is gone — the toolbar's
+    /// navigation title and the sidebar row both already carry the name — and
+    /// the display card merged in here, so the page is one card shorter and
+    /// the permission chips are no longer printed twice in a row.
     private func overviewCard(_ snapshot: SpaceSnapshot) -> some View {
         Card(title: NSLocalizedString("Overview", comment: "")) {
+            Field(label: NSLocalizedString("Status", comment: ""), value: snapshot.effectiveState.displayName)
             Field(label: NSLocalizedString("macOS User", comment: ""), value: "\(snapshot.space.username) (uid \(snapshot.space.uid))", monospaced: true)
             Field(label: NSLocalizedString("Worker", comment: ""),
                   value: snapshot.workerOnline
@@ -290,6 +241,14 @@ struct SpaceDetailView: View {
             Field(label: NSLocalizedString("Accepts input", comment: ""),
                   value: snapshot.acceptsInput ? NSLocalizedString("yes", comment: "") : NSLocalizedString("no", comment: ""),
                   tint: snapshot.acceptsInput ? .green : .orange)
+            if let display = snapshot.display {
+                Field(label: NSLocalizedString("Points", comment: ""), value: "\(display.width) × \(display.height)", monospaced: true)
+                Field(label: NSLocalizedString("Pixels", comment: ""), value: "\(display.pixelWidth) × \(display.pixelHeight)", monospaced: true)
+                Field(label: NSLocalizedString("Scale", comment: ""), value: "\(display.scale)×", monospaced: true)
+                Text(String(format: NSLocalizedString("Input coordinates are points. A pixel read off a screenshot must be divided by %@ first.", comment: ""), "\(display.scale)"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Field(label: NSLocalizedString("Workspace", comment: ""), value: snapshot.space.workspace.displayName)
             if snapshot.space.sharedFolders.isEmpty {
                 Field(label: NSLocalizedString("Shared folders", comment: ""), value: NSLocalizedString("none", comment: ""))
@@ -298,16 +257,6 @@ struct SpaceDetailView: View {
                     Field(label: NSLocalizedString("Shared", comment: ""), value: "\(folder.path) — \(folder.access.displayName)", monospaced: true)
                 }
             }
-            HStack(spacing: 8) {
-                Spacer().frame(width: 108)
-                PermissionChip(name: NSLocalizedString("Accessibility", comment: ""), granted: snapshot.accessibility)
-                PermissionChip(name: NSLocalizedString("Screen Recording", comment: ""), granted: snapshot.screenRecording)
-                if let fileAccess = snapshot.fileAccess {
-                    PermissionChip(name: NSLocalizedString("Full Disk Access", comment: ""), granted: fileAccess)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
         }
     }
 
@@ -368,14 +317,6 @@ struct SpaceDetailView: View {
                 }
                 .accessibilityIdentifier("openAgentPermissionGuide")
                 .disabled(model.authorizingPermission != nil || model.openingSystemSettings != nil || model.updatingWorker != nil || model.finishingSetup != nil)
-
-                Button {
-                    model.reload()
-                } label: {
-                    Label(NSLocalizedString("Refresh authorization status", comment: ""), systemImage: "arrow.clockwise")
-                }
-                .accessibilityIdentifier("refreshPermissionStatus")
-                .disabled(model.isLoading || model.authorizingPermission != nil)
             }
 
             if !snapshot.workerOnline {
@@ -408,17 +349,6 @@ struct SpaceDetailView: View {
         }
         .accessibilityIdentifier(identifier)
         .disabled(model.authorizingPermission != nil || model.openingSystemSettings != nil || model.updatingWorker != nil || model.finishingSetup != nil)
-    }
-
-    private func displayCard(_ display: DisplayGeometry) -> some View {
-        Card(title: NSLocalizedString("Display", comment: "")) {
-            Field(label: NSLocalizedString("Points", comment: ""), value: "\(display.width) × \(display.height)", monospaced: true)
-            Field(label: NSLocalizedString("Pixels", comment: ""), value: "\(display.pixelWidth) × \(display.pixelHeight)", monospaced: true)
-            Field(label: NSLocalizedString("Scale", comment: ""), value: "\(display.scale)×", monospaced: true)
-            Text(String(format: NSLocalizedString("Input coordinates are points. A pixel read off a screenshot must be divided by %@ first.", comment: ""), "\(display.scale)"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
     }
 
     private func resourcesCard(_ resources: ResourceUsage, onMeasureDisk: @escaping () -> Void) -> some View {
@@ -460,8 +390,6 @@ struct SpaceDetailView: View {
 
             Text(NSLocalizedString("Measured from this agent's own processes, aggregated by uid. An agent is not a VM, so there is no allocation to show.", comment: ""))
             Text("CPU is the sum across those processes, so it can exceed 100% on a multi-core Mac. If the worker is running as your own account rather than a dedicated agent account, these numbers describe your whole login session — which is what the uid aggregation is honestly reporting, not a leak from somewhere else.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -592,7 +520,16 @@ struct SpaceDetailView: View {
             }
 
 
+            // Stop keeps the session; Disconnect removes only
+            // AgentSpace-owned setup. Both used to live in the toolbar's gear
+            // menu, which repeated this card.
             HStack(spacing: 8) {
+                Button(NSLocalizedString("Stop Agent", comment: "")) {
+                    if let space = model.selected?.space { model.stopWorker(space) }
+                }
+                .disabled(snapshot.workerOnline != true)
+                .help(Text("Stops this account's background worker. The macOS session stays signed in."))
+
                 Button(NSLocalizedString("Disconnect Account…", comment: ""), role: .destructive) { showingDelete = true }
                     .disabled(model.provisioning != nil)
             }

@@ -965,12 +965,6 @@ final class AppModel: ObservableObject {
     /// Measure the selected Space's home directory (plan §30).
     func measureDisk(for space: AgentAccount) { measureDiskUsage(for: space) }
 
-    func refreshSelectedResources() {
-        guard let index = snapshots.firstIndex(where: { $0.id == selection }) else { return }
-        let space = snapshots[index].space
-        snapshots[index] = service.snapshot(for: space, includeResources: true)
-    }
-
     var selected: SpaceSnapshot? {
         snapshots.first { $0.id == selection }
     }

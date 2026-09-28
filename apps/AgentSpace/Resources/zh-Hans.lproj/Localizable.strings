@@ -615,3 +615,6 @@
 
 "Capture" = "接管";
 "Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control." = "自动：鼠标停稳后同步位置并触发悬停。接管：持续跟随鼠标。点击后接管：按下鼠标期间控制。按 Control-Option 或 Control-Command-G 交还控制。";
+
+"Status" = "状态";
+"Stops this account's background worker. The macOS session stays signed in." = "停止该账号的后台 Worker。macOS 会话保持登录。";
