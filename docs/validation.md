@@ -9399,3 +9399,26 @@ The owner's connect of `misswell` succeeded — helper log: `prepareRuntimeDirec
 | 1021 | The wiring cannot silently regress | pass (source-invariant tests) | `tests/Unit/AttachFlowWiringTests.swift` reads the app sources the way `HelperRegistrationRetryTests` does: the next step is decided from the saved account state; the bridge closes the wizard before raising the guide request (and defers it); the account page banners an answering worker's missing grants; reload reconciles recorded states through Core's pure function. 4 tests. |
 | 1022 | The round passes the repo's gates; strings exist in both tables | pass (measured) | `swift test` (PATH caveated): AgentSpaceUnitTests **689 tests** (1 skipped, 0 failures — 6 new), AgentSpaceSafetyTests **24**, AgentSpaceIntegrationTests **28**, all three suites passed; `npm test` **24/24**; `scripts/updater-e2e.sh` **19/19**; `scripts/mcp-smoke.sh` all assertions. Eight new keys in `en` and `zh-Hans`. Layer 4 runs against the published bytes in `misswell`'s now-live session once this release lands (row 1016's deferral closes there). |
 | 1023 | 0.1.54 is published as a verified notarized update | pass (release, Apple and download read back) | Source commit `6437885`, immutable tag `v0.1.54`, [Actions run 36436015191](https://github.com/misswell/AgentSpace/actions/runs/36436015191) **success** (validate; gate layers 1–3; sign, notarize, publish). `GET /repos/misswell/AgentSpace/releases/latest` returns `v0.1.54`, not draft, not prerelease, with one asset `AgentSpace-0.1.54.dmg`, **6,469,902** bytes. A fresh download at `/tmp/agentspace-0.1.54-release.dmg` hashes to `sha256:145dfb05d3334af8fbd5961ed8f1a9f78b17b66b3e3dbb666b81339db42b7c65` — the digest the release body publishes. The inner App answers `The validate action worked!`, its version is **0.1.54**, and deep strict signature verification passes. `asc notarization list` (read from Apple) reports **Accepted** for App ZIP `a2695aaa-dd2f-4204-9252-26b82315c1c4` and DMG `0995acf0-64d7-49cc-aa32-9ff9b7917e25`. |
+
+## 347. The setup prompts wait in the session: the worker asks at startup (2026-09-28)
+
+The owner switched into `misswell`'s session to approve the grants and found
+no prompt, and no `agentspace-worker` entry in either the Accessibility or
+the Screen Recording lists. Measured cause: macOS lists a process — and shows
+its prompt — only after the process itself makes a prompting request
+(`AXIsProcessTrustedWithOptions` with `kAXTrustCheckOptionPrompt`,
+`CGRequestScreenCaptureAccess`); the worker's status path uses only silent
+preflights, which register nothing, and the prompting calls lived exclusively
+behind the app's authorization buttons (`Operations.swift` `systemSettings.open`)
+that had not been pressed. TCC's `+` picker refuses bare binaries, so a user
+cannot add the worker by hand either — a genuine dead end. The unified log
+confirms tccd knows the worker (`identifier=com.agentspace.AgentSpace.Worker,
+auid=502, binary=/Library/.../agentspace-worker`, requirement match `status: 0`)
+while answering `result: false` with nothing registered for the lists.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 1024 | A worker that starts with grants missing asks macOS on its own behalf, so the prompt and the list entries wait in the account's session | pass (code + build) | `worker main.swift` runs, after the desktop-readiness wait and before the sockets bind: `AXIsProcessTrustedWithOptions(kAXTrustedCheckOptionPrompt: true)` when `!AXIsProcessTrusted()`, and `CGRequestScreenCaptureAccess()` when `!CGPreflightScreenCaptureAccess()`. A worker with both grants costs two preflights and never touches TCC. The ask sits after the readiness wait (a login still coming up is not prompted) and before `server.bind()` (setup must not depend on an RPC). |
+| 1025 | The ask cannot fire in a harness | pass (code + tests) | The block is gated on `AgentSpaceEnvironment.rootOverride == nil` — every test worker (mcp-smoke's hermetic `/tmp` root, integration `liveSpace`) runs with an overridden root, so no automated run raises dialogs; the production install runs at the standard root. `tests/Unit/WorkerSetupPromptTests.swift` pins: both asks gated on the missing-grant preflights, the prompting (not silent) variants used, the override-and-ready gate, and the ask preceding `server.bind()`. 2 tests. |
+| 1026 | The empty-list case is named where the user hits it | pass (code) | The authorization guide carries a caption: 「如果列表里还没有条目，说明 worker 还没有发起过请求。点下方的「打开设置」会代 worker 发起请求，并一步打开对应面板」 — the button path (`systemSettings.open`) already asks and opens together. New key in `en` and `zh-Hans`. |
+| 1027 | The round passes the repo's gates | pass (measured) | `swift test` (PATH caveated): AgentSpaceUnitTests **691** (1 skipped, 0 failures — 2 new), AgentSpaceSafetyTests **24**, AgentSpaceIntegrationTests **28**; `npm test` **24/24**; `scripts/updater-e2e.sh` **19/19**; `scripts/mcp-smoke.sh` all assertions. |
