@@ -627,3 +627,14 @@
 "Recheck" = "重新检查";
 "macOS is holding the helper for your approval, so the registration was refused." = "macOS 正在等待你批准该助手，因此注册被拒绝。";
 "System Settings → General → Login Items & Extensions → turn on AgentSpace under “Allow in the Background”, then come back and press Recheck." = "系统设置 → 通用 → 登录项与扩展 → 在「允许在后台」中打开 AgentSpace，然后回到这里点「重新检查」。";
+
+/* 连接完成桥接与账号页设置横幅（§346）：连接成功后必须把剩下的一步——
+   在账号自己会话里的隐私授权——连同按钮一起交给用户。 */
+"Connected" = "已连接";
+"The worker is installed and running in %@'s own session." = "Worker 已安装，并已在 %@ 自己的会话中运行。";
+"The worker is installed and running in the account's own session." = "Worker 已安装，并已在账号自己的会话中运行。";
+"One step remains, and only you can make it: macOS requires the worker's privacy grants to be approved in the account's own session. AgentSpace opens the right System Settings pane there; you approve, then switch back." = "还剩一步，且只有你本人能完成：macOS 要求在账号自己的会话中批准 worker 的隐私权限。AgentSpace 会在那边打开对应的系统设置面板；你批准后切回即可。";
+"Start authorization…" = "开始授权…";
+"Later" = "稍后";
+"%ld approval(s) away from a usable desktop" = "还差 %ld 项授权，桌面还不能使用";
+"The grants belong to %@'s own session. AgentSpace opens the right System Settings pane there; you approve, then switch back." = "授权属于 %@ 自己的会话。AgentSpace 会在那边打开对应的系统设置面板；你批准后切回即可。";

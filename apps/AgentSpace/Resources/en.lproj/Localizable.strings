@@ -628,3 +628,16 @@
 "Recheck" = "Recheck";
 "macOS is holding the helper for your approval, so the registration was refused." = "macOS is holding the helper for your approval, so the registration was refused.";
 "System Settings → General → Login Items & Extensions → turn on AgentSpace under “Allow in the Background”, then come back and press Recheck." = "System Settings → General → Login Items & Extensions → turn on AgentSpace under “Allow in the Background”, then come back and press Recheck.";
+
+/* The connect-completion bridge and the account page's setup banner (§346):
+   a successful connect owes the person the one step that remains — the
+   worker's privacy grants in the account's own session — with the button
+   that takes them there. */
+"Connected" = "Connected";
+"The worker is installed and running in %@'s own session." = "The worker is installed and running in %@'s own session.";
+"The worker is installed and running in the account's own session." = "The worker is installed and running in the account's own session.";
+"One step remains, and only you can make it: macOS requires the worker's privacy grants to be approved in the account's own session. AgentSpace opens the right System Settings pane there; you approve, then switch back." = "One step remains, and only you can make it: macOS requires the worker's privacy grants to be approved in the account's own session. AgentSpace opens the right System Settings pane there; you approve, then switch back.";
+"Start authorization…" = "Start authorization…";
+"Later" = "Later";
+"%ld approval(s) away from a usable desktop" = "%ld approval(s) away from a usable desktop";
+"The grants belong to %@'s own session. AgentSpace opens the right System Settings pane there; you approve, then switch back." = "The grants belong to %@'s own session. AgentSpace opens the right System Settings pane there; you approve, then switch back.";
