@@ -372,7 +372,19 @@ class RemoteSurfaceNSView: NSView {
         capture.pointer(movedTo: point)
         if capture.isControlling { predictCursor(at: point) }
         if !capture.waitsForIdle || capture.isControlling {
-            forward(gestures.pointerMoved(to: point, in: surfaceMapping(), now: Date()))
+            let now = Date()
+            // Travel is the *only* packet kind the worker's human lease gates,
+            // and nothing renews that lease on its own — deliberately, so a
+            // cursor crossing somebody else's picture cannot keep an agent
+            // paused. A captured surface therefore used to stop following five
+            // seconds in: every move after that was refused as a leftover hover
+            // while the cursor stayed hidden and presses kept working (§342).
+            // Movement over a picture *this* person captured is the evidence
+            // that they are still driving, so it renews the lease at the drag
+            // renewal's own rate. Sent before the move, on the same serial write
+            // queue, so the worker claims first and applies the move after it.
+            if gestures.moveRenewalDue(now: now) { onClaimHuman?() }
+            forward(gestures.pointerMoved(to: point, in: surfaceMapping(), now: now))
         }
     }
 
@@ -432,6 +444,11 @@ class RemoteSurfaceNSView: NSView {
                                                     clickCount: clickCount,
                                                     modifiers: attributes.modifiers,
                                                     in: surfaceMapping(), now: Date())
+            // A press is the most deliberate thing a hand does, so it takes the
+            // human lease here too — the raw path sends the down immediately and
+            // never reaches the threshold path's claim below. A press that landed
+            // in the letterbox produced no gesture and owns nothing.
+            if gesture != nil { onClaimHuman?() }
             forward(gesture)
             predictCursor(at: point)
             onDragActivity?(true)

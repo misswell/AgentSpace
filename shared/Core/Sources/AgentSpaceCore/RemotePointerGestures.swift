@@ -172,6 +172,35 @@ public struct RemotePointerGestureTracker {
         return .hover(u: f.u, v: f.v)
     }
 
+    /// Whether travel from *this* surface should renew the worker's human lease.
+    ///
+    /// This is what keeps continuous travel alive in Desktop Mode. The worker
+    /// grants the lease for five seconds, only `.humanAcquire` extends it — and
+    /// that is deliberate: a cursor merely crossing somebody else's picture must
+    /// not keep an agent paused — and travel is the *only* packet kind the lease
+    /// gates. A captured surface therefore claimed once, when control began, and
+    /// then had every move refused from the sixth second on, while it still hid
+    /// the local cursor and kept posting presses: 「接管了，但不跟随，点击仍有效」.
+    /// A drag renewed the lease, plain movement did not, which is why the field
+    /// saw it intermittently (§342, reported twice).
+    ///
+    /// The information that was missing is exactly what a surface has and the
+    /// worker cannot know: whether the person has *taken* this picture or is
+    /// just crossing it. So the captured surface says so, at the same rate the
+    /// drag renewal uses, and a surface that is not controlling renews nothing.
+    public mutating func moveRenewalDue(now: Date) -> Bool {
+        guard controlling else { return false }
+        return leaseRenewalDue(now: now)
+    }
+
+    /// Rate limit shared by the two ways a person proves they are still driving:
+    /// a held button that keeps moving, and travel over a captured surface.
+    private mutating func leaseRenewalDue(now: Date) -> Bool {
+        guard now.timeIntervalSince(lastRenewal) >= Self.leaseRenewalSeconds else { return false }
+        lastRenewal = now
+        return true
+    }
+
     /// A press arriving in raw mode is sent the moment it happens, whatever it
     /// turns out to be.
     public var sendsPressesImmediately: Bool { rawPhases }
@@ -237,9 +266,7 @@ public struct RemotePointerGestureTracker {
         }
         self.press = press
         engagedUntil = now.addingTimeInterval(Self.humanLeaseSeconds)
-        guard now.timeIntervalSince(lastRenewal) >= Self.leaseRenewalSeconds else { return false }
-        lastRenewal = now
-        return true
+        return leaseRenewalDue(now: now)
     }
 
     /// Every phase of a live drag, in order.
