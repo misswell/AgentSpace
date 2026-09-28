@@ -4,8 +4,16 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-27 on `master`. Current public release: **0.1.48**.
+Last updated: 2026-09-28 on `master`. Current public release: **0.1.48**.
 Published 0.1.48 (§340): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.48), commit `4db8b68`, DMG **6,405,657** bytes, `sha256:e2dec49d885231fcfde1e616a8fc87ef23c84555abefab8de53f4d45d12e73d8`. Apple notarization accepted the App ZIP (`b42da36c-c3fe-40c3-9d4a-bf4ece42d0c4`) and DMG (`e2d279ea-cac7-45f1-b463-bb7a25b00573`); downloaded DMG checksum matches and `xcrun stapler validate` passed. `releases/latest` answers `v0.1.48`.
+0.1.49 candidate (§341): Desktop Viewer now offers Auto, Capture and Click to
+Capture in that order. Auto synchronizes hover after 200 ms without movement;
+Capture continuously follows the host pointer; Click to Capture keeps the
+existing behavior. Both Desktop and Fusion use the policy, and the old Off
+stored preference resolves to Click to Capture. The main-run-loop debounce and
+cancellation probe passed. Swift 722/722, MCP 24/24, updater 19/19, smoke
+and all four local gate layers passed, including 13/13 management UI checks
+in AgentUse. Live mouse feel remains for owner acceptance.
 0.1.48 performance candidate (§339): the App now delays stale cursor
 correction, follows the host display's pointer rate, switches Desktop and
 Fusion capture among idle 5, active 30 and gesture 60 FPS, renders BGRA with

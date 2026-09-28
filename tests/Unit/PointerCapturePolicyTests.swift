@@ -172,9 +172,9 @@ final class PointerCapturePolicyTests: XCTestCase {
 
     // MARK: - Mouse capture mode
 
-    func testMouseCaptureModeAutoTakesThePointerInDesktopAndOnPressInFusion() {
-        XCTAssertEqual(MouseCaptureMode.auto.policy(for: .desktop).entry, .captureOnEntry)
-        XCTAssertEqual(MouseCaptureMode.auto.policy(for: .fusion).entry, .captureOnPress)
+    func testMouseCaptureModeAutoWaitsForIdleInBothSurfaces() {
+        XCTAssertEqual(MouseCaptureMode.auto.policy(for: .desktop).entry, .captureOnIdle)
+        XCTAssertEqual(MouseCaptureMode.auto.policy(for: .fusion).entry, .captureOnIdle)
     }
 
     func testMouseCaptureModeClickToCaptureNeverTakesItOnEntry() {
@@ -182,16 +182,55 @@ final class PointerCapturePolicyTests: XCTestCase {
         XCTAssertEqual(MouseCaptureMode.clickToCapture.policy(for: .fusion).entry, .captureOnPress)
     }
 
-    func testMouseCaptureModeOffDisablesEverything() {
-        XCTAssertEqual(MouseCaptureMode.off.policy(for: .desktop).entry, .disabled)
-        XCTAssertEqual(MouseCaptureMode.off.policy(for: .fusion).entry, .disabled)
+    func testMouseCaptureModeCaptureFollowsInBothSurfaces() {
+        XCTAssertEqual(MouseCaptureMode.capture.policy(for: .desktop).entry, .captureOnEntry)
+        XCTAssertEqual(MouseCaptureMode.capture.policy(for: .fusion).entry, .captureOnEntry)
     }
 
     func testMouseCaptureModeDefaultsToAutoAndParsesItsStoredValue() {
         XCTAssertEqual(MouseCaptureMode.default, .auto)
         XCTAssertEqual(MouseCaptureMode.parse("clickToCapture"), .clickToCapture)
-        XCTAssertEqual(MouseCaptureMode.parse("off"), .off)
+        XCTAssertEqual(MouseCaptureMode.parse("off"), .clickToCapture)
         XCTAssertNil(MouseCaptureMode.parse("something else"))
         XCTAssertNil(MouseCaptureMode.parse(nil))
     }
+    func testAutomaticHoverOnlyCapturesWhenSettledAndStopsOnMovement() {
+        var controller = PointerCaptureController()
+        controller.apply(.automatic)
+        XCTAssertEqual(controller.pointer(inside: true), .hovering)
+        controller.pointerSettled()
+        XCTAssertTrue(controller.state.forwardsTravel)
+        XCTAssertEqual(controller.pointer(inside: true), .hovering)
+        XCTAssertFalse(controller.state.forwardsTravel)
+        controller.pointerSettled()
+        XCTAssertEqual(controller.pointer(inside: false), .outside)
+        controller.pointerSettled()
+        XCTAssertEqual(controller.state, .outside)
+    }
+
+    func testAutomaticPressIsImmediateAndDragSurvivesExit() {
+        var controller = PointerCaptureController()
+        controller.apply(.automatic)
+        _ = controller.pointer(inside: true)
+        controller.pressStarted()
+        XCTAssertTrue(controller.state.forwardsTravel)
+        XCTAssertEqual(controller.pointer(inside: false), .controlling)
+        XCTAssertEqual(controller.pressEnded(pointerInside: true), .hovering)
+    }
+
+    func testPendingIdleCannotRecaptureAfterReleaseOrModeChange() {
+        var controller = PointerCaptureController()
+        controller.apply(.automatic)
+        _ = controller.pointer(inside: true)
+        controller.releaseAll()
+        controller.pointerSettled()
+        XCTAssertEqual(controller.state, .outside)
+        _ = controller.pointer(inside: true)
+        controller.apply(.fusionProxy)
+        controller.pointerSettled()
+        XCTAssertEqual(controller.state, .outside)
+        XCTAssertEqual(MouseCaptureMode.allCases, [.auto, .capture, .clickToCapture])
+        XCTAssertEqual(MouseCaptureMode.parse("capture"), .capture)
+    }
+
 }

@@ -227,6 +227,18 @@ class RemoteSurfaceNSView: NSView {
         // and the menu bar and Dock of the agent's desktop are part of the
         // picture it has to be drawn on top of.
         if let overlay = cursorOverlayLayer { layer?.addSublayer(overlay) }
+        capture.canSettlePointer = { [weak self] in
+            self?.acceptsInput == true && self?.window?.isKeyWindow == true
+        }
+        capture.onPointerSettled = { [weak self] point in
+            guard let self else { return }
+            guard self.acceptsInput, self.window?.isKeyWindow == true else {
+                self.capture.release()
+                return
+            }
+            self.predictCursor(at: point)
+            self.forward(self.gestures.pointerMoved(to: point, in: self.surfaceMapping(), now: Date()))
+        }
         capture.onCaptureBegan = { [weak self] in
             guard let self else { return }
             self.gestures.beginControl(rawPhases: self.sendsRawPresses)
@@ -340,9 +352,12 @@ class RemoteSurfaceNSView: NSView {
         // Capture first: the hand may have just entered the picture, which in
         // Desktop Mode *is* taking control, and the travel it produces belongs to
         // the same event rather than to the next one.
+        guard acceptsInput else { return }
         capture.pointer(movedTo: point)
-        predictCursor(at: point)
-        forward(gestures.pointerMoved(to: point, in: surfaceMapping(), now: Date()))
+        if capture.isControlling { predictCursor(at: point) }
+        if !capture.waitsForIdle || capture.isControlling {
+            forward(gestures.pointerMoved(to: point, in: surfaceMapping(), now: Date()))
+        }
     }
 
     /// The pointer left the view's bounds entirely. A tracking area with
@@ -355,6 +370,7 @@ class RemoteSurfaceNSView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
+        guard acceptsInput else { return }
         capture.pointer(movedTo: viewPoint(of: event))
     }
 

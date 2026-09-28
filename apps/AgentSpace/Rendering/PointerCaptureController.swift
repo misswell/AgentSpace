@@ -25,25 +25,48 @@ final class PointerCaptureCoordinator {
     private(set) var isHidingLocalCursor = false
 
     private var controller = PointerCaptureController()
-    private var pressHeld = false
+    private var idleTimer: Timer?
+    var canSettlePointer: (() -> Bool)?
+    var onPointerSettled: ((CGPoint) -> Void)?
 
     /// Which profile applies to this surface.
     func configure(_ policy: PointerCapturePolicy) {
+        if controller.policy != policy { cancelIdle() }
         controller.apply(policy)
+        state = controller.state
         sync()
     }
 
     /// The pointer entered or left the *image*. `point` is in the view's own
     /// coordinate space.
     func pointer(movedTo point: CGPoint) {
+        cancelIdle()
         let inside = imageRect.width >= 1 && imageRect.height >= 1 && imageRect.contains(point)
         let previous = state
         state = controller.pointer(inside: inside)
         if previous != state { sync() }
+        if inside, controller.policy.entry == .captureOnIdle, !controller.isPressHeld {
+            idleTimer = Timer.scheduledTimer(withTimeInterval: PointerCapturePolicy.idleDelay, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.idleTimer = nil
+                    guard self.imageRect.contains(point), self.canSettlePointer?() == true else { return }
+                    self.controller.pointerSettled()
+                    self.state = self.controller.state
+                    self.sync()
+                    if self.isControlling { self.onPointerSettled?(point) }
+                }
+            }
+        }
+    }
+
+    private func cancelIdle() {
+        idleTimer?.invalidate()
+        idleTimer = nil
     }
 
     func pressStarted() {
-        pressHeld = true
+        cancelIdle()
         let previous = state
         controller.pressStarted()
         state = controller.state
@@ -51,7 +74,7 @@ final class PointerCaptureCoordinator {
     }
 
     func pressEnded(pointerInside: Bool) {
-        pressHeld = false
+        cancelIdle()
         let previous = state
         state = controller.pressEnded(pointerInside: pointerInside)
         if previous != state { sync() }
@@ -61,6 +84,7 @@ final class PointerCaptureCoordinator {
     /// rect says, and a held button does not keep a window the person's hand has
     /// left.
     func pointerLeftView() {
+        cancelIdle()
         guard state != .outside else { return }
         state = controller.pointer(inside: false)
         sync()
@@ -68,6 +92,7 @@ final class PointerCaptureCoordinator {
 
     /// Escape released the capture without the pointer moving anywhere.
     func escape() {
+        cancelIdle()
         controller.escapeToHovering()
         state = controller.state
         sync()
@@ -77,11 +102,13 @@ final class PointerCaptureCoordinator {
     /// the console, input revoked — comes through here, so the local cursor
     /// cannot be left hidden by a route that forgot to restore it.
     func release() {
+        cancelIdle()
         controller.releaseAll()
         state = .outside
-        pressHeld = false
         sync()
     }
+
+    var waitsForIdle: Bool { controller.policy.entry == .captureOnIdle }
 
     var isControlling: Bool { state == .controlling }
 

@@ -1,27 +1,15 @@
 import CoreGraphics
 import Foundation
 
-/// Whether a remote surface is under the hand, and what that means.
-///
-/// The desktop viewer used to require a *click* before pointer travel would
-/// reach the agent: a cursor crossing a picture of somebody else's desktop must
-/// not move that desktop's pointer, so `RemotePointerGestureTracker` forwarded
-/// hover only inside a live lease. That rule is right for a proxy sitting among
-/// a person's own windows, and wrong for Desktop Mode, where the whole point is
-/// to operate the agent's desktop as if it were one's own — Parallels and
-/// RustDesk both hand the pointer over the moment it enters the remote canvas.
-///
-/// The difference is not "which app" but "how much of the screen is the remote":
-/// full Desktop Mode is an exclusive picture, so entering it is taking control;
-/// a Fusion proxy is a *window*, and its title bar and its neighbours belong to
-/// the human. So the policy is a value with two profiles, and the surface that
-/// hosts it decides which one applies.
+/// Pointer entry, press and idle behavior shared by both remote surfaces.
 public struct PointerCapturePolicy: Equatable, Sendable {
     /// What entering the remote image does.
     public enum EntryBehavior: Equatable, Sendable {
         /// Entering is taking control: local cursor hides, travel forwards, the
         /// human lease is acquired explicitly. Desktop Mode.
         case captureOnEntry
+        /// Synchronize hover after the host pointer stops moving.
+        case captureOnIdle
         /// Entering does nothing; a press is what takes control. Fusion proxies,
         /// where the surface shares the screen with the person's own work.
         case captureOnPress
@@ -47,6 +35,10 @@ public struct PointerCapturePolicy: Equatable, Sendable {
 
     /// Full Desktop Mode: entering the agent's desktop is taking the pointer.
     public static let desktop = PointerCapturePolicy(entry: .captureOnEntry)
+
+    public static let automatic = PointerCapturePolicy(entry: .captureOnIdle)
+    /// Delay since the last movement before automatic hover is synchronized.
+    public static let idleDelay: TimeInterval = 0.2
 
     /// A Fusion proxy: the person's own windows surround this one, so only a
     /// deliberate press takes control — the §298 rule, kept.
@@ -104,7 +96,7 @@ public struct PointerCaptureController {
     public mutating func apply(_ policy: PointerCapturePolicy) {
         guard policy != self.policy else { return }
         self.policy = policy
-        if policy.entry == .disabled { releaseAll() }
+        releaseAll()
     }
 
     /// The pointer arrived at or left the remote image. `inside` is the
@@ -126,6 +118,8 @@ public struct PointerCaptureController {
                 state = .outside
                 capturedByEntry = false
             }
+        case .captureOnIdle:
+            if !pressHeld { state = inside ? .hovering : .outside }
         case .captureOnPress:
             if inside {
                 if state != .controlling { state = .hovering }
@@ -136,6 +130,13 @@ public struct PointerCaptureController {
             break
         }
         return state
+    }
+
+    /// A pending idle deadline fired. Movement, exit or release must invalidate
+    /// that deadline in the host; this guard also prevents capturing outside.
+    public mutating func pointerSettled() {
+        guard policy.entry == .captureOnIdle, state == .hovering, !pressHeld else { return }
+        state = .controlling
     }
 
     /// The button came down inside the image. A press takes control in every
@@ -154,7 +155,7 @@ public struct PointerCaptureController {
         case .captureOnEntry:
             state = pointerInside ? .controlling : .outside
             capturedByEntry = pointerInside
-        case .captureOnPress, .disabled:
+        case .captureOnIdle, .captureOnPress, .disabled:
             state = pointerInside ? .hovering : .outside
         }
         return state

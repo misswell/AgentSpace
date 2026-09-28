@@ -9264,3 +9264,17 @@ rate changes, rendering, and diagnostics without changing wire protocol 1.
 |---|---|---|---|
 | 989 | The performance and compact Desktop Viewer changes are the public release | pass (release read back) | Commit `4db8b68890ecc0f54705878d6631c3c61bee1593` was pushed and tagged `v0.1.48`; [Actions run 36323897331](https://github.com/misswell/AgentSpace/actions/runs/36323897331) completed successfully. The workflow's validation and layers 1–3 gate passed; layer 4 was explicitly stated as requiring a console Accessibility session. |
 | 990 | The update channel serves a notarized, stapled 0.1.48 DMG | pass (download and Apple read back) | [`releases/latest`](https://github.com/misswell/AgentSpace/releases/latest) answers `v0.1.48` with `AgentSpace-0.1.48.dmg`, **6,405,657** bytes, `sha256:e2dec49d885231fcfde1e616a8fc87ef23c84555abefab8de53f4d45d12e73d8`. A fresh download at `/tmp/agentspace-0.1.48-release.dmg` has the same SHA-256 and `xcrun stapler validate` reports **The validate action worked!** Apple accepted App submission `b42da36c-c3fe-40c3-9d4a-bf4ece42d0c4` and DMG submission `e2d279ea-cac7-45f1-b463-bb7a25b00573`. |
+
+
+## 341. Three distinct mouse-control modes (2026-09-28)
+
+The owner defines Auto as hover synchronization when the host pointer stops,
+Capture as continuous following, and Click to Capture as the existing behavior.
+This is an App-side policy change; wire protocol and worker safety checks stay
+unchanged. The removed Off stored value resolves to Click to Capture.
+
+| # | Claim | Verdict | Evidence |
+|---|---|---|---|
+| 991 | Auto forwards hover at the final position after 200 ms of inactivity, while Capture continuously follows and Click to Capture preserves its policy | pass (source, unit tests and timer probe; live feel pending) | `MouseCaptureMode` maps both hosts to idle, entry and press capture respectively. `RemoteSurfaceNSView` gates Auto movement even if the gesture tracker's previous engagement lease remains live, then forwards the final position through the normal hover transport when idle fires. Added controller tests cover settling, movement, immediate press, drag exit and stored-value migration. |
+| 992 | A pending idle hover cannot execute after exit, escape, release, mode change, input revocation or loss of the key window | pass (timer probe and source) | `tests/probes/PointerCaptureProbe.swift` executes the AppKit coordinator on the main run loop: repeated movement restarts the deadline; only the final position settles; exit/escape/release/mode change cancel the timer; the input/key-window predicate is checked before capture/lease acquisition. Held presses cancel the timer and survive an image exit. Same-policy updates preserve the deadline, while changed policies update coordinator state and return control. Probe executable `/tmp/agentspace-0.1.49-pointer-probe` passed. |
+| 993 | The 0.1.49 candidate passes the local release gate without touching the owner's App | pass (measured; live mode feel pending) | Swift **722/722**, MCP **24/24**, updater E2E **19/19**, MCP smoke and `git diff --check` passed. `scripts/check-all.sh` ran with Node 22.23.2 (the inherited Volta Node 14 cannot run `node --test`), system git PATH, and `AGENTSPACE_GUI_APP=/tmp/agentspace-0.1.49-ui/AgentSpace.app`. The existing dist App remained stapled; the candidate bundle was built under `/tmp`. The console instrument refused because the owner's App was running; its session twin passed **13/13** inside AgentUse. This management-UI check does not measure live Desktop/Fusion mouse feel. |

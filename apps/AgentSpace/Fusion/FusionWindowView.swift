@@ -80,11 +80,7 @@ private struct FusionSurface: NSViewRepresentable {
         view.onGesture = send
         view.onClaimHuman = claimHuman
         view.onReleaseHuman = releaseHuman
-        // A proxy captures on the press, not on entry: the person's own windows
-        // surround this one, and a cursor crossing it is not a person working in
-        // it. The local cursor is only hidden once the channel can draw the
-        // agent's own — the picture's painted cursor is what the person sees until
-        // then, and hiding the local one early would leave no pointer at all.
+        // Both hosts use the same explicit mouse-control preference.
         let mode = MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default
         view.capture.configure(mode.policy(for: .fusion))
         view.allowsLocalCursorHiding = overlay.isDrawingCursor

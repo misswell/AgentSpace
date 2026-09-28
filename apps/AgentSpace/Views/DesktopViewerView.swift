@@ -103,10 +103,7 @@ struct DesktopViewerView: View {
     @AppStorage(DisplayQuality.storageKey) private var displayQuality = DisplayQuality.default.rawValue
     @AppStorage("previewFPS") private var previewFPS = 30
     @AppStorage("desktopPerformanceHUD") private var showsPerformanceHUD = false
-    /// How the pointer behaves over the agent's desktop. See `MouseCaptureMode`:
-    /// the default hands the pointer over on entry, which is what makes Desktop
-    /// Mode feel like the machine in front of the person rather than a picture of
-    /// one.
+    /// Pointer behavior shared with Fusion surfaces.
     @AppStorage(MouseCaptureMode.storageKey) private var captureMode = MouseCaptureMode.default.rawValue
     @State private var zoom = ViewerZoom.fit
     @State private var showingDetails = false
@@ -331,15 +328,17 @@ struct DesktopViewerView: View {
             .labelsHidden()
             .accessibilityIdentifier("desktopViewerFPSPicker")
 
-            Picker("Mouse Capture", selection: $captureMode) {
+            Picker("Mouse Capture", selection: Binding(
+                get: { (MouseCaptureMode.parse(captureMode) ?? .default).rawValue },
+                set: { captureMode = $0 })) {
                 Text("Auto").tag(MouseCaptureMode.auto.rawValue)
+                Text("Capture").tag(MouseCaptureMode.capture.rawValue)
                 Text("Click to Capture").tag(MouseCaptureMode.clickToCapture.rawValue)
-                Text("Off").tag(MouseCaptureMode.off.rawValue)
             }
             .pickerStyle(.menu)
             .labelsHidden()
             .accessibilityIdentifier("desktopViewerCaptureModePicker")
-            .help(Text("When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back."))
+            .help(Text("Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control."))
 
             Button { capture() } label: { Image(systemName: "camera") }
                 .help(Text("Save Snapshot"))

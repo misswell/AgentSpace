@@ -612,3 +612,6 @@
 "The window this input names is gone or has been re-created. Re-open the Fusion window list and try again." = "The window this input names is gone or has been re-created. Re-open the Fusion window list and try again.";
 "A 2× display is required to open this desktop." = "A 2× display is required to open this desktop.";
 "Connect a Retina display to the agent session or update its Worker, then reconnect." = "Connect a Retina display to the agent session or update its Worker, then reconnect.";
+
+"Capture" = "Capture";
+"Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control." = "Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control.";
