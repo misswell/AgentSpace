@@ -7,6 +7,17 @@ Read this first when resuming AgentSpace. The binding product direction is
 Last updated: 2026-09-28 on `master`. Current public release: **0.1.49**.
 Published 0.1.49 (§341): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.49), source commit `0d9eea1`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36369768158) passed. DMG **6,408,312** bytes, `sha256:fe9fb2b23f8c129ec9e1957eaad3ecd4999de8223cadb16c89c5f753c70727a7`. Apple accepted App ZIP `af888826-7dc9-405d-b9e7-11e73e507d5d` and DMG `ae275264-5d10-4d0b-9a5d-18bc695c59af` (read back with `notarytool info`). Fresh download `/tmp/agentspace-0.1.49-release.dmg` matches the published digest; DMG and inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.49`.
 Published 0.1.48 (§340): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.48), commit `4db8b68`, DMG **6,405,657** bytes, `sha256:e2dec49d885231fcfde1e616a8fc87ef23c84555abefab8de53f4d45d12e73d8`. Apple notarization accepted the App ZIP (`b42da36c-c3fe-40c3-9d4a-bf4ece42d0c4`) and DMG (`e2d279ea-cac7-45f1-b463-bb7a25b00573`); downloaded DMG checksum matches and `xcrun stapler validate` passed. `releases/latest` answers `v0.1.48`.
+0.1.50 candidate (§342): the performance HUD toggle no longer re-renders the
+viewer that hosts the live stream, and the remote surface re-asserts the
+window's mouse-moved delivery on entry, press, layout and cursor-rect passes —
+macOS gates only mouse-moved delivery on that flag while presses and tracking
+enter/exit still arrive, which is the one mechanism matching the afternoon
+report of 「接管了但不跟随，点击仍有效」. The morning whole-window click freeze
+and the afternoon no-follow report were neither reproduced in-house; recovery
+for both remains quit and reopen. Swift 722/722 (twice), MCP smoke, updater
+19/19, and 13/13 management-UI checks in AgentUse's session after one degraded
+first read (the §339 row 986 pattern). Live mouse feel remains for owner
+acceptance.
 0.1.49 (§341): Desktop Viewer now offers Auto, Capture and Click to
 Capture in that order. Auto synchronizes hover after 200 ms without movement;
 Capture continuously follows the host pointer; Click to Capture keeps the

@@ -310,6 +310,22 @@ class RemoteSurfaceNSView: NSView {
                                   owner: self, userInfo: nil)
         addTrackingArea(area)
         trackingArea = area
+        reassertMouseMovedDelivery()
+    }
+
+    /// AppKit turns `acceptsMouseMovedEvents` off while its own tracking owns
+    /// the pointer — an open menu, a popover — and on this OS a popover that
+    /// has closed has been observed leaving it off. Moves then stop arriving
+    /// while presses, drags and tracking-area enter/exit still work, and since
+    /// enter/exit are not gated by that flag, Desktop Mode still captures on
+    /// entry: the cursor hides, the lease is taken, and nothing follows. That
+    /// reads to a person as 「接管了但不跟随」. Re-arm on every cheap, guaranteed
+    /// path instead of hoping AppKit restores the flag: tracking-area rebuilds
+    /// (layout), entering the view, any press, and every cursor-rect pass.
+    private func reassertMouseMovedDelivery() {
+        if let window, !window.acceptsMouseMovedEvents {
+            window.acceptsMouseMovedEvents = true
+        }
     }
 
     override func layout() {
@@ -370,6 +386,7 @@ class RemoteSurfaceNSView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
+        reassertMouseMovedDelivery()
         guard acceptsInput else { return }
         capture.pointer(movedTo: viewPoint(of: event))
     }
@@ -400,6 +417,7 @@ class RemoteSurfaceNSView: NSView {
     }
 
     private func beganPress(_ event: NSEvent, clickCount: Int) {
+        reassertMouseMovedDelivery()
         guard acceptsInput, onGesture != nil else { return }
         window?.makeFirstResponder(self)
         let point = viewPoint(of: event)
@@ -510,6 +528,7 @@ class RemoteSurfaceNSView: NSView {
     /// failure mode is the ordinary cursor reappearing.
     override func resetCursorRects() {
         super.resetCursorRects()
+        reassertMouseMovedDelivery()
         guard allowsLocalCursorHiding, capture.isControlling,
               let rect = capture.cursorRect else { return }
         addCursorRect(rect, cursor: TransparentCursor.cursor)

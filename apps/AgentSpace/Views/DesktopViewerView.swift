@@ -102,7 +102,6 @@ struct DesktopViewerView: View {
     /// The display-quality mode, on the same key Settings' picker writes.
     @AppStorage(DisplayQuality.storageKey) private var displayQuality = DisplayQuality.default.rawValue
     @AppStorage("previewFPS") private var previewFPS = 30
-    @AppStorage("desktopPerformanceHUD") private var showsPerformanceHUD = false
     /// Pointer behavior shared with Fusion surfaces.
     @AppStorage(MouseCaptureMode.storageKey) private var captureMode = MouseCaptureMode.default.rawValue
     @State private var zoom = ViewerZoom.fit
@@ -423,13 +422,7 @@ struct DesktopViewerView: View {
                     onDragActivity: { active in setDragActivity(active) })
                 if !snapshot.acceptsInput { inputBlockedOverlay(snapshot) }
                 VStack { HStack { FrameClientStatusOverlay(client: frameClient); Spacer() }; Spacer() }
-                if showsPerformanceHUD {
-                    VStack {
-                        HStack { Spacer(); performanceHUD(frameClient) }
-                        Spacer()
-                    }
-                    .allowsHitTesting(false)
-                }
+                PerformanceHUDOverlay(client: frameClient, input: input)
             }
         } else {
             VStack(spacing: 10) {
@@ -503,37 +496,10 @@ struct DesktopViewerView: View {
                     Label("Reveal File", systemImage: "folder")
                 }
             }
-            Toggle("Performance HUD", isOn: $showsPerformanceHUD)
+            PerformanceHUDToggle()
         }
         .frame(width: 360, alignment: .leading)
         .padding(16)
-    }
-
-    private func performanceHUD(_ client: FrameClient) -> some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
-            let metrics = client.performance
-            let fps = FrameClock.uptime() - metrics.updatedAt > 2.5 ? 0 : metrics.framesPerSecond
-            VStack(alignment: .leading, spacing: 4) {
-                Text(String(format: NSLocalizedString("Frame %.0f FPS", comment: ""), fps))
-                if let p50 = input.appliedMoveP50ms, let p95 = input.appliedMoveP95ms {
-                    Text(String(format: NSLocalizedString("Move p50 %.1f / p95 %.1f ms", comment: ""), p50, p95))
-                }
-                if let p50 = input.appliedInputP50ms, let p95 = input.appliedInputP95ms {
-                    Text(String(format: NSLocalizedString("Input p50 %.1f / p95 %.1f ms", comment: ""), p50, p95))
-                }
-                if let p50 = metrics.captureToRenderP50, let p95 = metrics.captureToRenderP95 {
-                    Text(String(format: NSLocalizedString("Frame p50 %.1f / p95 %.1f ms", comment: ""), p50, p95))
-                }
-                if let render = metrics.receiveToRenderP50 {
-                    Text(String(format: NSLocalizedString("Render p50 %.1f ms", comment: ""), render))
-                }
-            }
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.white)
-            .padding(9)
-            .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
-            .padding(12)
-        }
     }
 
     // MARK: - Capture
@@ -729,5 +695,70 @@ private struct WindowCapture: NSViewRepresentable {
             }
             onChange(window)
         }
+    }
+}
+
+/// The performance HUD, drawn by its own view.
+///
+/// The toggle used to live on the viewer itself as an `@AppStorage` the whole
+/// `DesktopViewerView` body read, so flipping it — from inside the details
+/// popover — re-evaluated the entire viewer: the live `RemoteSurfaceView`, its
+/// capture coordinator, the cursor overlay's re-attach, all while the popover
+/// was dismissing. The one reported window freeze followed exactly that path.
+/// Both halves now observe the key on their own: a flip re-renders this
+/// overlay and the popover's toggle row and nothing else, and the viewer's
+/// body never reads the key at all.
+private struct PerformanceHUDOverlay: View {
+    @ObservedObject var client: FrameClient
+    let input: DesktopViewerInput
+
+    @AppStorage("desktopPerformanceHUD") private var shows = false
+
+    var body: some View {
+        if shows {
+            VStack {
+                HStack { Spacer(); hud }
+                Spacer()
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    private var hud: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            let metrics = client.performance
+            let fps = FrameClock.uptime() - metrics.updatedAt > 2.5 ? 0 : metrics.framesPerSecond
+            VStack(alignment: .leading, spacing: 4) {
+                Text(String(format: NSLocalizedString("Frame %.0f FPS", comment: ""), fps))
+                if let p50 = input.appliedMoveP50ms, let p95 = input.appliedMoveP95ms {
+                    Text(String(format: NSLocalizedString("Move p50 %.1f / p95 %.1f ms", comment: ""), p50, p95))
+                }
+                if let p50 = input.appliedInputP50ms, let p95 = input.appliedInputP95ms {
+                    Text(String(format: NSLocalizedString("Input p50 %.1f / p95 %.1f ms", comment: ""), p50, p95))
+                }
+                if let p50 = metrics.captureToRenderP50, let p95 = metrics.captureToRenderP95 {
+                    Text(String(format: NSLocalizedString("Frame p50 %.1f / p95 %.1f ms", comment: ""), p50, p95))
+                }
+                if let render = metrics.receiveToRenderP50 {
+                    Text(String(format: NSLocalizedString("Render p50 %.1f ms", comment: ""), render))
+                }
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.white)
+            .padding(9)
+            .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+            .padding(12)
+        }
+    }
+}
+
+/// The HUD's toggle, isolated for the same reason: it observes the key itself,
+/// so flipping it never invalidates the view that hosts the popover, let alone
+/// the live surface underneath it.
+private struct PerformanceHUDToggle: View {
+    @AppStorage("desktopPerformanceHUD") private var shows = false
+
+    var body: some View {
+        Toggle("Performance HUD", isOn: $shows)
     }
 }
