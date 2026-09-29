@@ -294,6 +294,10 @@ final class InputConnection {
         switch packet.header.kind {
         case .pointerMove, .pointerDown, .pointerUp:
             let pointer = try InputPointerPacket(decoding: packet.payload)
+            // A press resolves from the window server's current answer, never
+            // the cache: a click that lands on a frame the window has already
+            // left is the one mistake the resolution cache must never make.
+            if packet.header.kind == .pointerDown { windowResolutionCache = nil }
             let point = try resolve(pointer.target, x: pointer.x, y: pointer.y)
             let action: InputAction
             switch packet.header.kind {
@@ -414,10 +418,35 @@ final class InputConnection {
         try? currentWindow(identity).frame
     }
 
-    private func currentWindow(_ identity: WindowIdentity) throws -> RemoteWindow {
+    /// One cached window resolution. A hover or scroll burst names the same
+    /// window up to twice per packet (resolve + perform) at up to the pointer's
+    /// own rate, and every miss used to pay a full `CGWindowListCopyWindowInfo`
+    /// enumeration serialized behind this connection's other packets — worker
+    /// cost the person felt as proxy lag, for an answer that changes at most
+    /// when the window moves or dies. 0.25 s of staleness bounds the drift a
+    /// hover warp can inherit; a press bypasses it entirely (see `apply`).
+    private struct ResolvedWindow {
+        let identity: WindowIdentity
+        let window: RemoteWindow
+        let at: TimeInterval
+    }
+
+    private static let windowResolutionTTL: TimeInterval = 0.25
+
+    private var windowResolutionCache: ResolvedWindow?
+
+    private func currentWindow(_ identity: WindowIdentity, forceFresh: Bool = false) throws -> RemoteWindow {
+        let now = ProcessInfo.processInfo.systemUptime
+        if !forceFresh, let cache = windowResolutionCache,
+           cache.identity == identity, now - cache.at < Self.windowResolutionTTL {
+            return cache.window
+        }
         do {
-            return try operations.windowCatalog.window(matching: identity)
+            let window = try operations.windowCatalog.window(matching: identity)
+            windowResolutionCache = ResolvedWindow(identity: identity, window: window, at: now)
+            return window
         } catch {
+            windowResolutionCache = nil
             throw AgentSpaceError(
                 code: .invalidTarget,
                 message: "window \(identity.windowID) of pid \(identity.pid) is no longer on screen")
@@ -431,24 +460,43 @@ final class InputConnection {
         }
     }
 
-    /// Post one action, with the two guards the RPC path applies and the fast
-    /// channel must not skip: a window action needs its window raised once at the
-    /// start of the gesture (never per point), and every action is still an
-    /// event posted into this session's own stream.
+    /// Post one action, with the guards the RPC path applies and the fast
+    /// channel must not skip: a window action needs its window raised once at
+    /// the start of the gesture (never per point), hover never raises at all,
+    /// and every action is still an event posted into this session's own stream.
     private func perform(_ action: InputAction, target: InputTarget) throws {
-        if case .window(let identity) = target {
+        if case .window(let identity) = target, action.needsWindowActivation {
             // Raising on every point of a drag is what `isDragContinuation`
             // exists to avoid: AX latency per point, and a window that is moving
             // can be reordered by the raise itself. The press and the activation
             // happen once; the rest of the gesture just posts.
-            let needsActivation = !action.isDragContinuation
-            if needsActivation {
+            //
+            // The raise itself is throttled to the resolution cache's own TTL:
+            // a scroll burst used to pay `app.activate` plus an AXRaise per
+            // tick, and the z-order those calls assert cannot meaningfully
+            // change inside 0.25 s except by a window outside this connection.
+            // A press always raises, freshly resolved — the click is the one
+            // event that must land on the window it named.
+            if action.isPress {
+                let window = try currentWindow(identity, forceFresh: true)
+                try WindowInputRouter.activate(window: window)
+                lastActivation = (identity, ProcessInfo.processInfo.systemUptime)
+            } else if let last = lastActivation,
+                      last.identity == identity,
+                      ProcessInfo.processInfo.systemUptime - last.at < Self.windowResolutionTTL {
+                // Raised for this window moments ago; just post.
+            } else {
                 let window = try currentWindow(identity)
                 try WindowInputRouter.activate(window: window)
+                lastActivation = (identity, ProcessInfo.processInfo.systemUptime)
             }
         }
         _ = try InputSynthesizer.perform(action)
     }
+
+    /// The window this connection last activated, and when — the throttle
+    /// behind the raise-per-scroll-burst cost, sharing the resolution TTL.
+    private var lastActivation: (identity: WindowIdentity, at: TimeInterval)?
 
     private func sendAck(sequence: UInt64, status: InputAckStatus, x: Double, y: Double,
                          receivedAt: UInt64, postedAt: UInt64, message: String? = nil) {
