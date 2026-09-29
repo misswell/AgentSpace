@@ -423,13 +423,21 @@ struct DesktopViewerView: View {
                     // the person looking at a desktop with no pointer at all —
                     // worse than a cursor that lags by one frame.
                     hidesLocalCursor: input.cursorChannelActive
-                        && (MouseCaptureMode.parse(captureMode) ?? .default).hidesCursor,
+                        && (MouseCaptureMode.parse(captureMode) ?? .default).hidesLocalCursor,
                     onGesture: { gesture in send(gesture, snapshot: snapshot) },
                     onClaimHuman: { input.claimHuman() },
                     onReleaseHuman: { input.releaseHuman() },
                     sendsRawPresses: true,
                     cursorOverlay: cursorOverlay,
                     onDragActivity: { active in setDragActivity(active) })
+                    .onChange(of: captureMode) { _ in
+                        // The picker changes the pointer policy mid-stream: the
+                        // two cursor decisions follow it without waiting for a
+                        // channel bounce (§364).
+                        let mode = MouseCaptureMode.parse(captureMode) ?? .default
+                        cursorOverlay.hidesCursor = !mode.hidesInternalCursor
+                        cursorOverlay.isDrawingCursor = input.cursorChannelActive && !mode.hidesInternalCursor
+                    }
                 if !snapshot.acceptsInput { inputBlockedOverlay(snapshot) }
                 VStack { HStack { FrameClientStatusOverlay(client: frameClient); Spacer() }; Spacer() }
                 PerformanceHUDOverlay(client: frameClient, input: input)
@@ -648,6 +656,7 @@ struct DesktopViewerView: View {
         // must stop painting one, or the person sees two — the trailing ghost
         // this whole path exists to remove.
         let overlay = cursorOverlay
+        overlay.hidesCursor = !(MouseCaptureMode.parse(captureMode) ?? .default).hidesInternalCursor
         // The client exists before the closures capture it: a weak capture
         // taken before `frameClient = client` used to be nil forever, so
         // `setEmbeddedCursor` was silently never sent and the picture went on
@@ -661,7 +670,7 @@ struct DesktopViewerView: View {
             // 接管 keeps the person's own cursor as the pointer: the sprite
             // would only duplicate it, so it draws for the other modes alone.
             overlay?.isDrawingCursor = active
-                && (MouseCaptureMode.parse(captureMode) ?? .default).hidesCursor
+                && !(MouseCaptureMode.parse(captureMode) ?? .default).hidesInternalCursor
             // Only once the worker has *proved* it can publish shapes: turning
             // the painted cursor off for a channel that then fails would leave
             // the desktop with no pointer at all.

@@ -103,9 +103,14 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
             .sink { [weak self] capabilities in
                 guard let self else { return }
                 let live = self.channelClient?.state.isReady == true && capabilities.contains(.cursorShapes)
-                // 接管 keeps the person's own cursor as the pointer.
-                self.overlay.isDrawingCursor = live
-                    && (MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default).hidesCursor
+                let mode = MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default
+                // The sprite is the internal cursor: 「接管隐藏鼠标」 suppresses
+                // it whether or not the picture paints one (§364).
+                self.overlay.isDrawingCursor = live && !mode.hidesInternalCursor
+                // And the channel being proved — not the sprite's visibility —
+                // is what stops the painted cursor, or the mode that hides the
+                // internal cursor would re-enable the painted one instead.
+                self.frameClient?.setEmbeddedCursor(!live)
             }
             .store(in: &stateSubscriptions)
         client.$state

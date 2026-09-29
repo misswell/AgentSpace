@@ -99,7 +99,7 @@ private struct FusionSurface: NSViewRepresentable {
         // Both hosts use the same explicit mouse-control preference.
         let mode = MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default
         view.capture.configure(mode.policy(for: .fusion))
-        view.allowsLocalCursorHiding = overlay.isDrawingCursor && mode.hidesCursor
+        view.allowsLocalCursorHiding = overlay.isDrawingCursor && mode.hidesLocalCursor
         overlay.attach(view.cursorOverlay)
     }
 }

@@ -40,9 +40,16 @@ public enum MouseCaptureMode: String, CaseIterable, Sendable {
         }
     }
 
-    /// Whether controlling hides the person's own pointer in favour of the
-    /// worker's published sprite. Every mode but takeover does.
-    public var hidesCursor: Bool { self != .takeover }
+    /// Whether controlling hides the person's **own** pointer. The two
+    /// takeover modes never do: a hand's own cursor is the only zero-latency
+    /// pointer there is, and hiding it is what makes a remote desktop feel
+    /// slow — the owner's correction of §351's semantics (§364).
+    public var hidesLocalCursor: Bool { self == .auto || self == .clickToCapture }
+
+    /// Whether the **internal** cursor — the one drawn inside the remote
+    /// picture, from the worker's published sprite — is suppressed.
+    /// 「接管隐藏鼠标」 hides the internal one, never the person's own (§364).
+    public var hidesInternalCursor: Bool { self == .takeoverHidden }
 
     public enum Host: Sendable {
         case desktop
