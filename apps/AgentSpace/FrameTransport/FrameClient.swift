@@ -45,6 +45,9 @@ final class FrameClient: ObservableObject {
     private var stopped = false
     private var running = false
     private var streamID: UUID?
+    /// The last cursor preference asked for, kept so a call that arrives before
+    /// the stream exists is not lost (§365).
+    private var embedsCursor: Bool?
     private var socket: FrameSocket?
     private var mapping: SharedFrameMapping?
     private var sequence = FrameSequenceValidator()
@@ -140,8 +143,21 @@ final class FrameClient: ObservableObject {
     /// published position. Two cursors on screen is the trailing ghost the cursor
     /// channel exists to remove, and zero cursors is worse than both.
     func setEmbeddedCursor(_ enabled: Bool) {
-        lock.lock(); let id = streamID; let stopped = self.stopped; lock.unlock()
+        lock.lock()
+        // The preference is remembered, not just sent: the cursor channel can
+        // prove itself before this stream's `frame.open` has returned, and a
+        // call made in that window used to vanish into the `streamID == nil`
+        // guard and never be repeated (§365). The stored value is pushed the
+        // moment the stream exists, and again on every reconnect.
+        embedsCursor = enabled
+        let id = streamID; let stopped = self.stopped
+        lock.unlock()
         guard !stopped, let id else { return }
+        sendCursorPreference(enabled, streamID: id)
+    }
+
+    /// Push the remembered cursor preference onto an open stream.
+    private func sendCursorPreference(_ enabled: Bool, streamID id: UUID) {
         let space = space
         queue.async {
             let connection = SpaceConnection(space: space)
@@ -201,7 +217,10 @@ final class FrameClient: ObservableObject {
         let ack = try JSONDecoder().decode(FrameHelloAck.self, from: socket.readLine())
         _ = reconnect.acceptHandshake(workerInstanceID: ack.workerInstanceID, sessionGeneration: ack.sessionGeneration)
         let mapping = try SharedFrameMapping(fd: socket.receiveFileDescriptor())
-        lock.lock(); self.socket = socket; self.mapping = mapping; self.streamID = id; lock.unlock()
+        lock.lock(); self.socket = socket; self.mapping = mapping; self.streamID = id
+        let remembered = embedsCursor
+        lock.unlock()
+        if let remembered { sendCursorPreference(remembered, streamID: id) }
         publishState(.streaming)
         defer {
             lock.lock(); self.socket = nil; self.mapping = nil; if streamID == id { streamID = nil }; lock.unlock()
