@@ -14,6 +14,21 @@ Published 0.1.51 (§343): [GitHub Release](https://github.com/misswell/AgentSpac
 Published 0.1.50 (§342): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.50), source commit `be056b9`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36390675945) passed. DMG **6,406,572** bytes, `sha256:36a60be43f5ecf7205cf9de8c2c4bb271efa49cf16a1a9496ca494e0248db3f9`. Apple accepted App ZIP `e0adb659-4680-4c39-bb64-15a45b6bdd15` and DMG `46c0f197-7f23-477b-acaa-7ee46690023e` (read back with `notarytool history`). Fresh download `/tmp/agentspace-0.1.50-release.dmg` matches the published digest; DMG and inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.50`.
 Published 0.1.49 (§341): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.49), source commit `0d9eea1`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36369768158) passed. DMG **6,408,312** bytes, `sha256:fe9fb2b23f8c129ec9e1957eaad3ecd4999de8223cadb16c89c5f753c70727a7`. Apple accepted App ZIP `af888826-7dc9-405d-b9e7-11e73e507d5d` and DMG `ae275264-5d10-4d0b-9a5d-18bc695c59af` (read back with `notarytool info`). Fresh download `/tmp/agentspace-0.1.49-release.dmg` matches the published digest; DMG and inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.49`.
 Published 0.1.48 (§340): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.48), commit `4db8b68`, DMG **6,405,657** bytes, `sha256:e2dec49d885231fcfde1e616a8fc87ef23c84555abefab8de53f4d45d12e73d8`. Apple notarization accepted the App ZIP (`b42da36c-c3fe-40c3-9d4a-bf4ece42d0c4`) and DMG (`e2d279ea-cac7-45f1-b463-bb7a25b00573`); downloaded DMG checksum matches and `xcrun stapler validate` passed. `releases/latest` answers `v0.1.48`.
+0.1.57 candidate (§349): Fusion proxies stop paying hidden per-event costs.
+Walking both input paths packet by packet showed the proxy's capture and
+render pipeline is identical to the desktop viewer's (dedicated SCWindow
+stream, shared-memory damage, Metal/CAMetalLayer); the lag lived in the
+worker's fast channel, which activated + AX-raised the agent's window and ran
+a full window-list enumeration for every forwarded hover and scroll packet —
+the RPC path it mirrors has always skipped that for hover, with a written
+isolation reason. Now: hover carries zero bookkeeping, window resolution is
+cached 0.25 s (presses always resolve fresh and always raise), scroll
+activation is throttled, non-key proxies adapt within 15 FPS instead of a
+hard 5, the stream rate follows the button in both press models, and a
+proxy's local layout no longer reopens its stream. **The worker changed:
+「重新安装助手…」 is part of this update.** Swift 754/754, MCP 24/24, smoke,
+updater 19/19, and 13/13 session-UI checks against the tree-built 0.1.57
+candidate.
 0.1.56 candidate (§348): the Desktop Viewer's window stops driving the
 stream's size. Layout no longer re-derives the capture request from the
 window's pixels (`captureFollowsLayout: false`), so dragging the window's
