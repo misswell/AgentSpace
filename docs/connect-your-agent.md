@@ -88,10 +88,15 @@ agentspace integrate rules --install       # write into ~/CLAUDE.md
 agentspace integrate rules --config ~/.codex/AGENTS.md --install
 ```
 
-The rules are the product's whole threat model in four lines: any command that
-can open a visible window goes through AgentSpace; never launch GUI apps in
-your own session; if the background session is unavailable the agent stops and
-reports; and it never falls back to your console.
+The rules — written in Chinese, ready to paste — tell the agent to **prefer**
+AgentSpace and say so out loud when it cannot:
+
+```text
+- 优先使用 AgentSpace：任何需要图形界面、会打开可见 macOS 窗口的操作，尽量用 AgentSpace 提供的 `agentspace_*` 工具（或 `agentspace` 命令行）在 Agent 桌面上执行。
+- AgentSpace 可用时，不要在用户当前会话中直接启动 GUI 应用。
+- 如果 AgentSpace 报告后台会话不可用，把问题报告给用户，不要无声地改用其他方式。
+- AgentSpace 不可用或确实无法完成时，才回退到用户当前会话执行，并明确告知用户。
+```
 
 Second, remember the agent desktop is a real, separate macOS session: if a
 tool reports that the session is unavailable, wake the account in the AgentSpace

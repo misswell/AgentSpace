@@ -182,19 +182,25 @@ public enum Integrations {
     public static let agentRulesMarkerEnd = "<!-- agentspace:rules end -->"
 
     /// The safety rules recommended for any agent driving AgentSpace — plan §35,
-    /// verbatim in substance.
+    /// restated as a preference policy.
     ///
-    /// These four lines are the product's entire threat model stated as
-    /// instructions: an agent that follows them cannot act on the console, and an
-    /// agent that ignores them was never constrained by a config file anyway. They
-    /// are generated rather than hardcoded at call sites so that the wording —
-    /// which is a security property — has exactly one source of truth.
+    /// Plan §35's original four lines were absolute: never touch the console.
+    /// The owner revised that on 2026-09-29 — 「倒也不必"永远不要回退到用户的
+    /// 控制台会话"，只是尽量使用AgentSpace，如果AgentSpace可用的话」 — so the
+    /// rules now state a preference with a declared fallback, in Chinese (the
+    /// instructions files they land in are read by Chinese-first agents), and
+    /// the first line says what to do, not only what not to do. The
+    /// architectural boundary is unchanged and is what actually enforces it:
+    /// the worker's console guard still refuses AgentSpace-mediated input
+    /// aimed at the user's session no matter what any instructions file says.
+    /// Generated, never hardcoded at call sites, so the wording has exactly
+    /// one source of truth.
     public static func agentRules() -> String {
         """
-        - Any command that can open a visible macOS window must run through AgentSpace.
-        - Never launch GUI applications directly in the user's current session.
-        - If AgentSpace reports that its background session is unavailable, stop and report the problem.
-        - Never fall back to the user's console session.
+        - 优先使用 AgentSpace：任何需要图形界面、会打开可见 macOS 窗口的操作，尽量用 AgentSpace 提供的 `agentspace_*` 工具（或 `agentspace` 命令行）在 Agent 桌面上执行。
+        - AgentSpace 可用时，不要在用户当前会话中直接启动 GUI 应用。
+        - 如果 AgentSpace 报告后台会话不可用，把问题报告给用户，不要无声地改用其他方式。
+        - AgentSpace 不可用或确实无法完成时，才回退到用户当前会话执行，并明确告知用户。
         """
     }
 
@@ -203,7 +209,7 @@ public enum Integrations {
     public static func agentRulesSection() -> String {
         """
         \(agentRulesMarkerBegin)
-        ## AgentSpace
+        ## AgentSpace 使用规则（Agent 桌面）
 
         \(agentRules())
 

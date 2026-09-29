@@ -212,15 +212,17 @@ final class IntegrationsTests: XCTestCase {
 
     // MARK: - Agent rules (§35)
 
-    func testTheRulesStateAllFourCommitments() throws {
-        // These four lines are the plan's §35 text and the product's threat model.
+    func testTheRulesStateThePreferencePolicy() throws {
+        // These lines are plan §35 restated as the owner's preference policy
+        // (2026-09-29): prefer AgentSpace, report, and only fall back out loud.
         // Each is asserted by its distinctive phrase so a rewording that quietly
         // weakens one of them fails here rather than shipping.
         let rules = Integrations.agentRules()
-        XCTAssertTrue(rules.contains("must run through AgentSpace"), rules)
-        XCTAssertTrue(rules.contains("Never launch GUI applications directly in the user's current session"), rules)
-        XCTAssertTrue(rules.contains("stop and report the problem"), rules)
-        XCTAssertTrue(rules.contains("Never fall back to the user's console session"), rules)
+        XCTAssertTrue(rules.contains("优先使用 AgentSpace"), rules)
+        XCTAssertTrue(rules.contains("agentspace_*"), "the rule must route the agent to the tools, not only forbid: \(rules)")
+        XCTAssertTrue(rules.contains("不要在用户当前会话中直接启动 GUI 应用"), rules)
+        XCTAssertTrue(rules.contains("把问题报告给用户"), rules)
+        XCTAssertTrue(rules.contains("才回退到用户当前会话执行，并明确告知用户"), rules)
     }
 
     func testTheSectionIsMarkedSoInstallsAreIdempotent() throws {
@@ -242,7 +244,7 @@ final class IntegrationsTests: XCTestCase {
         XCTAssertTrue(merged.hasPrefix("# My project"), "the user's text must stay first")
         XCTAssertTrue(merged.contains("Always run the full test suite before committing."),
                       "the user's own instruction was lost")
-        XCTAssertTrue(merged.contains("Never fall back to the user's console session"))
+        XCTAssertTrue(merged.contains("优先使用 AgentSpace"))
 
         // And an already-marked file is returned untouched — no reformatting of
         // the user's own writing.
