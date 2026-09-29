@@ -196,19 +196,29 @@ struct SpaceDetailView: View {
 
                 // The app's Settings scene (⌘,) — a window the page does not
                 // contain, so unlike the menus §344 removed this entry adds
-                // somewhere to go rather than repeating the page. The deploy
-                // target is macOS 13, one below `SettingsLink`, so the button
-                // runs AppKit's own action for the settings window instead:
-                // `showSettingsWindow:` on 13 and later, with the older
-                // `showPreferencesWindow:` spelling kept as the fallback.
-                Button {
-                    let opened = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                    if !opened { _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil) }
-                } label: {
-                    Label("Settings…", systemImage: "gearshape")
+                // somewhere to go rather than repeating the page. 0.1.56 ran
+                // AppKit's `showSettingsWindow:` selector here and the owner
+                // measured the result: nothing — the Settings scene of newer
+                // SDKs no longer connects that legacy action, and the fallback
+                // spelling is equally dead. macOS 14 and later therefore get
+                // `SettingsLink`, the first-class entry the scene itself
+                // honours; only the macOS 13 build floor keeps the selector.
+                if #available(macOS 14.0, *) {
+                    SettingsLink {
+                        Label("Settings…", systemImage: "gearshape")
+                    }
+                    .help(Text("Settings…"))
+                    .accessibilityIdentifier("mainToolbarSettings")
+                } else {
+                    Button {
+                        let opened = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                        if !opened { _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil) }
+                    } label: {
+                        Label("Settings…", systemImage: "gearshape")
+                    }
+                    .help(Text("Settings…"))
+                    .accessibilityIdentifier("mainToolbarSettings")
                 }
-                .help(Text("Settings…"))
-                .accessibilityIdentifier("mainToolbarSettings")
             }
         }
         // The guide request lives on the model, not in local state: the New
