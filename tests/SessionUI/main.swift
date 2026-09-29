@@ -19,7 +19,7 @@ import ApplicationServices
 /// signal a process owned by the human — measured, `pkill` of the owner's copy
 /// from here answers `Operation not permitted` (§324 row 872).
 ///
-/// The 13 checks below are the console gate's own, in its order and under its
+/// The checks below are the console gate's own, in its order and under its
 /// names, so the two reports can be read side by side. What changed is the
 /// instrument, not the claim: AXIdentifier lookups instead of System Events,
 /// key equivalents found through the accessibility menu bar instead of
@@ -292,8 +292,28 @@ if verbose {
 
 // MARK: - Phase B: Settings — the Advanced tab and the Update pane
 
-let settingsOpener = AXUI.pressMenuItem(pid, cmdChar: ",")
-Thread.sleep(forTimeInterval: 2)
+// The opener under test is the main window's own gear (0.1.58). 0.1.56's
+// entry ran the legacy `showSettingsWindow:` selector, which this OS's
+// Settings scene no longer connects, and every gate here stayed green
+// because Phase B itself opened Settings with the ⌘, menu item — the one
+// path that still worked. The owner's hand found what the gate could not
+// see. Now the gear is pressed first and has to open the settings window;
+// the menu item survives only as this phase's fallback, so the checks that
+// follow still describe a settings window when the entry itself fails.
+var settingsOpener = "the main window vended no mainToolbarSettings element"
+if let main = AXUI.mainWindow(pid), let gear = AXUI.find(main, identifier: "mainToolbarSettings") {
+    AXUI.press(gear)
+    if AXUI.wait(6) { settingsWindow() } != nil {
+        settingsOpener = "toolbar gear"
+    } else {
+        settingsOpener = AXUI.pressMenuItem(pid, cmdChar: ",")
+        Thread.sleep(forTimeInterval: 2)
+    }
+} else {
+    settingsOpener = AXUI.pressMenuItem(pid, cmdChar: ",")
+    Thread.sleep(forTimeInterval: 2)
+}
+reports.check("toolbar settings entry opens Settings", "toolbar gear", settingsOpener)
 
 /// The Settings window, by shape rather than by index: the window server's
 /// order is not the app's, and reading `window 1` once scored the dashboard's
