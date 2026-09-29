@@ -330,6 +330,28 @@ final class InputActionTests: XCTestCase {
             XCTAssertTrue(action.needsResponder, "\(action) with no frontmost window is dropped, not delivered")
         }
     }
+
+    func testHoverNeverNeedsAWindowActivation() {
+        XCTAssertFalse(InputAction.move(x: 10, y: 10).needsWindowActivation,
+                       "the fast channel activated and AX-raised the window on every hover packet; the RPC path it mirrors never did")
+    }
+
+    func testDragContinuationNeverNeedsAWindowActivation() {
+        XCTAssertFalse(InputAction.pointerDrag(fromX: 0, fromY: 0, toX: 5, toY: 5, button: .left, modifiers: []).needsWindowActivation)
+        XCTAssertFalse(InputAction.pointerUp(x: 5, y: 5, button: .left, clickCount: 1, modifiers: []).needsWindowActivation)
+    }
+
+    func testPressesScrollAndKeysNeedTheActivation() {
+        XCTAssertTrue(InputAction.pointerDown(x: 10, y: 10, button: .left, clickCount: 1, modifiers: []).needsWindowActivation)
+        XCTAssertTrue(InputAction.scroll(x: 10, y: 10, dx: 0, dy: -3).needsWindowActivation)
+    }
+
+    func testOnlyAPressIsAPress() {
+        XCTAssertTrue(InputAction.pointerDown(x: 1, y: 1, button: .left, clickCount: 1, modifiers: []).isPress)
+        XCTAssertFalse(InputAction.move(x: 1, y: 1).isPress)
+        XCTAssertFalse(InputAction.pointerUp(x: 1, y: 1, button: .left, clickCount: 1, modifiers: []).isPress)
+        XCTAssertFalse(InputAction.scroll(x: 1, y: 1, dx: 0, dy: -3).isPress)
+    }
 }
 
 // MARK: - Wire encoding

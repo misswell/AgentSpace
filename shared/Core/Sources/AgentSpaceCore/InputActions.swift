@@ -107,6 +107,31 @@ public enum InputAction: Equatable, Sendable {
         }
     }
 
+    /// A button going down. The one event whose target must be resolved from
+    /// the window server's *current* answer rather than a cached one: a click
+    /// that lands on a frame the window has already left is the one mistake
+    /// caching must never make.
+    public var isPress: Bool {
+        if case .pointerDown = self { return true }
+        return false
+    }
+
+    /// Whether a window-targeted action needs its window made a provable input
+    /// target first (frontmost app, raised window).
+    ///
+    /// Hover never does: the fast channel used to activate and AX-raise the
+    /// window on every forwarded hover packet — `app.activate` plus an AXRaise
+    /// per move, at up to the pointer's own rate, exactly while a hand was
+    /// interacting — where the RPC path this channel mirrors has always skipped
+    /// it, for a documented isolation reason: a cursor crossing a proxy must
+    /// not change which app the agent is working in. Drag continuation never
+    /// does (the raise happened once, at the press). Everything else — a press,
+    /// a scroll, a keystroke aimed at a window — does.
+    public var needsWindowActivation: Bool {
+        if isHover { return false }
+        return !isDragContinuation
+    }
+
     /// Whether this action needs an application that will receive it.
     ///
     /// The window server hit-tests a pointer event against the point it names, so a
