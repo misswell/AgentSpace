@@ -50,6 +50,13 @@ the person's hand (gesture, drag, forwarded key), deliberately never the
 desktop's busyness; an asleep window consumes no keys (the RPC fallback
 cannot type into an unseen session). `WindowSleepPolicy` (Core, 5 tests);
 Swift **764/764, 1 skipped** on the tree carrying §351+§352+§353 together.
+0.1.60 candidate (§354): first open shows the picture instead of
+「正在抓取 Agent 的桌面…」forever. `.onAppear` raced the 3-second status
+refresh — `retinaDisplay` was still nil, `startPreview`'s guard returned
+silently, and nothing re-asked; ▶ worked because the snapshot had long
+arrived. Now the display report's first arrival and the worker coming online
+both re-ask (`autoStartIfNeeded`), a person's ⏸ outranks the auto-start, and
+an asleep window is never auto-woken. Swift 764/764. App-only.
 0.1.58 candidate (§350): the toolbar settings entry actually opens Settings.
 0.1.56's gear ran the macOS-13-era `showSettingsWindow:` selector and this
 OS's Settings scene no longer connects it — the owner pressed it and nothing
