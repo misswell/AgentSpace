@@ -1244,10 +1244,12 @@ final class AppModel: ObservableObject {
             switch target {
             case .codex:
                 merged = try Integrations.mergeTOMLConfig(existing: existing, binaryPath: binary)
-            case .claudeCode:
+            case .claudeCode, .kimiCode:
                 merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcpServers", binaryPath: binary)
-            case .openCode:
+            case .openCode, .mimoCode:
                 merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp", binaryPath: binary)
+            case .zcode:
+                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp.servers", binaryPath: binary)
             case .generic:
                 // No single file to write; copying is the whole feature.
                 copyMCPConfiguration()

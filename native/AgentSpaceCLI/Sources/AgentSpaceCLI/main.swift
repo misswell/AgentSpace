@@ -11,7 +11,7 @@ import AgentSpaceCore
 // print why and stop. There is no code path here that runs a GUI command
 // locally "because the background session was unavailable".
 
-let cliVersion = "0.1.58"
+let cliVersion = "0.1.59"
 
 // MARK: - Argument parsing
 
@@ -261,7 +261,7 @@ func usage() -> String {
       helper                          Privileged helper: installed? answering?
 
     MANAGEMENT (changes the machine; needs the privileged helper)
-      integrate <target>              Print MCP config for claude|codex|opencode
+      integrate <target>              Print MCP config for claude|codex|opencode|zcode|kimi|mimo
                                       [--install writes it, backing up first]
                                       agentspace integrate rules       Agent safety rules (§35)
       attach <username>               Connect an existing standard macOS user
@@ -612,10 +612,12 @@ case "integrate":
             switch target {
             case .codex:
                 merged = try Integrations.mergeTOMLConfig(existing: existing, binaryPath: binaryPath)
-            case .claudeCode:
+            case .claudeCode, .kimiCode:
                 merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcpServers", binaryPath: binaryPath)
-            case .openCode:
+            case .openCode, .mimoCode:
                 merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp", binaryPath: binaryPath)
+            case .zcode:
+                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp.servers", binaryPath: binaryPath)
             case .generic:
                 exit(64) // unreachable: guarded above
             }

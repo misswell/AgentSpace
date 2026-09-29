@@ -569,7 +569,7 @@ struct SpaceDetailView: View {
             HStack(spacing: 8) {
                 Button(NSLocalizedString("Reveal Runtime Folder", comment: "")) { model.revealRuntimeDirectory() }
                 Menu(NSLocalizedString("Install MCP Into…", comment: "")) {
-                    ForEach([Integrations.Target.claudeCode, .codex, .openCode], id: \.self) { target in
+                    ForEach([Integrations.Target.claudeCode, .codex, .openCode, .zcode, .kimiCode, .mimoCode], id: \.self) { target in
                         Button(target.displayName) {
                             integrationTarget = target
                             showingIntegrationConfirm = true

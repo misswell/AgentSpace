@@ -9,15 +9,21 @@ import Foundation
 ///
 /// Deliberately **not** a general config-file editor. Each merge below touches only
 /// the one key AgentSpace owns (`mcpServers.agentspace`, `mcp.agentspace`,
-/// `[mcp_servers.agentspace]`) and preserves everything else, and the TOML path
-/// refuses rather than parsing, because shipping a TOML parser to append one table
-/// is a way to corrupt a user's config file subtly instead of obviously.
+/// `mcp.servers.agentspace`, `[mcp_servers.agentspace]`) and preserves everything
+/// else, and the TOML path refuses rather than parsing, because shipping a TOML
+/// parser to append one table is a way to corrupt a user's config file subtly
+/// instead of obviously.
 public enum Integrations {
 
     public enum Target: String, CaseIterable {
         case claudeCode = "claude"
         case codex = "codex"
         case openCode = "opencode"
+        case zcode = "zcode"
+        /// Kimi Code keeps its MCP servers in a dedicated `mcp.json`.
+        case kimiCode = "kimi"
+        /// Xiaomi MiMo (mimocode) is OpenCode-shaped but lives in its own directory.
+        case mimoCode = "mimo"
         /// The shape most other clients accept (`mcpServers` at the top level).
         case generic = "generic"
 
@@ -26,6 +32,9 @@ public enum Integrations {
             case .claudeCode: return "Claude Code"
             case .codex: return "Codex"
             case .openCode: return "OpenCode"
+            case .zcode: return "ZCode"
+            case .kimiCode: return "Kimi Code"
+            case .mimoCode: return "Xiaomi MiMo"
             case .generic: return "Other MCP clients"
             }
         }
@@ -43,6 +52,9 @@ public enum Integrations {
             case .claudeCode: return "~/.claude.json"
             case .codex: return "~/.codex/config.toml"
             case .openCode: return "~/.config/opencode/opencode.json"
+            case .zcode: return "~/.zcode/cli/config.json"
+            case .kimiCode: return "~/.kimi-code/mcp.json"
+            case .mimoCode: return "~/.config/mimocode/mimocode.jsonc"
             case .generic: return ""
             }
         }
@@ -58,7 +70,7 @@ public enum Integrations {
     /// permissions granted to one would not apply to the other.
     public static func config(for target: Target, binaryPath: String) -> String {
         switch target {
-        case .claudeCode, .generic:
+        case .claudeCode, .kimiCode, .generic:
             return """
             {
               "mcpServers": {
@@ -80,7 +92,7 @@ public enum Integrations {
             args = ["-y", "@agentspace/mcp"]
             env = { AGENTSPACE_BIN = \(quoted(binaryPath)) }
             """
-        case .openCode:
+        case .openCode, .mimoCode:
             return """
             {
               "mcp": {
@@ -89,6 +101,26 @@ public enum Integrations {
                   "command": ["npx", "-y", "@agentspace/mcp"],
                   "environment": { "AGENTSPACE_BIN": \(quoted(binaryPath)) },
                   "enabled": true
+                }
+              }
+            }
+            """
+        case .zcode:
+            // ZCode's schema is strict — an unknown key drops the whole server —
+            // and its servers nest one level deeper than the other JSON clients.
+            // `type` and `enabled` are spelled out because the desktop client's
+            // Settings → MCP page reads this file with less inference than the CLI.
+            return """
+            {
+              "mcp": {
+                "servers": {
+                  "agentspace": {
+                    "type": "stdio",
+                    "command": "npx",
+                    "args": ["-y", "@agentspace/mcp"],
+                    "env": { "AGENTSPACE_BIN": \(quoted(binaryPath)) },
+                    "enabled": true
+                  }
                 }
               }
             }
@@ -116,6 +148,21 @@ public enum Integrations {
             return """
             Merge the "agentspace" entry below into the "mcp" object of \(Target.openCode.configPath),
             then restart OpenCode.
+            """
+        case .zcode:
+            return """
+            Merge the "agentspace" entry below into the "mcp.servers" object of \(Target.zcode.configPath),
+            then restart the session. ZCode's schema is strict: keep exactly the keys shown.
+            """
+        case .kimiCode:
+            return """
+            Merge the "agentspace" entry below into the "mcpServers" object of \(Target.kimiCode.configPath),
+            then restart Kimi Code.
+            """
+        case .mimoCode:
+            return """
+            Merge the "agentspace" entry below into the "mcp" object of \(Target.mimoCode.configPath),
+            then restart MiMo.
             """
         case .generic:
             return """
@@ -244,7 +291,8 @@ public enum Integrations {
             root["mcpServers"] = servers
         case "mcp":
             var servers = root["mcp"] as? [String: Any] ?? [:]
-            // OpenCode's entries carry a type and use an argv array.
+            // OpenCode (and Xiaomi MiMo, which shares the shape) carry a type and
+            // use an argv array.
             servers["agentspace"] = [
                 "type": "local",
                 "command": ["npx", "-y", "@agentspace/mcp"],
@@ -252,6 +300,20 @@ public enum Integrations {
                 "enabled": true,
             ]
             root["mcp"] = servers
+        case "mcp.servers":
+            // ZCode nests one level deeper and its schema is strict: exactly the
+            // fields it documents, with `type` spelled out.
+            var mcp = root["mcp"] as? [String: Any] ?? [:]
+            var servers = mcp["servers"] as? [String: Any] ?? [:]
+            servers["agentspace"] = [
+                "type": "stdio",
+                "command": "npx",
+                "args": ["-y", "@agentspace/mcp"],
+                "env": ["AGENTSPACE_BIN": binaryPath],
+                "enabled": true,
+            ]
+            mcp["servers"] = servers
+            root["mcp"] = mcp
         default:
             throw InstallError.unreadable(path: "(config)", "unknown root key \(rootKey)")
         }

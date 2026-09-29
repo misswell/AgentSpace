@@ -38,6 +38,44 @@ final class IntegrationsTests: XCTestCase {
         XCTAssertEqual(server["enabled"] as? Bool, true)
     }
 
+    func testZCodeConfigNestsUnderMcpServersWithStrictFields() throws {
+        // Measured against the installed ZCode: its user config nests servers
+        // under `mcp.servers`, and its schema is strict — an unknown key drops
+        // the whole server, so exactly the documented fields are emitted.
+        let data = try JSONSerialization.jsonObject(with: Data(
+            Integrations.config(for: .zcode, binaryPath: binaryPath).utf8)) as? [String: Any]
+        let server = try XCTUnwrap(((data?["mcp"] as? [String: Any])?["servers"] as? [String: Any])?["agentspace"] as? [String: Any])
+        XCTAssertEqual(server["type"] as? String, "stdio")
+        XCTAssertEqual(server["command"] as? String, "npx", "ZCode wants a scalar command, not an argv array")
+        XCTAssertEqual(server["args"] as? [String], ["-y", "@agentspace/mcp"])
+        XCTAssertEqual((server["env"] as? [String: String])?["AGENTSPACE_BIN"], binaryPath)
+        XCTAssertEqual(server["enabled"] as? Bool, true)
+        XCTAssertNil(data?["mcpServers"], "ZCode does not read the top-level mcpServers key")
+    }
+
+    func testKimiCodeConfigUsesTheStandardMcpServersShape() throws {
+        // Measured against the installed Kimi Code: ~/.kimi-code/mcp.json carries
+        // a top-level mcpServers object whose entries are claude-shaped.
+        let data = try JSONSerialization.jsonObject(with: Data(
+            Integrations.config(for: .kimiCode, binaryPath: binaryPath).utf8)) as? [String: Any]
+        let server = try XCTUnwrap((data?["mcpServers"] as? [String: Any])?["agentspace"] as? [String: Any])
+        XCTAssertEqual(server["command"] as? String, "npx")
+        XCTAssertEqual(server["args"] as? [String], ["-y", "@agentspace/mcp"])
+        XCTAssertEqual((server["env"] as? [String: String])?["AGENTSPACE_BIN"], binaryPath)
+    }
+
+    func testMiMoConfigReusesOpenCodesShape() throws {
+        // Measured against the installed Xiaomi MiMo (mimocode): its own config
+        // carries `mcp` with `type: "local"` argv entries, exactly like OpenCode.
+        let data = try JSONSerialization.jsonObject(with: Data(
+            Integrations.config(for: .mimoCode, binaryPath: binaryPath).utf8)) as? [String: Any]
+        let server = try XCTUnwrap((data?["mcp"] as? [String: Any])?["agentspace"] as? [String: Any])
+        XCTAssertEqual(server["type"] as? String, "local")
+        XCTAssertEqual(server["command"] as? [String], ["npx", "-y", "@agentspace/mcp"])
+        XCTAssertEqual((server["environment"] as? [String: String])?["AGENTSPACE_BIN"], binaryPath)
+        XCTAssertEqual(server["enabled"] as? Bool, true)
+    }
+
     func testCodexConfigIsTheRightTOMLShape() throws {
         let text = Integrations.config(for: .codex, binaryPath: binaryPath)
         XCTAssertTrue(text.hasPrefix("[mcp_servers.agentspace]"), text)
@@ -107,6 +145,38 @@ final class IntegrationsTests: XCTestCase {
         // understand. Refusing and saying so is the only safe answer.
         XCTAssertThrowsError(try Integrations.mergeJSONConfig(
             existing: Data("[1,2,3]".utf8), rootKey: "mcpServers", binaryPath: binaryPath))
+    }
+
+    func testZCodeMergeBuildsTheNestedObjectAndPreservesSiblings() throws {
+        // The real ZCode user config starts life carrying only `plugins`; it must
+        // survive the merge, and a second run must not nest the object in itself.
+        let existing = Data("{ \"plugins\": { \"enabled\": true } }".utf8)
+        let once = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp.servers", binaryPath: binaryPath)
+        let merged = try JSONSerialization.jsonObject(with: once) as? [String: Any]
+        XCTAssertEqual((merged?["plugins"] as? [String: Any])?["enabled"] as? Bool, true)
+        let serversOnce = try XCTUnwrap(((merged?["mcp"] as? [String: Any])?["servers"] as? [String: Any]))
+        XCTAssertNotNil(serversOnce["agentspace"])
+
+        let twice = try JSONSerialization.jsonObject(with: try Integrations.mergeJSONConfig(
+            existing: once, rootKey: "mcp.servers", binaryPath: binaryPath)) as? [String: Any]
+        let servers = try XCTUnwrap(((twice?["mcp"] as? [String: Any])?["servers"] as? [String: Any]))
+        XCTAssertEqual(servers.count, 1)
+    }
+
+    func testMiMoMergePreservesTheSchemaKeyTheirToolWrites() throws {
+        // The installed MiMo writes a `$schema` key next to `mcp`; losing it would
+        // strip the file of its validation anchor, and their own entries must
+        // survive untouched.
+        let existing = Data("""
+        { "$schema": "https://mimo.xiaomi.com/mimocode/config.json",
+          "mcp": { "node_repl": { "type": "local", "command": ["/bin/repl"], "enabled": false } } }
+        """.utf8)
+        let merged = try JSONSerialization.jsonObject(with: try Integrations.mergeJSONConfig(
+            existing: existing, rootKey: "mcp", binaryPath: binaryPath)) as? [String: Any]
+        XCTAssertEqual(merged?["$schema"] as? String, "https://mimo.xiaomi.com/mimocode/config.json")
+        let nodeRepl = try XCTUnwrap(((merged?["mcp"] as? [String: Any])?["node_repl"] as? [String: Any]))
+        XCTAssertEqual(nodeRepl["enabled"] as? Bool, false, "another server's entry was damaged")
+        XCTAssertNotNil(((merged?["mcp"] as? [String: Any])?["agentspace"]))
     }
 
     // MARK: - TOML merging
@@ -194,7 +264,7 @@ final class IntegrationsTests: XCTestCase {
     }
 
     func testInstructionsNameTheFileForEveryInstallableTarget() throws {
-        for target in [Integrations.Target.claudeCode, .codex, .openCode] {
+        for target in [Integrations.Target.claudeCode, .codex, .openCode, .zcode, .kimiCode, .mimoCode] {
             let text = Integrations.instructions(for: target, binaryPath: binaryPath)
             XCTAssertFalse(target.configPath.isEmpty)
             XCTAssertTrue(text.contains(target.configPath), "\(target): \(text)")
