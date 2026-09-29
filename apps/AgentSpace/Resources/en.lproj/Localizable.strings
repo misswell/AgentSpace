@@ -602,6 +602,13 @@
 /* Desktop viewer: how the pointer behaves over the agent's desktop. */
 "Mouse Capture" = "Mouse Capture";
 "Takeover Hidden" = "Takeover Hidden";
+"Sleep After" = "Sleep After";
+"%ld Minutes" = "%ld Minutes";
+"1 Hour" = "1 Hour";
+"Never" = "Never";
+"Stream asleep" = "Stream asleep";
+"Click to wake" = "Click to wake";
+"The stream stopped after %ld minutes idle. Click to go live again." = "The stream stopped after %ld minutes idle. Click to go live again.";
 "Auto" = "Auto";
 "Click to Capture" = "Click to Capture";
 "Off" = "Off";

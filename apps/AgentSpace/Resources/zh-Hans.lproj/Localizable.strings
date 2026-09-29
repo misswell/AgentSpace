@@ -602,6 +602,13 @@
 /* Desktop viewer: how the pointer behaves over the agent's desktop. */
 "Mouse Capture" = "鼠标接管";
 "Takeover Hidden" = "接管隐藏鼠标";
+"Sleep After" = "空闲休眠";
+"%ld Minutes" = "%ld 分钟";
+"1 Hour" = "1 小时";
+"Never" = "从不";
+"Stream asleep" = "画面已休眠";
+"Click to wake" = "点击唤醒";
+"The stream stopped after %ld minutes idle. Click to go live again." = "空闲 %ld 分钟后，画面流已停止。点击重新连上实时画面。";
 "Auto" = "自动";
 "Click to Capture" = "点击后接管";
 "Off" = "关闭";

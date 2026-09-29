@@ -16,6 +16,29 @@ Published 0.1.51 (§343): [GitHub Release](https://github.com/misswell/AgentSpac
 Published 0.1.50 (§342): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.50), source commit `be056b9`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36390675945) passed. DMG **6,406,572** bytes, `sha256:36a60be43f5ecf7205cf9de8c2c4bb271efa49cf16a1a9496ca494e0248db3f9`. Apple accepted App ZIP `e0adb659-4680-4c39-bb64-15a45b6bdd15` and DMG `46c0f197-7f23-477b-acaa-7ee46690023e` (read back with `notarytool history`). Fresh download `/tmp/agentspace-0.1.50-release.dmg` matches the published digest; DMG and inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.50`.
 Published 0.1.49 (§341): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.49), source commit `0d9eea1`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36369768158) passed. DMG **6,408,312** bytes, `sha256:fe9fb2b23f8c129ec9e1957eaad3ecd4999de8223cadb16c89c5f753c70727a7`. Apple accepted App ZIP `af888826-7dc9-405d-b9e7-11e73e507d5d` and DMG `ae275264-5d10-4d0b-9a5d-18bc695c59af` (read back with `notarytool info`). Fresh download `/tmp/agentspace-0.1.49-release.dmg` matches the published digest; DMG and inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.49`.
 Published 0.1.48 (§340): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.48), commit `4db8b68`, DMG **6,405,657** bytes, `sha256:e2dec49d885231fcfde1e616a8fc87ef23c84555abefab8de53f4d45d12e73d8`. Apple notarization accepted the App ZIP (`b42da36c-c3fe-40c3-9d4a-bf4ece42d0c4`) and DMG (`e2d279ea-cac7-45f1-b463-bb7a25b00573`); downloaded DMG checksum matches and `xcrun stapler validate` passed. `releases/latest` answers `v0.1.48`.
+0.1.59 candidate (§351): the takeover-hidden mouse becomes a visible, default
+mode. The owner's field report — 「鼠标貌似没有效果，我让你做的鼠标形式你没做」
+— was right twice: §348 answered the named request with a semantics argument
+and shipped no visible mode, and Auto's real default (settle-then-hover)
+forwards nothing while the pointer moves continuously, which reads exactly as
+「鼠标没有效果」. Now `MouseCaptureMode.takeoverHidden` exists under its own
+name, is the default (capture on entry, one cursor on both sides, moves/
+clicks/drags/scrolls follow while the pointer moves), the picker reads
+接管隐藏鼠标／自动／点击后接管, and old stored values keep their behavior
+("capture" → takeoverHidden). Swift 759/759. App-only: 「检查更新」 alone.
+0.1.59 candidate (§352): three more clients join `agentspace integrate` —
+ZCode (`~/.zcode/cli/config.json`, nested `mcp.servers`, strict schema),
+Kimi Code (`~/.kimi-code/mcp.json`, claude-shaped) and Xiaomi MiMo
+(`~/.config/mimocode/mimocode.jsonc`, OpenCode-shaped; `$schema` preserved) —
+all three measured from their installed apps' real config files on this Mac,
+not from docs. Same one command, same merge-only-one-key contract, same
+`.agentspace.bak` backup; the GUI 「Install MCP Into…」 menu lists six targets.
+Field report recorded: the owner's first `agentspace integrate codex` hit
+`command not found` — the CLI is bundle-only and nothing links it onto PATH;
+an alias is the documented answer, a typed helper op for a PATH install is
+deliberately deferred. Merges into the §351 tree: Swift **759/759, 1 skipped**
+at first measure; MCP and smoke numbers at the release row. App + bundled CLI
+only: 「检查更新」 alone.
 0.1.58 candidate (§350): the toolbar settings entry actually opens Settings.
 0.1.56's gear ran the macOS-13-era `showSettingsWindow:` selector and this
 OS's Settings scene no longer connects it — the owner pressed it and nothing

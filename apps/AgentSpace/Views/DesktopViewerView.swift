@@ -67,7 +67,17 @@ struct DesktopViewerView: View {
     @AppStorage("previewFPS") private var previewFPS = 30
     /// Pointer behavior shared with Fusion surfaces.
     @AppStorage(MouseCaptureMode.storageKey) private var captureMode = MouseCaptureMode.default.rawValue
+    /// How long this window stays awake with nobody using it (§353). A window
+    /// left open while an agent works for hours is the case worth sleeping
+    /// through: activity is the person's hand, never the desktop's busyness.
+    @AppStorage(WindowSleepPolicy.storageKey) private var sleepMinutes = WindowSleepPolicy.default
     @State private var showingDetails = false
+    /// Whether the stream is asleep (§353). True only through `sleepStream`;
+    /// every explicit start (wake, reconnect, play) clears it.
+    @State private var asleep = false
+    /// The last time the person's hand did anything here — a gesture, a drag,
+    /// a key. The idle clock the sleep policy reads.
+    @State private var lastActivity = Date()
 
     /// The mode in force, with anything unreadable falling back to the default
     /// rather than to a guess.
@@ -127,6 +137,7 @@ struct DesktopViewerView: View {
         .task {
             while !Task.isCancelled {
                 updateCaptureRate()
+                checkSleep()
                 try? await Task.sleep(for: .milliseconds(250))
             }
         }
@@ -163,7 +174,10 @@ struct DesktopViewerView: View {
     /// permitted, and this view has a host window; removed in every other
     /// combination, so a monitor never outlives its authorization.
     private func syncKeyboardState() {
-        let permitted = snapshot?.workerOnline == true && snapshot?.acceptsInput == true
+        // An asleep window consumes no keys: its stream and socket are gone,
+        // and a keystroke that fell back to the RPC path would type into the
+        // agent's session with no picture showing it.
+        let permitted = snapshot?.workerOnline == true && snapshot?.acceptsInput == true && !asleep
         if permitted { syncKeyboardMonitor() } else { removeKeyboardMonitor() }
         // Travel collected while input was permitted must not reach the agent
         // after it was revoked — the same rule the monitor follows, one level up.
@@ -202,6 +216,8 @@ struct DesktopViewerView: View {
                 control: event.modifierFlags.contains(.control))
             guard let action else { return event }
             let space = snapshot.space
+            // A forwarded key is the person's hand (§353's idle clock).
+            self.lastActivity = Date()
             self.pendingAction = Self.describe(action)
             // Keys take the fast channel when it is up, and the RPC path when it
             // is not. Both end in the worker's own `KeyCombo` parser and the same
@@ -356,6 +372,8 @@ struct DesktopViewerView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if asleep {
+            sleepOverlay
         } else if let frameClient, let snapshot {
             ZStack {
                 Color.black
@@ -457,10 +475,75 @@ struct DesktopViewerView: View {
                     Label("Reveal File", systemImage: "folder")
                 }
             }
+            HStack {
+                Text("Sleep After")
+                Spacer()
+                Picker("Sleep After", selection: $sleepMinutes) {
+                    ForEach(WindowSleepPolicy.options, id: \.self) { minutes in
+                        Text(Self.sleepLabel(minutes)).tag(minutes)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("desktopViewerSleepPicker")
+            }
             PerformanceHUDToggle()
         }
         .frame(width: 360, alignment: .leading)
         .padding(16)
+    }
+
+    /// The picker's words for the offered idle lengths.
+    private static func sleepLabel(_ minutes: Int) -> String {
+        switch minutes {
+        case 0: return NSLocalizedString("Never", comment: "")
+        case 60: return NSLocalizedString("1 Hour", comment: "")
+        default: return String(format: NSLocalizedString("%ld Minutes", comment: ""), minutes)
+        }
+    }
+
+    // MARK: - Sleep (§353)
+
+    /// The asleep window: honest about what stopped, one click from live.
+    private var sleepOverlay: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.system(size: 30))
+                .foregroundStyle(.secondary)
+            Text("Stream asleep").font(.headline)
+            Text(String(format: NSLocalizedString("The stream stopped after %ld minutes idle. Click to go live again.", comment: ""),
+                        WindowSleepPolicy.parse(sleepMinutes)))
+                .font(.callout).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
+            Button("Click to wake") { wakeUp() }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("desktopViewerWakeButton")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { wakeUp() }
+    }
+
+    /// The idle check, on the same 250 ms clock the capture rate rides. Only
+    /// the person's hand pushes this clock — a busy desktop is the case the
+    /// sleep exists to ride through, and a click on the asleep window wakes it.
+    private func checkSleep() {
+        guard !asleep, frameClient != nil else { return }
+        let minutes = WindowSleepPolicy.parse(sleepMinutes)
+        guard WindowSleepPolicy.shouldSleep(now: Date().timeIntervalSinceReferenceDate,
+                                            lastActivity: lastActivity.timeIntervalSinceReferenceDate,
+                                            minutes: minutes) else { return }
+        asleep = true
+        stopPreview()
+        syncKeyboardState()
+    }
+
+    private func wakeUp() {
+        asleep = false
+        lastActivity = Date()
+        startPreview()
+        syncKeyboardState()
     }
 
     // MARK: - Capture
@@ -473,6 +556,10 @@ struct DesktopViewerView: View {
     }
 
     private func startPreview() {
+        // Every explicit start — wake, reconnect, play, quality change — is a
+        // hand on the window, so it clears the sleep and resets its clock.
+        asleep = false
+        lastActivity = Date()
         guard frameClient == nil else { return }
         guard let space = snapshot?.space,
               let display = snapshot?.retinaDisplay else { return }
@@ -577,6 +664,8 @@ struct DesktopViewerView: View {
     /// forwarded as a local point.
     private func send(_ gesture: RemotePointerGesture, snapshot: SpaceSnapshot) {
         guard snapshot.acceptsInput, let display = snapshot.retinaDisplay else { return }
+        // The person's hand is the idle clock the window sleep reads (§353).
+        lastActivity = Date()
         if case .scroll = gesture {
             activityClock.tracker.noteScroll(at: Date())
         } else {
@@ -597,6 +686,7 @@ struct DesktopViewerView: View {
     /// reopening the stream would rebuild the shared region and restart the
     /// decoder to move one number.
     private func setDragActivity(_ active: Bool) {
+        lastActivity = Date()
         activityClock.tracker.notePress(active, at: Date())
         updateCaptureRate()
     }
