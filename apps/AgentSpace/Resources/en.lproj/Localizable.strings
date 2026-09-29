@@ -147,8 +147,6 @@
 "Input is not available" = "Input is not available";
 "Clicks are disabled: they would land on your own screen. Fast-user-switch back and they resume automatically." = "Clicks are disabled: they would land on your own screen. Fast-user-switch back and they resume automatically.";
 "The worker has not permitted input for this agent." = "The worker has not permitted input for this agent.";
-"Fit" = "Fit";
-"Zoom" = "Zoom";
 "Capture width" = "Capture width";
 "Frame rate" = "Frame rate";
 "Native" = "Native";

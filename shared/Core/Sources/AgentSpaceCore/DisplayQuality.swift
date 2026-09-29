@@ -9,10 +9,11 @@ import Foundation
 ///    the *source's* pixel size, and no mode asks for more pixels than the source
 ///    has: a buffer larger than its subject is interpolation — paid for in H.264
 ///    bits and in shared memory, and visible to nobody, because the renderer fits
-///    whatever arrives into the window either way. A viewer that also knows how
-///    many device pixels its own window has (`RemoteSurfaceNSView`) asks for the
-///    smaller of the two, so a small window asks for less and the picture is never
-///    an upscale.
+///    whatever arrives into the window either way. A desktop stream opens at this
+///    size and keeps it for its whole life — the window scales the picture
+///    locally, and no resize ever reopens the stream. A Fusion proxy, whose
+///    model is a 1:1 mirror of one window, still asks for the smaller of the
+///    source and its own device pixels (`CaptureSizing.viewerRequest`).
 ///
 ///    The alternative is what `0.1.29` shipped: 「原生」 on a Retina panel asked a
 ///    1920-wide desktop for 2280×1283 (`docs/validation.md` §320 row 837), which

@@ -28,43 +28,6 @@ struct DesktopViewerView: View {
         self.onViewportSize = onViewportSize
     }
 
-    /// The viewer's scale is deliberately independent from the agent's
-    /// display mode. "Fit" is the local-window equivalent of a native desktop
-    /// viewer; the other values zoom the captured surface and keep scrolling
-    /// available when it is larger than this window.
-    private enum ViewerZoom: String, CaseIterable, Identifiable {
-        case fit
-        case seventyFive = "0.75"
-        case one = "1.0"
-        case oneTwentyFive = "1.25"
-        case oneFifty = "1.5"
-        case two = "2.0"
-
-        var id: String { rawValue }
-
-        var factor: Double {
-            switch self {
-            case .fit: return 1
-            case .seventyFive: return 0.75
-            case .one: return 1
-            case .oneTwentyFive: return 1.25
-            case .oneFifty: return 1.5
-            case .two: return 2
-            }
-        }
-
-        var title: String {
-            switch self {
-            case .fit: return NSLocalizedString("Fit", comment: "")
-            case .seventyFive: return "75%"
-            case .one: return "100%"
-            case .oneTwentyFive: return "125%"
-            case .oneFifty: return "150%"
-            case .two: return "200%"
-            }
-        }
-    }
-
     /// The rates a person can choose. 30 is the default because the previous
     /// default of 5 was the single largest contributor to the desktop feeling
     /// remote: a cursor that lives inside the captured picture can be no newer
@@ -104,7 +67,6 @@ struct DesktopViewerView: View {
     @AppStorage("previewFPS") private var previewFPS = 30
     /// Pointer behavior shared with Fusion surfaces.
     @AppStorage(MouseCaptureMode.storageKey) private var captureMode = MouseCaptureMode.default.rawValue
-    @State private var zoom = ViewerZoom.fit
     @State private var showingDetails = false
 
     /// The mode in force, with anything unreadable falling back to the default
@@ -116,11 +78,14 @@ struct DesktopViewerView: View {
         (MouseCaptureMode.parse(captureMode) ?? .default).policy(for: .desktop)
     }
 
-    /// The most pixels this viewer may ask the worker for.
+    /// The most pixels this viewer asks the worker for — once.
     ///
     /// Bounded by the *agent's* display, not by this window: the mode is a claim
-    /// about the source, and the surface takes the smaller of this and its own
-    /// device pixels. Until the first snapshot arrives the limit is empty, and the
+    /// about the source, and it is the stream's fixed size for its whole life.
+    /// The surface never re-derives the request from the window (`captureFollowsLayout:
+    /// false`), so a resize — down to 800×600, up to fullscreen and back — is
+    /// answered by the GPU scaling the picture and never by reopening the
+    /// stream. Until the first snapshot arrives the limit is empty, and the
     /// stream opens at the worker's own natural size — which is the mode's own
     /// answer anyway, so the first frame is not a downgrade.
     private var captureLimit: CGSize {
@@ -308,13 +273,6 @@ struct DesktopViewerView: View {
             .accessibilityIdentifier("desktopViewerPreviewToggle")
             .disabled(snapshot == nil)
 
-            Picker("Zoom", selection: $zoom) {
-                ForEach(ViewerZoom.allCases) { value in Text(value.title).tag(value) }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .accessibilityIdentifier("desktopViewerZoomPicker")
-
             DisplayQualityPicker(identifier: "desktopViewerQualityPicker")
                 .labelsHidden()
 
@@ -404,7 +362,10 @@ struct DesktopViewerView: View {
                 RemoteSurfaceView(
                     client: frameClient,
                     captureLimit: captureLimit,
-                    captureMagnification: zoom.factor,
+                    // The stream keeps the size the quality mode chose for its
+                    // whole life: a window resize scales the picture on this
+                    // Mac's GPU and never reopens the stream.
+                    captureFollowsLayout: false,
                     acceptsInput: snapshot.acceptsInput,
                     remoteContentSize: CGSize(width: snapshot.retinaDisplay?.geometry.width ?? 0,
                                               height: snapshot.retinaDisplay?.geometry.height ?? 0),
@@ -529,11 +490,10 @@ struct DesktopViewerView: View {
             frameClient?.setEmbeddedCursor(!active)
         }
         input.configure(space: space, display: display)
-        // Opened at the mode's own size rather than at "whatever the worker
-        // thinks", so the first stream and the first `layout()` agree: the
-        // surface's debounce reopens the stream when the requested size changes
-        // by 16 px or more, and a first request of (0,0) followed by the real one
-        // was one reconnect per window open.
+        // Opened at the mode's own size, and that is the size for the stream's
+        // whole life: the surface does not re-derive the request from the
+        // window (`captureFollowsLayout: false`), so no resize — and no
+        // fullscreen transition — ever reopens the stream.
         let limit = captureLimit
         let client = FrameClient(space: space, target: .retinaDesktop, maxFPS: previewFPS,
                                 targetWidth: Int(limit.width), targetHeight: Int(limit.height))

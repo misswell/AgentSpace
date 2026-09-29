@@ -9,11 +9,22 @@ struct RemoteSurfaceView: NSViewRepresentable {
     /// own": a caller that does not know the source (a Fusion proxy) keeps asking
     /// for the pixels its view can show.
     ///
-    /// The viewer's request is the *smaller* of this and its own window's device
-    /// pixels, so 「原生」 cannot ask a 1920-wide desktop for 2280 pixels and be
-    /// handed an enlargement. See `DisplayQuality` for the cost of the other way.
+    /// What this bounds depends on `captureFollowsLayout`. The desktop viewer
+    /// opens its stream at exactly this size and never asks again, so 「原生」
+    /// *is* the source's own pixels for the stream's whole life. A Fusion proxy
+    /// asks for the smaller of this and its own window's device pixels, so it
+    /// cannot be handed an enlargement. See `DisplayQuality` for the cost.
     var captureLimit: CGSize = .zero
     var captureMagnification: Double = 1
+    /// Whether laying out re-derives the capture request from this view's own
+    /// pixel size. A Fusion proxy keeps that coupling: its whole model is a 1:1
+    /// mirror of one window, so a resized proxy asks for resized pixels. The
+    /// desktop viewer passes `false` — the stream it opens keeps the size the
+    /// quality mode chose for the stream's whole life, and a window resize is
+    /// answered by the renderer scaling the picture (GPU work, no stream work).
+    /// Reopening a stream on every resize tick was one black flash after
+    /// another while a person dragged the window's edge.
+    var captureFollowsLayout = true
     /// Whether pointer gestures may be turned into input at all. The caller's
     /// answer to "does the worker permit input right now"; a surface that is not
     /// an input target collects no press, claims no lease and emits nothing.
@@ -55,6 +66,7 @@ struct RemoteSurfaceView: NSViewRepresentable {
 
     private func configure(_ view: RemoteSurfaceNSView) {
         view.captureLimit = captureLimit; view.captureMagnification = captureMagnification
+        view.captureFollowsLayout = captureFollowsLayout
         view.acceptsInput = acceptsInput; view.remoteContentSize = remoteContentSize
         view.onGesture = onGesture; view.onClaimHuman = onClaimHuman
         view.onReleaseHuman = onReleaseHuman
@@ -156,6 +168,8 @@ class RemoteSurfaceNSView: NSView {
     let client: FrameClient
     var captureLimit: CGSize = .zero
     var captureMagnification = 1.0
+    /// See `RemoteSurfaceView.captureFollowsLayout`.
+    var captureFollowsLayout = true
     /// See `RemoteSurfaceView.acceptsInput`. Revoking input drops the gesture in
     /// progress *and* releases pointer capture: a press collected while input was
     /// permitted must not become a click after the worker said stop, and a
@@ -333,26 +347,33 @@ class RemoteSurfaceNSView: NSView {
         let scale = window?.backingScaleFactor ?? 2
         renderer?.resize(bounds.size, scale: scale)
         cpuLayer.frame = bounds
-        // What this window can show, in its own device pixels…
-        let naturalWidth = max(1, Int(bounds.width * scale))
-        let naturalHeight = max(1, Int(bounds.height * scale))
-        // …held to what the source has, when the caller knows. Asking for more
-        // pixels than the subject has buys an enlargement: ScreenCaptureKit scales
-        // the desktop *up* into the buffer it is handed, so the encoder spends bits
-        // describing interpolation, and the picture on screen is the same one the
-        // renderer would have made locally for free. Bounded here rather than in the
-        // worker because this is where the local window size is known, and the
-        // worker's own ceiling (`SharedFrameGeometry.maximumPixels`) is about the
-        // frame budget rather than about sharpness.
-        // Apply the source ceiling *after* magnification. A 200% selection must
-        // not request a fake 3840×2160 frame from a 1920×1080, 1× desktop:
-        // that only enlarges existing pixels, forces a stream reconnect and
-        // can exhaust the shared-frame budget without adding Retina detail.
-        let request = CaptureSizing.viewerRequest(
-            viewPixelWidth: naturalWidth, viewPixelHeight: naturalHeight,
-            magnification: captureMagnification,
-            sourceLimitWidth: Int(captureLimit.width), sourceLimitHeight: Int(captureLimit.height))
-        client.configure(width: request.width, height: request.height)
+        // Only a surface whose capture follows its own layout re-derives the
+        // request here (a Fusion proxy). The desktop viewer leaves the stream
+        // at the size it was opened at: a resize is answered by the Metal layer
+        // scaling the existing picture, so the drag never touches the stream —
+        // no close, no descriptor, no reconnect, no black flash.
+        if captureFollowsLayout {
+            // What this window can show, in its own device pixels…
+            let naturalWidth = max(1, Int(bounds.width * scale))
+            let naturalHeight = max(1, Int(bounds.height * scale))
+            // …held to what the source has, when the caller knows. Asking for more
+            // pixels than the subject has buys an enlargement: ScreenCaptureKit scales
+            // the desktop *up* into the buffer it is handed, so the encoder spends bits
+            // describing interpolation, and the picture on screen is the same one the
+            // renderer would have made locally for free. Bounded here rather than in the
+            // worker because this is where the local window size is known, and the
+            // worker's own ceiling (`SharedFrameGeometry.maximumPixels`) is about the
+            // frame budget rather than about sharpness.
+            // Apply the source ceiling *after* magnification. A 200% selection must
+            // not request a fake 3840×2160 frame from a 1920×1080, 1× desktop:
+            // that only enlarges existing pixels, forces a stream reconnect and
+            // can exhaust the shared-frame budget without adding Retina detail.
+            let request = CaptureSizing.viewerRequest(
+                viewPixelWidth: naturalWidth, viewPixelHeight: naturalHeight,
+                magnification: captureMagnification,
+                sourceLimitWidth: Int(captureLimit.width), sourceLimitHeight: Int(captureLimit.height))
+            client.configure(width: request.width, height: request.height)
+        }
         refreshCaptureGeometry()
         refreshCursorRects()
     }

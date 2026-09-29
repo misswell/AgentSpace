@@ -16,9 +16,13 @@
 /// pure geometry — and because both ends of a stream have to agree that a buffer
 /// holds exactly its subject, which is only true if the buffer is sized that way.
 public enum CaptureSizing {
-    /// The local viewer's pixel request after zoom, held to the source's real
-    /// pixels when known. Magnification changes the budget, not the detail the
-    /// remote display physically rendered.
+    /// The pixel request of a surface whose capture follows its own layout —
+    /// a Fusion proxy mirroring one window at its own size — after zoom, held
+    /// to the source's real pixels when known. Magnification changes the
+    /// budget, not the detail the remote window physically rendered. The
+    /// desktop viewer does not walk this path: its stream opens at the
+    /// `DisplayQuality` size and keeps it, so a window resize never reopens
+    /// the stream.
     public static func viewerRequest(viewPixelWidth: Int, viewPixelHeight: Int,
                                      magnification: Double, sourceLimitWidth: Int,
                                      sourceLimitHeight: Int) -> (width: Int, height: Int) {
