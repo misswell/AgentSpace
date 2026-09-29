@@ -601,9 +601,11 @@
 
 /* Desktop viewer: how the pointer behaves over the agent's desktop. */
 "Mouse Capture" = "Mouse Capture";
+"Takeover Hidden" = "Takeover Hidden";
 "Auto" = "Auto";
 "Click to Capture" = "Click to Capture";
 "Off" = "Off";
+"Takeover Hidden takes control the moment the pointer enters: one cursor on both sides, and moves, clicks, drags and scrolls follow while it moves. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "Takeover Hidden takes control the moment the pointer enters: one cursor on both sides, and moves, clicks, drags and scrolls follow while it moves. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control.";
 "When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back." = "When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back.";
 
 /* Fusion: the window an input names no longer exists. */
@@ -611,8 +613,6 @@
 "A 2× display is required to open this desktop." = "A 2× display is required to open this desktop.";
 "Connect a Retina display to the agent session or update its Worker, then reconnect." = "Connect a Retina display to the agent session or update its Worker, then reconnect.";
 
-"Capture" = "Capture";
-"Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control." = "Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control.";
 
 "Status" = "Status";
 "Stops this account's background worker. The macOS session stays signed in." = "Stops this account's background worker. The macOS session stays signed in.";

@@ -288,14 +288,14 @@ struct DesktopViewerView: View {
             Picker("Mouse Capture", selection: Binding(
                 get: { (MouseCaptureMode.parse(captureMode) ?? .default).rawValue },
                 set: { captureMode = $0 })) {
+                Text("Takeover Hidden").tag(MouseCaptureMode.takeoverHidden.rawValue)
                 Text("Auto").tag(MouseCaptureMode.auto.rawValue)
-                Text("Capture").tag(MouseCaptureMode.capture.rawValue)
                 Text("Click to Capture").tag(MouseCaptureMode.clickToCapture.rawValue)
             }
             .pickerStyle(.menu)
             .labelsHidden()
             .accessibilityIdentifier("desktopViewerCaptureModePicker")
-            .help(Text("Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control."))
+            .help(Text("Takeover Hidden takes control the moment the pointer enters: one cursor on both sides, and moves, clicks, drags and scrolls follow while it moves. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control."))
 
             Button { capture() } label: { Image(systemName: "camera") }
                 .help(Text("Save Snapshot"))

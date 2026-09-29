@@ -182,15 +182,22 @@ final class PointerCapturePolicyTests: XCTestCase {
         XCTAssertEqual(MouseCaptureMode.clickToCapture.policy(for: .fusion).entry, .captureOnPress)
     }
 
-    func testMouseCaptureModeCaptureFollowsInBothSurfaces() {
-        XCTAssertEqual(MouseCaptureMode.capture.policy(for: .desktop).entry, .captureOnEntry)
-        XCTAssertEqual(MouseCaptureMode.capture.policy(for: .fusion).entry, .captureOnEntry)
+    func testMouseCaptureModeTakeoverHiddenFollowsInBothSurfaces() {
+        XCTAssertEqual(MouseCaptureMode.takeoverHidden.policy(for: .desktop).entry, .captureOnEntry)
+        XCTAssertEqual(MouseCaptureMode.takeoverHidden.policy(for: .fusion).entry, .captureOnEntry)
     }
 
-    func testMouseCaptureModeDefaultsToAutoAndParsesItsStoredValue() {
-        XCTAssertEqual(MouseCaptureMode.default, .auto)
+    func testMouseCaptureModeDefaultsToTakeoverHiddenAndParsesItsStoredValues() {
+        // §351: the owner asked for a visible, default 接管隐藏鼠标 — the mode
+        // has to exist under its own name, not as another mode's steady state.
+        XCTAssertEqual(MouseCaptureMode.default, .takeoverHidden)
+        XCTAssertEqual(MouseCaptureMode.parse("takeoverHidden"), .takeoverHidden)
+        // The pre-0.1.59 stored 「Capture」 was the same entry-takes-control
+        // behavior under another name; an old choice keeps its feel.
+        XCTAssertEqual(MouseCaptureMode.parse("capture"), .takeoverHidden)
         XCTAssertEqual(MouseCaptureMode.parse("clickToCapture"), .clickToCapture)
         XCTAssertEqual(MouseCaptureMode.parse("off"), .clickToCapture)
+        XCTAssertEqual(MouseCaptureMode.parse("auto"), .auto)
         XCTAssertNil(MouseCaptureMode.parse("something else"))
         XCTAssertNil(MouseCaptureMode.parse(nil))
     }
@@ -229,8 +236,8 @@ final class PointerCapturePolicyTests: XCTestCase {
         controller.apply(.fusionProxy)
         controller.pointerSettled()
         XCTAssertEqual(controller.state, .outside)
-        XCTAssertEqual(MouseCaptureMode.allCases, [.auto, .capture, .clickToCapture])
-        XCTAssertEqual(MouseCaptureMode.parse("capture"), .capture)
+        XCTAssertEqual(MouseCaptureMode.allCases, [.takeoverHidden, .auto, .clickToCapture])
+        XCTAssertEqual(MouseCaptureMode.parse("capture"), .takeoverHidden)
     }
 
 }

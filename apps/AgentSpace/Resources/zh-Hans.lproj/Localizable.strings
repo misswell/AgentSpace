@@ -601,9 +601,11 @@
 
 /* Desktop viewer: how the pointer behaves over the agent's desktop. */
 "Mouse Capture" = "鼠标接管";
+"Takeover Hidden" = "接管隐藏鼠标";
 "Auto" = "自动";
 "Click to Capture" = "点击后接管";
 "Off" = "关闭";
+"Takeover Hidden takes control the moment the pointer enters: one cursor on both sides, and moves, clicks, drags and scrolls follow while it moves. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "接管隐藏鼠标：指针一进入就接管——两边只有一个光标，移动、点击、拖动、滚轮在移动中实时跟随。自动：鼠标停稳后才同步位置并触发悬停。点击后接管：仅在按下期间控制。按 Control-Option 或 Control-Command-G 交还控制。";
 "When the agent's desktop takes your pointer. Control-Option or Control-Command-G hands it back." = "何时由 Agent 桌面接管鼠标：鼠标进入即接管，或点击后接管。按 Control-Option 或 Control-Command-G 可随时交还。";
 
 /* Fusion: the window an input names no longer exists. */
@@ -611,8 +613,6 @@
 "A 2× display is required to open this desktop." = "打开桌面至少需要一块 2× 显示器。";
 "Connect a Retina display to the agent session or update its Worker, then reconnect." = "请确认 Agent 会话有 Retina 显示器并更新 Worker，然后重新连接。";
 
-"Capture" = "接管";
-"Auto synchronizes hover after the pointer stops. Capture follows every move. Click to Capture controls while pressed. Control-Option or Control-Command-G releases control." = "自动：鼠标停稳后同步位置并触发悬停。接管：持续跟随鼠标。点击后接管：按下鼠标期间控制。按 Control-Option 或 Control-Command-G 交还控制。";
 
 "Status" = "状态";
 "Stops this account's background worker. The macOS session stays signed in." = "停止该账号的后台 Worker。macOS 会话保持登录。";
