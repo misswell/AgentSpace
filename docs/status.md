@@ -4,7 +4,7 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-28 on `master`. Current public release: **0.1.55**.
+Last updated: 2026-09-29 on `master`. Current public release: **0.1.55**.
 Published 0.1.55 (§347): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.55), source commit `afad235`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36441052985) passed. DMG **6,471,252** bytes, `sha256:923680c12fd51344c94b1a142224a1979645207d54bf93a70523b6c58982b58b`. Apple accepted App ZIP `be2b000a-cb85-4076-950c-803a5d2108fc` and DMG `2a5ba03b-315a-4f12-831f-814278c63b9e` (read back with `asc notarization list`). Fresh download matches the published digest; inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.55`. The round fixes the empty-privacy-lists dead end (§347): the worker now asks for accessibility and screen recording at startup, so the prompts and list entries wait in the account's session. **Worker change — press 「重新安装助手…」 once after updating.**
 Published 0.1.54 (§346): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.54), source commit `6437885`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36436015191) passed. DMG **6,469,902** bytes, `sha256:145dfb05d3334af8fbd5961ed8f1a9f78b17b66b3e3dbb666b81339db42b7c65`. Apple accepted App ZIP `a2695aaa-dd2f-4204-9252-26b82315c1c4` and DMG `0995acf0-64d7-49cc-aa32-9ff9b7917e25` (read back with `asc notarization list`). Fresh download matches the published digest; inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.54`. The round closes the connect flow's dead ends: completion → 「开始授权…」, the account page's missing-grants banner, and registry records that advance when a live snapshot outruns them. This machine now has a live attached account (`misswell`), so layer 4's session gate can run against published bytes again — row 1016's deferral closes with the next §346 append.
 Published 0.1.53 (§345): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.53), source commit `4cf7127`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36425697079) passed. DMG **6,450,163** bytes, `sha256:285968c738dee684b9b971200645d4725f94531f24b31df6cf478b8a7adf308b`. Apple accepted App ZIP `e00c7c67-a072-4398-bb76-0ef90c4dd38a` and DMG `9c0ebc7b-b430-4b80-8473-c022ce6471dd` (read back with `asc notarization list`). Fresh download `/tmp/agentspace-0.1.53-release.dmg` matches the published digest; inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.53`. The round makes the helper approval flow visible (open System Settings, Recheck, poll) and fixes the helper refusing the CLI's own signing identifier; layer 4 deferred until an account is attached on this fresh system (§345 row 1016). **The installed helper only accepts the CLI after the owner presses 「重新安装助手…」 once on 0.1.53.**
@@ -13,6 +13,24 @@ Published 0.1.51 (§343): [GitHub Release](https://github.com/misswell/AgentSpac
 Published 0.1.50 (§342): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.50), source commit `be056b9`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36390675945) passed. DMG **6,406,572** bytes, `sha256:36a60be43f5ecf7205cf9de8c2c4bb271efa49cf16a1a9496ca494e0248db3f9`. Apple accepted App ZIP `e0adb659-4680-4c39-bb64-15a45b6bdd15` and DMG `46c0f197-7f23-477b-acaa-7ee46690023e` (read back with `notarytool history`). Fresh download `/tmp/agentspace-0.1.50-release.dmg` matches the published digest; DMG and inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.50`.
 Published 0.1.49 (§341): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.49), source commit `0d9eea1`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36369768158) passed. DMG **6,408,312** bytes, `sha256:fe9fb2b23f8c129ec9e1957eaad3ecd4999de8223cadb16c89c5f753c70727a7`. Apple accepted App ZIP `af888826-7dc9-405d-b9e7-11e73e507d5d` and DMG `ae275264-5d10-4d0b-9a5d-18bc695c59af` (read back with `notarytool info`). Fresh download `/tmp/agentspace-0.1.49-release.dmg` matches the published digest; DMG and inner App staple validation, inner App version and deep strict signature verification pass. `releases/latest` answers `v0.1.49`.
 Published 0.1.48 (§340): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.48), commit `4db8b68`, DMG **6,405,657** bytes, `sha256:e2dec49d885231fcfde1e616a8fc87ef23c84555abefab8de53f4d45d12e73d8`. Apple notarization accepted the App ZIP (`b42da36c-c3fe-40c3-9d4a-bf4ece42d0c4`) and DMG (`e2d279ea-cac7-45f1-b463-bb7a25b00573`); downloaded DMG checksum matches and `xcrun stapler validate` passed. `releases/latest` answers `v0.1.48`.
+0.1.56 candidate (§348): the Desktop Viewer's window stops driving the
+stream's size. Layout no longer re-derives the capture request from the
+window's pixels (`captureFollowsLayout: false`), so dragging the window's
+edge — or entering and leaving fullscreen — is answered by the Metal layer
+scaling the picture and never by the ≥16 px close-and-reopen that produced the
+black flash; the stream opens at the quality mode's size and keeps it for its
+life, and the dead Zoom menu (it never scaled the picture, only the buffer) is
+removed. The worker gains the border arrows: the system draws resize cursors
+from a private representation so the public shape read returns an empty image,
+and that empty read now falls back to `CursorEdgeClassifier` — the pointed
+window's border geometry names the arrow (left/right, up/down, both
+diagonals), published through the unchanged cursor channel. The main window's
+toolbar gains a Settings… gear on the right — the settings window was only
+reachable through the app menu, and a window the page does not contain is the
+one §344-compatible toolbar addition. **The worker
+changed: 「重新安装助手…」 is part of this update.** Swift 750 tests (seven new
+classifier tests), MCP 24/24, smoke, updater 19/19, and 13/13 session-UI
+checks against a tree-built candidate bundle in AgentUse.
 0.1.52 candidate (§344): the main window stops repeating itself. The toolbar's
 Authorize shield menu and Agent gear menu are gone — every item they offered
 already existed on the page (the permissions card and the maintenance card) —
