@@ -39,6 +39,16 @@ an alias is the documented answer, a typed helper op for a PATH install is
 deliberately deferred. Merges into the §351 tree: Swift **759/759, 1 skipped**
 at first measure; MCP and smoke numbers at the release row. App + bundled CLI
 only: 「检查更新」 alone.
+0.1.59 candidate (§353): the Desktop Viewer learns to sleep. A window left
+open while an agent works for hours kept its stream, shared region and
+whole-Retina-layout capture alive at the 5 FPS idle floor; now the window
+puts its stream to sleep after the chosen interval of **personal** idleness —
+5／15／30（默认）／60 分钟／从不, picked in the details popover — shows
+「画面已休眠 · 点击唤醒」, and one click goes live again. The idle clock is
+the person's hand (gesture, drag, forwarded key), deliberately never the
+desktop's busyness; an asleep window consumes no keys (the RPC fallback
+cannot type into an unseen session). `WindowSleepPolicy` (Core, 5 tests);
+Swift **764/764, 1 skipped** on the tree carrying §351+§352+§353 together.
 0.1.58 candidate (§350): the toolbar settings entry actually opens Settings.
 0.1.56's gear ran the macOS-13-era `showSettingsWindow:` selector and this
 OS's Settings scene no longer connects it — the owner pressed it and nothing
