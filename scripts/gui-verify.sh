@@ -23,7 +23,7 @@
 # 3 nothing was verified (locked screen, another session, or a running copy this
 # gate will not close without being asked). 3 exists because `check-all.sh` has
 # to tell "could not look" from "looked and saw a failure": on 3 it falls back
-# to `scripts/session-gui-verify.sh`, the same 13 checks in the agent account's
+# to `scripts/session-gui-verify.sh`, the same checks in the agent account's
 # own session, which needs no screen and no consent (§324).
 set -u
 cd "$(dirname "$0")/.."
@@ -255,7 +255,7 @@ if [ -n "$WAS_RUNNING_APP" ] && [ "${AGENTSPACE_GUI_VERIFY_ALLOW_CLOSE:-0}" != "
   echo "  nobody is working at this Mac right now, re-run with:" >&2
   echo "      AGENTSPACE_GUI_VERIFY_ALLOW_CLOSE=1 scripts/gui-verify.sh" >&2
   echo "  Exit 3 = nothing was verified. If somebody *is* at the Mac," >&2
-  echo "  scripts/session-gui-verify.sh runs these same 13 checks inside an agent" >&2
+  echo "  scripts/session-gui-verify.sh runs these same checks inside an agent" >&2
   echo "  account's own session, closing and opening nothing of theirs." >&2
   pgrep -U "$(id -u)" -lf "AgentSpace.app/Contents/MacOS/AgentSpace" | sed 's/^/    /' >&2
   rm -rf "$GUI_ROOT"

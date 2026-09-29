@@ -7,7 +7,7 @@
 # of its own on the *human's* screen for a minute or two. During 0.1.31's release
 # it ran six times in one afternoon while the owner was working, closing their
 # window each time, and the request that came back was
-# 「做测试的时候可否尽量不要打扰我操作」. This is the durable answer: the same 13
+# 「做测试的时候可否尽量不要打扰我操作」. This is the durable answer: the same
 # checks, driven through `agentspace exec` in the agent account's session.
 #
 # Nothing appears on this screen, this uid's AgentSpace copies are never
@@ -151,7 +151,7 @@ sed -e '/^agentspace-gui-check exit: /d' \
 case "${CODE:-}" in
   0)
     echo
-    echo "session-gui-verify: 13 checks passed in $ACCOUNT's session (nothing on this screen)"
+    echo "session-gui-verify: all checks passed in $ACCOUNT's session (nothing on this screen)"
     exit 0
     ;;
   1)
