@@ -195,6 +195,13 @@ final class PointerCapturePolicyTests: XCTestCase {
         // The pre-0.1.59 stored 「Capture」 was the same entry-takes-control
         // behavior under another name; an old choice keeps its feel.
         XCTAssertEqual(MouseCaptureMode.parse("capture"), .takeoverHidden)
+        XCTAssertEqual(MouseCaptureMode.takeover.policy(for: .desktop).entry, .captureOnEntry)
+        XCTAssertEqual(MouseCaptureMode.takeover.policy(for: .fusion).entry, .captureOnEntry)
+        XCTAssertEqual(MouseCaptureMode.parse("takeover"), .takeover)
+        XCTAssertTrue(MouseCaptureMode.takeoverHidden.hidesCursor)
+        XCTAssertTrue(MouseCaptureMode.auto.hidesCursor)
+        XCTAssertTrue(MouseCaptureMode.clickToCapture.hidesCursor)
+        XCTAssertFalse(MouseCaptureMode.takeover.hidesCursor)
         XCTAssertEqual(MouseCaptureMode.parse("clickToCapture"), .clickToCapture)
         XCTAssertEqual(MouseCaptureMode.parse("off"), .clickToCapture)
         XCTAssertEqual(MouseCaptureMode.parse("auto"), .auto)
@@ -236,7 +243,7 @@ final class PointerCapturePolicyTests: XCTestCase {
         controller.apply(.fusionProxy)
         controller.pointerSettled()
         XCTAssertEqual(controller.state, .outside)
-        XCTAssertEqual(MouseCaptureMode.allCases, [.takeoverHidden, .auto, .clickToCapture])
+        XCTAssertEqual(MouseCaptureMode.allCases, [.takeoverHidden, .takeover, .auto, .clickToCapture])
         XCTAssertEqual(MouseCaptureMode.parse("capture"), .takeoverHidden)
     }
 

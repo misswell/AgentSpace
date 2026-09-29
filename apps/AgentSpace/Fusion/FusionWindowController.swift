@@ -103,7 +103,9 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
             .sink { [weak self] capabilities in
                 guard let self else { return }
                 let live = self.channelClient?.state.isReady == true && capabilities.contains(.cursorShapes)
+                // 接管 keeps the person's own cursor as the pointer.
                 self.overlay.isDrawingCursor = live
+                    && (MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default).hidesCursor
             }
             .store(in: &stateSubscriptions)
         client.$state

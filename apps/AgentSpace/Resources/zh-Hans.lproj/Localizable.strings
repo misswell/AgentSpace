@@ -646,3 +646,6 @@
 
 /* 隐私列表里只会出现主动请求过的进程；把「列表为空」变成一步可解的操作而不是死路（§347）。 */
 "If no entry appears in the list, the worker has not asked yet. Pressing Open settings below asks on the worker's behalf and opens the pane in one step; the prompt then waits in the account's own session." = "如果列表里还没有条目，说明 worker 还没有发起过请求。点下方的「打开设置」会代 worker 发起请求，并一步打开对应面板；提示弹窗会等在账号自己的会话里。";
+
+"Takeover" = "接管";
+"Takeover takes control the moment the pointer enters and keeps your own cursor as the pointer. Takeover Hidden does the same and hides it, drawing the agent's cursor in its place. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "接管：指针进入画面即取得控制，并保留你自己的鼠标光标。接管隐藏鼠标：同样进入即控制，但隐藏你的光标，改画 Agent 的光标。自动：鼠标停稳后才同步悬停。点击后接管：仅在按住时控制。按 Control-Option 或 Control-Command-G 交还控制。";

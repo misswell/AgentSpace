@@ -650,3 +650,6 @@
 /* The privacy lists only carry a process that has asked; make the empty-list
    case a solvable step instead of a dead end (§347). */
 "If no entry appears in the list, the worker has not asked yet. Pressing Open settings below asks on the worker's behalf and opens the pane in one step; the prompt then waits in the account's own session." = "If no entry appears in the list, the worker has not asked yet. Pressing Open settings below asks on the worker's behalf and opens the pane in one step; the prompt then waits in the account's own session.";
+
+"Takeover" = "Takeover";
+"Takeover takes control the moment the pointer enters and keeps your own cursor as the pointer. Takeover Hidden does the same and hides it, drawing the agent's cursor in its place. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "Takeover takes control the moment the pointer enters and keeps your own cursor as the pointer. Takeover Hidden does the same and hides it, drawing the agent's cursor in its place. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control.";

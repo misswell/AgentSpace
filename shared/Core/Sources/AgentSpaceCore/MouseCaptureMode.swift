@@ -9,6 +9,11 @@ public enum MouseCaptureMode: String, CaseIterable, Sendable {
     /// mode has to be visible in the picker under its own name, not folded
     /// into another mode's steady state.
     case takeoverHidden
+    /// Take over on entry exactly like takeoverHidden, but keep the person's
+    /// own pointer visible: their cursor is the pointer, and the sprite is
+    /// never drawn on top of it. Restored alongside (not instead of)
+    /// takeoverHidden — the two are separate choices (§354).
+    case takeover
     /// Synchronize hover only after the host pointer settles.
     case auto
     /// Keep the existing press-to-control behavior.
@@ -29,11 +34,15 @@ public enum MouseCaptureMode: String, CaseIterable, Sendable {
 
     public func policy(for host: Host) -> PointerCapturePolicy {
         switch self {
-        case .takeoverHidden: return .desktop
+        case .takeoverHidden, .takeover: return .desktop
         case .auto: return .automatic
         case .clickToCapture: return .fusionProxy
         }
     }
+
+    /// Whether controlling hides the person's own pointer in favour of the
+    /// worker's published sprite. Every mode but takeover does.
+    public var hidesCursor: Bool { self != .takeover }
 
     public enum Host: Sendable {
         case desktop

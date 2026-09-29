@@ -322,6 +322,7 @@ struct DesktopViewerView: View {
                 get: { (MouseCaptureMode.parse(captureMode) ?? .default).rawValue },
                 set: { captureMode = $0 })) {
                 Text("Takeover Hidden").tag(MouseCaptureMode.takeoverHidden.rawValue)
+                Text("Takeover").tag(MouseCaptureMode.takeover.rawValue)
                 Text("Auto").tag(MouseCaptureMode.auto.rawValue)
                 Text("Click to Capture").tag(MouseCaptureMode.clickToCapture.rawValue)
             }
@@ -409,7 +410,8 @@ struct DesktopViewerView: View {
                     // it publishes one of its own. Hiding it earlier would leave
                     // the person looking at a desktop with no pointer at all —
                     // worse than a cursor that lags by one frame.
-                    hidesLocalCursor: input.cursorChannelActive,
+                    hidesLocalCursor: input.cursorChannelActive
+                        && (MouseCaptureMode.parse(captureMode) ?? .default).hidesCursor,
                     onGesture: { gesture in send(gesture, snapshot: snapshot) },
                     onClaimHuman: { input.claimHuman() },
                     onReleaseHuman: { input.releaseHuman() },
@@ -604,7 +606,10 @@ struct DesktopViewerView: View {
         let overlay = cursorOverlay
         input.onCursor = { [weak overlay] presentation in overlay?.apply(presentation) }
         input.onCursorChannelChange = { [weak frameClient, weak overlay] active in
+            // 接管 keeps the person's own cursor as the pointer: the sprite
+            // would only duplicate it, so it draws for the other modes alone.
             overlay?.isDrawingCursor = active
+                && (MouseCaptureMode.parse(captureMode) ?? .default).hidesCursor
             // Only once the worker has *proved* it can publish shapes: turning
             // the painted cursor off for a channel that then fails would leave
             // the desktop with no pointer at all.
