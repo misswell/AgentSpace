@@ -482,6 +482,10 @@ class RemoteSurfaceNSView: NSView {
         // The pause on automation starts with the press, not with the gesture it
         // eventually produces.
         if claimed { onClaimHuman?() }
+        // A press is the earliest a drag can be known to begin, threshold model
+        // included: the stream rate should follow the button, not wait for the
+        // drag to cross its threshold first.
+        onDragActivity?(true)
     }
 
     private func dragged(_ event: NSEvent) {

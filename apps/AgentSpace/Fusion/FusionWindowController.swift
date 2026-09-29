@@ -73,6 +73,7 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
             claimHuman: { [weak self] in self?.claimHuman() },
             releaseHuman: { [weak self] in self?.releaseHuman() },
             overlay: overlay,
+            onDragActivity: { [weak self] active in self?.setGestureRate(active) },
             sendKey: { [weak self] action in self?.sendKey(action) }))
         travel = PointerTravelCoalescer(minimumInterval: 1.0 / HostDisplayRefresh.pointerRate(for: window)) { [weak self] point in
             guard let self else { return }
@@ -222,6 +223,12 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     static let backgroundFPS = 5
     /// A gesture is a picture that has to move with a hand.
     static let gestureFPS = 60
+    /// The ceiling a visible non-key proxy adapts within. A hard 5 for every
+    /// non-key window made a second proxy crawl even while its content was
+    /// changing under a working cursor; the same activity ladder as the key
+    /// window, held to this lower ceiling, keeps idle proxies at 5 and an
+    /// actively changing one readable.
+    static let backgroundAdaptiveFPS = 15
 
     func windowDidMiniaturize(_ notification: Notification) { stop() }
     func windowDidDeminiaturize(_ notification: Notification) { startCapture() }
@@ -433,9 +440,17 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private func updateCaptureRate() {
         guard UserDefaults.standard.integer(forKey: "fusionFPSPolicy") == 0,
               let frameClient else { return }
-        let target = window?.isKeyWindow == true
-            ? InputRatePolicy(ceiling: Self.keyWindowFPS).frames(for: activityTracker.activity(at: Date()))
-            : Self.backgroundFPS
+        let target: Int
+        if window?.isKeyWindow == true {
+            target = InputRatePolicy(ceiling: Self.keyWindowFPS).frames(for: activityTracker.activity(at: Date()))
+        } else {
+            // Adaptive within the background ceiling, not a hard 5: an idle
+            // proxy keeps the 5 FPS probe, one whose content is changing or
+            // whose cursor is working gets up to 15, and a gesture still gets
+            // the 60 the ladder reserves for a hand.
+            target = InputRatePolicy(ceiling: Self.backgroundAdaptiveFPS)
+                .frames(for: activityTracker.activity(at: Date()))
+        }
         guard liveCaptureFPS != target else { return }
         liveCaptureFPS = target
         frameClient.setFPS(target)

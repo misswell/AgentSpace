@@ -8,6 +8,9 @@ struct FusionWindowView: View {
     let claimHuman: () -> Void
     let releaseHuman: () -> Void
     let overlay: RemoteCursorOverlayProxy
+    /// A press started or ended, straight from the surface, so the stream rate
+    /// follows the button rather than the gesture threshold.
+    var onDragActivity: ((Bool) -> Void)? = nil
     let sendKey: ((JSONValue) -> Void)?
 
     var body: some View {
@@ -15,6 +18,7 @@ struct FusionWindowView: View {
             if let client = state.frameClient {
                 FusionSurface(client: client, send: send, claimHuman: claimHuman,
                               releaseHuman: releaseHuman, overlay: overlay,
+                              onDragActivity: onDragActivity,
                               sendKey: sendKey)
                     .background(Color.black)
                 VStack { HStack { FrameClientStatusOverlay(client: client); Spacer() }; Spacer() }
@@ -60,6 +64,10 @@ private struct FusionSurface: NSViewRepresentable {
     let claimHuman: () -> Void
     let releaseHuman: () -> Void
     let overlay: RemoteCursorOverlayProxy
+    /// A press started or ended, so the controller can raise the stream rate
+    /// at the moment the button goes down instead of a few pixels into the
+    /// drag (the threshold model reports the drag only after it is one).
+    var onDragActivity: ((Bool) -> Void)? = nil
     /// Keys take the RPC path on purpose: one keystroke is one event, a person
     /// types at tens per second at most, and the RPC route is the one an agent's
     /// `key` call uses — so a combo typed into a proxy is validated by exactly
@@ -80,6 +88,14 @@ private struct FusionSurface: NSViewRepresentable {
         view.onGesture = send
         view.onClaimHuman = claimHuman
         view.onReleaseHuman = releaseHuman
+        // The proxy's capture size is driven by the remote window it mirrors
+        // (whose changes reach it as a genuine source-size change and thus a
+        // reconnect), not by this window's layout ticks: without this, every
+        // local resize pass re-derived the request and the ≥16 px close-
+        // and-reopen turned a window drag into one black flash after another
+        // — the same defect §348 fixed for the desktop viewer.
+        view.captureFollowsLayout = false
+        view.onDragActivity = onDragActivity
         // Both hosts use the same explicit mouse-control preference.
         let mode = MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default
         view.capture.configure(mode.policy(for: .fusion))
