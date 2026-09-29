@@ -369,7 +369,11 @@ struct DesktopViewerView: View {
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
-        .padding(.horizontal, 10)
+        // The strip is the window's title bar now (§361): the leading inset is
+        // where the traffic lights live, and the strip's own empty space drags
+        // the window.
+        .padding(.leading, 78)
+        .padding(.trailing, 10)
         .padding(.vertical, 5)
         .background(.bar)
     }

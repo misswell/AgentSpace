@@ -50,10 +50,16 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1120, height: 760),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false)
         window.title = "\(space.displayName) Desktop"
+        // The status strip IS the title bar (§361): the traffic lights sit on
+        // the strip's left, the window title stays for Mission Control but is
+        // not drawn, and the strip's controls live in what used to be two
+        // rows. The reclaimed row goes to the desktop viewport.
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
         window.isMovable = true
         window.collectionBehavior = [.managed, .participatesInCycle]
