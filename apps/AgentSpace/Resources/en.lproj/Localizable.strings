@@ -609,6 +609,9 @@
 "Stream asleep" = "Stream asleep";
 "Click to wake" = "Click to wake";
 "The stream stopped after %ld minutes idle. Click to go live again." = "The stream stopped after %ld minutes idle. Click to go live again.";
+"Stream paused" = "Stream paused";
+"Click to resume" = "Click to resume";
+"The picture is dark because you paused it. Click to go live again." = "The picture is dark because you paused it. Click to go live again.";
 "Auto" = "Auto";
 "Click to Capture" = "Click to Capture";
 "Off" = "Off";

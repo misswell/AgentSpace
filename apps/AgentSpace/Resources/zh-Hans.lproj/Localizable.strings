@@ -609,6 +609,9 @@
 "Stream asleep" = "画面已休眠";
 "Click to wake" = "点击唤醒";
 "The stream stopped after %ld minutes idle. Click to go live again." = "空闲 %ld 分钟后，画面流已停止。点击重新连上实时画面。";
+"Stream paused" = "画面已暂停";
+"Click to resume" = "点击恢复";
+"The picture is dark because you paused it. Click to go live again." = "画面因你按下暂停而停止。点击恢复实时。";
 "Auto" = "自动";
 "Click to Capture" = "点击后接管";
 "Off" = "关闭";
