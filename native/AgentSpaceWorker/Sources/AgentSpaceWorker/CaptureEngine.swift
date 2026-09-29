@@ -173,14 +173,14 @@ final class CaptureEngine: NSObject {
     ///
     /// Returns the rate now in force, which is what the caller reports.
     @discardableResult
-    func updateFrameRate(_ fps: Int) -> Int {
+    func updateFrameRate(_ fps: Int, force: Bool = false) -> Int {
         let clamped = max(1, min(60, fps))
         lock.lock()
         let stream = self.stream
         let previous = maxFPS
         if clamped != previous { maxFPS = clamped }
         lock.unlock()
-        guard let stream, clamped != previous else { return clamped }
+        guard let stream, clamped != previous || force else { return clamped }
         let configuration = SCStreamConfiguration()
         configuration.width = lastWidth
         configuration.height = lastHeight
@@ -215,7 +215,12 @@ final class CaptureEngine: NSObject {
         set {
             lock.lock(); let changed = _showsCursor != newValue; _showsCursor = newValue; lock.unlock()
             guard changed else { return }
-            updateFrameRate(maxFPS)
+            // `force` matters more than the rate here: `showsCursor` reaches a
+            // live SCStream only through updateConfiguration, and at an
+            // unchanged rate the early return silently swallowed the toggle —
+            // the picture went on painting its own cursor for the whole life
+            // of the stream (§357).
+            updateFrameRate(maxFPS, force: true)
             Log.capture.info("capture cursor painting is now \(newValue ? "on" : "off")")
         }
     }

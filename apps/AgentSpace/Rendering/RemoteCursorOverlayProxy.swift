@@ -33,6 +33,11 @@ final class RemoteCursorOverlayProxy: ObservableObject {
         if layer == nil { isDrawingCursor = false }
     }
 
+    /// Whether the sprite may draw at all: false for 接管, whose pointer is
+    /// the person's own cursor. Without this gate every packet re-enabled the
+    /// sprite and the takeover mode drew a second cursor (§357).
+    var hidesCursor = true
+
     func apply(_ presentation: InputClient.CursorPresentation?) {
         guard let layer else { return }
         guard let presentation else {
@@ -41,7 +46,7 @@ final class RemoteCursorOverlayProxy: ObservableObject {
             return
         }
         layer.apply(presentation)
-        isDrawingCursor = true
+        isDrawingCursor = hidesCursor
     }
 
     /// The channel went away. The overlay must stop drawing rather than freeze

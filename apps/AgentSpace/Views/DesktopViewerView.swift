@@ -78,6 +78,10 @@ struct DesktopViewerView: View {
     /// The person pressed ⏸ — the one reason an eligible window stays dark.
     /// First-open's race (below) must not override it, and ⏸ clears it.
     @State private var pausedByPerson = false
+    /// Whether the paused overlay is on screen. `pausedByPerson` is the
+    /// *decision*; this is the *display* of it — set together, cleared together,
+    /// so the dark states (asleep, paused, capturing) stay exclusive.
+    @State private var showsPausedOverlay = false
     /// The last time the person's hand did anything here — a gesture, a drag,
     /// a key. The idle clock the sleep policy reads.
     @State private var lastActivity = Date()
@@ -183,10 +187,11 @@ struct DesktopViewerView: View {
     /// permitted, and this view has a host window; removed in every other
     /// combination, so a monitor never outlives its authorization.
     private func syncKeyboardState() {
-        // An asleep window consumes no keys: its stream and socket are gone,
-        // and a keystroke that fell back to the RPC path would type into the
-        // agent's session with no picture showing it.
-        let permitted = snapshot?.workerOnline == true && snapshot?.acceptsInput == true && !asleep
+        // An asleep or paused window consumes no keys: its stream and socket
+        // are gone, and a keystroke that fell back to the RPC path would type
+        // into the agent's session with no picture showing it.
+        let permitted = snapshot?.workerOnline == true && snapshot?.acceptsInput == true
+            && !asleep && !pausedByPerson
         if permitted { syncKeyboardMonitor() } else { removeKeyboardMonitor() }
         // Travel collected while input was permitted must not reach the agent
         // after it was revoked — the same rule the monitor follows, one level up.
@@ -292,11 +297,12 @@ struct DesktopViewerView: View {
 
             Button {
                 if frameClient == nil {
-                    pausedByPerson = false
-                    startPreview()
+                    resumeFromPause()
                 } else {
                     pausedByPerson = true
+                    showsPausedOverlay = true
                     stopPreview()
+                    syncKeyboardState()
                 }
             } label: {
                 Image(systemName: frameClient == nil ? "play.fill" : "pause.fill")
@@ -390,6 +396,8 @@ struct DesktopViewerView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if showsPausedOverlay {
+            pausedOverlay
         } else if asleep {
             sleepOverlay
         } else if let frameClient, let snapshot {
@@ -561,6 +569,37 @@ struct DesktopViewerView: View {
     private func wakeUp() {
         asleep = false
         pausedByPerson = false
+        showsPausedOverlay = false
+        lastActivity = Date()
+        startPreview()
+        syncKeyboardState()
+    }
+
+    /// The ⏸ state, said out loud: the picture is dark because the person
+    /// chose it, not because anything is being captured. One click — anywhere,
+    /// or the toolbar's ▶ — goes live again.
+    private var pausedOverlay: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "pause.circle")
+                .font(.system(size: 30))
+                .foregroundStyle(.secondary)
+            Text("Stream paused").font(.headline)
+            Text("The picture is dark because you paused it. Click to go live again.")
+                .font(.callout).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
+            Button("Click to resume") { resumeFromPause() }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("desktopViewerResumeButton")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { resumeFromPause() }
+    }
+
+    private func resumeFromPause() {
+        pausedByPerson = false
+        showsPausedOverlay = false
         lastActivity = Date()
         startPreview()
         syncKeyboardState()
@@ -595,6 +634,7 @@ struct DesktopViewerView: View {
         // Every explicit start — wake, reconnect, play, quality change — is a
         // hand on the window, so it clears the sleep and resets its clock.
         asleep = false
+        showsPausedOverlay = false
         lastActivity = Date()
         guard frameClient == nil else { return }
         guard let space = snapshot?.space,
@@ -604,8 +644,16 @@ struct DesktopViewerView: View {
         // must stop painting one, or the person sees two — the trailing ghost
         // this whole path exists to remove.
         let overlay = cursorOverlay
+        // The client exists before the closures capture it: a weak capture
+        // taken before `frameClient = client` used to be nil forever, so
+        // `setEmbeddedCursor` was silently never sent and the picture went on
+        // painting its own cursor for the whole life of the mode (§357).
+        let limit = captureLimit
+        let client = FrameClient(space: space, target: .retinaDesktop, maxFPS: previewFPS,
+                                 targetWidth: Int(limit.width), targetHeight: Int(limit.height))
+        frameClient = client
         input.onCursor = { [weak overlay] presentation in overlay?.apply(presentation) }
-        input.onCursorChannelChange = { [weak frameClient, weak overlay] active in
+        input.onCursorChannelChange = { [weak client, weak overlay] active in
             // 接管 keeps the person's own cursor as the pointer: the sprite
             // would only duplicate it, so it draws for the other modes alone.
             overlay?.isDrawingCursor = active
@@ -613,16 +661,13 @@ struct DesktopViewerView: View {
             // Only once the worker has *proved* it can publish shapes: turning
             // the painted cursor off for a channel that then fails would leave
             // the desktop with no pointer at all.
-            frameClient?.setEmbeddedCursor(!active)
+            client?.setEmbeddedCursor(!active)
         }
         input.configure(space: space, display: display)
         // Opened at the mode's own size, and that is the size for the stream's
         // whole life: the surface does not re-derive the request from the
         // window (`captureFollowsLayout: false`), so no resize — and no
         // fullscreen transition — ever reopens the stream.
-        let limit = captureLimit
-        let client = FrameClient(space: space, target: .retinaDesktop, maxFPS: previewFPS,
-                                targetWidth: Int(limit.width), targetHeight: Int(limit.height))
         activityClock.tracker = FrameActivityTracker()
         liveFPS = previewFPS
         client.onFrameArrived = { [weak client] in
@@ -630,7 +675,7 @@ struct DesktopViewerView: View {
             activityClock.tracker.noteChange(at: Date())
             updateCaptureRate()
         }
-        frameClient = client; client.start()
+        client.start()
     }
 
     private func stopPreview() {
