@@ -75,6 +75,9 @@ struct DesktopViewerView: View {
     /// Whether the stream is asleep (§353). True only through `sleepStream`;
     /// every explicit start (wake, reconnect, play) clears it.
     @State private var asleep = false
+    /// The person pressed ⏸ — the one reason an eligible window stays dark.
+    /// First-open's race (below) must not override it, and ⏸ clears it.
+    @State private var pausedByPerson = false
     /// The last time the person's hand did anything here — a gesture, a drag,
     /// a key. The idle clock the sleep policy reads.
     @State private var lastActivity = Date()
@@ -150,10 +153,16 @@ struct DesktopViewerView: View {
         // state-driven, not just appearance-driven. Revocation (worker gone,
         // console switch) tears the monitor down instead of leaving it
         // consuming keys.
-        .onChange(of: snapshot?.workerOnline) { _ in syncKeyboardState() }
+        .onChange(of: snapshot?.workerOnline) { _ in
+            syncKeyboardState()
+            autoStartIfNeeded()
+        }
         .onChange(of: retinaDesktopRestartKey) { key in
             if lastViewportSize.width > 0 { onViewportSize?(lastViewportSize) }
             if key.isEmpty { stopPreview() } else { restartPreviewIfNeeded() }
+            // First arrival of the display report is the moment first-open can
+            // actually start (see autoStartIfNeeded).
+            autoStartIfNeeded()
         }
         .onChange(of: snapshot?.acceptsInput) { _ in syncKeyboardState() }
         .onChange(of: hostWindow) { _ in syncKeyboardState() }
@@ -281,7 +290,15 @@ struct DesktopViewerView: View {
             .accessibilityLabel(Text("Reconnect"))
             .disabled(snapshot == nil)
 
-            Button { frameClient == nil ? startPreview() : stopPreview() } label: {
+            Button {
+                if frameClient == nil {
+                    pausedByPerson = false
+                    startPreview()
+                } else {
+                    pausedByPerson = true
+                    stopPreview()
+                }
+            } label: {
                 Image(systemName: frameClient == nil ? "play.fill" : "pause.fill")
             }
             .help(previewActionLabel)
@@ -541,6 +558,7 @@ struct DesktopViewerView: View {
 
     private func wakeUp() {
         asleep = false
+        pausedByPerson = false
         lastActivity = Date()
         startPreview()
         syncKeyboardState()
@@ -553,6 +571,22 @@ struct DesktopViewerView: View {
     private var liveSurfaceSize: CGSize? {
         guard let size = frameClient?.surfaceSize, size.width > 0, size.height > 0 else { return nil }
         return size
+    }
+
+    /// Start the stream once its prerequisites have arrived after the view
+    /// did. First open races the three-second viewer-status refresh:
+    /// `.onAppear` usually runs while `snapshot.retinaDisplay` is still nil,
+    /// `startPreview`'s guard returns silently, and nothing ever re-triggered
+    /// it — the person stared at 「正在抓取 Agent 的桌面…」 until they pressed
+    /// ▶ themselves, by which time the snapshot had arrived and worked. The
+    /// two state arrivals that matter (the display report, the worker coming
+    /// online) now re-ask. Never overrides a ⏸ the person chose, never wakes
+    /// a window that is asleep.
+    private func autoStartIfNeeded() {
+        guard !pausedByPerson, !asleep, frameClient == nil,
+              snapshot?.workerOnline == true,
+              snapshot?.retinaDisplay != nil else { return }
+        startPreview()
     }
 
     private func startPreview() {
