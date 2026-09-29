@@ -193,6 +193,22 @@ struct SpaceDetailView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .disabled(model.isLoading)
+
+                // The app's Settings scene (⌘,) — a window the page does not
+                // contain, so unlike the menus §344 removed this entry adds
+                // somewhere to go rather than repeating the page. The deploy
+                // target is macOS 13, one below `SettingsLink`, so the button
+                // runs AppKit's own action for the settings window instead:
+                // `showSettingsWindow:` on 13 and later, with the older
+                // `showPreferencesWindow:` spelling kept as the fallback.
+                Button {
+                    let opened = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    if !opened { _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil) }
+                } label: {
+                    Label("Settings…", systemImage: "gearshape")
+                }
+                .help(Text("Settings…"))
+                .accessibilityIdentifier("mainToolbarSettings")
             }
         }
         // The guide request lives on the model, not in local state: the New
