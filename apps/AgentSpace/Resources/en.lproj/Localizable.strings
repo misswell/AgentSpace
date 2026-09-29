@@ -594,7 +594,7 @@
 "Choose an App to Launch" = "Choose an App to Launch";
 "Launch App" = "Launch App";
 "Activate" = "Activate";
-"Apps launch on the agent desktop. Open a local window separately with Open Apps." = "Apps launch on the agent desktop. Open a local window separately with Open Apps.";
+"Apps launch on the agent desktop; the window opens here as soon as it is ready." = "Apps launch on the agent desktop; the window opens here as soon as it is ready.";
 "Choose a Window to Open" = "Choose a Window to Open";
 "Open Window" = "Open Window";
 "No app windows are available" = "No app windows are available";

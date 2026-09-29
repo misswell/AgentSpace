@@ -594,7 +594,7 @@
 "Choose an App to Launch" = "选择要启动的应用";
 "Launch App" = "启动应用";
 "Activate" = "激活";
-"Apps launch on the agent desktop. Open a local window separately with Open Apps." = "应用会在 Agent 桌面启动。如需在本机显示，请通过「打开应用」单独选择窗口。";
+"Apps launch on the agent desktop; the window opens here as soon as it is ready." = "应用会在 Agent 桌面启动，窗口就绪后会在这里打开。";
 "Choose a Window to Open" = "选择要打开的窗口";
 "Open Window" = "打开窗口";
 "No app windows are available" = "当前没有可打开的应用窗口";

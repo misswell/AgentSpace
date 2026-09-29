@@ -23,25 +23,46 @@ final class FusionManager {
 
     // MARK: - The app picker's verbs
 
-    /// Bring one application up in the Space. Its windows are opened separately
-    /// through the window picker when the person asks for one.
+    /// Bring one application up in the Space **and open its window here**.
     ///
-    /// An app that is already running is *activated* rather than launched: the
-    /// picker labels that row 「已在运行」, and starting a second copy would give
-    /// the person two of everything.
+    /// Launching and seeing used to be two separate trips: the picker launched
+    /// on the agent desktop and dismissed, and the owner read the silence as
+    /// 「无法启动应用窗口」 — the app *did* start, just where nobody watching
+    /// this Mac could see it, and the window required a second visit to
+    /// 「打开应用」. One click means one outcome, so after the launch or
+    /// activation lands, the app's first on-screen window is opened as a local
+    /// proxy. A fresh launch can take a beat to produce that window, hence the
+    /// brief poll; the session's `open` deduplicates by window identity, so an
+    /// activation that finds an already-fused window simply raises it.
     func fuse(app: InstalledApplication, in space: AgentAccount, completion: @escaping (AgentSpaceError?) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             // Built inside the closure: `SpaceService` is not Sendable, and
             // capturing one here is exactly what the compiler warns about.
             let service = SpaceService()
-            let error = app.isRunning
+            let wasRunning = app.isRunning
+            let error = wasRunning
                 ? service.activate(space, app: app.path)
                 : service.launch(space, app: app.path)
-            Task { @MainActor in
-                guard error == nil else {
-                    completion(error)
-                    return
+            guard error == nil else {
+                Task { @MainActor in completion(error) }
+                return
+            }
+
+            var opened: RemoteWindow?
+            let deadline = Date().addingTimeInterval(wasRunning ? 2 : 8)
+            while Date() < deadline {
+                if case .success(let windows) = service.windows(for: space), let match = windows.first(where: {
+                    ($0.bundleIdentifier != nil && $0.bundleIdentifier == app.bundleIdentifier)
+                        || (app.pid != nil && Int($0.pid) == app.pid)
+                }) {
+                    opened = match
+                    break
                 }
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+            let window = opened
+            Task { @MainActor in
+                if let window { self.openWindow(window, for: space) }
                 completion(nil)
             }
         }

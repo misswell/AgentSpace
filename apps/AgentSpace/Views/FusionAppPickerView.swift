@@ -79,7 +79,7 @@ struct FusionAppPickerView: View {
             }
 
             HStack {
-                Text("Apps launch on the agent desktop. Open a local window separately with Open Apps.")
+                Text("Apps launch on the agent desktop; the window opens here as soon as it is ready.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
