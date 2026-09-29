@@ -30,6 +30,19 @@ import AgentSpaceCore
 /// the session's own pointer moves. Until then the worker advertises
 /// `cursorPosition` only, and the viewer keeps drawing the cursor that is
 /// embedded in the frames.
+///
+/// **What happens when the read comes back empty.** The resize cursors are
+/// drawn by the system from a private representation, so `NSCursor.current.image`
+/// is the empty image exactly when the session is showing one of the shapes a
+/// hand needs most — the arrows that say "this border moves". Publishing
+/// nothing there leaves a viewer that hides the painted cursor with *no* shape
+/// at the border, which is the report of 「移动到窗口边缘，没有调整大小鼠标」.
+/// So after the proof, an empty read falls back to geometry
+/// (`CursorEdgeClassifier`): a point hugging the border of the window under it
+/// is published as that border's resize arrow, drawn from public `NSCursor`
+/// images or, for the diagonals no public cursor exists for, from pixels this
+/// type draws itself. It never overrides a shape AppKit could describe — the
+/// fallback runs only on the failed read.
 final class CursorStateProvider {
     /// How often the session pointer is sampled. The viewer can draw as fast as
     /// it likes in between, because a cursor overlay is a local sprite; this is
@@ -41,6 +54,14 @@ final class CursorStateProvider {
     /// The id is a hash of the pixels and the hotspot, which is what makes
     /// "unchanged" a cheap comparison rather than a byte-by-byte one.
     static let maximumShapePixels = 256 * 256
+    /// How long one `CGWindowList` read backs the resize-border fallback. The
+    /// list is only consulted when the real shape read failed, so this bounds
+    /// the cost of hovering a border without making every sample pay for it.
+    static let windowFrameCacheInterval: TimeInterval = 0.5
+
+    /// One published shape: pixels plus where the point sits inside them.
+    typealias Shape = (id: UInt32, image: Data, hotSpotX: Double, hotSpotY: Double,
+                       width: Int, height: Int)
 
     private let context: WorkerContext
     private let send: (CursorState) -> Void
@@ -65,6 +86,8 @@ final class CursorStateProvider {
     /// what the connection advertises.
     private var shapeReadAttempts = 0
     private var shapeReadSuccesses = 0
+    /// The window frames behind the resize-border fallback, front first.
+    private var windowFrameCache: (frames: [CursorEdgeClassifier.WindowFrame], at: TimeInterval)?
 
     init(context: WorkerContext, send: @escaping (CursorState) -> Void) {
         self.context = context; self.send = send
@@ -101,7 +124,12 @@ final class CursorStateProvider {
         sequence &+= 1
         var state = CursorState(sequence: sequence, x: Double(location.x), y: Double(location.y))
         if shapesAvailable || shapeReadAttempts < 3 {
-            if let shape = readShape() {
+            // The fallback is deliberately unavailable before the proof: until
+            // this provider has seen a real shape change with the session's own
+            // pointer, the viewer is still drawing the cursor the picture
+            // carries, and the picture already shows the system's resize arrows.
+            let shape = readShape() ?? (shapesAvailable ? synthesizedShape(at: location) : nil)
+            if let shape {
                 state.shapeID = shape.id
                 state.hotSpotX = shape.hotSpotX
                 state.hotSpotY = shape.hotSpotY
@@ -136,15 +164,66 @@ final class CursorStateProvider {
     /// the arrow, the I-beam and the resize cursors the session's own apps ask
     /// for. `hotSpot` and `image` are public. The `NSImage` is rasterised here
     /// into BGRA so the wire carries pixels rather than a description of them.
-    private func readShape() -> (id: UInt32, image: Data, hotSpotX: Double, hotSpotY: Double, width: Int, height: Int)? {
+    private func readShape() -> Shape? {
         let cursor = NSCursor.current
-        let hotspot = cursor.hotSpot
-        let image = cursor.image
+        return rasterize(cursor.image, hotSpot: cursor.hotSpot)
+    }
+
+    /// The resize-border fallback: which arrow the pointer's position names.
+    ///
+    /// Runs only on a failed read, so a cursor AppKit *can* describe is never
+    /// replaced by a guess. When the point is on no window's border — a busy
+    /// cursor over a window's body, for instance — the answer is nil and the
+    /// viewer keeps the shape it was already drawing.
+    private func synthesizedShape(at point: CGPoint) -> Shape? {
+        switch CursorEdgeClassifier.shape(pointX: Double(point.x), pointY: Double(point.y),
+                                          windowFrames: onScreenWindowFrames()) {
+        case .none:
+            return nil
+        case .leftRight:
+            let cursor = NSCursor.resizeLeftRight
+            return rasterize(cursor.image, hotSpot: cursor.hotSpot)
+        case .upDown:
+            let cursor = NSCursor.resizeUpDown
+            return rasterize(cursor.image, hotSpot: cursor.hotSpot)
+        case .northWestSouthEast:
+            return rasterize(Self.diagonalCursorImage(northWestToSouthEast: true), hotSpot: Self.diagonalHotSpot)
+        case .northEastSouthWest:
+            return rasterize(Self.diagonalCursorImage(northWestToSouthEast: false), hotSpot: Self.diagonalHotSpot)
+        }
+    }
+
+    /// The on-screen layer-0 windows, front first, in global top-left points —
+    /// the same space `CGEvent` locations live in, so no conversion happens.
+    private func onScreenWindowFrames() -> [CursorEdgeClassifier.WindowFrame] {
+        let now = ProcessInfo.processInfo.systemUptime
+        if let windowFrameCache, now - windowFrameCache.at < Self.windowFrameCacheInterval {
+            return windowFrameCache.frames
+        }
+        var frames: [CursorEdgeClassifier.WindowFrame] = []
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        if let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] {
+            for window in list {
+                guard let layer = window[kCGWindowLayer as String] as? Int, layer == 0,
+                      let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                      let x = (bounds["X"] as? NSNumber)?.doubleValue,
+                      let y = (bounds["Y"] as? NSNumber)?.doubleValue,
+                      let width = (bounds["Width"] as? NSNumber)?.doubleValue,
+                      let height = (bounds["Height"] as? NSNumber)?.doubleValue else { continue }
+                frames.append(CursorEdgeClassifier.WindowFrame(x: x, y: y,
+                                                               width: width, height: height))
+            }
+        }
+        windowFrameCache = (frames, now)
+        return frames
+    }
+
+    private func rasterize(_ image: NSImage, hotSpot: NSPoint) -> Shape? {
         // `cursor.image` can be the empty image for a cursor the system draws
         // itself (the resize cursors are drawn from a private representation).
         // An empty image is not a shape: sending it would blank the remote
-        // pointer. The caller counts this as a failure and keeps the embedded
-        // cursor in the picture, which is the honest outcome.
+        // pointer. The caller treats this as the failed read that the
+        // resize-border fallback exists for.
         guard image.size.width >= 1, image.size.height >= 1 else { return nil }
         var rect = NSRect(origin: .zero, size: image.size)
         guard let cg = image.cgImage(forProposedRect: &rect, context: nil, hints: nil) else { return nil }
@@ -164,15 +243,84 @@ final class CursorStateProvider {
             return true
         }
         guard drawn else { return nil }
-        // The hash covers the pixels and the hotspot together: two cursors that
-        // differ only in where they point are different cursors, and a client
-        // drawing the wrong hotspot is a click that lands one pixel off.
+        return Self.shape(pixels: pixels, width: width, height: height,
+                          hotSpotX: Double(hotSpot.x), hotSpotY: Double(hotSpot.y))
+    }
+
+    /// The identity hash over pixels and hotspot: two cursors that differ only
+    /// in where they point are different cursors, and a client drawing the
+    /// wrong hotspot is a click that lands one pixel off.
+    private static func shape(pixels: Data, width: Int, height: Int,
+                              hotSpotX: Double, hotSpotY: Double) -> Shape {
         var hash = Hasher()
         hash.combine(width); hash.combine(height)
-        hash.combine(Int(hotspot.x * 4)); hash.combine(Int(hotspot.y * 4))
+        hash.combine(Int(hotSpotX * 4)); hash.combine(Int(hotSpotY * 4))
         hash.combine(pixels)
         let id = UInt32(truncatingIfNeeded: hash.finalize())
-        return (id: id, image: pixels, hotSpotX: Double(hotspot.x), hotSpotY: Double(hotspot.y),
+        return (id: id, image: pixels, hotSpotX: hotSpotX, hotSpotY: hotSpotY,
                 width: width, height: height)
+    }
+
+    /// Where the drawn diagonal points, in the image's point space.
+    private static let diagonalHotSpot = NSPoint(x: 12, y: 12)
+
+    /// The corner arrows AppKit will not hand out: `NSCursor` offers the two
+    /// axis-aligned double arrows publicly, but the diagonals exist only as
+    /// private representations. So the corner's shape is drawn here once per
+    /// sample that needs it and sent as pixels like any other cursor image —
+    /// a black double arrow with a white outline at the 2× scale every cursor
+    /// image on this wire carries.
+    private static func diagonalCursorImage(northWestToSouthEast: Bool) -> NSImage {
+        let points = 24.0, pixels = 48
+        let rowBytes = pixels * 4
+        var pixelsData = Data(count: rowBytes * pixels)
+        let drawn: Bool = pixelsData.withUnsafeMutableBytes { buffer -> Bool in
+            guard let base = buffer.baseAddress,
+                  let ctx = CGContext(data: base, width: pixels, height: pixels,
+                                      bitsPerComponent: 8, bytesPerRow: rowBytes,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                                          | CGBitmapInfo.byteOrder32Little.rawValue) else { return false }
+            ctx.clear(CGRect(x: 0, y: 0, width: pixels, height: pixels))
+            // One double-headed arrow along the corner's own diagonal. Ends and
+            // barbs in pixels; the arrowheads are a horizontal and a vertical
+            // stroke per tip, which at this size reads exactly like the system's.
+            let tipA = northWestToSouthEast ? CGPoint(x: 9, y: 39) : CGPoint(x: 39, y: 39)
+            let tipB = northWestToSouthEast ? CGPoint(x: 39, y: 9) : CGPoint(x: 9, y: 9)
+            let barbA1 = northWestToSouthEast ? CGPoint(x: 21, y: 39) : CGPoint(x: 27, y: 39)
+            let barbA2 = northWestToSouthEast ? CGPoint(x: 9, y: 27) : CGPoint(x: 39, y: 27)
+            let barbB1 = northWestToSouthEast ? CGPoint(x: 27, y: 9) : CGPoint(x: 21, y: 9)
+            let barbB2 = northWestToSouthEast ? CGPoint(x: 39, y: 21) : CGPoint(x: 9, y: 21)
+            for pass in [(color: CGColor(gray: 1, alpha: 1), width: 6.0),
+                         (color: CGColor(gray: 0, alpha: 1), width: 3.0)] {
+                ctx.setStrokeColor(pass.color)
+                ctx.setLineWidth(pass.width)
+                ctx.setLineCap(.round)
+                ctx.setLineJoin(.round)
+                ctx.beginPath()
+                ctx.move(to: tipA)
+                ctx.addLine(to: tipB)
+                ctx.move(to: tipA); ctx.addLine(to: barbA1)
+                ctx.move(to: tipA); ctx.addLine(to: barbA2)
+                ctx.move(to: tipB); ctx.addLine(to: barbB1)
+                ctx.move(to: tipB); ctx.addLine(to: barbB2)
+                ctx.strokePath()
+            }
+            return true
+        }
+        guard drawn,
+              let provider = CGDataProvider(data: pixelsData as CFData),
+              let cg = CGImage(width: pixels, height: pixels, bitsPerComponent: 8, bitsPerPixel: 32,
+                               bytesPerRow: rowBytes, space: CGColorSpaceCreateDeviceRGB(),
+                               bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
+                                                           | CGBitmapInfo.byteOrder32Little.rawValue),
+                               provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        else {
+            return NSCursor.arrow.image
+        }
+        // One 2× representation behind a 24-point image — the same shape a
+        // native cursor's NSImage carries, so the shared rasteriser sees it
+        // exactly as it sees AppKit's own cursors.
+        return NSImage(cgImage: cg, size: NSSize(width: points, height: points))
     }
 }
