@@ -142,8 +142,13 @@ final class CursorStateProvider {
                 shapeReadSuccesses += 1
                 if shapeReadSuccesses >= 2, !shapesAvailable {
                     shapesAvailable = true
-                    let announce = onShapesProved
-                    DispatchQueue.main.async { announce?() }
+                    // Called on this provider's own queue, exactly like `send`
+                    // above. It used to hop to the main queue, and the worker's
+                    // main thread is parked in `accept()` for the process's
+                    // whole life (main.swift:357) — so the announcement never
+                    // ran, `.cursorShapes` was never advertised, and every
+                    // viewer kept drawing the cursor the frames carry (§360).
+                    onShapesProved?()
                 }
             } else {
                 shapeReadAttempts += 1
