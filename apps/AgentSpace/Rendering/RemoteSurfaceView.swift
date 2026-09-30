@@ -552,7 +552,7 @@ class RemoteSurfaceNSView: NSView {
     /// carries the cursor inside it: two cursors drawn from two sources is the
     /// trailing ghost this overlay exists to remove.
     func setCursorOverlayVisible(_ visible: Bool) {
-        cursorOverlayLayer?.isHidden = !visible || cursorOverlayLayer?.contents == nil
+        cursorOverlayLayer?.isDrawingEnabled = visible
     }
 
     // MARK: - Cursor rects

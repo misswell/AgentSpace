@@ -35,6 +35,13 @@ final class RemoteCursorOverlayLayer: CALayer {
     /// Maps display points to this layer's coordinate space, refreshed by the
     /// owning view on layout.
     var mapping: PreviewMapping? { didSet { markNeedsLayout() } }
+    /// Persistent gate: packets, prediction and later layout cannot undo it.
+    var isDrawingEnabled = false {
+        didSet {
+            if !isDrawingEnabled { isHidden = true }
+            markNeedsLayout()
+        }
+    }
 
     override init() {
         super.init()
@@ -133,7 +140,7 @@ final class RemoteCursorOverlayLayer: CALayer {
     /// spend a callback per frame to draw the same position twice.
     override func layoutSublayers() {
         super.layoutSublayers()
-        guard let mapping, let point = predicted ?? authoritative, let sprite else {
+        guard isDrawingEnabled, let mapping, let point = predicted ?? authoritative, let sprite else {
             isHidden = true
             return
         }
@@ -163,10 +170,8 @@ final class RemoteCursorOverlayLayer: CALayer {
         isHidden = false
     }
 
-    /// Re-run `layoutSublayers` on the next run loop pass. `CALayer.needsLayout`
-    /// is a method, not a property, and a cursor one event behind the hand is the
-    /// exact defect this overlay exists to remove.
-    private func markNeedsLayout() { needsLayout() }
+    /// Schedule layout; `needsLayout()` only reads the flag.
+    private func markNeedsLayout() { setNeedsLayout() }
 
     private static func image(from data: Data, width: Int, height: Int) -> CGImage? {
         guard width > 0, height > 0, data.count >= width * height * 4 else { return nil }

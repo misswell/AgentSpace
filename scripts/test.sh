@@ -27,8 +27,8 @@ if [[ ! -x "$WORKER" ]]; then
 fi
 export AGENTSPACE_WORKER_BINARY="$(pwd)/$WORKER"
 
-# Leftover workers from an interrupted run would hold sockets in /tmp roots.
-pkill -f "agentspace-worker --space-id" 2>/dev/null || true
+# Test fixtures own their worker PIDs and clean them up. A global pkill here
+# would also stop attached agent accounts and other concurrent checks.
 
 echo
 echo "== swift test =="

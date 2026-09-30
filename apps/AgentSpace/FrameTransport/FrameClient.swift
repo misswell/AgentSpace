@@ -41,6 +41,7 @@ final class FrameClient: ObservableObject {
     private var targetWidth: Int
     private var targetHeight: Int
     private let queue: DispatchQueue
+    private let controlQueue: DispatchQueue
     private let lock = NSLock()
     private var stopped = false
     private var running = false
@@ -74,7 +75,9 @@ final class FrameClient: ObservableObject {
     init(space: AgentAccount, target: CaptureTarget, maxFPS: Int = 15, targetWidth: Int = 0, targetHeight: Int = 0) {
         self.space = space; self.target = target; self.desiredFPS = maxFPS
         self.targetWidth = targetWidth; self.targetHeight = targetHeight
-        self.queue = DispatchQueue(label: BundleIdentifiers.app + ".frame-client.\(UUID().uuidString)", qos: .userInitiated)
+        let scheduling = FrameStreamScheduling(label: BundleIdentifiers.app + ".frame-client.\(UUID().uuidString)")
+        self.queue = scheduling.reader
+        self.controlQueue = scheduling.control
     }
 
     func start() {
@@ -129,7 +132,7 @@ final class FrameClient: ObservableObject {
         lock.lock(); desiredFPS = fps; let id = streamID; let stopped = self.stopped; lock.unlock()
         guard !stopped, let id else { return }
         let space = space
-        queue.async {
+        controlQueue.async {
             let connection = SpaceConnection(space: space)
             _ = try? connection.client.call(method: Method.frameSetFPS, params: .obj([
                 "streamID": .string(id.uuidString), "fps": .int(fps),
@@ -139,9 +142,8 @@ final class FrameClient: ObservableObject {
 
     /// Stop painting the session's cursor into the captured picture.
     ///
-    /// Called only once the viewer draws a cursor of its own from the worker's
-    /// published position. Two cursors on screen is the trailing ghost the cursor
-    /// channel exists to remove, and zero cursors is worse than both.
+    /// Disabled for hidden takeover or when a separate cursor channel is active.
+    /// Control work must not share the queue occupied by the blocking frame read.
     func setEmbeddedCursor(_ enabled: Bool) {
         lock.lock()
         // The preference is remembered, not just sent: the cursor channel can
@@ -159,11 +161,16 @@ final class FrameClient: ObservableObject {
     /// Push the remembered cursor preference onto an open stream.
     private func sendCursorPreference(_ enabled: Bool, streamID id: UUID) {
         let space = space
-        queue.async {
+        controlQueue.async {
             let connection = SpaceConnection(space: space)
-            _ = try? connection.client.call(method: Method.frameSetFPS, params: .obj([
-                "streamID": .string(id.uuidString), "showsCursor": .bool(enabled),
-            ]), token: connection.token)
+            do {
+                let response = try connection.client.call(method: Method.frameSetFPS, params: .obj([
+                    "streamID": .string(id.uuidString), "showsCursor": .bool(enabled),
+                ]), token: connection.token)
+                if let error = response.error { throw error }
+            } catch {
+                Self.log.error("Cannot set embedded cursor to \(enabled): \(String(describing: error), privacy: .public)")
+            }
         }
     }
 

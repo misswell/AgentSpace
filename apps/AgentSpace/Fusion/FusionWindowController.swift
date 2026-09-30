@@ -95,35 +95,35 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         channel = shared
         let client = shared.use()
         channelClient = client
-        // The channel's own state drives one thing here: whether the proxy may
-        // draw the agent's cursor itself. Before it can, the picture's painted
-        // cursor is what the person sees, and it must stay.
         client.$capabilities
             .receive(on: RunLoop.main)
-            .sink { [weak self] capabilities in
-                guard let self else { return }
-                let live = self.channelClient?.state.isReady == true && capabilities.contains(.cursorShapes)
-                let mode = MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default
-                // The sprite is the internal cursor: 「接管隐藏鼠标」 suppresses
-                // it whether or not the picture paints one (§364).
-                self.overlay.isDrawingCursor = live && !mode.hidesInternalCursor
-                // And the channel being proved — not the sprite's visibility —
-                // is what stops the painted cursor, or the mode that hides the
-                // internal cursor would re-enable the painted one instead.
-                self.frameClient?.setEmbeddedCursor(!live)
-            }
+            .sink { [weak self] _ in self?.refreshCursorPresentation() }
+            .store(in: &stateSubscriptions)
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.refreshCursorPresentation() }
             .store(in: &stateSubscriptions)
         client.$state
             .receive(on: RunLoop.main)
             .sink { [weak self] newState in
                 guard let self else { return }
                 if !newState.isReady { self.overlay.detach(); self.travel?.reset() }
+                self.refreshCursorPresentation()
             }
             .store(in: &stateSubscriptions)
         client.$remoteCursor
             .receive(on: RunLoop.main)
             .sink { [weak self] presentation in self?.overlay.apply(presentation) }
             .store(in: &stateSubscriptions)
+    }
+
+    private func refreshCursorPresentation() {
+        let mode = MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default
+        let live = channelClient?.state.isReady == true
+            && channelClient?.capabilities.contains(.cursorShapes) == true
+        overlay.hidesCursor = !mode.hidesInternalCursor
+        overlay.isDrawingCursor = live && !mode.hidesInternalCursor
+        frameClient?.setEmbeddedCursor(mode.embedsCursor(cursorChannelActive: live))
     }
 
     private func closeChannel() {
@@ -355,10 +355,7 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         captureRateTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.updateCaptureRate() }
         }
-        // Once the cursor channel is up, the picture must stop painting a cursor
-        // of its own: two cursors drawn from two sources is the trailing ghost
-        // this path exists to remove, and zero is worse than both.
-        client.setEmbeddedCursor(!overlay.isDrawingCursor)
+        refreshCursorPresentation()
     }
 
     private func restartCapture() {

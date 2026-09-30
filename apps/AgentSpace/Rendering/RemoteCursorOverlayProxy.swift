@@ -26,17 +26,22 @@ final class RemoteCursorOverlayProxy: ObservableObject {
     /// Settable by the host as well as by `apply`, because the host is what
     /// decides whether the *channel* is live — and the overlay must not draw a
     /// frozen position for a channel that has gone away.
-    var isDrawingCursor = false
+    var isDrawingCursor = false {
+        didSet { layer?.isDrawingEnabled = isDrawingCursor && hidesCursor }
+    }
     
     func attach(_ layer: RemoteCursorOverlayLayer?) {
+        if self.layer !== layer { self.layer?.isDrawingEnabled = false }
         self.layer = layer
         if layer == nil { isDrawingCursor = false }
+        layer?.isDrawingEnabled = isDrawingCursor && hidesCursor
     }
 
-    /// Whether the sprite may draw at all: false for 接管, whose pointer is
-    /// the person's own cursor. Without this gate every packet re-enabled the
-    /// sprite and the takeover mode drew a second cursor (§357).
-    var hidesCursor = true
+    /// Whether the sprite may draw at all: false for 接管隐藏鼠标.
+    /// This gate reaches the layer, so packets and layout cannot override it.
+    var hidesCursor = true {
+        didSet { layer?.isDrawingEnabled = isDrawingCursor && hidesCursor }
+    }
 
     func apply(_ presentation: InputClient.CursorPresentation?) {
         guard let layer else { return }

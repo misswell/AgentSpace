@@ -122,6 +122,11 @@ let package = Package(
             path: "tests/Unit"
         ),
         .testTarget(
+            name: "AgentSpaceAppTests",
+            dependencies: ["AgentSpaceApp"],
+            path: "tests/App"
+        ),
+        .testTarget(
             name: "AgentSpaceSafetyTests",
             dependencies: ["AgentSpaceCore"],
             path: "tests/Safety"

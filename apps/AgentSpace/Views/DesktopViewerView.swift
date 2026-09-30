@@ -437,6 +437,7 @@ struct DesktopViewerView: View {
                         let mode = MouseCaptureMode.parse(captureMode) ?? .default
                         cursorOverlay.hidesCursor = !mode.hidesInternalCursor
                         cursorOverlay.isDrawingCursor = input.cursorChannelActive && !mode.hidesInternalCursor
+                        frameClient.setEmbeddedCursor(mode.embedsCursor(cursorChannelActive: input.cursorChannelActive))
                     }
                 if !snapshot.acceptsInput { inputBlockedOverlay(snapshot) }
                 VStack { HStack { FrameClientStatusOverlay(client: frameClient); Spacer() }; Spacer() }
@@ -665,16 +666,17 @@ struct DesktopViewerView: View {
         let client = FrameClient(space: space, target: .retinaDesktop, maxFPS: previewFPS,
                                  targetWidth: Int(limit.width), targetHeight: Int(limit.height))
         frameClient = client
+        client.setEmbeddedCursor((MouseCaptureMode.parse(captureMode) ?? .default)
+            .embedsCursor(cursorChannelActive: input.cursorChannelActive))
         input.onCursor = { [weak overlay] presentation in overlay?.apply(presentation) }
         input.onCursorChannelChange = { [weak client, weak overlay] active in
-            // 接管 keeps the person's own cursor as the pointer: the sprite
-            // would only duplicate it, so it draws for the other modes alone.
+            // Hidden takeover keeps only the person's own pointer.
             overlay?.isDrawingCursor = active
                 && !(MouseCaptureMode.parse(captureMode) ?? .default).hidesInternalCursor
-            // Only once the worker has *proved* it can publish shapes: turning
-            // the painted cursor off for a channel that then fails would leave
-            // the desktop with no pointer at all.
-            client?.setEmbeddedCursor(!active)
+            // Hidden mode suppresses capture painting even without shapes;
+            // the other modes retain the channel-dependent fallback.
+            client?.setEmbeddedCursor((MouseCaptureMode.parse(captureMode) ?? .default)
+                .embedsCursor(cursorChannelActive: active))
         }
         input.configure(space: space, display: display)
         // Opened at the mode's own size, and that is the size for the stream's

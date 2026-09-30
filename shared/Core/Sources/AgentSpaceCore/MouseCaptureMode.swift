@@ -51,6 +51,11 @@ public enum MouseCaptureMode: String, CaseIterable, Sendable {
     /// 「接管隐藏鼠标」 hides the internal one, never the person's own (§364).
     public var hidesInternalCursor: Bool { self == .takeoverHidden }
 
+    /// Hidden mode uses the person's own pointer even when the channel is offline.
+    public func embedsCursor(cursorChannelActive: Bool) -> Bool {
+        !hidesInternalCursor && !cursorChannelActive
+    }
+
     public enum Host: Sendable {
         case desktop
         case fusion
