@@ -86,6 +86,7 @@
 "Refresh agents" = "Refresh agents";
 "Run Diagnostics…" = "Run Diagnostics…";
 "Status refresh: %lds" = "Status refresh: %lds";
+"The dashboard refreshes account status automatically on this interval; heavier checks (helper, worker versions, disk) stay event-driven." = "The dashboard refreshes account status automatically on this interval; heavier checks (helper, worker versions, disk) stay event-driven.";
 "Plan §53 sets a 2–5 s floor. Polling faster costs more than the app manages, so it is not offered." = "Plan §53 sets a 2–5 s floor. Polling faster costs more than the app manages, so it is not offered.";
 "Preview width" = "Preview width";
 "The Desktop Viewer captures at 1 FPS while it is open, and never while it is closed. Click coordinates are unaffected by this: they are derived from the display's own size, not the image's." = "The Desktop Viewer captures at 1 FPS while it is open, and never while it is closed. Click coordinates are unaffected by this: they are derived from the display's own size, not the image's.";

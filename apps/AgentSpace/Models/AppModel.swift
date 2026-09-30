@@ -26,14 +26,21 @@ struct CurrentAccountAuthorization: Equatable, Sendable {
 ///
 /// Two deliberate choices are visible here.
 ///
-/// **Refresh is slow and on demand.** Plan §53 sets a 2–5 s floor on status
-/// polling, prefers event notifications outright, and forbids the 100 ms loop
-/// that makes a management app cost more than the thing it manages. The
-/// dashboard refreshes on foreground, selection and explicit request. A visible
-/// Desktop Viewer checks only its account's lightweight status every three
-/// seconds, so input can recover after a background session wakes; its frames
-/// remain event-driven over the persistent socket, never a screenshot poll.
-/// Idle with no viewer, measured in docs/validation.md §27: 0.0% CPU.
+/// **Refresh has an automatic half and an event-driven half.** Plan §53 sets a
+/// 2–5 s floor on status polling and forbids the 100 ms loop that makes a
+/// management app cost more than the thing it manages. The dashboard's
+/// automatic half is `runStatusPolling`: every `StatusRefresh.interval` (the
+/// Settings slider's seconds) it re-reads each account's snapshot — the same
+/// status RPC the CLI pays — and nothing more. The event-driven half is
+/// `reload()`: foreground activation, explicit request, and every flow that
+/// changes the machine reload it when it finishes, because helper checks,
+/// worker-version repair and account discovery are heavier than a tick may
+/// carry. A visible Desktop Viewer checks only its account's lightweight
+/// status every three seconds, so input can recover after a background session
+/// wakes; its frames remain event-driven over the persistent socket, never a
+/// screenshot poll. Idle CPU with the tick running is measured in
+/// docs/validation.md §367; §27's 0.0% was the pre-poll app and is kept honest
+/// by that section's re-measurement.
 ///
 /// **Input is gated on `acceptsInput`.** The buttons that drive the agent's
 /// desktop are disabled unless the worker itself said input is permitted. The GUI
@@ -985,6 +992,68 @@ final class AppModel: ObservableObject {
             // A refusal is normal and is shown in the detail pane, not as an
             // alert. Only something the user did is worth interrupting for.
             _ = problem
+        }
+    }
+
+    /// The dashboard's automatic status tick — the Settings slider's promise,
+    /// finally wired (validation §367: the control existed from the first GUI
+    /// commit and nothing consumed it, so "Status refresh: 5s" refreshed
+    /// nothing and the person reloaded by hand).
+    ///
+    /// Deliberately narrower than `reload()`: it re-reads every account's
+    /// snapshot off the main thread — the same status RPC the CLI pays, with
+    /// offline accounts failing fast on a missing socket — merges in the
+    /// on-screen resources and reconciles stored states. The heavier work a
+    /// manual reload performs (helper inspect, worker-version repair, account
+    /// discovery, resource measurement) stays event-driven, so a tick costs one
+    /// RPC per account and a disk walk never rides it (§53). A tick that finds
+    /// the registry moved hands the whole job to `reload()`, which owns
+    /// selection repair and discovery.
+    func pollStatus() async {
+        guard !isLoading, provisioning == nil, updatingWorker == nil,
+              finishingSetup == nil, authorizingPermission == nil,
+              authorizingCurrentPermission == nil else { return }
+        let root = service.root
+        let outcome: (registry: SpaceRegistry, snapshots: [SpaceSnapshot]) =
+            await Task.detached(priority: .utility) {
+                let service = SpaceService(root: root)
+                let registry = service.loadRegistry()
+                let snapshots = registry.spaces.map { service.snapshot(for: $0) }
+                return (registry, snapshots)
+            }.value
+        guard !Task.isCancelled else { return }
+        // An attach, a detach or a CLI delete moved the registry while this
+        // tick polled: only the full path may add, remove or repair accounts.
+        guard outcome.registry.spaces.map(\.id) == snapshots.map(\.id) else {
+            reload()
+            return
+        }
+        var updated = snapshots
+        for fresh in outcome.snapshots {
+            guard let index = updated.firstIndex(where: { $0.id == fresh.id }) else { continue }
+            let current = updated[index]
+            // A refresh that raced ahead of this tick — a manual ⌘R, the
+            // viewer's own three-second loop — is never rolled back.
+            if let last = current.lastRefreshed, last > (fresh.lastRefreshed ?? .distantPast) { continue }
+            var merged = fresh
+            merged.resources = current.resources
+            updated[index] = merged
+        }
+        snapshots = updated
+        reconcileStates(registry: outcome.registry)
+    }
+
+    /// The loop the Settings slider configures, owned by the main window's
+    /// `.task`: closing the window stops the ticks, reopening starts them, and
+    /// the unit tests never instantiate either. The interval is re-read every
+    /// iteration, so moving the slider applies at the next tick — no restart,
+    /// no observation plumbing. The sleep comes first: opening the window
+    /// reloads synchronously, and doubling that with an instant tick would pay
+    /// twice for one launch.
+    func runStatusPolling() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(StatusRefresh.interval(from: .standard)))
+            await pollStatus()
         }
     }
 

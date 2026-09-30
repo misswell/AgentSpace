@@ -45,6 +45,13 @@ struct RootView: View {
                 dismissButton: dismiss)
         }
         .onAppear { model.reload() }
+        // The dashboard's automatic half: the Settings slider's status tick.
+        // Owned by this view's lifecycle — closing the window stops the RPCs,
+        // reopening starts them after the onAppear reload — so the loop is
+        // exactly as alive as the surface it serves.
+        .task {
+            await model.runStatusPolling()
+        }
         // One quiet check per launch. Failures are logged, not shown: a banner
         // for a request the user never made is worse than no banner, and the
         // Update tab says the same thing on demand.
@@ -209,7 +216,7 @@ final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
 /// dashboard can stay focused on opening the two presentation surfaces.
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
-    @AppStorage("statusRefreshSeconds") private var statusRefreshSeconds = 3.0
+    @AppStorage(StatusRefresh.storageKey) private var statusRefreshSeconds = StatusRefresh.defaultValue
     @AppStorage(DisplayQuality.storageKey) private var displayQuality = DisplayQuality.default.rawValue
     @AppStorage("fusionFPSPolicy") private var fusionFPSPolicy = 0
     @AppStorage("settingsTab") private var selectedTab = "accounts"
@@ -274,6 +281,13 @@ struct SettingsView: View {
                         Text(String(format: NSLocalizedString("Status refresh: %lds", comment: ""), Int(statusRefreshSeconds)))
                     }
                     .accessibilityIdentifier("statusRefreshSlider")
+                    // What the control drives, in one sentence: the dashboard's
+                    // automatic status tick. §367 found this slider promising a
+                    // refresh nothing performed; the caption exists so the
+                    // control's meaning is on the screen and not only in the
+                    // validation log.
+                    Text("The dashboard refreshes account status automatically on this interval; heavier checks (helper, worker versions, disk) stay event-driven.")
+                        .font(.caption).foregroundStyle(.secondary)
                     // One control, one key, the same options as the viewer's
                     // footer — see `DisplayQualityPicker`. The mode chosen here is
                     // what the live stream and the saved snapshot both use.

@@ -86,6 +86,7 @@
 "Refresh agents" = "刷新 Agent 列表";
 "Run Diagnostics…" = "运行诊断…";
 "Status refresh: %lds" = "状态刷新：%ld 秒";
+"The dashboard refreshes account status automatically on this interval; heavier checks (helper, worker versions, disk) stay event-driven." = "仪表盘按此间隔自动刷新账号状态；较重的检查（助手、Worker 版本、磁盘）仍由事件触发。";
 "Plan §53 sets a 2–5 s floor. Polling faster costs more than the app manages, so it is not offered." = "方案 §53 设定了 2–5 秒的下限。更快的轮询开销超过它管理的对象，因此不提供该选项。";
 "Preview width" = "预览宽度";
 "The Desktop Viewer captures at 1 FPS while it is open, and never while it is closed. Click coordinates are unaffected by this: they are derived from the display's own size, not the image's." = "桌面查看器打开时以 1 FPS 抓取，关闭时完全不抓取。点击坐标不受此影响：它们由显示器自身尺寸推导，与图像无关。";

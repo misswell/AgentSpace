@@ -4,7 +4,9 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-30 on `master`. Current public release: **0.1.66**.
+Last updated: 2026-09-30 on `master`. Current public release: **0.1.67**.
+0.1.67 candidate (§367): the owner reported the dashboard stale until a manual refresh, 「但配置里写的5秒」 — and the Settings slider had been a dead control since the first GUI commit: nothing consumed `statusRefreshSeconds` (§30 recorded the no-poll state, §49 pinned only the slider's bounds). The main window now polls every account's snapshot on the slider's interval (default 3 s, §53 floor 2 s enforced in Core, re-read per tick), the tick stays lightweight (one status RPC per account; helper/version/disk stay event-driven), and a moved registry hands over to the full reload. Live red/green inside the agent session: 0.1.65 = 1 status RPC then silence; fixed = strict ~3.1 s and ~5.2 s cadences at the default and 5 s settings. App-only; 「检查更新」 alone. Swift 772/772, MCP 24/24.
+
 Published 0.1.66 (§366): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.66), source commit `1d54798`, [Actions run](https://github.com/misswell/AgentSpace/actions/runs/36656519285) passed. Clean-source Swift and updater/MCP gates passed; local session GUI passed. DMG 6,536,365 bytes, sha256 `e3654c60…`, App and DMG notarizations read back as Accepted; download digest, staples, inner version and deep strict signature verified. Cursor controls no longer queue behind the frame reader and the actual sprite layer respects hidden mode. Worker 0.1.63+ needs only Check for Updates.
 
 0.1.66 implementation (§366): hidden takeover now gates the actual CALayer, not just proxy metadata. Cursor/FPS RPCs run on a separate control queue while the frame reader blocks; hidden mode disables embedded capture regardless of shape-channel readiness, including picker changes and Fusion restarts. Regression loops went red before the fixes and green after. App-only; Worker 0.1.63+ requires only Check for Updates.
