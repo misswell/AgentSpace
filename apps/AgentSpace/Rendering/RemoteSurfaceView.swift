@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import AgentSpaceCore
 
-struct RemoteSurfaceView: NSViewRepresentable {
+struct RemoteSurfaceView: View {
     let client: FrameClient
     /// The most pixels the capture may be asked for, in each axis — the source's
     /// own pixel size, held to `DisplayQuality`. `.zero` means "no ceiling of its
@@ -53,18 +53,14 @@ struct RemoteSurfaceView: NSViewRepresentable {
     /// window being dragged at a low frame rate does not look dragged.
     var onDragActivity: ((Bool) -> Void)? = nil
 
-    func makeNSView(context: Context) -> RemoteSurfaceNSView {
-        let view = RemoteSurfaceNSView(client: client)
-        configure(view)
-        return view
+    var body: some View {
+        // The AppKit surface owns its client's frame callbacks for its lifetime.
+        // A quality change opens a new client; reusing the old NSView would keep
+        // rendering the stopped stream and leave the replacement without a sink.
+        RemoteSurfaceBacking(surface: self).id(ObjectIdentifier(client))
     }
 
-    func updateNSView(_ view: RemoteSurfaceNSView, context: Context) {
-        configure(view)
-        view.needsLayout = true
-    }
-
-    private func configure(_ view: RemoteSurfaceNSView) {
+    fileprivate func configure(_ view: RemoteSurfaceNSView) {
         view.captureLimit = captureLimit; view.captureMagnification = captureMagnification
         view.captureFollowsLayout = captureFollowsLayout
         view.acceptsInput = acceptsInput; view.remoteContentSize = remoteContentSize
@@ -75,6 +71,21 @@ struct RemoteSurfaceView: NSViewRepresentable {
         view.allowsLocalCursorHiding = hidesLocalCursor
         view.onDragActivity = onDragActivity
         cursorOverlay?.attach(view.cursorOverlay)
+    }
+}
+
+private struct RemoteSurfaceBacking: NSViewRepresentable {
+    let surface: RemoteSurfaceView
+
+    func makeNSView(context: Context) -> RemoteSurfaceNSView {
+        let view = RemoteSurfaceNSView(client: surface.client)
+        surface.configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: RemoteSurfaceNSView, context: Context) {
+        surface.configure(view)
+        view.needsLayout = true
     }
 }
 
