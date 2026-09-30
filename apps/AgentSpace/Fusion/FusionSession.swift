@@ -90,7 +90,9 @@ final class FusionSession {
                 gone.close()
             }
         }
-        for identity in incoming {
+        for remote in windows {
+            let identity = remote.identity
+            controllers[identity]?.update(remote: remote)
             // Includes the identities `suspend(for:)` stopped: their timer is
             // gone, so this is what puts the stream back up after a worker
             // restart or a trip to the console.

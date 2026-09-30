@@ -94,6 +94,7 @@ struct AgentSpaceApp: App {
         // build older than this one stored a *width limit* on a key of its own,
         // so it is translated here, at launch, before either view reads it.
         DisplayQuality.migrateStoredPreference()
+        MouseCaptureMode.discardRemovedPreference()
     }
 
     var body: some Scene {
@@ -218,7 +219,7 @@ struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @AppStorage(StatusRefresh.storageKey) private var statusRefreshSeconds = StatusRefresh.defaultValue
     @AppStorage(DisplayQuality.storageKey) private var displayQuality = DisplayQuality.default.rawValue
-    @AppStorage("fusionFPSPolicy") private var fusionFPSPolicy = 0
+    @AppStorage(ViewerFrameRate.storageKey) private var previewFPS = ViewerFrameRate.defaultValue
     @AppStorage("settingsTab") private var selectedTab = "accounts"
     @State private var advancedRoot = AgentSpaceEnvironment.rootOverride ?? ""
 
@@ -264,11 +265,9 @@ struct SettingsView: View {
 
             Form {
                 Section {
-                    Picker("Fusion FPS", selection: $fusionFPSPolicy) {
-                        Text("Auto").tag(0); Text("5 FPS").tag(5); Text("10 FPS").tag(10); Text("15 FPS").tag(15)
+                    Picker("Frame rate", selection: $previewFPS) {
+                        ForEach(ViewerFrameRate.options, id: \.self) { fps in Text("\(fps) FPS").tag(fps) }
                     }
-                    Text("Auto uses 15 FPS for the key Agent window, 5 FPS for other visible windows, and 0 FPS while minimized.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)

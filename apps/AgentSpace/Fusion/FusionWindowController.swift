@@ -5,7 +5,7 @@ import AgentSpaceCore
 
 @MainActor
 final class FusionWindowController: NSWindowController, NSWindowDelegate {
-    let remoteWindow: RemoteWindow
+    private(set) var remoteWindow: RemoteWindow
     private let space: AgentAccount
     private let service = SpaceService()
     private let state = FusionWindowState()
@@ -19,24 +19,10 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private var resizingFromAgent = false
     private var hasShown = false
     private var lastRequestedSize: NSSize?
-    /// The account's shared fast input channel, aimed at this window's identity.
-    /// One connection per account serves every surface: a packet names its
-    /// target, so a proxy's backlog can never sit in front of a desktop click.
-    private var channel: InputChannel?
-    private var channelClient: InputClient?
+    private let input = RemoteViewerInput()
+    private var keyboardMonitor: Any?
     private var stateSubscriptions: Set<AnyCancellable> = []
-    /// The window frame a gesture resolves against, taken when the button goes
-    /// down. A drag is usually what *moves* the window, so every later packet of
-    /// the same gesture has to answer "which window, at which geometry" the way
-    /// the press did — otherwise the pointer accelerates away from the hand.
-    private var gestureFrame: CGRectValue?
-    /// Pointer travel is state, not a gesture: one packet in flight and only the
-    /// newest position behind it, so a wave across the proxy cannot put a hundred
-    /// stale positions in front of the click that follows.
-    ///
-    /// Built in `init` rather than lazily: its sender reaches back into `self`,
-    /// and a lazy initialiser that does so cannot also finish its own slot.
-    private var travel: PointerTravelCoalescer<(x: Double, y: Double)>?
+    private var captureQuality = DisplayQuality.default
     /// The pointer's own drawn cursor, so the proxy's content area shows the
     /// agent's pointer rather than the picture's baked-in one.
     private let overlay = RemoteCursorOverlayProxy()
@@ -68,59 +54,55 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         window.delegate = self
         window.contentView = NSHostingView(rootView: FusionWindowView(
-            state: state,
+            state: state, input: input,
             send: { [weak self] gesture in self?.send(gesture) },
             claimHuman: { [weak self] in self?.claimHuman() },
             releaseHuman: { [weak self] in self?.releaseHuman() },
             overlay: overlay,
-            onDragActivity: { [weak self] active in self?.setGestureRate(active) },
-            sendKey: { [weak self] action in self?.sendKey(action) }))
-        travel = PointerTravelCoalescer(minimumInterval: 1.0 / HostDisplayRefresh.pointerRate(for: window)) { [weak self] point in
-            guard let self else { return }
-            self.deliverTravel(point)
-            // Released at once: the newest position replaces whatever is pending,
-            // which is the whole contract of a travel coalescer.
-            self.travel?.finished()
-        }
+            onDragActivity: { [weak self] active in self?.setGestureRate(active) }))
         installTitlebarAction()
         openChannel()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    /// The account's channel, taken once per window and released when it closes.
     private func openChannel() {
-        guard channel == nil else { return }
-        let shared = InputChannelRegistry.shared.channel(for: space)
-        channel = shared
-        let client = shared.use()
-        channelClient = client
-        client.$capabilities
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.refreshCursorPresentation() }
-            .store(in: &stateSubscriptions)
+        guard stateSubscriptions.isEmpty else { return }
+        state.contentSize = NSSize(width: remoteWindow.frame.width, height: remoteWindow.frame.height)
+        input.configure(space: space, surface: .window(remoteWindow.identity, remoteWindow.frame))
+        input.onCursor = { [weak self] presentation in self?.overlay.apply(presentation) }
+        input.onCursorChannelChange = { [weak self] _ in self?.refreshCursorPresentation() }
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.refreshCursorPresentation() }
-            .store(in: &stateSubscriptions)
-        client.$state
-            .receive(on: RunLoop.main)
-            .sink { [weak self] newState in
+            .sink { [weak self] _ in
                 guard let self else { return }
-                if !newState.isReady { self.overlay.detach(); self.travel?.reset() }
                 self.refreshCursorPresentation()
+                let quality = DisplayQuality.parse(UserDefaults.standard.string(forKey: DisplayQuality.storageKey)) ?? .default
+                if quality != self.captureQuality {
+                    self.captureQuality = quality
+                    self.restartCapture()
+                } else {
+                    self.updateCaptureRate()
+                }
             }
             .store(in: &stateSubscriptions)
-        client.$remoteCursor
-            .receive(on: RunLoop.main)
-            .sink { [weak self] presentation in self?.overlay.apply(presentation) }
-            .store(in: &stateSubscriptions)
+        if let window {
+            keyboardMonitor = RemoteKeyboardMonitor.install(window: window,
+                permitsInput: { [weak self] in self?.frameClient != nil }) { [weak self] action in
+                    self?.sendKey(action)
+                }
+        }
+    }
+
+    func update(remote: RemoteWindow) {
+        remoteWindow = remote
+        state.contentSize = NSSize(width: remote.frame.width, height: remote.frame.height)
+        input.configure(space: space, surface: .window(remote.identity, remote.frame))
     }
 
     private func refreshCursorPresentation() {
         let mode = MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default
-        let live = channelClient?.state.isReady == true
-            && channelClient?.capabilities.contains(.cursorShapes) == true
+        let live = input.cursorChannelActive
         overlay.hidesCursor = !mode.hidesInternalCursor
         overlay.isDrawingCursor = live && !mode.hidesInternalCursor
         frameClient?.setEmbeddedCursor(mode.embedsCursor(cursorChannelActive: live))
@@ -128,16 +110,12 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
 
     private func closeChannel() {
         stateSubscriptions.removeAll()
+        if let keyboardMonitor { NSEvent.removeMonitor(keyboardMonitor) }
+        keyboardMonitor = nil
         overlay.detach()
-        channel?.endUse()
-        channel = nil
-        channelClient = nil
+        input.shutdown()
     }
 
-    /// The one action this window takes against the agent, in the title bar.
-    ///
-    /// Not over the picture: that is the agent's window, and its corners are where
-    /// its own controls live.
     private func installTitlebarAction() {
         guard let window else { return }
         let hosting = NSHostingView(rootView: FusionWindowActions(closeRemote: { [weak self] in
@@ -162,8 +140,15 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func showAndResume() {
-        window?.orderFrontRegardless()
+        openChannel()
+        window?.makeKeyAndOrderFront(nil)
         resumeCapture()
+    }
+
+    override func close() {
+        stop()
+        closeChannel()
+        super.close()
     }
 
     func resumeCapture() { startCapture() }
@@ -178,8 +163,8 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         // A position collected for a window that is no longer being watched must
         // not be posted to the agent afterwards, and a person who left must not
         // leave automation paused for five more seconds.
-        travel?.reset()
-        channelClient?.releaseHuman()
+        input.reset()
+        input.releaseHuman()
     }
 
     /// The session-level link was refused or went away, so this proxy stops
@@ -194,9 +179,9 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         frameClient?.onFrameArrived = nil
         frameClient?.stop(); frameClient = nil; state.frameClient = nil
         liveCaptureFPS = nil
-        travel?.reset()
+        input.reset()
         overlay.detach()
-        channelClient?.releaseHuman()
+        input.releaseHuman()
         state.error = error
     }
 
@@ -213,7 +198,7 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         setCaptureRateForFocus()
         // Focus left, so this proxy is no longer under the person's hand: the
         // lease goes back and automation may resume.
-        channelClient?.releaseHuman()
+        input.releaseHuman()
     }
 
     /// A background proxy does not need to move at the key window's rate, and a
@@ -221,21 +206,6 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     private func setCaptureRateForFocus() {
         updateCaptureRate()
     }
-
-    /// The key window's rate. Was 15 while the cursor lived inside the frames;
-    /// with a cursor channel the picture only has to keep up with its content,
-    /// and 15 was where scroll and video visibly stepped.
-    static let keyWindowFPS = 30
-    /// A proxy behind another window costs almost nothing to keep current.
-    static let backgroundFPS = 5
-    /// A gesture is a picture that has to move with a hand.
-    static let gestureFPS = 60
-    /// The ceiling a visible non-key proxy adapts within. A hard 5 for every
-    /// non-key window made a second proxy crawl even while its content was
-    /// changing under a working cursor; the same activity ladder as the key
-    /// window, held to this lower ceiling, keeps idle proxies at 5 and an
-    /// actively changing one readable.
-    static let backgroundAdaptiveFPS = 15
 
     func windowDidMiniaturize(_ notification: Notification) { stop() }
     func windowDidDeminiaturize(_ notification: Notification) { startCapture() }
@@ -246,7 +216,7 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowDidChangeScreen(_ notification: Notification) {
-        travel?.setMinimumInterval(1.0 / HostDisplayRefresh.pointerRate(for: window))
+        input.setPointerRate(HostDisplayRefresh.pointerRate(for: window))
     }
 
     func windowDidEndLiveResize(_ notification: Notification) { requestResize(immediate: true) }
@@ -337,12 +307,13 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         guard frameClient == nil, !startingCapture,
               window?.isMiniaturized != true, window?.isVisible != false else { return }
         startingCapture = true
-        let configuredFPS = UserDefaults.standard.integer(forKey: "fusionFPSPolicy")
-        let fps = configuredFPS == 0
-            ? (window?.isKeyWindow == true ? Self.keyWindowFPS : Self.backgroundFPS)
-            : configuredFPS
+        let fps = ViewerFrameRate.ceiling()
         let scale = window?.backingScaleFactor ?? 1
-        let client = FrameClient(space: space, target: .window(remoteWindow.identity), maxFPS: fps, targetWidth: Int((window?.contentView?.bounds.width ?? 0) * scale), targetHeight: Int((window?.contentView?.bounds.height ?? 0) * scale))
+        captureQuality = DisplayQuality.parse(UserDefaults.standard.string(forKey: DisplayQuality.storageKey)) ?? .default
+        let size = captureQuality.captureSize(sourceWidth: Int(remoteWindow.frame.width * scale),
+                                             sourceHeight: Int(remoteWindow.frame.height * scale))
+        let client = FrameClient(space: space, target: .window(remoteWindow.identity),
+            maxFPS: fps, targetWidth: size.width, targetHeight: size.height)
         activityTracker = FrameActivityTracker()
         liveCaptureFPS = fps
         client.onFrameArrived = { [weak self, weak client] in
@@ -363,168 +334,47 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
         startCapture()
     }
 
-    /// One gesture from the proxy's surface.
-    ///
-    /// Travel goes through the coalescer first — it is the only input that is
-    /// *state* — while a deliberate gesture goes straight out, in order.
     private func send(_ gesture: RemotePointerGesture) {
-        if case .scroll = gesture {
-            activityTracker.noteScroll(at: Date())
-        } else {
-            activityTracker.noteChange(at: Date())
-        }
+        if case .scroll = gesture { activityTracker.noteScroll(at: Date()) }
+        else { activityTracker.noteChange(at: Date()) }
         updateCaptureRate()
-        guard let client = channelClient, client.state.isReady else {
-            // No fast channel: a worker from before it, or one that is not up
-            // yet. The RPC path is still correct, so this is a fallback.
-            fallback(gesture)
-            return
-        }
-        let target = InputTarget.window(remoteWindow.identity)
-        switch gesture {
-        case .hover(let u, let v):
-            travel?.offer((x: u, y: v), now: Date())
-            travel?.pump()
-
-        case .pointerDown(let u, let v, let button, let clickCount, let modifiers):
-            // The gesture's basis, taken once: every later phase resolves against
-            // this frame until the button comes up.
-            gestureFrame = remoteWindow.frame
-            client.pointerDown(at: (x: u, y: v), target: target, button: button,
-                               clickCount: clickCount, modifiers: modifiers)
-            setGestureRate(true)
-
-        case .pointerDrag(let fromU, let fromV, let toU, let toV, let button, let modifiers):
-            // Deliberately the same frame the press named rather than the packet's
-            // own `from`: the proxy's wire keeps a from/to pair for the atomic
-            // `drag` action, while a live gesture is a chain of points.
-            let origin = gestureFrame != nil ? lastDragPoint ?? (x: fromU, y: fromV) : (x: fromU, y: fromV)
-            client.pointerDrag(from: origin, to: (x: toU, y: toV), target: target,
-                               button: button, modifiers: modifiers)
-            lastDragPoint = (x: toU, y: toV)
-
-        case .pointerUp(let u, let v, let button, let clickCount, let modifiers):
-            client.pointerUp(at: (x: u, y: v), target: target, button: button,
-                             clickCount: clickCount, modifiers: modifiers)
-            gestureFrame = nil
-            lastDragPoint = nil
-            setGestureRate(false)
-
-        case .click(let u, let v, let button, let count, let modifiers):
-            client.pointerDown(at: (x: u, y: v), target: target, button: button,
-                               clickCount: 1, modifiers: modifiers)
-            client.pointerUp(at: (x: u, y: v), target: target, button: button,
-                             clickCount: max(1, count), modifiers: modifiers)
-
-        case .drag(let fromU, let fromV, let toU, let toV, let button, let modifiers):
-            client.pointerDown(at: (x: fromU, y: fromV), target: target, button: button,
-                               clickCount: 1, modifiers: modifiers)
-            client.pointerDrag(from: (x: fromU, y: fromV), to: (x: toU, y: toV), target: target,
-                               button: button, modifiers: modifiers)
-            client.pointerUp(at: (x: toU, y: toV), target: target, button: button,
-                             clickCount: 1, modifiers: modifiers)
-
-        case .scroll(let u, let v, let linesX, let linesY):
-            client.scroll(at: (x: u, y: v), target: target, dx: linesX, dy: linesY)
-        }
+        input.send(gesture)
     }
 
-    /// The last point a live drag reported, so the next packet starts where the
-    /// hand actually is rather than where the gesture began.
-    private var lastDragPoint: (x: Double, y: Double)?
-
-    /// A gesture is in progress: the window has to move with the hand, which means
-    /// the capture rate follows the gesture rather than the preference.
     private func setGestureRate(_ active: Bool) {
         activityTracker.notePress(active, at: Date())
         updateCaptureRate()
-        channelClient?.acquireHuman()
     }
 
     private func updateCaptureRate() {
-        guard UserDefaults.standard.integer(forKey: "fusionFPSPolicy") == 0,
-              let frameClient else { return }
-        let target: Int
-        if window?.isKeyWindow == true {
-            target = InputRatePolicy(ceiling: Self.keyWindowFPS).frames(for: activityTracker.activity(at: Date()))
-        } else {
-            // Adaptive within the background ceiling, not a hard 5: an idle
-            // proxy keeps the 5 FPS probe, one whose content is changing or
-            // whose cursor is working gets up to 15, and a gesture still gets
-            // the 60 the ladder reserves for a hand.
-            target = InputRatePolicy(ceiling: Self.backgroundAdaptiveFPS)
-                .frames(for: activityTracker.activity(at: Date()))
-        }
-        guard liveCaptureFPS != target else { return }
-        liveCaptureFPS = target
-        frameClient.setFPS(target)
+        guard let frameClient else { return }
+        let policy = InputRatePolicy(ceiling: ViewerFrameRate.ceiling(),
+                                     pointerRate: HostDisplayRefresh.pointerRate(for: window))
+        input.setPointerRate(policy.pointerRate)
+        let fps = policy.frames(for: activityTracker.activity(at: Date()))
+        guard liveCaptureFPS != fps else { return }
+        liveCaptureFPS = fps
+        frameClient.setFPS(fps)
     }
 
-    /// The pre-0.1.38 path: one `window.input` RPC per action, through the JSON
-    /// transport. A worker that predates the fast channel answers it correctly,
-    /// which is the whole reason it is kept.
-    private func fallback(_ gesture: RemotePointerGesture) {
-        let action = FusionInputRouter.action(for: gesture)
-        if action["type"]?.stringValue == "move" {
-            let point = (x: action["xFraction"]?.doubleValue ?? 0, y: action["yFraction"]?.doubleValue ?? 0)
-            travel?.offer(point, now: Date())
-            travel?.pump()
-            return
-        }
-        perform(action)
-    }
+    private func claimHuman() { input.claimHuman() }
+    private func releaseHuman() { input.releaseHuman() }
 
-    private func deliverTravel(_ point: (x: Double, y: Double)) {
-        if let client = channelClient, client.state.isReady {
-            client.move(to: point, target: .window(remoteWindow.identity))
-            return
-        }
-        perform(.obj(["type": .string("move"),
-                      "xFraction": .double(point.x), "yFraction": .double(point.y)]))
-    }
-
-    /// Claim the human lease without performing input. The button is down, so
-    /// the agent's pause starts now rather than when the gesture is posted.
-    private func claimHuman() {
-        if let client = channelClient, client.state.isReady {
-            client.acquireHuman()
-            return
+    private func sendKey(_ action: InputAction) {
+        activityTracker.noteChange(at: Date())
+        updateCaptureRate()
+        if input.sendKeyAction(action) { return }
+        let json: JSONValue
+        switch action {
+        case .key(let combo): json = .obj(["type": .string("key"), "key": .string(combo)])
+        case .type(let text): json = .obj(["type": .string("type"), "text": .string(text)])
+        default: return
         }
         let space = self.space, remote = remoteWindow
         queue.async { [weak self] in
-            if case .failure(let error) = SpaceService().windowClaimHuman(for: space, window: remote) {
-                Task { @MainActor in self?.state.error = error }
-            }
-        }
-    }
-
-    /// One keystroke, over the fast channel when it is up and the RPC path when
-    /// it is not. Both end in the worker's own `KeyCombo` parser, so a combo that
-    /// an agent could send is a combo a person can type.
-    private func sendKey(_ action: JSONValue) {
-        if let client = channelClient, client.state.isReady {
-            if let combo = action["key"]?.stringValue { client.key(combo); return }
-            if let text = action["text"]?.stringValue { client.type(text); return }
-        }
-        perform(action)
-    }
-
-    /// The person left this proxy. Automation resumes immediately rather than
-    /// when the five-second fail-safe would have expired.
-    private func releaseHuman() {
-        channelClient?.releaseHuman()
-    }
-
-    private func perform(_ action: JSONValue) {
-        let space = self.space, remote = remoteWindow
-        queue.async { [weak self] in
-            let result = SpaceService().windowInput(for: space, window: remote, action: action)
+            let result = SpaceService().windowInput(for: space, window: remote, action: json)
             Task { @MainActor in
-                guard let self else { return }
-                // The travel slot has to be released whether or not the worker
-                // answered, or one failed hover silences the pointer forever.
-                if action["type"]?.stringValue == "move" { self.travel?.finished() }
-                if case .failure(let error) = result { self.state.error = error }
+                if case .failure(let error) = result { self?.state.error = error }
             }
         }
     }

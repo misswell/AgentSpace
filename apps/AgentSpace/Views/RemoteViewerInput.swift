@@ -20,7 +20,7 @@ import AgentSpaceCore
 /// uses. `SpaceService.input` remains the transport for keys and for everything
 /// an agent does.
 @MainActor
-final class DesktopViewerInput: ObservableObject {
+final class RemoteViewerInput: ObservableObject {
     /// A refusal worth interrupting the desktop for. A skipped hover is not one:
     /// pointer travel is refused by design while nobody holds the lease, and
     /// replacing a working desktop with a message about a hover would be the
@@ -32,47 +32,33 @@ final class DesktopViewerInput: ObservableObject {
     @Published private(set) var cursorChannelActive = false
 
     private var space: AgentAccount?
-    private var display: ViewerDisplay?
+    private var surface: ViewerInputSurface?
     private var client: InputClient?
+    private var channel: InputChannel?
     private var subscriptions: Set<AnyCancellable> = []
-    /// One coalescer, at the display's own rate. Travel is state: at most one
-    /// packet is being written while at most one newer position waits behind it,
-    /// and a wave across the desktop cannot queue a hundred stale positions ahead
-    /// of the click that ended it.
-    ///
-    /// Built in `configure` rather than lazily, because its sender needs the
-    /// client that only exists once an account is known — and because a lazy
-    /// initialiser that reaches back into `self` cannot both reference and
-    /// release the coalescer it is building.
-    ///
-    /// The slot is released as soon as the packet is handed to the writer rather
-    /// than when the worker answers: travel has no answer worth waiting for, and
-    /// holding the slot for a round trip is the request/reply shape this channel
-    /// exists to remove.
-    private var travel: PointerTravelCoalescer<(x: Double, y: Double)>?
-    private var pendingTravelPump: Task<Void, Never>?
+    private var travel: PointerTravelPump<(x: Double, y: Double)>?
     private var dragActive = false
     /// The display point of the last gesture's press, so a drag's phases all
     /// resolve against the frame the press named.
     private var lastPressPoint: (x: Double, y: Double)?
 
     func configure(space: AgentAccount, display: ViewerDisplay) {
+        configure(space: space, surface: .desktop(display.geometry))
+    }
+
+    func configure(space: AgentAccount, surface: ViewerInputSurface) {
         self.space = space
-        self.display = display
+        self.surface = surface
         let rate = DisplayRefresh.defaultPointerRate
         if client == nil {
-            let created = InputClient(space: space)
+            let shared = InputChannelRegistry.shared.channel(for: space)
+            channel = shared
+            let created = shared.use()
             client = created
-            travel = PointerTravelCoalescer(minimumInterval: 1.0 / rate) { [weak self] point in
-                guard let self else { return }
-                if self.client?.state.isReady == true {
-                    self.client?.move(to: point, target: .desktop)
-                    self.travel?.finished()
-                } else {
-                    self.travel?.finished()
-                }
+            travel = PointerTravelPump(minimumInterval: 1.0 / rate) { [weak self] point in
+                guard let self, let surface = self.surface, self.client?.state.isReady == true else { return }
+                self.client?.move(to: point, target: surface.target)
             }
-            created.connect()
             observe(created)
         } else {
             travel?.setMinimumInterval(1.0 / rate)
@@ -113,13 +99,15 @@ final class DesktopViewerInput: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] presentation in
                 guard let self else { return }
-                guard let presentation, self.display != nil else {
+                guard var presentation, let surface = self.surface else {
                     self.onCursor?(nil)
                     return
                 }
                 // The stream owns a single logical main display; its origin is
                 // (0,0) while it is open. Status may still carry the candidate's
                 // old secondary-screen origin until the next poll.
+                let point = surface.cursorPoint(x: presentation.x, y: presentation.y)
+                presentation.x = point.x; presentation.y = point.y
                 self.onCursor?(presentation)
             }
             .store(in: &subscriptions)
@@ -158,7 +146,7 @@ final class DesktopViewerInput: ObservableObject {
     }
 
     func send(_ gesture: RemotePointerGesture) {
-        guard let client, let display, let space else { return }
+        guard let client, let surface, let space else { return }
         guard client.state.isReady else {
             if case .hover = gesture { return }
             present(AgentSpaceError(code: .workerOffline,
@@ -166,11 +154,10 @@ final class DesktopViewerInput: ObservableObject {
             return
         }
         if case .hover(let u, let v) = gesture {
-            travel?.offer(Self.point(u, v, display.geometry), now: Date())
-            schedulePendingTravel()
+            travel?.offer(surface.point(u: u, v: v))
             return
         }
-        let target = InputTarget.desktop
+        let target = surface.target
         switch gesture {
         case .hover:
             break // handled above, on either transport
@@ -179,15 +166,15 @@ final class DesktopViewerInput: ObservableObject {
             // A click is still expressible as down + up on the fast channel, and
             // that is what it becomes: the worker posts the same two events, and
             // the click state carries the count so a double-click stays one.
-            let point = Self.point(u, v, display.geometry)
+            let point = surface.point(u: u, v: v)
             client.pointerDown(at: point, target: target, button: button,
                                clickCount: 1, modifiers: modifiers)
             client.pointerUp(at: point, target: target, button: button,
                              clickCount: max(1, count), modifiers: modifiers)
 
         case .drag(let fromU, let fromV, let toU, let toV, let button, let modifiers):
-            let press = Self.point(fromU, fromV, display.geometry)
-            let release = Self.point(toU, toV, display.geometry)
+            let press = surface.point(u: fromU, v: fromV)
+            let release = surface.point(u: toU, v: toV)
             client.pointerDown(at: press, target: target, button: button, clickCount: 1, modifiers: modifiers)
             client.pointerDrag(from: press, to: release, target: target, button: button, modifiers: modifiers)
             client.pointerUp(at: release, target: target, button: button, clickCount: 1, modifiers: modifiers)
@@ -195,14 +182,14 @@ final class DesktopViewerInput: ObservableObject {
         case .pointerDown(let u, let v, let button, let clickCount, let modifiers):
             dragActive = true
             travel?.reset()
-            let point = Self.point(u, v, display.geometry)
+            let point = surface.point(u: u, v: v)
             lastPressPoint = point
             client.pointerDown(at: point, target: target, button: button,
                                clickCount: clickCount, modifiers: modifiers)
 
         case .pointerDrag(let fromU, let fromV, let toU, let toV, let button, let modifiers):
-            let from = Self.point(fromU, fromV, display.geometry)
-            let to = Self.point(toU, toV, display.geometry)
+            let from = surface.point(u: fromU, v: fromV)
+            let to = surface.point(u: toU, v: toV)
             // The gesture's own basis: the point the press named, not the point
             // this packet starts from, so a window that has already moved does
             // not make the drag chase itself.
@@ -213,12 +200,12 @@ final class DesktopViewerInput: ObservableObject {
         case .pointerUp(let u, let v, let button, let clickCount, let modifiers):
             dragActive = false
             lastPressPoint = nil
-            let point = Self.point(u, v, display.geometry)
+            let point = surface.point(u: u, v: v)
             client.pointerUp(at: point, target: target, button: button,
                              clickCount: clickCount, modifiers: modifiers)
 
         case .scroll(let u, let v, let linesX, let linesY):
-            let point = Self.point(u, v, display.geometry)
+            let point = surface.point(u: u, v: v)
             client.scroll(at: point, target: target, dx: linesX, dy: linesY)
         }
     }
@@ -257,8 +244,6 @@ final class DesktopViewerInput: ObservableObject {
     /// posted after it, and a person who has left must not leave automation
     /// paused.
     func reset() {
-        pendingTravelPump?.cancel()
-        pendingTravelPump = nil
         dragActive = false
         lastPressPoint = nil
         travel?.reset()
@@ -270,16 +255,10 @@ final class DesktopViewerInput: ObservableObject {
     func shutdown() {
         reset()
         subscriptions.removeAll()
-        client?.disconnect()
+        channel?.endUse()
+        channel = nil
         client = nil
         cursorChannelActive = false
-    }
-
-    /// The gesture's fraction of the captured display, as the point on it that
-    /// `input` accepts. `PreviewMapping` owns the rounding because the viewer's
-    /// letterbox and a screenshot's downscale both resolve through it.
-    private static func point(_ u: Double, _ v: Double, _ display: DisplayGeometry) -> (x: Double, y: Double) {
-        PreviewMapping.displayPoint(u: u, v: v, displayWidth: display.width, displayHeight: display.height)
     }
 
     private func present(_ error: AgentSpaceError?, space: AgentAccount) {
@@ -291,19 +270,4 @@ final class DesktopViewerInput: ObservableObject {
                                           fix: error.code.remediation, spaceName: space.name)
     }
 
-    /// A last hover can arrive inside one display-refresh interval just after the
-    /// previous packet's slot was released. No more mouse events are guaranteed,
-    /// so it needs its own wakeup; otherwise the cursor can stop at an old
-    /// position.
-    private func schedulePendingTravel() {
-        guard let delay = travel?.pendingDelay(), pendingTravelPump == nil else { return }
-        pendingTravelPump = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(max(1, ceil(delay * 1_000_000_000))))
-            guard let self else { return }
-            self.pendingTravelPump = nil
-            guard !Task.isCancelled else { return }
-            self.travel?.pump()
-            self.schedulePendingTravel()
-        }
-    }
 }

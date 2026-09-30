@@ -172,9 +172,19 @@ final class PointerCapturePolicyTests: XCTestCase {
 
     // MARK: - Mouse capture mode
 
-    func testMouseCaptureModeAutoWaitsForIdleInBothSurfaces() {
-        XCTAssertEqual(MouseCaptureMode.auto.policy(for: .desktop).entry, .captureOnIdle)
-        XCTAssertEqual(MouseCaptureMode.auto.policy(for: .fusion).entry, .captureOnIdle)
+    func testRemovedAutoSettingIsDeletedWithoutMigration() {
+        let suite = "MouseCaptureModeTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("auto", forKey: MouseCaptureMode.storageKey)
+        MouseCaptureMode.discardRemovedPreference(in: defaults)
+        XCTAssertNil(defaults.object(forKey: MouseCaptureMode.storageKey))
+        XCTAssertNil(MouseCaptureMode.parse("auto"))
+        for mode in MouseCaptureMode.allCases {
+            defaults.set(mode.rawValue, forKey: MouseCaptureMode.storageKey)
+            MouseCaptureMode.discardRemovedPreference(in: defaults)
+            XCTAssertEqual(defaults.string(forKey: MouseCaptureMode.storageKey), mode.rawValue)
+        }
     }
 
     func testMouseCaptureModeClickToCaptureNeverTakesItOnEntry() {
@@ -200,15 +210,13 @@ final class PointerCapturePolicyTests: XCTestCase {
         XCTAssertEqual(MouseCaptureMode.parse("takeover"), .takeover)
         XCTAssertFalse(MouseCaptureMode.takeoverHidden.hidesLocalCursor)
         XCTAssertFalse(MouseCaptureMode.takeover.hidesLocalCursor)
-        XCTAssertTrue(MouseCaptureMode.auto.hidesLocalCursor)
         XCTAssertTrue(MouseCaptureMode.clickToCapture.hidesLocalCursor)
         XCTAssertTrue(MouseCaptureMode.takeoverHidden.hidesInternalCursor)
         XCTAssertFalse(MouseCaptureMode.takeover.hidesInternalCursor)
-        XCTAssertFalse(MouseCaptureMode.auto.hidesInternalCursor)
         XCTAssertFalse(MouseCaptureMode.clickToCapture.hidesInternalCursor)
         XCTAssertEqual(MouseCaptureMode.parse("clickToCapture"), .clickToCapture)
         XCTAssertEqual(MouseCaptureMode.parse("off"), .clickToCapture)
-        XCTAssertEqual(MouseCaptureMode.parse("auto"), .auto)
+        XCTAssertNil(MouseCaptureMode.parse("auto"))
         XCTAssertNil(MouseCaptureMode.parse("something else"))
         XCTAssertNil(MouseCaptureMode.parse(nil))
     }
@@ -247,7 +255,7 @@ final class PointerCapturePolicyTests: XCTestCase {
         controller.apply(.fusionProxy)
         controller.pointerSettled()
         XCTAssertEqual(controller.state, .outside)
-        XCTAssertEqual(MouseCaptureMode.allCases, [.takeoverHidden, .takeover, .auto, .clickToCapture])
+        XCTAssertEqual(MouseCaptureMode.allCases, [.takeoverHidden, .takeover, .clickToCapture])
         XCTAssertEqual(MouseCaptureMode.parse("capture"), .takeoverHidden)
     }
 

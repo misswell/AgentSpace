@@ -4,6 +4,8 @@ import AgentSpaceCore
 
 struct FusionWindowView: View {
     @ObservedObject var state: FusionWindowState
+    @ObservedObject var input: RemoteViewerInput
+    @AppStorage(MouseCaptureMode.storageKey) private var captureMode = MouseCaptureMode.default.rawValue
     let send: (RemotePointerGesture) -> Void
     let claimHuman: () -> Void
     let releaseHuman: () -> Void
@@ -11,21 +13,31 @@ struct FusionWindowView: View {
     /// A press started or ended, straight from the surface, so the stream rate
     /// follows the button rather than the gesture threshold.
     var onDragActivity: ((Bool) -> Void)? = nil
-    let sendKey: ((JSONValue) -> Void)?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             if let client = state.frameClient {
-                FusionSurface(client: client, send: send, claimHuman: claimHuman,
-                              releaseHuman: releaseHuman, overlay: overlay,
-                              onDragActivity: onDragActivity,
-                              sendKey: sendKey)
+                RemoteSurfaceView(client: client, captureFollowsLayout: false,
+                    acceptsInput: true, remoteContentSize: state.contentSize,
+                    capturePolicy: (MouseCaptureMode.parse(captureMode) ?? .default).policy(for: .fusion),
+                    hidesLocalCursor: input.cursorChannelActive
+                        && (MouseCaptureMode.parse(captureMode) ?? .default).hidesLocalCursor,
+                    onGesture: send, onClaimHuman: claimHuman, onReleaseHuman: releaseHuman,
+                    sendsRawPresses: true, cursorOverlay: overlay, onDragActivity: onDragActivity)
                     .background(Color.black)
                 VStack { HStack { FrameClientStatusOverlay(client: client); Spacer() }; Spacer() }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.black)
             }
-            if let error = state.error {
+            if let refusal = input.refusal {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(refusal.code).font(.headline)
+                    Text(refusal.message).font(.caption)
+                }
+                .padding(10)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .padding(12)
+            } else if let error = state.error {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(error.code.rawValue).font(.headline)
                     Text(error.message).font(.caption)
@@ -55,77 +67,5 @@ struct FusionWindowActions: View {
         .accessibilityIdentifier("closeFusionAgentWindow")
         .padding(.horizontal, 8)
         .fixedSize()
-    }
-}
-
-private struct FusionSurface: NSViewRepresentable {
-    let client: FrameClient
-    let send: (RemotePointerGesture) -> Void
-    let claimHuman: () -> Void
-    let releaseHuman: () -> Void
-    let overlay: RemoteCursorOverlayProxy
-    /// A press started or ended, so the controller can raise the stream rate
-    /// at the moment the button goes down instead of a few pixels into the
-    /// drag (the threshold model reports the drag only after it is one).
-    var onDragActivity: ((Bool) -> Void)? = nil
-    /// Keys take the RPC path on purpose: one keystroke is one event, a person
-    /// types at tens per second at most, and the RPC route is the one an agent's
-    /// `key` call uses — so a combo typed into a proxy is validated by exactly
-    /// the same parser an agent's is.
-    var sendKey: ((JSONValue) -> Void)?
-
-    func makeNSView(context: Context) -> RemoteWindowSurface {
-        let view = RemoteWindowSurface(client: client)
-        configure(view)
-        return view
-    }
-
-    func updateNSView(_ view: RemoteWindowSurface, context: Context) { configure(view) }
-
-    private func configure(_ view: RemoteWindowSurface) {
-        view.acceptsInput = true
-        view.keySend = sendKey
-        view.onGesture = send
-        view.onClaimHuman = claimHuman
-        view.onReleaseHuman = releaseHuman
-        // The proxy's capture size is driven by the remote window it mirrors
-        // (whose changes reach it as a genuine source-size change and thus a
-        // reconnect), not by this window's layout ticks: without this, every
-        // local resize pass re-derived the request and the ≥16 px close-
-        // and-reopen turned a window drag into one black flash after another
-        // — the same defect §348 fixed for the desktop viewer.
-        view.captureFollowsLayout = false
-        view.onDragActivity = onDragActivity
-        // Both hosts use the same explicit mouse-control preference.
-        let mode = MouseCaptureMode.parse(UserDefaults.standard.string(forKey: MouseCaptureMode.storageKey)) ?? .default
-        view.capture.configure(mode.policy(for: .fusion))
-        view.allowsLocalCursorHiding = overlay.isDrawingCursor && mode.hidesLocalCursor
-        overlay.attach(view.cursorOverlay)
-    }
-}
-
-/// A proxy for one remote window.
-///
-/// What the pointer *did* is the shared surface's decision, made the same way here
-/// as in the desktop viewer: a press that travelled is a drag rather than a click,
-/// a trackpad fraction becomes a line once it adds up, and travel only counts
-/// while a person is in control of this proxy. What is left in this subclass is
-/// the keyboard, because a proxy is the window a person types into — the desktop
-/// viewer gets its keys from a window-level monitor of its own.
-private final class RemoteWindowSurface: RemoteSurfaceNSView {
-    /// The keyboard, translated by the same vocabulary `agentspace input` uses.
-    ///
-    /// Keys still travel over the JSON RPC rather than the fast channel, and that
-    /// is deliberate: a keystroke is one event, a person types at tens per
-    /// second at most, and the RPC path is the one an agent's `key` call uses —
-    /// so a combo typed into a proxy is validated by exactly the same parser.
-    var keySend: ((JSONValue) -> Void)?
-
-    override func keyDown(with event: NSEvent) {
-        guard acceptsInput, let action = FusionInputRouter.keyboard(event) else { return }
-        // Typing is a deliberate action, so the pointer travel that follows it
-        // belongs to the same person.
-        noteEngagement()
-        keySend?(action)
     }
 }

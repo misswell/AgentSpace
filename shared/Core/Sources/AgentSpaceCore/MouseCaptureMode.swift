@@ -2,20 +2,11 @@ import Foundation
 
 /// How the host pointer controls a remote surface.
 public enum MouseCaptureMode: String, CaseIterable, Sendable {
-    /// Take over the moment the pointer enters the remote image: one cursor on
-    /// both sides, and moves, clicks, drags and scrolls all follow while it
-    /// moves — not after it pauses. The default, because this is the
-    /// RustDesk/Parallels experience the owner asked for by name (§351): the
-    /// mode has to be visible in the picker under its own name, not folded
-    /// into another mode's steady state.
+    /// Auto: take control on entry, hide the internal cursor, keep the host one.
+    /// The stored spelling remains compatible with earlier hidden-takeover choices.
     case takeoverHidden
-    /// Take over on entry exactly like takeoverHidden, but keep the person's
-    /// own pointer visible: their cursor is the pointer, and the sprite is
-    /// never drawn on top of it. Restored alongside (not instead of)
-    /// takeoverHidden — the two are separate choices (§354).
+    /// Take control on entry and retain the internal cursor as well.
     case takeover
-    /// Synchronize hover only after the host pointer settles.
-    case auto
     /// Keep the existing press-to-control behavior.
     case clickToCapture
 
@@ -32,10 +23,16 @@ public enum MouseCaptureMode: String, CaseIterable, Sendable {
         return MouseCaptureMode(rawValue: raw)
     }
 
+    /// Delete the removed pause-to-sync Auto setting without migrating it.
+    public static func discardRemovedPreference(in defaults: UserDefaults = .standard) {
+        if defaults.string(forKey: storageKey) == "auto" {
+            defaults.removeObject(forKey: storageKey)
+        }
+    }
+
     public func policy(for host: Host) -> PointerCapturePolicy {
         switch self {
         case .takeoverHidden, .takeover: return .desktop
-        case .auto: return .automatic
         case .clickToCapture: return .fusionProxy
         }
     }
@@ -44,11 +41,11 @@ public enum MouseCaptureMode: String, CaseIterable, Sendable {
     /// takeover modes never do: a hand's own cursor is the only zero-latency
     /// pointer there is, and hiding it is what makes a remote desktop feel
     /// slow — the owner's correction of §351's semantics (§364).
-    public var hidesLocalCursor: Bool { self == .auto || self == .clickToCapture }
+    public var hidesLocalCursor: Bool { self == .clickToCapture }
 
     /// Whether the **internal** cursor — the one drawn inside the remote
     /// picture, from the worker's published sprite — is suppressed.
-    /// 「接管隐藏鼠标」 hides the internal one, never the person's own (§364).
+    /// 「自动」 hides the internal one, never the person's own (§368).
     public var hidesInternalCursor: Bool { self == .takeoverHidden }
 
     /// Hidden mode uses the person's own pointer even when the channel is offline.

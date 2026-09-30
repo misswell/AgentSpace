@@ -653,3 +653,5 @@
 
 "Takeover" = "接管";
 "Takeover takes control the moment the pointer enters and keeps your own cursor as the pointer. Takeover Hidden does the same and hides it, drawing the agent's cursor in its place. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "接管：指针进入画面即取得控制，并保留你自己的鼠标光标。接管隐藏鼠标：同样进入即控制，但隐藏你的光标，改画 Agent 的光标。自动：鼠标停稳后才同步悬停。点击后接管：仅在按住时控制。按 Control-Option 或 Control-Command-G 交还控制。";
+
+"Auto takes control on entry and hides the cursor inside the picture while keeping your own cursor visible. Takeover keeps the internal cursor visible. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "自动模式在鼠标进入画面时接管，隐藏画面内部的鼠标，保留你自己的外部鼠标。接管模式保留内部鼠标。点击后接管仅在按住时控制。Control-Option 或 Control-Command-G 可释放控制。";

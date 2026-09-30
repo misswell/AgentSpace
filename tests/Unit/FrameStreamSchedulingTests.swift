@@ -7,7 +7,7 @@ final class FrameStreamSchedulingTests: XCTestCase {
             XCTAssertFalse(MouseCaptureMode.takeoverHidden.embedsCursor(cursorChannelActive: active))
             XCTAssertFalse(MouseCaptureMode.takeoverHidden.hidesLocalCursor)
         }
-        for mode in [MouseCaptureMode.takeover, .auto, .clickToCapture] {
+        for mode in [MouseCaptureMode.takeover, .clickToCapture] {
             XCTAssertTrue(mode.embedsCursor(cursorChannelActive: false))
             XCTAssertFalse(mode.embedsCursor(cursorChannelActive: true))
         }

@@ -6,6 +6,7 @@ import AgentSpaceCore
 final class FusionWindowState: ObservableObject {
     @Published var frameClient: FrameClient?
     @Published var error: AgentSpaceError?
+    @Published var contentSize: CGSize = .zero
 }
 
 /// One answer from a proxy's frame pull.

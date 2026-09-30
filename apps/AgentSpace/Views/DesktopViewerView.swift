@@ -38,7 +38,7 @@ struct DesktopViewerView: View {
     /// wrong below the panel's own rate; the rate policy raises the *stream* to
     /// 60 while a button is held even at a lower stored preference, because a
     /// window being dragged has to move with the hand that is dragging it.
-    private static let frameRateOptions = [1, 5, 10, 15, 30, 60]
+    private static let frameRateOptions = ViewerFrameRate.options
 
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -55,7 +55,7 @@ struct DesktopViewerView: View {
     @State private var activityClock = ViewerActivityClock()
     /// The viewer's own input path: gestures in, `input` calls out, with the
     /// pointer-travel coalescing a proxy uses.
-    @StateObject private var input = DesktopViewerInput()
+    @StateObject private var input = RemoteViewerInput()
     @State private var pendingAction: String?
     /// The bridge that lets this SwiftUI view push the worker's cursor position
     /// into the AppKit layer that draws it. Owned here rather than inside the
@@ -64,7 +64,7 @@ struct DesktopViewerView: View {
     @StateObject private var cursorOverlay = RemoteCursorOverlayProxy()
     /// The display-quality mode, on the same key Settings' picker writes.
     @AppStorage(DisplayQuality.storageKey) private var displayQuality = DisplayQuality.default.rawValue
-    @AppStorage("previewFPS") private var previewFPS = 30
+    @AppStorage(ViewerFrameRate.storageKey) private var previewFPS = ViewerFrameRate.defaultValue
     /// Pointer behavior shared with Fusion surfaces.
     @AppStorage(MouseCaptureMode.storageKey) private var captureMode = MouseCaptureMode.default.rawValue
     /// How long this window stays awake with nobody using it (§353). A window
@@ -218,17 +218,10 @@ struct DesktopViewerView: View {
         guard keyMonitor == nil,
               let snapshot, snapshot.workerOnline, snapshot.acceptsInput,
               hostWindow != nil else { return }
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak hostWindow] event in
-            guard event.window === hostWindow, let snapshot = self.snapshot,
-                  snapshot.workerOnline, snapshot.acceptsInput else { return event }
-            let action = KeyboardForwarding.action(
-                characters: event.characters,
-                charactersIgnoringModifiers: event.charactersIgnoringModifiers,
-                command: event.modifierFlags.contains(.command),
-                shift: event.modifierFlags.contains(.shift),
-                option: event.modifierFlags.contains(.option),
-                control: event.modifierFlags.contains(.control))
-            guard let action else { return event }
+        keyMonitor = RemoteKeyboardMonitor.install(window: hostWindow!, permitsInput: {
+            self.snapshot?.workerOnline == true && self.snapshot?.acceptsInput == true
+        }) { action in
+            guard let snapshot = self.snapshot else { return }
             let space = snapshot.space
             // A forwarded key is the person's hand (§353's idle clock).
             self.lastActivity = Date()
@@ -253,7 +246,6 @@ struct DesktopViewerView: View {
                     }
                 }
             }
-            return nil // consumed: the key went to the agent session
         }
     }
 
@@ -327,15 +319,14 @@ struct DesktopViewerView: View {
             Picker("Mouse Capture", selection: Binding(
                 get: { (MouseCaptureMode.parse(captureMode) ?? .default).rawValue },
                 set: { captureMode = $0 })) {
-                Text("Takeover Hidden").tag(MouseCaptureMode.takeoverHidden.rawValue)
+                Text("Auto").tag(MouseCaptureMode.takeoverHidden.rawValue)
                 Text("Takeover").tag(MouseCaptureMode.takeover.rawValue)
-                Text("Auto").tag(MouseCaptureMode.auto.rawValue)
                 Text("Click to Capture").tag(MouseCaptureMode.clickToCapture.rawValue)
             }
             .pickerStyle(.menu)
             .labelsHidden()
             .accessibilityIdentifier("desktopViewerCaptureModePicker")
-            .help(Text("Takeover Hidden takes control the moment the pointer enters: one cursor on both sides, and moves, clicks, drags and scrolls follow while it moves. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control."))
+            .help(Text("Auto takes control on entry and hides the cursor inside the picture while keeping your own cursor visible. Takeover keeps the internal cursor visible. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control."))
 
             Button { capture() } label: { Image(systemName: "camera") }
                 .help(Text("Save Snapshot"))
@@ -859,7 +850,7 @@ private struct WindowCapture: NSViewRepresentable {
 /// body never reads the key at all.
 private struct PerformanceHUDOverlay: View {
     @ObservedObject var client: FrameClient
-    let input: DesktopViewerInput
+    let input: RemoteViewerInput
 
     @AppStorage("desktopPerformanceHUD") private var shows = false
 
