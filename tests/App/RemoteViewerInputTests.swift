@@ -24,17 +24,18 @@ final class RemoteViewerInputTests: XCTestCase {
             pixelWidth: 2000, pixelHeight: 1600, scale: 2)))
         window.configure(space: account, surface: .window(identity,
             CGRectValue(x: 100, y: 200, width: 800, height: 600)))
-        for _ in 0..<100 {
-            if desktop.cursorChannelActive && window.cursorChannelActive { break }
-            try await Task.sleep(nanoseconds: 10_000_000)
-        }
+        try await waitUntil { desktop.cursorChannelActive && window.cursorChannelActive }
         XCTAssertTrue(desktop.cursorChannelActive); XCTAssertTrue(window.cursorChannelActive)
         desktop.setPointerRate(30); window.setPointerRate(30)
         desktop.send(.hover(u: 0.1, v: 0.1)); desktop.send(.hover(u: 0.9, v: 0.9))
         window.send(.hover(u: 0.1, v: 0.1)); window.send(.hover(u: 0.9, v: 0.9))
         // Down reaches the socket before any up, using the same controller.
         window.send(.pointerDown(u: 0.4, v: 0.5, button: .left, clickCount: 1, modifiers: []))
-        try await Task.sleep(nanoseconds: 120_000_000)
+        try await waitUntil {
+            let moves = try peer.packets.filter { $0.kind == .pointerMove }.map { try InputPointerPacket(decoding: $0.payload) }
+            return peer.packets.contains { $0.kind == .pointerDown }
+                && moves.contains { $0.target == .desktop && $0.x == 900 && $0.y == 720 }
+        }
         let packets = peer.packets
         XCTAssertTrue(packets.contains { $0.kind == .pointerDown })
         XCTAssertFalse(packets.contains { $0.kind == .pointerUp })
@@ -44,21 +45,32 @@ final class RemoteViewerInputTests: XCTestCase {
         window.send(.pointerUp(u: 0.4, v: 0.5, button: .left, clickCount: 1, modifiers: []))
         desktop.shutdown()
         window.send(.hover(u: 0.8, v: 0.8)); window.send(.hover(u: 0.9, v: 0.9))
-        try await Task.sleep(nanoseconds: 120_000_000)
+        try await waitUntil {
+            let moves = try peer.packets.filter { $0.kind == .pointerMove }.map { try InputPointerPacket(decoding: $0.payload) }
+            return moves.contains { $0.target == .window(identity) && $0.x == 0.9 && $0.y == 0.9 }
+        }
         let remaining = try peer.packets.filter { $0.kind == .pointerMove }.map { try InputPointerPacket(decoding: $0.payload) }
         XCTAssertTrue(remaining.contains { $0.target == .window(identity) && $0.x == 0.9 && $0.y == 0.9 },
                       "Closing the desktop must not close the application's shared channel")
         desktop.configure(space: account, surface: .desktop(DisplayGeometry(width: 1000, height: 800,
             pixelWidth: 2000, pixelHeight: 1600, scale: 2)))
-        for _ in 0..<100 {
-            if desktop.cursorChannelActive { break }
-            try await Task.sleep(nanoseconds: 10_000_000)
-        }
+        try await waitUntil { desktop.cursorChannelActive }
         desktop.send(.hover(u: 0.3, v: 0.3))
-        try await Task.sleep(nanoseconds: 60_000_000)
+        try await waitUntil {
+            let moves = try peer.packets.filter { $0.kind == .pointerMove }.map { try InputPointerPacket(decoding: $0.payload) }
+            return moves.contains { $0.target == .desktop && $0.x == 300 && $0.y == 240 }
+        }
         let reopened = try peer.packets.filter { $0.kind == .pointerMove }.map { try InputPointerPacket(decoding: $0.payload) }
         XCTAssertTrue(reopened.contains { $0.target == .desktop && $0.x == 300 && $0.y == 240 },
                       "A closed viewer must reattach to the existing channel when reopened")
+    }
+
+    @MainActor
+    private func waitUntil(_ predicate: () throws -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while try !predicate(), Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
     }
 }
 
