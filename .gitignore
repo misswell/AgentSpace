@@ -26,3 +26,8 @@ npm-debug.log*
 # Built app bundles
 dist/
 .zcode/
+
+# Promo video deliverables ride the GitHub release as assets (digests in
+# docs/validation.md §371); the tracked tree keeps the source pipeline only.
+marketing/promo/*.mp4
+marketing/promo/poster.png
