@@ -4,7 +4,15 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-09-30 on `master`. Current public release: **0.1.70**.
+Last updated: 2026-10-01 on `master`. Current public release: **0.1.70** (0.1.71
+in flight — a marketing-only round, no product change).
+
+0.1.71 candidate (§371): the promo animation round. `marketing/promo/` carries a
+reproducible motion-graphics pipeline (`promo.html` — pure seek(t) timeline,
+`render.mjs` — headless Chrome frame capture, ffmpeg H.264) plus the rendered
+1080p and 9:16 vertical videos as release assets. Copy uses real MCP tool names
+and the shipped AppIcon; no QR code anywhere (owner requirement). Product diff
+is exactly four version strings. Notes lead with 「无产品变更」.
 
 Published 0.1.70 (§370): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.70), gated source `4d2414d` (runtime fix `8d53ed5`), [Actions 36676564052](https://github.com/misswell/AgentSpace/actions/runs/36676564052) all jobs passed. Four local layers verified; unlocked AgentUse session GUI 14/14. Apple App submission `95d79da3-4c51-45fd-9d03-d3ebb681f4dc` and DMG submission `31d1e2c2-b383-4426-bda4-268d11481ff2` read back Accepted. Latest serves v0.1.70; DMG 6,567,301 bytes, sha256 `3847b38f5fb90b2e8b41287db2be33f87f63767b5603075798cbbc49c2622e1f`. Download digest, both staples, inner version and deep strict signature verified. Check for Updates, then reopen desktop/application viewers; the quality-switch freeze fix is App-only.
 
