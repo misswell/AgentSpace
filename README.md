@@ -364,9 +364,14 @@ agentspace detach AgentDev                  # always keeps the user and home
 The CLI never runs `sudo`. If the helper is not installed it exits **69** and says
 so — it does not fall back to your own account.
 
-Sign in to the connected account through Fast User Switching with its existing
-password and grant Accessibility and Screen Recording to the worker. AgentSpace
-does not know or store that password.
+Choose **Sign In Agent** on the account page to sign in without switching your
+main desktop. Enable **Screen Sharing** in System Settings → General → Sharing,
+choose **Only these users** and add the agent account. In the system login window
+choose **Log In** as the agent and **Standard** sharing. Apple handles the
+password; AgentSpace detects the desktop and finishes worker setup. Close the
+temporary Screen Sharing window, then click **Done**. Grant Accessibility and
+Screen Recording using the account page's permission buttons. Fast User
+Switching remains available. AgentSpace does not read or store the password.
 
 ## Requirements
 

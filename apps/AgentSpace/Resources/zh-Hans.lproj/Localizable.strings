@@ -655,3 +655,30 @@
 "Takeover takes control the moment the pointer enters and keeps your own cursor as the pointer. Takeover Hidden does the same and hides it, drawing the agent's cursor in its place. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "接管：指针进入画面即取得控制，并保留你自己的鼠标光标。接管隐藏鼠标：同样进入即控制，但隐藏你的光标，改画 Agent 的光标。自动：鼠标停稳后才同步悬停。点击后接管：仅在按住时控制。按 Control-Option 或 Control-Command-G 交还控制。";
 
 "Auto takes control on entry and hides the cursor inside the picture while keeping your own cursor visible. Takeover keeps the internal cursor visible. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "自动模式在鼠标进入画面时接管，隐藏画面内部的鼠标，保留你自己的外部鼠标。接管模式保留内部鼠标。点击后接管仅在按住时控制。Control-Option 或 Control-Command-G 可释放控制。";
+
+// Background account sign-in
+"Sign In Agent" = "登录 Agent";
+"Sign in as %@ without switching your main desktop." = "以 %@ 登录，无需切换你的主桌面。";
+"macOS Screen Sharing handles the password. AgentSpace does not read or save it." = "密码由 macOS 屏幕共享处理，AgentSpace 不读取或保存密码。";
+"Opening macOS sign-in…" = "正在打开 macOS 登录窗口…";
+"Enable Screen Sharing in System Settings → General → Sharing. Choose Only these users and add the agent account, then try again." = "请在系统设置 → 通用 → 共享中开启屏幕共享，选择“仅这些用户”并加入 Agent 账号，然后重试。";
+"Waiting for the agent desktop…" = "正在等待 Agent 桌面…";
+"Preparing the agent worker…" = "正在准备 Agent Worker…";
+"The agent desktop is connected." = "Agent 桌面已连接。";
+"Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace." = "关闭临时的屏幕共享窗口，然后点击完成。之后可在 AgentSpace 中使用“打开桌面”和权限按钮。";
+"Closing this dialog ends only the temporary login connection. It does not log out the agent account." = "关闭此对话框只会结束临时登录连接，不会注销 Agent 账号。";
+"Open macOS Sign-In" = "打开 macOS 登录窗口";
+"In the system window, enter %@ and that account's password." = "在系统窗口中输入 %@ 和该账号的密码。";
+"If asked, choose Log In to your own desktop. Choose Standard screen sharing. Finish any first-login setup in that window." = "若系统询问，请选择登录自己的桌面，并选择标准屏幕共享。在该窗口中完成首次登录设置。";
+"AgentSpace will detect the desktop and start the worker automatically." = "AgentSpace 会检测桌面会话并自动启动 Worker。";
+"This account is no longer an attached standard user. Refresh the account list." = "此账号已不是连接的标准用户，请刷新账号列表。";
+"The macOS Screen Sharing app could not be found." = "未找到 macOS 屏幕共享应用。";
+"The macOS sign-in window could not be opened. Try again." = "无法打开 macOS 登录窗口，请重试。";
+"Sign-in timed out. Close the temporary Screen Sharing window and try again." = "登录等待已超时，请关闭临时屏幕共享窗口后重试。";
+"The local sign-in connection could not be started. Try again." = "无法启动本机登录连接，请重试。";
+"Another account setup operation is running. Wait for it to finish and try again." = "另一个账号设置操作正在进行，请等待完成后重试。";
+"The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used." = "Agent 桌面尚未能在后台使用。请完成 Agent 账号登录后重试；不会使用你的主桌面。";
+"Use Sign In Agent to sign in from this desktop, or use Fast User Switching." = "使用“登录 Agent”在当前桌面登录，或使用快速用户切换。";
+"Return to AgentSpace" = "返回 AgentSpace";
+"After signing in with Screen Sharing, AgentSpace finishes setup automatically. After Fast User Switching, return here and click Finish setup." = "通过屏幕共享登录后，AgentSpace 会自动完成设置。通过快速用户切换登录后，请返回这里点击“完成设置”。";
+"The privileged helper could not inspect this account. Install or repair the helper in AgentSpace, then try again." = "特权助手无法检查此账号。请在 AgentSpace 中安装或修复助手，然后重试。";

@@ -2,6 +2,7 @@
 .build/
 .swiftpm/
 DerivedData/
+*.xcarchive/
 *.xcuserstate
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
@@ -10,6 +11,18 @@ DerivedData/
 node_modules/
 packages/*/dist/
 npm-debug.log*
+
+# Python probe caches
+__pycache__/
+*.py[cod]
+
+# Local environment and signing credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.p12
+*.p8
 
 # macOS
 .DS_Store
@@ -25,9 +38,14 @@ npm-debug.log*
 
 # Built app bundles
 dist/
+*.dmg
+*.pkg
 .zcode/
 
 # Promo video deliverables ride the GitHub release as assets (digests in
 # docs/validation.md §371); the tracked tree keeps the source pipeline only.
 marketing/promo/*.mp4
 marketing/promo/poster.png
+
+# Mimosa security-scan plugin local state (history, reports, hook state)
+.mimosa/

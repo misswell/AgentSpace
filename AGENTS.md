@@ -64,6 +64,16 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
    previous release for six minutes after a draft was flipped to
    `draft: false` — only a write to the release itself (`make_latest=true`) moved
    it (§318 row 820).
+7. **Explicit login (0.1.72).** `Sign In Agent` delegates authentication and
+   session selection to Apple's Screen Sharing client through a temporary
+   loopback-only relay. Never add a password argument, log, registry field,
+   helper operation or agent RPC for it. The existing typed helper `sessionInfo`
+   must prove the target username/uid and graphical session; the worker must
+   report `usable` before the GUI claims connected. Never enable system Screen
+   Sharing or broaden its user list silently. After a remote login, `/dev/console`
+   ownership and `scutil`'s top-level ConsoleUser can name the remote user while
+   that user is **not** on the physical console: use the per-session
+   `kCGSSessionOnConsoleKey` (`scutil`'s SessionInfo array), not the aggregate name.
 
 ## Vocabulary (old → new; both spellings work in code and interface)
 

@@ -201,21 +201,32 @@ Discover standard local users → choose account → workspace → Connect
   → prepare the root-owned runtime directory and its two-user ACL
   → install the root-owned worker and that user's LaunchAgent
   → save the AgentAccount record
-  → prompt: switch to the existing account and sign in with its own password
+  → Sign In Agent: temporary loopback relay → Apple Screen Sharing → Log In
+    as the agent (Standard mode), or sign in through Fast User Switching
   → in that session: grant Accessibility and Screen Recording
   → switch back
   → the app sees the worker come online and flips to Ready
 ```
 
-The session login is manual on purpose. AgentSpace never knows the account's
-password and does not trade that clean boundary for auto-login or private APIs.
+The person initiates login explicitly. Apple Screen Sharing owns authentication
+and session selection; AgentSpace never knows the account's password and uses
+no private framework. `ScreenSharingRelay` binds only 127.0.0.1 on an ephemeral
+port and forwards to the existing system Screen Sharing service on 5900. It
+never enables that service, changes its access list, records traffic, or emits
+input. Closing the login dialog cancels its task, listener and connections.
+
+Completion requires the typed helper to identify the target username/uid and
+report its graphical session, followed by the worker reporting `usable` from
+that background session. A process with the uid alone is insufficient. An
+unknown or console session is never reported as connected.
 
 ### After a reboot
 
 The AgentSpace user has no GUI session until someone logs in, so the Space reads
-**Needs Login**. Nothing is started behind your back. One fast-user-switch login
-brings it back. (Auto-login and remote session bootstrap are explicitly V1
-non-goals — plan §39.)
+**Needs Login**. Nothing is started behind your back. Use **Sign In Agent** from
+the main desktop, or one Fast User Switching login, to bring it back. The
+explicit system login flow added in 0.1.72 supersedes the V1 remote-bootstrap
+non-goal (plan §39); unattended password entry remains outside AgentSpace.
 
 ### Stopping
 

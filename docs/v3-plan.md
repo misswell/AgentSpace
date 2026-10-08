@@ -21,8 +21,14 @@ controller.
    LaunchAgent and starts it when the account has an Aqua session. Otherwise the
    attach is recorded as `needsLogin` and the GUI offers **Finish setup** after
    the first login; AgentSpace never creates the home directory itself.
-5. Sign into that account with its existing password, return to AgentSpace and
-   finish setup. Use the agent card's **Open Accessibility settings** and
+5. Choose **Sign In Agent** on the account card. Enable macOS Screen Sharing
+   (General → Sharing, Only these users → the agent account), then open the
+   system sign-in window and choose **Log In** as that account with **Standard**
+   sharing. This establishes its desktop without switching the main screen.
+   Apple handles the password; AgentSpace detects the target GUI domain and
+   finishes worker setup automatically. Fast User Switching remains an option;
+   after that path, return and click **Finish setup**. Use the card's
+   **Open Accessibility settings** and
    **Open Screen Recording settings** buttons; they launch the selected privacy
    pane in the connected account's own session, so a fast user switch reveals
    the correct System Settings window. The connected account does not need a

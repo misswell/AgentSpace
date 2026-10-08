@@ -36,6 +36,14 @@ public final class InputSocketTransport {
 
     public init(fd: Int32, sendTimeout: TimeInterval = InputSocketTransport.sendTimeout) throws {
         self.fd = fd
+        // A peer can disappear between any readiness check and write. On
+        // Darwin, write otherwise terminates the app/worker with SIGPIPE
+        // before the existing disconnected error path can run.
+        var noSignal: Int32 = 1
+        guard setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSignal,
+                         socklen_t(MemoryLayout<Int32>.size)) == 0 else {
+            throw FrameSocketFailure.disconnected
+        }
         var value = timeval(tv_sec: Int(sendTimeout), tv_usec: 0)
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &value, socklen_t(MemoryLayout<timeval>.size))
     }

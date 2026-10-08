@@ -659,3 +659,30 @@
 "Takeover takes control the moment the pointer enters and keeps your own cursor as the pointer. Takeover Hidden does the same and hides it, drawing the agent's cursor in its place. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "Takeover takes control the moment the pointer enters and keeps your own cursor as the pointer. Takeover Hidden does the same and hides it, drawing the agent's cursor in its place. Auto waits for the pointer to pause before syncing hover. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control.";
 
 "Auto takes control on entry and hides the cursor inside the picture while keeping your own cursor visible. Takeover keeps the internal cursor visible. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control." = "Auto takes control on entry and hides the cursor inside the picture while keeping your own cursor visible. Takeover keeps the internal cursor visible. Click to Capture controls only while pressed. Control-Option or Control-Command-G releases control.";
+
+// Background account sign-in
+"Sign In Agent" = "Sign In Agent";
+"Sign in as %@ without switching your main desktop." = "Sign in as %@ without switching your main desktop.";
+"macOS Screen Sharing handles the password. AgentSpace does not read or save it." = "macOS Screen Sharing handles the password. AgentSpace does not read or save it.";
+"Opening macOS sign-in…" = "Opening macOS sign-in…";
+"Enable Screen Sharing in System Settings → General → Sharing. Choose Only these users and add the agent account, then try again." = "Enable Screen Sharing in System Settings → General → Sharing. Choose Only these users and add the agent account, then try again.";
+"Waiting for the agent desktop…" = "Waiting for the agent desktop…";
+"Preparing the agent worker…" = "Preparing the agent worker…";
+"The agent desktop is connected." = "The agent desktop is connected.";
+"Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace." = "Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace.";
+"Closing this dialog ends only the temporary login connection. It does not log out the agent account." = "Closing this dialog ends only the temporary login connection. It does not log out the agent account.";
+"Open macOS Sign-In" = "Open macOS Sign-In";
+"In the system window, enter %@ and that account's password." = "In the system window, enter %@ and that account's password.";
+"If asked, choose Log In to your own desktop. Choose Standard screen sharing. Finish any first-login setup in that window." = "If asked, choose Log In to your own desktop. Choose Standard screen sharing. Finish any first-login setup in that window.";
+"AgentSpace will detect the desktop and start the worker automatically." = "AgentSpace will detect the desktop and start the worker automatically.";
+"This account is no longer an attached standard user. Refresh the account list." = "This account is no longer an attached standard user. Refresh the account list.";
+"The macOS Screen Sharing app could not be found." = "The macOS Screen Sharing app could not be found.";
+"The macOS sign-in window could not be opened. Try again." = "The macOS sign-in window could not be opened. Try again.";
+"Sign-in timed out. Close the temporary Screen Sharing window and try again." = "Sign-in timed out. Close the temporary Screen Sharing window and try again.";
+"The local sign-in connection could not be started. Try again." = "The local sign-in connection could not be started. Try again.";
+"Another account setup operation is running. Wait for it to finish and try again." = "Another account setup operation is running. Wait for it to finish and try again.";
+"The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used." = "The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used.";
+"Use Sign In Agent to sign in from this desktop, or use Fast User Switching." = "Use Sign In Agent to sign in from this desktop, or use Fast User Switching.";
+"Return to AgentSpace" = "Return to AgentSpace";
+"After signing in with Screen Sharing, AgentSpace finishes setup automatically. After Fast User Switching, return here and click Finish setup." = "After signing in with Screen Sharing, AgentSpace finishes setup automatically. After Fast User Switching, return here and click Finish setup.";
+"The privileged helper could not inspect this account. Install or repair the helper in AgentSpace, then try again." = "The privileged helper could not inspect this account. Install or repair the helper in AgentSpace, then try again.";

@@ -95,6 +95,7 @@ struct SpaceDetailView: View {
     @State private var showingApps = false
     @State private var showingFusionPicker = false
     @State private var showingFusionWindows = false
+    @State private var loginAccount: AgentAccount?
 
     var body: some View {
         Group {
@@ -245,6 +246,9 @@ struct SpaceDetailView: View {
                 FusionWindowPickerView(space: space)
             }
         }
+        .sheet(item: $loginAccount) { account in
+            AccountLoginView(account: account, model: model)
+        }
     }
 
     // MARK: - Cards
@@ -275,6 +279,15 @@ struct SpaceDetailView: View {
                     : NSLocalizedString("not running", comment: ""),
                   tint: snapshot.workerOnline ? nil : .red)
             Field(label: NSLocalizedString("Session", comment: ""), value: snapshot.sessionVerdict ?? NSLocalizedString("unknown", comment: ""), monospaced: true)
+            if !snapshot.workerOnline {
+                Button {
+                    loginAccount = snapshot.space
+                } label: {
+                    Label("Sign In Agent", systemImage: "person.crop.circle.badge.key")
+                }
+                .disabled(model.finishingSetup != nil || model.updatingWorker != nil || model.authorizingPermission != nil)
+                .accessibilityIdentifier("signInAgent")
+            }
             Field(label: NSLocalizedString("Accepts input", comment: ""),
                   value: snapshot.acceptsInput ? NSLocalizedString("yes", comment: "") : NSLocalizedString("no", comment: ""),
                   tint: snapshot.acceptsInput ? .green : .orange)
@@ -510,7 +523,7 @@ struct SpaceDetailView: View {
     private func setupCard(_ snapshot: SpaceSnapshot) -> some View {
         if !snapshot.acceptsInput && snapshot.effectiveState != .console {
             Card(title: NSLocalizedString("Setup", comment: "")) {
-                Text(NSLocalizedString("An agent account needs one manual sign-in before it can run in the background.", comment: ""))
+                Text(NSLocalizedString("Use Sign In Agent to sign in from this desktop, or use Fast User Switching.", comment: ""))
                     .font(.callout)
                 Text(NSLocalizedString("The connected account does not contain a second AgentSpace app. The background agentspace-worker runs there and uses that account's System Settings permissions.", comment: ""))
                     .font(.caption)
@@ -523,10 +536,10 @@ struct SpaceDetailView: View {
                     step(2, String(format: NSLocalizedString("Sign in as “%@”", comment: ""), snapshot.space.username), done: snapshot.workerOnline)
                     step(3, NSLocalizedString("Grant Accessibility to agentspace-worker in System Settings", comment: ""), done: snapshot.accessibility)
                     step(4, NSLocalizedString("Grant Screen & System Audio Recording", comment: ""), done: snapshot.screenRecording)
-                    step(5, NSLocalizedString("Switch back to your own account", comment: ""), done: false)
+                    step(5, NSLocalizedString("Return to AgentSpace", comment: ""), done: snapshot.workerOnline)
                 }
                 .padding(.top, 2)
-                Text(NSLocalizedString("After the first login, switch back to your account and click Finish setup. The worker must start before macOS can show its privacy-permission prompts.", comment: ""))
+                Text(NSLocalizedString("After signing in with Screen Sharing, AgentSpace finishes setup automatically. After Fast User Switching, return here and click Finish setup.", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(NSLocalizedString("Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session.", comment: ""))

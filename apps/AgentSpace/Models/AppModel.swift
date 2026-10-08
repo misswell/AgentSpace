@@ -817,6 +817,25 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Reuse the typed installation path after Apple's client has established
+    /// the target GUI domain. Login itself never changes users or launchd.
+    func prepareAccountAfterLogin(_ account: AgentAccount) async -> String? {
+        guard finishingSetup == nil, authorizingPermission == nil, updatingWorker == nil else {
+            return NSLocalizedString("Another account setup operation is running. Wait for it to finish and try again.", comment: "")
+        }
+        finishingSetup = account.id
+        defer { finishingSetup = nil; reload() }
+        let outcome = await finishPendingSetupOutcome(for: account)
+        if let error = outcome.error { return presented(for: error, space: account).message }
+        let snapshot = await Task.detached(priority: .userInitiated) {
+            SpaceService().snapshot(for: outcome.account ?? account)
+        }.value
+        guard snapshot.workerOnline, snapshot.sessionVerdict == "usable" else {
+            return NSLocalizedString("The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used.", comment: "")
+        }
+        return nil
+    }
+
     /// Ask the worker to open a privacy pane in the connected account's own
     /// session. The app's `NSWorkspace` would target the controller account,
     /// which is exactly the confusion this button is meant to remove.
