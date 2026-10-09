@@ -6,11 +6,11 @@ import Darwin
 public enum AccountLogin {
     /// What the sign-in sheet is still waiting for. These all looked like one
     /// spinner until 2026-10-09, when the owner signed in successfully, watched
-    /// 「正在等待 Agent 桌面…」 for nine minutes, and had no way to tell that the
-    /// desktop was in fact sitting on its own lock screen asking for a password.
+    /// 「正在等待 Agent 桌面…」 for minutes with no way to tell that the desktop was
+    /// in fact sitting on its own lock screen asking for a password.
     /// Each case asks for a different thing, and only one of them is AgentSpace's
     /// to do.
-    public enum Wait: Equatable, Sendable {
+    public enum Wait: Equatable, Sendable, CaseIterable {
         case noSession
         case workerOffline
         case desktopLocked
@@ -24,6 +24,15 @@ public enum AccountLogin {
             case .desktopLocked: return "session and Worker are live, the screen is still locked"
             case .desktopNotReady: return "session and Worker are live, the desktop is not ready"
             }
+        }
+
+        /// Whether only a person at the Mac can end this wait. Everything else is
+        /// AgentSpace's own work, and a wait on it has to end rather than spin
+        /// forever — the exemption exists for the lock screen alone, because how
+        /// long someone takes to type a password is not this product's to time
+        /// out.
+        public var waitsOnAPerson: Bool {
+            self == .desktopLocked
         }
     }
 

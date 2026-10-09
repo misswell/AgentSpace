@@ -38,8 +38,41 @@ final class AccountLoginController: ObservableObject {
         }
     }
 
+    /// The wait's own clock: how long it has sat in *one* state, rather than how
+    /// long it is since the click. Timed from the click, 600 seconds can expire
+    /// while a person is still at the macOS window — the measured case stayed
+    /// locked for 5 m 12 s after its Worker came online — and a login that was
+    /// succeeding gets reported as one that failed. Timed per state, ten minutes
+    /// of the same unanswered condition is a real failure and says so.
+    ///
+    /// One state is exempt, because only a person can end it: the lock screen.
+    /// How long they take is not this product's to time out. Every other state is
+    /// AgentSpace's own work, and a wait on it must end rather than spin forever.
+    private var watched: AccountLogin.Wait?
+    private var sinceChange = Date()
+
+    private func note(_ next: AccountLogin.Wait?) {
+        if next != watched { watched = next; sinceChange = Date() }
+        setWait(next)
+    }
+
+    private func stalled() -> Bool {
+        guard let watched, !watched.waitsOnAPerson else { return false }
+        return Date().timeIntervalSince(sinceChange) > 600
+    }
+
+    /// Giving up on AgentSpace's own work is rare enough to be worth a line: the
+    /// person sees the same timeout either way, but only the log says which
+    /// condition never cleared.
+    private func fail(_ message: String, stalledOn wait: AccountLogin.Wait) {
+        loginLog.error("sign-in gave up after 10 minutes in one state: \(wait.logLabel, privacy: .public)")
+        self.fail(message)
+    }
+
     func start() {
         guard task == nil else { return }
+        watched = nil
+        sinceChange = Date()
         phase = .starting
         task = Task { [weak self] in
             guard let self else { return }
@@ -91,16 +124,6 @@ final class AccountLoginController: ObservableObject {
                 self.phase = .waiting
                 // A GUI domain, not 'any process with this uid'. SSH and a
                 // stopped worker cannot masquerade as a successful desktop login.
-                //
-                // The deadline covers *only* "no session ever appeared", which
-                // means the system window was abandoned and waiting further is
-                // waiting for nothing. Once macOS has handed over a session the
-                // wait is open-ended: what remains is the Worker coming up and
-                // the person unlocking at the lock screen, and the measured case
-                // stayed locked for 5 m 12 s after its Worker came online. A wall
-                // clock timed from the click can expire inside that, and would
-                // have reported a login that was still succeeding as a failure.
-                let noSessionDeadline = Date().addingTimeInterval(600)
                 while !Task.isCancelled {
                     let account = self.account
                     let hasSession = await Task.detached(priority: .utility) {
@@ -113,9 +136,9 @@ final class AccountLoginController: ObservableObject {
                     }.value
                     guard !Task.isCancelled else { return }
                     if !hasSession {
-                        setWait(.noSession)
-                        guard Date() < noSessionDeadline else {
-                            self.fail(NSLocalizedString("Sign-in timed out. Close the temporary Screen Sharing window and try again.", comment: ""))
+                        note(.noSession)
+                        guard !stalled() else {
+                            self.fail(NSLocalizedString("Sign-in timed out. Close the temporary Screen Sharing window and try again.", comment: ""), stalledOn: .noSession)
                             return
                         }
                         try await Task.sleep(nanoseconds: 3_000_000_000)
@@ -129,10 +152,14 @@ final class AccountLoginController: ObservableObject {
                         case .failed(let error): self.fail(error); return
                         case .waiting(let reason):
                             self.phase = .waiting
-                            setWait(reason)
+                            note(reason)
+                            guard !stalled() else {
+                                self.fail(NSLocalizedString("Sign-in timed out. Close the temporary Screen Sharing window and try again.", comment: ""), stalledOn: reason)
+                                return
+                            }
                         case .connected:
                             self.phase = .connected
-                            setWait(nil)
+                            note(nil)
                             // Keep the authenticated connection until the person
                             // closes this sheet. stop() closes only our transport.
                             self.task = nil

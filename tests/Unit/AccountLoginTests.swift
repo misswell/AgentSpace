@@ -34,6 +34,19 @@ final class AccountLoginTests: XCTestCase {
                 .contains("locked"), true)
     }
 
+    /// The exemption the deadline needs, stated as a property rather than as a
+    /// constant in the polling loop: `0.1.75` answered "no wall clock once a
+    /// session exists" for every remaining condition, which is right for a lock
+    /// screen and wrong for a Worker that never comes online — that wait is
+    /// AgentSpace's own work and would have spun forever.
+    func testOnlyTheLockScreenIsExemptFromGivingUp() {
+        XCTAssertEqual(AccountLogin.Wait.allCases, [.noSession, .workerOffline, .desktopLocked, .desktopNotReady])
+        for wait in AccountLogin.Wait.allCases {
+            XCTAssertEqual(wait.waitsOnAPerson, wait == .desktopLocked,
+                           "\(wait) must not be exempt unless only a person can end it")
+        }
+    }
+
     /// The reason and the condition are one decision, so the sheet can never
     /// explain a wait that is already over — or sit silently on one that is not.
     func testTheWaitReasonAndTheReadinessConditionCannotDisagree() {
@@ -45,6 +58,9 @@ final class AccountLoginTests: XCTestCase {
                         let wait = AccountLogin.wait(workerOnline: workerOnline, sessionVerdict: verdict, desktopReady: ready, desktopLocked: locked)
                         XCTAssertEqual(wait == nil, isReady,
                                        "ready=\(isReady) wait=\(String(describing: wait)) for \(workerOnline)/\(String(describing: verdict))/\(String(describing: ready))/\(locked)")
+                        // A wait on AgentSpace's own work is a wait that has to
+                        // end; only the one a person answers is open-ended.
+                        XCTAssertEqual(wait?.waitsOnAPerson ?? false, wait == .desktopLocked)
                     }
                 }
             }
