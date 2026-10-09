@@ -364,7 +364,7 @@ agentspace detach AgentDev                  # always keeps the user and home
 The CLI never runs `sudo`. If the helper is not installed it exits **69** and says
 so — it does not fall back to your own account.
 
-Choose **Sign In Agent** on the account page to sign in without switching your
+Choose **Sign In or Unlock Agent** on the account page to sign in without switching your
 main desktop. Enable **Screen Sharing** in System Settings → General → Sharing,
 choose **Only these users** and add the agent account. In the system login window
 choose **Log In** as the agent and **Standard** sharing. Apple handles the

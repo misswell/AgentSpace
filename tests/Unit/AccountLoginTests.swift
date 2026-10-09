@@ -2,6 +2,15 @@ import XCTest
 @testable import AgentSpaceCore
 
 final class AccountLoginTests: XCTestCase {
+    func testAnExistingGraphicalSessionCannotCompleteLoginBeforeItsDesktopIsUnlocked() {
+        XCTAssertFalse(AccountLogin.isReady(workerOnline: true, sessionVerdict: "usable", desktopReady: false))
+        XCTAssertFalse(AccountLogin.isReady(workerOnline: true, sessionVerdict: "usable", desktopReady: nil))
+        XCTAssertFalse(AccountLogin.isReady(workerOnline: true, sessionVerdict: "isConsole", desktopReady: true))
+        XCTAssertFalse(AccountLogin.isReady(workerOnline: true, sessionVerdict: nil, desktopReady: true))
+        XCTAssertFalse(AccountLogin.isReady(workerOnline: false, sessionVerdict: "usable", desktopReady: true))
+        XCTAssertTrue(AccountLogin.isReady(workerOnline: true, sessionVerdict: "usable", desktopReady: true))
+    }
+
     private var account: AgentAccount {
         AgentAccount(name: "Agent", username: "agentlogin", uid: 503)
     }

@@ -819,21 +819,33 @@ final class AppModel: ObservableObject {
 
     /// Reuse the typed installation path after Apple's client has established
     /// the target GUI domain. Login itself never changes users or launchd.
-    func prepareAccountAfterLogin(_ account: AgentAccount) async -> String? {
+    enum AccountLoginPreparation {
+        case waiting, connected, failed(String)
+    }
+
+    func prepareAccountAfterLogin(_ account: AgentAccount) async -> AccountLoginPreparation {
         guard finishingSetup == nil, authorizingPermission == nil, updatingWorker == nil else {
-            return NSLocalizedString("Another account setup operation is running. Wait for it to finish and try again.", comment: "")
+            return .failed(NSLocalizedString("Another account setup operation is running. Wait for it to finish and try again.", comment: ""))
         }
         finishingSetup = account.id
         defer { finishingSetup = nil; reload() }
-        let outcome = await finishPendingSetupOutcome(for: account)
-        if let error = outcome.error { return presented(for: error, space: account).message }
-        let snapshot = await Task.detached(priority: .userInitiated) {
-            SpaceService().snapshot(for: outcome.account ?? account)
+        var snapshot = await Task.detached(priority: .userInitiated) {
+            SpaceService().snapshot(for: account)
         }.value
-        guard snapshot.workerOnline, snapshot.sessionVerdict == "usable" else {
-            return NSLocalizedString("The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used.", comment: "")
+        // Unlocking an existing desktop must not reinstall its healthy worker.
+        if !snapshot.workerOnline {
+            let outcome = await finishPendingSetupOutcome(for: account)
+            if let error = outcome.error { return .failed(presented(for: error, space: account).message) }
+            snapshot = await Task.detached(priority: .userInitiated) {
+                SpaceService().snapshot(for: outcome.account ?? account)
+            }.value
         }
-        return nil
+        if snapshot.workerOnline, let verdict = snapshot.sessionVerdict, verdict != "usable" {
+            return .failed(NSLocalizedString("The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used.", comment: ""))
+        }
+        return AccountLogin.isReady(workerOnline: snapshot.workerOnline,
+                                   sessionVerdict: snapshot.sessionVerdict,
+                                   desktopReady: snapshot.desktopReady) ? .connected : .waiting
     }
 
     /// Ask the worker to open a privacy pane in the connected account's own

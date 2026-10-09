@@ -69,7 +69,10 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
    loopback-only relay. Never add a password argument, log, registry field,
    helper operation or agent RPC for it. The existing typed helper `sessionInfo`
    must prove the target username/uid and graphical session; the worker must
-   report `usable` before the GUI claims connected. Never enable system Screen
+   report `usable` and `desktop.ready=true` before the GUI claims connected.
+   A locked account must retain the login/unlock entry even with an online
+   worker; unlocking the main account does not unlock that agent desktop.
+   Never enable system Screen
    Sharing or broaden its user list silently. After a remote login, `/dev/console`
    ownership and `scutil`'s top-level ConsoleUser can name the remote user while
    that user is **not** on the physical console: use the per-session

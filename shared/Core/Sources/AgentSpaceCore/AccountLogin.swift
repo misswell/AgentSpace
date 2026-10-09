@@ -4,6 +4,12 @@ import Darwin
 /// Login is an explicit human action. Authentication stays in Apple's client;
 /// neither the helper nor an agent RPC receives an account password.
 public enum AccountLogin {
+    /// A graphical session and live worker can both exist behind a lock screen.
+    /// Unknown desktop readiness must not finish authentication either.
+    public static func isReady(workerOnline: Bool, sessionVerdict: String?, desktopReady: Bool?) -> Bool {
+        workerOnline && sessionVerdict == "usable" && desktopReady == true
+    }
+
     public static func permits(_ account: AgentAccount, candidates: [LocalAccount], currentUID: uid_t = getuid()) -> Bool {
         account.uid != currentUID && AccountDiscovery.candidates(from: candidates).contains {
             $0.username == account.username && $0.uid == account.uid

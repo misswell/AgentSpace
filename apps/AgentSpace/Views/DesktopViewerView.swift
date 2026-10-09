@@ -271,7 +271,7 @@ struct DesktopViewerView: View {
     private var header: some View {
         HStack(spacing: 6) {
             if let snapshot {
-                StatusDot(state: snapshot.effectiveState)
+                StatusDot(state: snapshot.displayState)
                 Text(String(format: NSLocalizedString("%@ Desktop", comment: ""), snapshot.space.displayName))
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
@@ -339,7 +339,7 @@ struct DesktopViewerView: View {
                     .foregroundStyle(input.refusal == nil ? Color.primary : Color.orange)
             }
             .popover(isPresented: $showingDetails, arrowEdge: .bottom) { details }
-            .help(input.refusal?.message ?? snapshot?.effectiveState.displayName ?? "")
+            .help(input.refusal?.message ?? snapshot?.statusDisplayName ?? "")
             .accessibilityLabel(Text("Information"))
             .accessibilityIdentifier("desktopViewerDetails")
 
@@ -473,9 +473,9 @@ struct DesktopViewerView: View {
         VStack(alignment: .leading, spacing: 10) {
             if let snapshot {
                 HStack(spacing: 8) {
-                    StatusDot(state: snapshot.effectiveState)
+                    StatusDot(state: snapshot.displayState)
                     Text(snapshot.space.displayName).font(.headline)
-                    Text(snapshot.effectiveState.displayName).foregroundStyle(.secondary)
+                    Text(snapshot.statusDisplayName).foregroundStyle(.secondary)
                 }
                 if snapshot.space.uid != 0 {
                     Text(String(format: NSLocalizedString("uid %u", comment: ""), snapshot.space.uid))

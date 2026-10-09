@@ -13,6 +13,8 @@ struct SpaceSnapshot: Identifiable, Equatable {
     var workerOnline: Bool = false
     var workerPID: Int?
     var sessionVerdict: String?
+    var desktopReady: Bool?
+    var desktopLocked = false
     var acceptsInput: Bool = false
     var screenRecording: Bool = false
     var accessibility: Bool = false
@@ -30,6 +32,11 @@ struct SpaceSnapshot: Identifiable, Equatable {
     var lastRefreshed: Date?
 
     var id: UUID { space.id }
+
+    var displayState: SpaceState { desktopLocked ? .needsLogin : effectiveState }
+    var statusDisplayName: String {
+        desktopLocked ? NSLocalizedString("Locked", comment: "") : effectiveState.displayName
+    }
 
     /// The state to *show*, which is not always the state that was stored. A
     /// Space recorded as ready whose worker is gone is offline, and saying so is
@@ -164,6 +171,8 @@ final class SpaceService {
             snapshot.workerOnline = true
             snapshot.workerPID = result["workerPid"]?.intValue
             snapshot.sessionVerdict = result["session"]?["verdict"]?.stringValue
+            snapshot.desktopReady = result["desktop"]?["ready"]?.boolValue
+            snapshot.desktopLocked = result["desktop"]?["missing"]?.arrayValue?.contains(.string("locked")) ?? false
             snapshot.acceptsInput = result["acceptsInput"]?.boolValue ?? false
             snapshot.screenRecording = result["screenRecording"]?.boolValue ?? false
             snapshot.accessibility = result["accessibility"]?.boolValue ?? false

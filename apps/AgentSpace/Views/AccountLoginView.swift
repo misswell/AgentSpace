@@ -13,7 +13,7 @@ struct AccountLoginView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Sign In Agent").font(.title2.bold())
+            Text("Sign In or Unlock Agent").font(.title2.bold())
             Text(String(format: NSLocalizedString("Sign in as %@ without switching your main desktop.", comment: ""), account.username))
                 .font(.callout)
             Text("macOS Screen Sharing handles the password. AgentSpace does not read or save it.")
@@ -61,6 +61,7 @@ struct AccountLoginView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(String(format: NSLocalizedString("In the system window, enter %@ and that account's password.", comment: ""), account.username))
             Text("If asked, choose Log In to your own desktop. Choose Standard screen sharing. Finish any first-login setup in that window.")
+            Text("If the agent desktop is locked, unlock that account in the system window. Unlocking your main account does not unlock the agent desktop.")
             Text("AgentSpace will detect the desktop and start the worker automatically.")
         }
         .font(.callout).fixedSize(horizontal: false, vertical: true)

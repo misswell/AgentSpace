@@ -379,7 +379,7 @@ private struct AgentCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                StatusDot(state: snapshot.effectiveState)
+                StatusDot(state: snapshot.displayState)
                 Text(snapshot.space.displayName)
                     .font(.title3.weight(.semibold))
                     .lineLimit(1)
@@ -393,7 +393,7 @@ private struct AgentCard: View {
             Field(label: NSLocalizedString("macOS User", comment: ""),
                   value: snapshot.space.macOSUsername, monospaced: true)
             Field(label: NSLocalizedString("Desktop", comment: ""),
-                  value: snapshot.effectiveState.displayName)
+                  value: snapshot.statusDisplayName)
             HStack(spacing: 8) {
                 Button(NSLocalizedString("Open Desktop", comment: "")) {
                     onOpenDesktop(snapshot)

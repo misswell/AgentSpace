@@ -216,9 +216,12 @@ never enables that service, changes its access list, records traffic, or emits
 input. Closing the login dialog cancels its task, listener and connections.
 
 Completion requires the typed helper to identify the target username/uid and
-report its graphical session, followed by the worker reporting `usable` from
-that background session. A process with the uid alone is insufficient. An
-unknown or console session is never reported as connected.
+report its graphical session, followed by the worker reporting `usable` and
+`desktop.ready=true` from that background session. A process, graphical session
+or usable worker alone is insufficient: the agent desktop may still be locked.
+Unknown readiness, locked and console sessions cannot complete the flow. A
+locked account retains the sign-in/unlock entry even when its worker is online;
+unlocking does not reinstall a healthy worker.
 
 ### After a reboot
 

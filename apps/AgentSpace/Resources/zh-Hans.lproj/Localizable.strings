@@ -658,6 +658,9 @@
 
 // Background account sign-in
 "Sign In Agent" = "登录 Agent";
+"Sign In or Unlock Agent" = "登录 / 解锁 Agent";
+"Locked" = "已锁定";
+"If the agent desktop is locked, unlock that account in the system window. Unlocking your main account does not unlock the agent desktop." = "如果 Agent 桌面已锁定，请在系统窗口解锁该账号。解锁主账号不会解锁 Agent 桌面。";
 "Sign in as %@ without switching your main desktop." = "以 %@ 登录，无需切换你的主桌面。";
 "macOS Screen Sharing handles the password. AgentSpace does not read or save it." = "密码由 macOS 屏幕共享处理，AgentSpace 不读取或保存密码。";
 "Opening macOS sign-in…" = "正在打开 macOS 登录窗口…";

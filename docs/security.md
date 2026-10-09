@@ -562,7 +562,7 @@ logic — "the human sees it anyway" — was precisely the leak.
 
 ## Explicit account login (0.1.72)
 
-**Sign In Agent** is a human GUI action, not a worker RPC or MCP tool. It opens
+**Sign In or Unlock Agent** is a human GUI action, not a worker RPC or MCP tool. It opens
 Apple's Screen Sharing client with only a validated attached standard account
 username and a loopback port in the URL. No password enters AgentSpace, a
 command argument, a helper request, a log or the registry. Apple owns credential
@@ -579,6 +579,8 @@ socket described above.
 The helper's existing typed `sessionInfo` operation must identify the target
 username/uid and GUI domain. Installation/start reuses the existing typed helper
 operations; connected status additionally requires the worker's live `usable`
-verdict. Console and indeterminate sessions still refuse all agent input.
+verdict and `desktop.ready=true`. An existing but locked graphical session
+keeps the flow waiting for the agent account's own unlock. Console and
+indeterminate sessions still refuse all agent input.
 Closing a relay is a network disconnect, not a macOS logout; no user lifecycle
 operation or password injection is added.

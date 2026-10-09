@@ -69,11 +69,11 @@ private struct SidebarRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            StatusDot(state: snapshot.effectiveState)
+            StatusDot(state: snapshot.displayState)
             VStack(alignment: .leading, spacing: 1) {
                 Text(snapshot.space.name)
                     .lineLimit(1)
-                Text(snapshot.effectiveState.displayName)
+                Text(snapshot.statusDisplayName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -82,7 +82,7 @@ private struct SidebarRow: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(snapshot.space.name), \(snapshot.effectiveState.displayName)")
+        .accessibilityLabel("\(snapshot.space.name), \(snapshot.statusDisplayName)")
     }
 }
 
@@ -271,7 +271,7 @@ struct SpaceDetailView: View {
     /// the permission chips are no longer printed twice in a row.
     private func overviewCard(_ snapshot: SpaceSnapshot) -> some View {
         Card(title: NSLocalizedString("Overview", comment: "")) {
-            Field(label: NSLocalizedString("Status", comment: ""), value: snapshot.effectiveState.displayName)
+            Field(label: NSLocalizedString("Status", comment: ""), value: snapshot.statusDisplayName)
             Field(label: NSLocalizedString("macOS User", comment: ""), value: "\(snapshot.space.username) (uid \(snapshot.space.uid))", monospaced: true)
             Field(label: NSLocalizedString("Worker", comment: ""),
                   value: snapshot.workerOnline
@@ -279,11 +279,11 @@ struct SpaceDetailView: View {
                     : NSLocalizedString("not running", comment: ""),
                   tint: snapshot.workerOnline ? nil : .red)
             Field(label: NSLocalizedString("Session", comment: ""), value: snapshot.sessionVerdict ?? NSLocalizedString("unknown", comment: ""), monospaced: true)
-            if !snapshot.workerOnline {
+            if !snapshot.workerOnline || snapshot.desktopLocked {
                 Button {
                     loginAccount = snapshot.space
                 } label: {
-                    Label("Sign In Agent", systemImage: "person.crop.circle.badge.key")
+                    Label("Sign In or Unlock Agent", systemImage: "person.crop.circle.badge.key")
                 }
                 .disabled(model.finishingSetup != nil || model.updatingWorker != nil || model.authorizingPermission != nil)
                 .accessibilityIdentifier("signInAgent")

@@ -85,15 +85,18 @@ final class AccountLoginController: ObservableObject {
                     guard !Task.isCancelled else { return }
                     if hasSession, let model = self.model {
                         self.phase = .finishing
-                        let error = await model.prepareAccountAfterLogin(account)
+                        let outcome = await model.prepareAccountAfterLogin(account)
                         guard !Task.isCancelled else { return }
-                        if let error { self.fail(error); return }
-                        self.phase = .connected
-                        // Keep the authenticated connection until the person
-                        // closes this sheet: they may still be granting TCC in
-                        // the system viewer. stop() closes only our transport.
-                        self.task = nil
-                        return
+                        switch outcome {
+                        case .failed(let error): self.fail(error); return
+                        case .waiting: self.phase = .waiting
+                        case .connected:
+                            self.phase = .connected
+                            // Keep the authenticated connection until the person
+                            // closes this sheet. stop() closes only our transport.
+                            self.task = nil
+                            return
+                        }
                     }
                     try await Task.sleep(nanoseconds: 3_000_000_000)
                 }
