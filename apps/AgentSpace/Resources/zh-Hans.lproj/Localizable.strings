@@ -661,8 +661,7 @@
 "Sign In or Unlock Agent" = "登录 / 解锁 Agent";
 "Locked" = "已锁定";
 "The agent desktop is locked" = "Agent 桌面已锁定";
-"The wallpaper can still be captured, but apps and input are unavailable until the agent account is unlocked." = "仍可以捕获壁纸，但在解锁 Agent 账号前无法使用应用和输入。";
-"Unlock the agent with Sign In or Unlock Agent, then reopen this desktop." = "请使用“登录 / 解锁 Agent”解锁，然后重新打开此桌面。";
+"The desktop is captured but not drivable: macOS locks it when the screen saver starts or a Screen Sharing session ends. Sign in again — this view resumes on its own once the desktop is ready." = "桌面可以截取但无法操作：macOS 会在屏保启动或屏幕共享会话结束时锁定它。请重新登录——桌面就绪后本画面会自动恢复。";
 "If the agent desktop is locked, unlock that account in the system window. Unlocking your main account does not unlock the agent desktop." = "如果 Agent 桌面已锁定，请在系统窗口解锁该账号。解锁主账号不会解锁 Agent 桌面。";
 "Sign in as %@ without switching your main desktop." = "以 %@ 登录，无需切换你的主桌面。";
 "macOS Screen Sharing handles the password. AgentSpace does not read or save it." = "密码由 macOS 屏幕共享处理，AgentSpace 不读取或保存密码。";

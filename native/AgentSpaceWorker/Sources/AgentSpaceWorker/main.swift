@@ -622,6 +622,30 @@ case .success(let arguments):
         exit(70)
     }
 
+    // The screensaver of an agent account is a lock waiting to happen: measured
+    // 2026-10-09, AgentUse's own loginwindow raised it after ~20 minutes of
+    // machine-wide input silence and the desktop was undrivable from then on,
+    // with no recovery that does not involve a password this product must never
+    // hold. So the account's screensaver is turned off for as long as its Worker
+    // is installed, and put back on the way out. That is the *idle* class only:
+    // a Screen Sharing disconnect lock is Apple locking the session directly,
+    // with no screensaver in the path, and is answered by the viewer's own
+    // sign-in entry rather than by a preference (`SessionIdleLock`).
+    //
+    // After `bind()`, so a worker that lost the race to serve this account never
+    // edits a preference it will not restore. Skipped for any non-production
+    // installation — a test harness that spawned a real worker would otherwise
+    // rewrite the developer's own preferences, and both overrides a harness uses
+    // are checked because `--runtime-dir` does not set `AGENTSPACE_ROOT`.
+    let idleLock: SessionIdleLockRunner?
+    if AgentSpaceEnvironment.rootOverride == nil, paths.root == RuntimePaths.root {
+        let runner = SessionIdleLockRunner(recordPath: paths.screensaverRecordPath)
+        if let note = runner.apply() { Log.session.info(note) }
+        idleLock = runner
+    } else {
+        idleLock = nil
+    }
+
     // pid file, so `agentspace status` can tell a live worker from a stale socket.
     try? Data("\(getpid())\n".utf8).write(to: URL(fileURLWithPath: paths.pidPath))
     try? Data("\(spaceID.uuidString)\n".utf8).write(to: URL(fileURLWithPath: paths.tokenPath + ".space"))
@@ -659,6 +683,9 @@ case .success(let arguments):
         writeStatusSnapshot(.stopped)
         unlink(socketPath)
         try? FileManager.default.removeItem(atPath: paths.pidPath)
+        // Last, because nothing here depends on it and a preference sync must
+        // not delay the socket teardown a restarting worker is waiting on.
+        if let note = idleLock?.restore() { Log.session.info(note) }
     }
     // The signal sources run on their OWN queue, not `.main`.
     //

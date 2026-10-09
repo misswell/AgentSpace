@@ -25,6 +25,7 @@ final class DesktopSessionMonitor {
     private let source: SessionInfoSource
     private let lock = NSLock()
     private var lastLogged: String?
+    private var lastLocked: Bool?
 
     init(source: SessionInfoSource = SystemSessionInfo()) {
         self.source = source
@@ -38,6 +39,8 @@ final class DesktopSessionMonitor {
             if let boolean = value as? Bool { return boolean }
             return nil
         }
+        let locked = flag("CGSSessionScreenIsLocked") ?? false
+        logLockChange(locked: locked, dictionary: dictionary)
         return DesktopFacts(
             sessionDictionaryReadable: dictionary != nil,
             loginDone: flag("kCGSessionLoginDoneKey"),
@@ -47,7 +50,7 @@ final class DesktopSessionMonitor {
             // Absent while unlocked — measured: the key is simply not in the
             // dictionary for a background session, which is why this is
             // `?? false` and not a three-valued answer.
-            screenLocked: flag("CGSSessionScreenIsLocked") ?? false)
+            screenLocked: locked)
     }
 
     func readiness() -> DesktopReadiness {
@@ -91,6 +94,39 @@ final class DesktopSessionMonitor {
             Log.session.info("\(summary)")
         } else {
             Log.session.error("\(summary)")
+        }
+    }
+
+    /// What the lock was made of, on every edge of the lock bit.
+    ///
+    /// Gated on the bit rather than on the readiness summary, and gated at all
+    /// rather than logged per probe: `desktopReadiness()` runs on *every* input
+    /// call, so reading three preferences per keystroke would make a diagnostic
+    /// cost the thing it describes. The line is the only way to tell, after a
+    /// person reports it, which of the two measured lock classes fired — see
+    /// `LockEvidence`.
+    private func logLockChange(locked: Bool, dictionary: [String: Any]?) {
+        lock.lock()
+        let changed = lastLocked != locked
+        if changed { lastLocked = locked }
+        lock.unlock()
+        guard changed else { return }
+
+        func number(_ key: String) -> Int? { (dictionary?[key] as? NSNumber)?.intValue }
+        func flag(_ key: String) -> Bool? { (dictionary?[key] as? NSNumber)?.boolValue }
+
+        let evidence = LockEvidence(
+            screenIsLocked: locked,
+            lockedForSeconds: number("CGSSessionScreenLockedTime"),
+            secureInputPID: number("kCGSSessionSecureInputPID"),
+            onConsole: flag("kCGSSessionOnConsoleKey"),
+            screensaverIdleTime: SessionIdleLockRunner.read(key: SessionIdleLockRunner.key),
+            askForPassword: SessionIdleLockRunner.read(key: "askForPassword"),
+            askForPasswordDelay: SessionIdleLockRunner.read(key: "askForPasswordDelay"))
+        if locked {
+            Log.session.error("lock evidence: \(evidence.line)")
+        } else {
+            Log.session.info("lock evidence: \(evidence.line)")
         }
     }
 }

@@ -86,6 +86,11 @@ struct DesktopViewerView: View {
     /// a key. The idle clock the sleep policy reads.
     @State private var lastActivity = Date()
 
+    /// The account whose sign-in sheet this window is showing. The overlay's
+    /// own recovery has to live *here*: a locked desktop that sends the person
+    /// off to another window to find the button reads as a dead end.
+    @State private var loginAccount: AgentAccount?
+
     /// The mode in force, with anything unreadable falling back to the default
     /// rather than to a guess.
     private var quality: DisplayQuality { DisplayQuality.parse(displayQuality) ?? .default }
@@ -129,6 +134,9 @@ struct DesktopViewerView: View {
         }
         .frame(minWidth: 720, idealWidth: 1120, minHeight: 520, idealHeight: 760)
         .background(WindowCapture { hostWindow = $0 })
+        .sheet(item: $loginAccount) { account in
+            AccountLoginView(account: account, model: model)
+        }
         .onAppear {
             startPreview()
             syncKeyboardState()
@@ -404,15 +412,20 @@ struct DesktopViewerView: View {
                 Image(systemName: "lock.display").font(.title)
                 Text("The agent desktop is locked")
                     .font(.headline)
-                Text("The wallpaper can still be captured, but apps and input are unavailable until the agent account is unlocked.")
+                Text("The desktop is captured but not drivable: macOS locks it when the screen saver starts or a Screen Sharing session ends. Sign in again — this view resumes on its own once the desktop is ready.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 460)
-                Text("Unlock the agent with Sign In or Unlock Agent, then reopen this desktop.")
-                    .font(.callout)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 460)
+                Button {
+                    loginAccount = snapshot.space
+                } label: {
+                    Label("Sign In or Unlock Agent", systemImage: "person.crop.circle.badge.key")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!snapshot.workerOnline)
+                .accessibilityIdentifier("signInAgent")
+                .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if showsPausedOverlay {

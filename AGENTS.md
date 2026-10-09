@@ -77,6 +77,16 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
    ownership and `scutil`'s top-level ConsoleUser can name the remote user while
    that user is **not** on the physical console: use the per-session
    `kCGSSessionOnConsoleKey` (`scutil`'s SessionInfo array), not the aggregate name.
+8. **The agent account's screensaver is AgentSpace's to manage; its password is
+   not.** While a Worker is installed it sets that account's own
+   `com.apple.screensaver`/`idleTime` to 0 — written by the Worker *as that user,
+   inside that session*, recorded first so it can be put back, and restored when the
+   Worker stops. Never write `askForPassword`, never clear a lock, and never add a
+   password path for one: a Screen Sharing viewer going away sends loginwindow an
+   explicit `SACLockScreenImmediate:` that no interval can prevent (validation
+   §376), so the recovery for that class stays a human authenticating through macOS
+   — which is why the desktop viewer's locked overlay carries its own
+   **Sign In or Unlock Agent** entry instead of sending the person to another window.
 
 ## Vocabulary (old → new; both spellings work in code and interface)
 

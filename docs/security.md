@@ -584,3 +584,37 @@ keeps the flow waiting for the agent account's own unlock. Console and
 indeterminate sessions still refuse all agent input.
 Closing a relay is a network disconnect, not a macOS logout; no user lifecycle
 operation or password injection is added.
+
+## The agent account's screensaver (0.1.74)
+
+An agent desktop is a real Aqua session, so macOS runs its normal idle sequence in
+it, and a locked session is one no agent can drive. Recovery needs the account's
+password, which AgentSpace must never hold, so the **idle** lock is prevented at its
+trigger: while a Worker is installed for an account, that Worker sets the account's
+own `com.apple.screensaver`/`idleTime` to 0 ("Never"), and puts it back when it stops.
+
+The write is deliberately weak, and that is the point:
+
+- It is performed **by the Worker running as the agent user, inside that user's
+  session**, through `CFPreferences` with `kCFPreferencesCurrentUser` +
+  `kCFPreferencesCurrentHost`. No root, no new helper operation, no shell, no
+  `sudo`, no password — the same preference `System Settings → Lock Screen` writes.
+- It is **reversible by construction**: the value found before the change is
+  recorded in `<root>/Runtime/<space-uuid>/screensaver.json` *before* the write, the
+  record survives Worker restarts, and the restore removes the key when the account
+  had none. An account whose person already chose "Never" is not rewritten and not
+  claimed. `detach` stops the Worker first, so disconnecting an account restores it.
+- It touches **only** `idleTime`. `askForPassword` and `askForPasswordDelay` are read
+  for the lock diagnostic and never written: clearing them would make an agent
+  desktop unlockable by whoever stands at that Mac, which is the account's decision.
+  `LockEvidenceTests.testAskForPasswordIsOnlyEverRead` fails the build if a write
+  appears anywhere in `shared`, `native` or `apps`.
+
+What this does **not** prevent: when the last Screen Sharing viewer goes away,
+Apple's `ScreensharingAgent` sends loginwindow an explicit `SACLockScreenImmediate:`
+(validation §376 row 1146). That is a lock request, not a screensaver timer, so no
+interval setting stops it. The answer stays where §7 puts it — a human
+authenticating through macOS — and the desktop viewer's locked overlay carries that
+entry directly. To keep the two classes distinguishable after the fact, the Worker
+logs one read-only `lock evidence:` line per edge of the lock bit (row 1147); the
+console check `onConsole` in that line is a safety field, never a licence.

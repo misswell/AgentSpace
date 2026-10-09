@@ -17,6 +17,8 @@ import Foundation
 ///       worker.out.log  the worker's stdout, via the LaunchAgent
 ///       worker.err.log  the worker's stderr, via the LaunchAgent
 ///       space.json      written by the privileged helper (roots, main user)
+///       screensaver.json  the account's pre-AgentSpace screensaver interval,
+///                         recorded and undone by the worker itself
 ///       screenshots/    where captures land by default
 ///   Spaces/
 ///     index.json        the Space registry (main user's view)
@@ -70,6 +72,11 @@ public struct RuntimePaths: Sendable {
     public var pidPath: String { directory + "/worker.pid" }
     public var tokenPath: String { directory + "/token" }
     public var statusPath: String { directory + "/status.json" }
+    /// The screensaver interval this account had before the Worker turned the
+    /// screensaver off, so stopping the Worker can put it back. Lives in the
+    /// runtime directory because that directory *is* the account's AgentSpace
+    /// footprint: `detach` removes it, and it removes the Worker first.
+    public var screensaverRecordPath: String { directory + "/screensaver.json" }
     /// The LaunchAgent routes the worker's stdout/stderr here (HelperProtocol's
     /// plist template), which is why they live in the runtime directory itself.
     public var workerOutLogPath: String { directory + "/worker.out.log" }

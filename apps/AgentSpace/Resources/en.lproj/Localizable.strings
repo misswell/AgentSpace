@@ -665,8 +665,7 @@
 "Sign In or Unlock Agent" = "Sign In or Unlock Agent";
 "Locked" = "Locked";
 "The agent desktop is locked" = "The agent desktop is locked";
-"The wallpaper can still be captured, but apps and input are unavailable until the agent account is unlocked." = "The wallpaper can still be captured, but apps and input are unavailable until the agent account is unlocked.";
-"Unlock the agent with Sign In or Unlock Agent, then reopen this desktop." = "Unlock the agent with Sign In or Unlock Agent, then reopen this desktop.";
+"The desktop is captured but not drivable: macOS locks it when the screen saver starts or a Screen Sharing session ends. Sign in again — this view resumes on its own once the desktop is ready." = "The desktop is captured but not drivable: macOS locks it when the screen saver starts or a Screen Sharing session ends. Sign in again — this view resumes on its own once the desktop is ready.";
 "If the agent desktop is locked, unlock that account in the system window. Unlocking your main account does not unlock the agent desktop." = "If the agent desktop is locked, unlock that account in the system window. Unlocking your main account does not unlock the agent desktop.";
 "Sign in as %@ without switching your main desktop." = "Sign in as %@ without switching your main desktop.";
 "macOS Screen Sharing handles the password. AgentSpace does not read or save it." = "macOS Screen Sharing handles the password. AgentSpace does not read or save it.";
