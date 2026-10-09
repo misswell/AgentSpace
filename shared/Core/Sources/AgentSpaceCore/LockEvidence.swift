@@ -24,11 +24,21 @@ import Foundation
 ///
 /// Every field that could not be read says so rather than guessing, which is why
 /// this is a struct of optionals and not a string built at the call site.
+///
+/// Two labels are chosen by what the log pipeline does to them, not by taste, so
+/// they are named here rather than in a comment at each site:
+/// `CGSSessionScreenLockedTime` is an absolute POSIX timestamp, not a duration
+/// (measured 2026-10-09: a lock that began at 09:52:47 read `1791510767`, which
+/// rendered as "locked for 57 years"), and `Redaction.scrubString` rewrites any
+/// `password=<value>` in a log line to `password=<redacted>` — correctly, for
+/// every other line in this product — so the passcode field is rendered under a
+/// name that does not end in that word. `testTheLineSurvivesTheLogRedactor`
+/// pins both.
 public struct LockEvidence: Equatable, Sendable {
     /// `CGSSessionScreenIsLocked`, as the Worker saw it.
     public var screenIsLocked: Bool
-    /// `CGSSessionScreenLockedTime` — how long the lock has already stood.
-    public var lockedForSeconds: Int?
+    /// `CGSSessionScreenLockedTime` — when the lock began, in epoch seconds.
+    public var lockedAt: Int?
     /// `kCGSSessionSecureInputPID`: a pid here means something holds secure
     /// input, which is the unlock UI being up rather than a drivable desktop.
     public var secureInputPID: Int?
@@ -45,7 +55,7 @@ public struct LockEvidence: Equatable, Sendable {
 
     public init(
         screenIsLocked: Bool,
-        lockedForSeconds: Int? = nil,
+        lockedAt: Int? = nil,
         secureInputPID: Int? = nil,
         onConsole: Bool? = nil,
         screensaverIdleTime: Int? = nil,
@@ -53,7 +63,7 @@ public struct LockEvidence: Equatable, Sendable {
         askForPasswordDelay: Int? = nil
     ) {
         self.screenIsLocked = screenIsLocked
-        self.lockedForSeconds = lockedForSeconds
+        self.lockedAt = lockedAt
         self.secureInputPID = secureInputPID
         self.onConsole = onConsole
         self.screensaverIdleTime = screensaverIdleTime
@@ -61,21 +71,33 @@ public struct LockEvidence: Equatable, Sendable {
         self.askForPasswordDelay = askForPasswordDelay
     }
 
-    /// One line, for `os_log`.
+    /// One line, for `os_log`. Space-separated `key=value` pairs with no value
+    /// containing a space, so the line can be read by eye and by `grep`.
     public var line: String {
         [
             "screenIsLocked=\(yesNo(screenIsLocked))",
-            "lockedFor=\(number(lockedForSeconds, unit: "s"))",
+            "lockedAt=\(clock(lockedAt))",
             "secureInputPID=\(number(secureInputPID))",
             "onConsole=\(yesNoUnknown(onConsole))",
             "idleTime=\(number(screensaverIdleTime))",
-            "askForPassword=\(number(askForPassword))",
-            "askForPasswordDelay=\(number(askForPasswordDelay))",
+            "unlockNeedsPasscode=\(number(askForPassword))",
+            "passcodeDelay=\(number(askForPasswordDelay))",
         ].joined(separator: " ")
     }
 
-    private func number(_ value: Int?, unit: String = "") -> String {
-        value.map { "\($0)\(unit)" } ?? "unset"
+    private func number(_ value: Int?) -> String {
+        value.map { "\($0)" } ?? "unset"
+    }
+
+    /// Local wall time, because the reader is comparing this with the lock they
+    /// saw on screen; the epoch value is in the same session dictionary if a
+    /// machine ever needs it.
+    private func clock(_ epoch: Int?) -> String {
+        guard let epoch else { return "unset" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(epoch)))
     }
 
     private func yesNo(_ value: Bool) -> String { value ? "yes" : "no" }

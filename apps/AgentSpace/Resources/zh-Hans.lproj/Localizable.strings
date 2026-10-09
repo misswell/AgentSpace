@@ -668,6 +668,10 @@
 "Opening macOS sign-in…" = "正在打开 macOS 登录窗口…";
 "Enable Screen Sharing in System Settings → General → Sharing. Choose Only these users and add the agent account, then try again." = "请在系统设置 → 通用 → 共享中开启屏幕共享，选择“仅这些用户”并加入 Agent 账号，然后重试。";
 "Waiting for the agent desktop…" = "正在等待 Agent 桌面…";
+"Waiting for macOS to sign in to the agent account…" = "正在等待 macOS 完成 Agent 账号登录…";
+"Signed in. Starting the agent Worker…" = "已登录，正在启动 Agent Worker…";
+"Signed in. The agent desktop is still locked — unlock it in the system window." = "已登录。Agent 桌面仍处于锁定状态——请在系统窗口解锁该账号。";
+"Signed in. Waiting for the agent desktop to finish starting…" = "已登录，正在等待 Agent 桌面完成启动…";
 "Preparing the agent worker…" = "正在准备 Agent Worker…";
 "The agent desktop is connected." = "Agent 桌面已连接。";
 "Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace." = "关闭临时的屏幕共享窗口，然后点击完成。之后可在 AgentSpace 中使用“打开桌面”和权限按钮。";

@@ -117,7 +117,7 @@ final class DesktopSessionMonitor {
 
         let evidence = LockEvidence(
             screenIsLocked: locked,
-            lockedForSeconds: number("CGSSessionScreenLockedTime"),
+            lockedAt: number("CGSSessionScreenLockedTime"),
             secureInputPID: number("kCGSSessionSecureInputPID"),
             onConsole: flag("kCGSSessionOnConsoleKey"),
             screensaverIdleTime: SessionIdleLockRunner.read(key: SessionIdleLockRunner.key),

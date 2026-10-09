@@ -29,7 +29,8 @@ struct AccountLoginView: View {
                     .fixedSize(horizontal: false, vertical: true)
             case .waiting:
                 instructions
-                ProgressView("Waiting for the agent desktop…")
+                ProgressView(waitingLabel)
+                    .fixedSize(horizontal: false, vertical: true)
             case .finishing:
                 ProgressView("Preparing the agent worker…")
             case .connected:
@@ -65,6 +66,24 @@ struct AccountLoginView: View {
             Text("AgentSpace will detect the desktop and start the worker automatically.")
         }
         .font(.callout).fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// One spinner used to mean four different waits, and the person at the
+    /// keyboard could not tell "macOS has not finished" from "you still have to
+    /// unlock it". The label now says which, from the same poll that decides it.
+    private var waitingLabel: String {
+        switch controller.wait {
+        case .some(.noSession):
+            return NSLocalizedString("Waiting for macOS to sign in to the agent account…", comment: "")
+        case .some(.workerOffline):
+            return NSLocalizedString("Signed in. Starting the agent Worker…", comment: "")
+        case .some(.desktopLocked):
+            return NSLocalizedString("Signed in. The agent desktop is still locked — unlock it in the system window.", comment: "")
+        case .some(.desktopNotReady):
+            return NSLocalizedString("Signed in. Waiting for the agent desktop to finish starting…", comment: "")
+        case nil:
+            return NSLocalizedString("Waiting for the agent desktop…", comment: "")
+        }
     }
 
     private var canStart: Bool {

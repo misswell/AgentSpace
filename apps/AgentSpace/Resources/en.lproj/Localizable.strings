@@ -672,6 +672,10 @@
 "Opening macOS sign-in…" = "Opening macOS sign-in…";
 "Enable Screen Sharing in System Settings → General → Sharing. Choose Only these users and add the agent account, then try again." = "Enable Screen Sharing in System Settings → General → Sharing. Choose Only these users and add the agent account, then try again.";
 "Waiting for the agent desktop…" = "Waiting for the agent desktop…";
+"Waiting for macOS to sign in to the agent account…" = "Waiting for macOS to sign in to the agent account…";
+"Signed in. Starting the agent Worker…" = "Signed in. Starting the agent Worker…";
+"Signed in. The agent desktop is still locked — unlock it in the system window." = "Signed in. The agent desktop is still locked — unlock it in the system window.";
+"Signed in. Waiting for the agent desktop to finish starting…" = "Signed in. Waiting for the agent desktop to finish starting…";
 "Preparing the agent worker…" = "Preparing the agent worker…";
 "The agent desktop is connected." = "The agent desktop is connected.";
 "Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace." = "Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace.";

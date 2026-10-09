@@ -826,7 +826,7 @@ final class AppModel: ObservableObject {
     /// Reuse the typed installation path after Apple's client has established
     /// the target GUI domain. Login itself never changes users or launchd.
     enum AccountLoginPreparation {
-        case waiting, connected, failed(String)
+        case waiting(AccountLogin.Wait), connected, failed(String)
     }
 
     func prepareAccountAfterLogin(_ account: AgentAccount) async -> AccountLoginPreparation {
@@ -849,9 +849,13 @@ final class AppModel: ObservableObject {
         if snapshot.workerOnline, let verdict = snapshot.sessionVerdict, verdict != "usable" {
             return .failed(NSLocalizedString("The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used.", comment: ""))
         }
-        return AccountLogin.isReady(workerOnline: snapshot.workerOnline,
-                                   sessionVerdict: snapshot.sessionVerdict,
-                                   desktopReady: snapshot.desktopReady) ? .connected : .waiting
+        guard let wait = AccountLogin.wait(workerOnline: snapshot.workerOnline,
+                                           sessionVerdict: snapshot.sessionVerdict,
+                                           desktopReady: snapshot.desktopReady,
+                                           desktopLocked: snapshot.desktopLocked) else {
+            return .connected
+        }
+        return .waiting(wait)
     }
 
     /// Ask the worker to open a privacy pane in the connected account's own

@@ -11,6 +11,46 @@ final class AccountLoginTests: XCTestCase {
         XCTAssertTrue(AccountLogin.isReady(workerOnline: true, sessionVerdict: "usable", desktopReady: true))
     }
 
+    /// Measured on 2026-10-09: the owner signed in to AgentUse successfully and
+    /// the sheet kept spinning, because the desktop was sitting
+    /// on its own lock screen — a wait with a different answer than "no session
+    /// yet", and one the person could only act on if the interface said so.
+    func testEachUnfinishedSignInNamesWhatItIsWaitingFor() {
+        XCTAssertEqual(
+            AccountLogin.wait(workerOnline: true, sessionVerdict: "usable", desktopReady: false, desktopLocked: true),
+            .desktopLocked)
+        XCTAssertEqual(
+            AccountLogin.wait(workerOnline: false, sessionVerdict: nil, desktopReady: nil, desktopLocked: false),
+            .workerOffline)
+        XCTAssertEqual(
+            AccountLogin.wait(workerOnline: true, sessionVerdict: "usable", desktopReady: nil, desktopLocked: false),
+            .desktopNotReady)
+        XCTAssertNil(
+            AccountLogin.wait(workerOnline: true, sessionVerdict: "usable", desktopReady: true, desktopLocked: false))
+        // A locked desktop is not "not ready": the answer a person can act on is
+        // the one that says unlock it.
+        XCTAssertEqual(
+            AccountLogin.wait(workerOnline: true, sessionVerdict: "usable", desktopReady: false, desktopLocked: true)?.logLabel
+                .contains("locked"), true)
+    }
+
+    /// The reason and the condition are one decision, so the sheet can never
+    /// explain a wait that is already over — or sit silently on one that is not.
+    func testTheWaitReasonAndTheReadinessConditionCannotDisagree() {
+        for workerOnline in [true, false] {
+            for verdict in [Optional<String>.some("usable"), .some("isConsole"), .some("locked"), nil] {
+                for ready in [Optional<Bool>.some(true), .some(false), nil] {
+                    for locked in [true, false] {
+                        let isReady = AccountLogin.isReady(workerOnline: workerOnline, sessionVerdict: verdict, desktopReady: ready)
+                        let wait = AccountLogin.wait(workerOnline: workerOnline, sessionVerdict: verdict, desktopReady: ready, desktopLocked: locked)
+                        XCTAssertEqual(wait == nil, isReady,
+                                       "ready=\(isReady) wait=\(String(describing: wait)) for \(workerOnline)/\(String(describing: verdict))/\(String(describing: ready))/\(locked)")
+                    }
+                }
+            }
+        }
+    }
+
     private var account: AgentAccount {
         AgentAccount(name: "Agent", username: "agentlogin", uid: 503)
     }
