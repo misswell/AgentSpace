@@ -583,7 +583,14 @@ case .success(let arguments):
     // and the user still approves in System Settings; a worker with both
     // grants costs two preflights. Test harnesses run with an overridden
     // root and are exempt — a smoke test must not raise dialogs.
-    if AgentSpaceEnvironment.rootOverride == nil, desktopReadiness.isReady {
+    //
+    // The exemption asks the resolved root, not `AGENTSPACE_ROOT`, because
+    // launchd sets that variable on the *installed* worker too: measured
+    // 2026-10-09 with `ps eww` against the production worker, its environment
+    // carries `AGENTSPACE_ROOT=/Library/Application Support/AgentSpace`. Testing
+    // the variable for absence therefore exempted the one installation the block
+    // exists for, and left it silently never running.
+    if paths.root == RuntimePaths.root, desktopReadiness.isReady {
         if !AXIsProcessTrusted() {
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
             _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
@@ -633,12 +640,16 @@ case .success(let arguments):
     // sign-in entry rather than by a preference (`SessionIdleLock`).
     //
     // After `bind()`, so a worker that lost the race to serve this account never
-    // edits a preference it will not restore. Skipped for any non-production
-    // installation — a test harness that spawned a real worker would otherwise
-    // rewrite the developer's own preferences, and both overrides a harness uses
-    // are checked because `--runtime-dir` does not set `AGENTSPACE_ROOT`.
+    // edits a preference it will not restore. Skipped when the resolved root is
+    // not the production one, because a harness that spawns a real worker points
+    // it at a temporary directory and must not rewrite the developer's own
+    // preferences. The *resolved* root is the only honest test for that: launchd
+    // gives the installed worker `AGENTSPACE_ROOT` set to the production path
+    // itself (measured 2026-10-09 with `ps eww` against pid 71622), so a guard on
+    // the variable's absence would have exempted exactly the installation the
+    // policy is for.
     let idleLock: SessionIdleLockRunner?
-    if AgentSpaceEnvironment.rootOverride == nil, paths.root == RuntimePaths.root {
+    if paths.root == RuntimePaths.root {
         let runner = SessionIdleLockRunner(recordPath: paths.screensaverRecordPath)
         if let note = runner.apply() { Log.session.info(note) }
         idleLock = runner

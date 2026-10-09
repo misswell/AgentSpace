@@ -42,14 +42,19 @@ final class WorkerSetupPromptTests: XCTestCase {
 
     /// The ask never fires in a harness: smoke and integration tests run
     /// workers with an overridden root, and a dialog raised mid-CI is a gate
-    /// that hangs. The production worker runs at the standard root, where the
-    /// prompt belongs.
+    /// that hangs. The gate is therefore the *resolved* root.
+    ///
+    /// It used to be the absence of `AGENTSPACE_ROOT`, which is not a harness
+    /// signal: measured 2026-10-09 with `ps eww` against the installed worker,
+    /// launchd gives it `AGENTSPACE_ROOT=/Library/Application
+    /// Support/AgentSpace` — the production path — so that test exempted the one
+    /// worker the prompt belongs to, and the ask never ran on a real machine.
     func testTheAskIsExemptInOverriddenRootsAndWaitsForADesktop() throws {
         let main = try workerMain
         let stripped = main.filter { !$0.isWhitespace }
         XCTAssertTrue(
-            stripped.contains("ifAgentSpaceEnvironment.rootOverride==nil,desktopReadiness.isReady{"),
-            "the ask is exempt in overridden roots and waits for a ready desktop")
+            stripped.contains("ifpaths.root==RuntimePaths.root,desktopReadiness.isReady{"),
+            "the ask runs in the production installation and is exempt for a temporary root")
         // The ask sits after the desktop wait, before the sockets bind — the
         // bind is what makes the worker answer, and setup must not depend on
         // an RPC to happen.

@@ -149,15 +149,27 @@ final class SessionIdleLockTests: XCTestCase {
 
     // MARK: Where it runs
 
-    /// The step must happen in a real installation only. `WorkerHarness` starts
-    /// real worker binaries with `--runtime-dir` and *without* `AGENTSPACE_ROOT`,
-    /// so both overrides are checked; missing either one would let a test suite
-    /// rewrite the developer's own screensaver.
-    func testTheWorkerAppliesThePolicyOnlyInARealInstallation() throws {
+    /// The step must happen in a real installation only, and *must* happen there.
+    ///
+    /// `WorkerHarness` starts real worker binaries against a temporary runtime
+    /// root, so a resolved-root test is the right exemption. The wrong test for
+    /// the same idea was in this file first: `AGENTSPACE_ROOT` is not absent in
+    /// production — measured 2026-10-09 with `ps eww` against the installed
+    /// worker, launchd gives it `AGENTSPACE_ROOT=/Library/Application
+    /// Support/AgentSpace`, the production path — so a guard on the variable's
+    /// absence read as "only in a real installation" while skipping exactly that
+    /// installation. The same shape of bug sat in the worker's TCC-asking block.
+    func testTheRealInstallationGuardIsTheResolvedRootNotAnAbsentVariable() throws {
         let worker = try source("native/AgentSpaceWorker/Sources/AgentSpaceWorker/main.swift")
         XCTAssertTrue(
-            worker.contains("AgentSpaceEnvironment.rootOverride == nil, paths.root == RuntimePaths.root"),
-            "the idle-lock step must be exempt for an overridden or temporary root")
+            worker.contains("if paths.root == RuntimePaths.root {"),
+            "the idle-lock step must be exempt for a temporary root and run for the production one")
+        XCTAssertTrue(
+            worker.contains("if paths.root == RuntimePaths.root, desktopReadiness.isReady {"),
+            "the permission-asking step must use the same resolved-root test")
+        XCTAssertFalse(
+            worker.contains("rootOverride == nil"),
+            "absence of AGENTSPACE_ROOT does not mean a test harness: launchd sets it on the installed worker")
         XCTAssertTrue(
             worker.contains("idleLock?.restore()"),
             "stopping the Worker must put the account's screensaver back")
