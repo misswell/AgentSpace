@@ -573,6 +573,12 @@ final class AppModel: ObservableObject {
             self.finishingSetup = nil
             if let error = outcome.error {
                 self.lastError = self.presented(for: error, space: space)
+            } else {
+                // A successful worker repair must dismiss the stale
+                // WORKER_OUTDATED alert that launched this action. Without
+                // this, the worker is current and answering but the modal
+                // remains on screen, making a completed update look failed.
+                self.lastError = nil
             }
             self.reload()
         }

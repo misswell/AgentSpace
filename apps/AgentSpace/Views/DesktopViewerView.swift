@@ -161,6 +161,14 @@ struct DesktopViewerView: View {
             syncKeyboardState()
             autoStartIfNeeded()
         }
+        .onChange(of: snapshot?.desktopLocked) { locked in
+            syncKeyboardState()
+            if locked == true {
+                stopPreview()
+            } else {
+                autoStartIfNeeded()
+            }
+        }
         .onChange(of: retinaDesktopRestartKey) { key in
             if lastViewportSize.width > 0 { onViewportSize?(lastViewportSize) }
             if key.isEmpty { stopPreview() } else { restartPreviewIfNeeded() }
@@ -382,13 +390,29 @@ struct DesktopViewerView: View {
                 .padding(16)
                 Spacer()
             }
-        } else if let snapshot, snapshot.workerOnline, snapshot.retinaDisplay == nil {
+        } else if let snapshot, snapshot.workerOnline, !snapshot.desktopLocked, snapshot.retinaDisplay == nil {
             VStack(spacing: 10) {
                 Image(systemName: "display.trianglebadge.exclamationmark").font(.title)
                 Text("A 2× display is required to open this desktop.")
                     .font(.headline)
                 Text("Connect a Retina display to the agent session or update its Worker, then reconnect.")
                     .font(.callout).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let snapshot, snapshot.desktopLocked {
+            VStack(spacing: 10) {
+                Image(systemName: "lock.display").font(.title)
+                Text("The agent desktop is locked")
+                    .font(.headline)
+                Text("The wallpaper can still be captured, but apps and input are unavailable until the agent account is unlocked.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 460)
+                Text("Unlock the agent with Sign In or Unlock Agent, then reopen this desktop.")
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 460)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if showsPausedOverlay {

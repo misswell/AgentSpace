@@ -77,6 +77,29 @@ final class AttachFlowWiringTests: XCTestCase {
                       "the reconcile decision is Core's, so the CLI and the GUI cannot disagree")
     }
 
+    /// Updating an older worker is complete only when the old recovery alert
+    /// disappears. Otherwise a successful install leaves WORKER_OUTDATED on
+    /// screen and makes the update button look ineffective.
+    func testSuccessfulWorkerRepairClearsTheStaleRecoveryAlert() throws {
+        let appModel = try source("apps/AgentSpace/Models/AppModel.swift")
+        XCTAssertTrue(appModel.contains("if let error = outcome.error"),
+                      "worker repair must branch on the typed setup outcome")
+        XCTAssertTrue(appModel.contains("self.lastError = nil"),
+                      "successful worker repair must dismiss its stale recovery alert")
+    }
+
+    /// A locked session can still stream its wallpaper. The viewer must explain
+    /// that state instead of presenting the wallpaper as a usable desktop.
+    func testDesktopViewerExplainsLockedSessionsBeforeShowingFrames() throws {
+        let viewer = try source("apps/AgentSpace/Views/DesktopViewerView.swift")
+        XCTAssertTrue(viewer.contains("else if let snapshot, snapshot.desktopLocked"),
+                      "locked sessions must take the viewer's recovery branch")
+        XCTAssertTrue(viewer.contains("The agent desktop is locked"),
+                      "the viewer must identify the locked desktop state")
+        XCTAssertTrue(viewer.contains("stopPreview()"),
+                      "locking a session must stop the frame stream")
+    }
+
     /// The body of a top-level declaration, whitespace-stripped, so a line
     /// wrap cannot hide a call. Mirrors HelperRegistrationRetryTests.
     private func body(of declaration: String, in source: String) -> String {
