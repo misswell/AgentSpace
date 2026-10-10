@@ -1,5 +1,10 @@
 import SwiftUI
+import os
 import AgentSpaceCore
+
+/// One line per Desktop Viewer window: where the control strip ended up, in the
+/// window's own coordinates. See `ChromeProbe`.
+private let chromeLog = Logger(subsystem: BundleIdentifiers.logSubsystem, category: "viewer-chrome")
 
 /// The Desktop Viewer — plan §17 and §52.
 ///
@@ -132,6 +137,13 @@ struct DesktopViewerView: View {
                     Color.clear.preference(key: DesktopViewportSizeKey.self, value: geometry.size)
                 })
         }
+        // `NSHostingView` reserves the title bar as a top safe-area inset, which
+        // is what left the strip on a row *below* the traffic lights (§361 looked
+        // merged in code and was not in the window). Releasing that inset is what
+        // makes the strip the title bar: measured in an agent session, the strip
+        // then starts at the frame's top edge, its buttons still take clicks, and
+        // its empty space still drags the window.
+        .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 720, idealWidth: 1120, minHeight: 520, idealHeight: 760)
         .background(WindowCapture { hostWindow = $0 })
         .sheet(item: $loginAccount) { account in
@@ -376,13 +388,14 @@ struct DesktopViewerView: View {
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
-        // The strip is the window's title bar now (§361): the leading inset is
-        // where the traffic lights live, and the strip's own empty space drags
-        // the window.
+        // The strip is the window's title bar now (§361, and §380 for the row it
+        // actually landed on): the leading inset is where the traffic lights
+        // live, and the strip's own empty space drags the window.
         .padding(.leading, 78)
         .padding(.trailing, 10)
         .padding(.vertical, 5)
         .background(.bar)
+        .background(ChromeProbe())
     }
 
     // MARK: - Content
@@ -842,6 +855,44 @@ private struct DesktopViewportSizeKey: PreferenceKey {
     static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
         let next = nextValue()
         if next.width > 0, next.height > 0 { value = next }
+    }
+}
+
+/// Reports once, from inside the strip, where the strip actually landed.
+///
+/// §361 claimed the strip *is* the title bar from the source code and never
+/// looked at the window; the strip went on rendering on a second row below the
+/// traffic lights until §380. This is the difference between those two states
+/// read in the window's own coordinates: the strip's top edge sits at the
+/// frame's top edge when the bar is merged, and one title bar below it when it
+/// is not.
+private struct ChromeProbe: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { ChromeProbeView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+private final class ChromeProbeView: NSView {
+    private var scheduled = false
+
+    override func layout() {
+        // Deferred one tick, because the frame a background view is given during
+        // a SwiftUI layout pass is not always the last one; `scheduled` stays set
+        // once it has been answered, so a later resize does not re-log it.
+        super.layout()
+        guard !scheduled else { return }
+        scheduled = true
+        DispatchQueue.main.async { [weak self] in self?.report() }
+    }
+
+    private func report() {
+        guard let window, bounds.height > 1 else {
+            scheduled = false
+            return
+        }
+        let strip = convert(bounds, to: nil)
+        let band = window.frame.height - window.contentLayoutRect.height
+        let gap = window.frame.height - strip.maxY
+        chromeLog.log("control strip occupies \(Int(strip.minY))..\(Int(strip.maxY)) of a \(Int(window.frame.height)) pt window; title bar is \(Int(band)) pt, so the strip starts \(Int(gap)) pt below the top edge — \(gap < band / 2 ? "one row with the window buttons" : "a second row below them")")
     }
 }
 
