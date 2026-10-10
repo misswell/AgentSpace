@@ -11,6 +11,10 @@ public enum AccountLogin {
     /// Each case asks for a different thing, and only one of them is AgentSpace's
     /// to do.
     public enum Wait: Equatable, Sendable, CaseIterable {
+        /// The helper's answer could not be believed. Distinct from `.noSession`
+        /// because it is AgentSpace's own component failing, and the thing to
+        /// reinstall is AgentSpace's helper rather than the macOS window.
+        case probeFailed
         case noSession
         case workerOffline
         case desktopLocked
@@ -19,6 +23,7 @@ public enum AccountLogin {
         /// For `os_log`, not for the interface: the UI localizes its own copy.
         public var logLabel: String {
             switch self {
+            case .probeFailed: return "the session probe did not return an answer AgentSpace can believe"
             case .noSession: return "no desktop session for this account yet"
             case .workerOffline: return "session exists, its Worker is not answering yet"
             case .desktopLocked: return "session and Worker are live, the screen is still locked"
@@ -73,10 +78,53 @@ public enum AccountLogin {
         return components.url
     }
 
+    /// What the session probe answered, as three outcomes rather than one
+    /// boolean. The sheet used to read `try? HelperClient.call(...)`, so a helper
+    /// that never answered, one that answered an error, and one that named a
+    /// different account all produced the same `false` as "macOS has not signed
+    /// this account in yet" — a statement about Apple that AgentSpace had no
+    /// evidence for. Measured 2026-10-10: this is how a sign-in that macOS had
+    /// already granted looked like a login that never happened, for as long as
+    /// the probe itself was broken (`LaunchdDomain`).
+    public enum SessionProbe: Equatable, Sendable {
+        case graphicalSession
+        case noSession
+        /// Not answerable. `detail` is diagnostic text for the log, not copy.
+        case unusable(detail: String)
+    }
+
+    public static func probe(_ response: HelperResponse?, for account: AgentAccount) -> SessionProbe {
+        guard let response else { return .unusable(detail: "the privileged helper did not answer") }
+        guard response.ok, let result = response.result else {
+            return .unusable(detail: response.error?.message ?? "the helper returned no result")
+        }
+        guard result["username"]?.stringValue == account.username,
+              result["uid"]?.intValue == Int(account.uid) else {
+            return .unusable(detail: "the answer names "
+                + "\(result["username"]?.stringValue ?? "<no user>")/"
+                + "\(result["uid"]?.intValue.map(String.init) ?? "<no uid>") for "
+                + "\(account.username)/\(account.uid)")
+        }
+        // An answer that says which of its three outcomes it is. `absent` is what
+        // the sheet waits on; `unusable` is the helper's own failure, and waiting
+        // on it cannot help.
+        if let domain = result["sessionDomain"]?.stringValue {
+            switch domain {
+            case "graphical": return .graphicalSession
+            case "absent": return .noSession
+            default: return .unusable(detail: result["detail"]?.stringValue ?? "the probe reported \(domain)")
+            }
+        }
+        // A helper from before the field existed can only say yes or no, and its
+        // "no" is the answer this whole round is about: keep believing it only as
+        // far as it goes, and never read its silence as a login.
+        guard let graphical = result["hasGraphicalSession"]?.boolValue else {
+            return .unusable(detail: "the answer carries no sessionDomain or hasGraphicalSession field")
+        }
+        return graphical ? .graphicalSession : .noSession
+    }
+
     public static func hasSession(_ response: HelperResponse, for account: AgentAccount) -> Bool {
-        response.ok
-            && response.result?["username"]?.stringValue == account.username
-            && response.result?["uid"]?.intValue == Int(account.uid)
-            && response.result?["hasGraphicalSession"]?.boolValue == true
+        probe(response, for: account) == .graphicalSession
     }
 }

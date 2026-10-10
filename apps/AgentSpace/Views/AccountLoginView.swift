@@ -73,6 +73,8 @@ struct AccountLoginView: View {
     /// unlock it". The label now says which, from the same poll that decides it.
     private var waitingLabel: String {
         switch controller.wait {
+        case .some(.probeFailed):
+            return NSLocalizedString("AgentSpace could not confirm the agent account's desktop session. Retrying…", comment: "")
         case .some(.noSession):
             return NSLocalizedString("Waiting for macOS to sign in to the agent account…", comment: "")
         case .some(.workerOffline):

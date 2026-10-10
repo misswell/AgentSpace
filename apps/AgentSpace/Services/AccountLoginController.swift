@@ -27,14 +27,22 @@ final class AccountLoginController: ObservableObject {
     }
 
     /// One edge per reason, so a wait that lasts ten minutes is one log line
-    /// rather than two hundred.
-    private func setWait(_ next: AccountLogin.Wait?) {
+    /// rather than two hundred. `.log` and not `.info`, because the line a reader
+    /// is sent to look for must arrive: on the owner's Mac the `sign-in gave up
+    /// after 10 minutes …` error from this very sheet is in the log (08:43:11 on
+    /// 2026-10-10) while the info-level reason line from the same process, same
+    /// subsystem and same category is not there at all — not even with
+    /// `log show --info`, which does show this subsystem's info lines from the
+    /// root helper. Default level is the one both the Worker and the helper prove
+    /// reaches the log here.
+    private func setWait(_ next: AccountLogin.Wait?, detail: String? = nil) {
         guard wait != next else { return }
         wait = next
         if let next {
-            loginLog.info("sign-in is still waiting: \(next.logLabel, privacy: .public)")
+            let suffix = detail.map { " — \($0)" } ?? ""
+            loginLog.log("sign-in is still waiting: \(next.logLabel, privacy: .public)\(suffix, privacy: .public)")
         } else {
-            loginLog.info("sign-in is complete: the agent desktop is ready")
+            loginLog.log("sign-in is complete: the agent desktop is ready")
         }
     }
 
@@ -51,9 +59,9 @@ final class AccountLoginController: ObservableObject {
     private var watched: AccountLogin.Wait?
     private var sinceChange = Date()
 
-    private func note(_ next: AccountLogin.Wait?) {
+    private func note(_ next: AccountLogin.Wait?, detail: String? = nil) {
         if next != watched { watched = next; sinceChange = Date() }
-        setWait(next)
+        setWait(next, detail: detail)
     }
 
     private func stalled() -> Bool {
@@ -97,6 +105,19 @@ final class AccountLoginController: ObservableObject {
             guard helperAvailable else {
                 self.fail(NSLocalizedString("The privileged helper could not inspect this account. Install or repair the helper in AgentSpace, then try again.", comment: "")); return
             }
+            // An in-app update replaces only /Applications/AgentSpace.app, so the
+            // daemon that answers this question can still be the one the previous
+            // release installed — and a fix that lives in the helper is not in the
+            // running one. Say that before the sheet spends ten minutes blaming the
+            // macOS window for AgentSpace's own stale binary.
+            if let model = self.model {
+                await model.recheckHelper()
+                guard !Task.isCancelled else { return }
+                if model.helperState.isStaleBinary {
+                    self.fail(NSLocalizedString("The installed helper is from an earlier version of AgentSpace. Reinstall it in Doctor and allow the administrator approval, then try again.", comment: ""))
+                    return
+                }
+            }
             guard await ScreenSharingRelay.isAvailable() else {
                 if !Task.isCancelled { self.phase = .sharingDisabled; self.task = nil }
                 return
@@ -122,48 +143,60 @@ final class AccountLoginController: ObservableObject {
                     self.fail(NSLocalizedString("The macOS sign-in window could not be opened. Try again.", comment: "")); return
                 }
                 self.phase = .waiting
-                // A GUI domain, not 'any process with this uid'. SSH and a
-                // stopped worker cannot masquerade as a successful desktop login.
                 while !Task.isCancelled {
                     let account = self.account
-                    let hasSession = await Task.detached(priority: .utility) {
-                        guard let response = try? HelperClient.call(HelperRequest(
-                            operation: .sessionInfo, spaceID: account.id,
+                    // A GUI domain, not 'any process with this uid'. SSH and a
+                    // stopped worker cannot masquerade as a successful desktop login.
+                    // The answer is kept as three outcomes rather than collapsed
+                    // to a boolean: `try?` here is what let a broken probe report
+                    // a granted login as one that never happened.
+                    let probe: AccountLogin.SessionProbe = await Task.detached(priority: .utility) {
+                        let request = HelperRequest(operation: .sessionInfo, spaceID: account.id,
                             username: account.username, mainUser: NSUserName(),
                             runtimeRoot: account.runtimeRoot ?? RuntimePaths.root,
-                            uid: account.uid), timeout: 5) else { return false }
-                        return AccountLogin.hasSession(response, for: account)
+                            uid: account.uid)
+                        do {
+                            return AccountLogin.probe(try HelperClient.call(request, timeout: 5), for: account)
+                        } catch {
+                            return .unusable(detail: "\(error)")
+                        }
                     }.value
                     guard !Task.isCancelled else { return }
-                    if !hasSession {
+                    switch probe {
+                    case .unusable(let detail):
+                        note(.probeFailed, detail: detail)
+                        guard !stalled() else {
+                            self.fail(NSLocalizedString("AgentSpace could not confirm the agent account's desktop session. Reinstall the helper in AgentSpace, then try again.", comment: ""), stalledOn: .probeFailed)
+                            return
+                        }
+                    case .noSession:
                         note(.noSession)
                         guard !stalled() else {
                             self.fail(NSLocalizedString("Sign-in timed out. Close the temporary Screen Sharing window and try again.", comment: ""), stalledOn: .noSession)
                             return
                         }
-                        try await Task.sleep(nanoseconds: 3_000_000_000)
-                        continue
-                    }
-                    if let model = self.model {
-                        self.phase = .finishing
-                        let outcome = await model.prepareAccountAfterLogin(account)
-                        guard !Task.isCancelled else { return }
-                        switch outcome {
-                        case .failed(let error): self.fail(error); return
-                        case .waiting(let reason):
-                            self.phase = .waiting
-                            note(reason)
-                            guard !stalled() else {
-                                self.fail(NSLocalizedString("Sign-in timed out. Close the temporary Screen Sharing window and try again.", comment: ""), stalledOn: reason)
+                    case .graphicalSession:
+                        if let model = self.model {
+                            self.phase = .finishing
+                            let outcome = await model.prepareAccountAfterLogin(account)
+                            guard !Task.isCancelled else { return }
+                            switch outcome {
+                            case .failed(let error): self.fail(error); return
+                            case .waiting(let reason):
+                                self.phase = .waiting
+                                note(reason)
+                                guard !stalled() else {
+                                    self.fail(NSLocalizedString("Sign-in timed out. Close the temporary Screen Sharing window and try again.", comment: ""), stalledOn: reason)
+                                    return
+                                }
+                            case .connected:
+                                self.phase = .connected
+                                note(nil)
+                                // Keep the authenticated connection until the person
+                                // closes this sheet. stop() closes only our transport.
+                                self.task = nil
                                 return
                             }
-                        case .connected:
-                            self.phase = .connected
-                            note(nil)
-                            // Keep the authenticated connection until the person
-                            // closes this sheet. stop() closes only our transport.
-                            self.task = nil
-                            return
                         }
                     }
                     try await Task.sleep(nanoseconds: 3_000_000_000)

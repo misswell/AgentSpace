@@ -4,7 +4,7 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-09 on `master`. Current public release: **0.1.76**.
+Last updated: 2026-10-10 on `master`. Current public release: **0.1.76**; 0.1.77 (§378) is cut and awaiting its channel readback.
 
 Published 0.1.76 (§377 row 1160, 2026-10-09): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.76), source [b75cb77](https://github.com/misswell/AgentSpace/commit/b75cb776ecc7388ab3a80955cf9fb1cd585ed778), [Actions 37884919754](https://github.com/misswell/AgentSpace/actions/runs/37884919754) all jobs passed; published 04:48:51Z, DMG 6,792,723 bytes with sha256 `9d1238151743b32c771636228b521dcad4d82c4272cb6145f773110384201b48`, `notarytool` `The validate action worked!` for App and DMG, `spctl` → `source=Notarized Developer ID`, and the channel readback closed with `ok the update channel offers the gated bytes`; re-downloaded on this machine the asset hashes to that same digest and its mounted App reports 0.1.76 (547), notarized and stapled (row 1161). Runner layers 1–3 green (Swift 809, updater 19, MCP smoke); layer 4 remains unavailable on a runner, so row 1150 still stands. The change is App-side: the sign-in deadline is now per wait state instead of per click, only `.desktopLocked` is open-ended, and giving up logs which state never cleared. **The owner's machine was still on 0.1.74 when this shipped** — the automatic check runs only at launch, so 「检查更新」 or a relaunch is what delivers rows 1154–1160.
 

@@ -668,6 +668,7 @@
 "Opening macOS sign-in…" = "正在打开 macOS 登录窗口…";
 "Enable Screen Sharing in System Settings → General → Sharing. Choose Only these users and add the agent account, then try again." = "请在系统设置 → 通用 → 共享中开启屏幕共享，选择“仅这些用户”并加入 Agent 账号，然后重试。";
 "Waiting for the agent desktop…" = "正在等待 Agent 桌面…";
+"AgentSpace could not confirm the agent account's desktop session. Retrying…" = "AgentSpace 无法确认 Agent 账号的桌面会话，正在重试…";
 "Waiting for macOS to sign in to the agent account…" = "正在等待 macOS 完成 Agent 账号登录…";
 "Signed in. Starting the agent Worker…" = "已登录，正在启动 Agent Worker…";
 "Signed in. The agent desktop is still locked — unlock it in the system window." = "已登录。Agent 桌面仍处于锁定状态——请在系统窗口解锁该账号。";
@@ -684,6 +685,8 @@
 "The macOS Screen Sharing app could not be found." = "未找到 macOS 屏幕共享应用。";
 "The macOS sign-in window could not be opened. Try again." = "无法打开 macOS 登录窗口，请重试。";
 "Sign-in timed out. Close the temporary Screen Sharing window and try again." = "登录等待已超时，请关闭临时屏幕共享窗口后重试。";
+"AgentSpace could not confirm the agent account's desktop session. Reinstall the helper in AgentSpace, then try again." = "AgentSpace 无法确认 Agent 账号的桌面会话，请在 AgentSpace 中重新安装助手后重试。";
+"The installed helper is from an earlier version of AgentSpace. Reinstall it in Doctor and allow the administrator approval, then try again." = "已安装的助手来自旧版本 AgentSpace。请在「诊断」中点「重新安装助手…」并允许管理员授权，然后重试。";
 "The local sign-in connection could not be started. Try again." = "无法启动本机登录连接，请重试。";
 "Another account setup operation is running. Wait for it to finish and try again." = "另一个账号设置操作正在进行，请等待完成后重试。";
 "The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used." = "Agent 桌面尚未能在后台使用。请完成 Agent 账号登录后重试；不会使用你的主桌面。";

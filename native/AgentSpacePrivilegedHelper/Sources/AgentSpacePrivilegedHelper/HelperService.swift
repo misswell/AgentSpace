@@ -662,17 +662,28 @@ final class HelperService: NSObject, HelperXPCProtocol {
         }
 
         // Is there a GUI login for this account? `launchctl print gui/<uid>` is
-        // the supported question, and it answers exactly what matters: whether
-        // there is an Aqua session whose WindowServer the agent could drive.
+        // the supported question, and launchd answers it with its exit status and
+        // its own type line — not with a service name that happens to appear in
+        // the print. Until 2026-10-10 this sniffed for service names instead, and
+        // a live macOS 27 session contains none of them: every sign-in was
+        // reported as a login that had not happened (`LaunchdDomain`).
         let result = CommandRunner.run([HelperCommand.launchctl, "print", "gui/\(uid)"], timeout: 30)
-        let hasGraphicalSession = result.ok && result.standardOutput.contains("com.apple.uisecd")
-            || (result.ok && result.standardOutput.contains("ATTRS"))
+        let verdict = LaunchdDomain.verdict(exitCode: result.exitCode, output: result.standardOutput,
+                                            errorOutput: result.standardError)
+        let printedBytes = Int(result.standardOutput.utf8.count)
+        log.info("sessionInfo gui/\(uid) → exit \(result.exitCode) "
+            + "bytes=\(printedBytes) domain=\(verdict.wireValue)")
 
+        // `sessionDomain` carries the three outcomes as a field rather than in
+        // prose, because from the other side of this call "there is no session"
+        // and "the probe could not be believed" looked identical for as long as
+        // the probe was wrong — and only one of them is fixed by waiting.
         return HelperResponse(id: request.id, result: .obj([
             "username": .string(username),
             "uid": .int(Int(uid)),
-            "hasGraphicalSession": .bool(hasGraphicalSession),
-            "detail": .string(result.ok ? "gui/\(uid) exists" : "no gui/\(uid) domain"),
+            "hasGraphicalSession": .bool(verdict == .graphical),
+            "sessionDomain": .string(verdict.wireValue),
+            "detail": .string(verdict.detail(domain: "gui/\(uid)", bytes: printedBytes)),
         ]))
     }
 

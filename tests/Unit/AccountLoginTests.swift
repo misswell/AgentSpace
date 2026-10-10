@@ -40,11 +40,50 @@ final class AccountLoginTests: XCTestCase {
     /// screen and wrong for a Worker that never comes online — that wait is
     /// AgentSpace's own work and would have spun forever.
     func testOnlyTheLockScreenIsExemptFromGivingUp() {
-        XCTAssertEqual(AccountLogin.Wait.allCases, [.noSession, .workerOffline, .desktopLocked, .desktopNotReady])
+        XCTAssertEqual(AccountLogin.Wait.allCases,
+                       [.probeFailed, .noSession, .workerOffline, .desktopLocked, .desktopNotReady])
         for wait in AccountLogin.Wait.allCases {
             XCTAssertEqual(wait.waitsOnAPerson, wait == .desktopLocked,
                            "\(wait) must not be exempt unless only a person can end it")
         }
+    }
+
+    /// `hasGraphicalSession == false` was not one answer but three, and the sheet
+    /// acted as if all of them meant "macOS has not signed this account in yet":
+    /// a helper that never replied, one that replied unusable, and one that named
+    /// a different account all produced the same spinner and the same blame.
+    /// Measured 2026-10-10, where the probe itself was the thing that was broken.
+    func testAnUnusableProbeIsNeverReportedAsNoSession() {
+        func answer(_ fields: [String: JSONValue]) -> HelperResponse {
+            HelperResponse(id: "probe", result: .obj(["username": .string("agentlogin"), "uid": .int(503)]
+                .merging(fields) { _, new in new }))
+        }
+        XCTAssertEqual(AccountLogin.probe(answer(["sessionDomain": .string("graphical"),
+            "hasGraphicalSession": .bool(true)]), for: account), .graphicalSession)
+        XCTAssertEqual(AccountLogin.probe(answer(["sessionDomain": .string("absent"),
+            "hasGraphicalSession": .bool(false)]), for: account), .noSession)
+        XCTAssertEqual(AccountLogin.probe(answer(["sessionDomain": .string("unusable"),
+            "hasGraphicalSession": .bool(false), "detail": .string("gui/503: refused with exit 1")]),
+            for: account), .unusable(detail: "gui/503: refused with exit 1"))
+        // No answer, an error answer, and an answer about somebody else are each
+        // unusable — none of them is evidence about this account.
+        XCTAssertNotEqual(AccountLogin.probe(nil, for: account), .noSession)
+        XCTAssertNotEqual(AccountLogin.probe(HelperResponse(id: "probe", error: AgentSpaceError(
+            code: .helperUnavailable, message: "unavailable")), for: account), .noSession)
+        let wrongAccount = AccountLogin.probe(HelperResponse(id: "probe", result: .obj([
+            "username": .string("someoneelse"), "uid": .int(503),
+            "sessionDomain": .string("graphical")])), for: account)
+        guard case .unusable(let detail) = wrongAccount else {
+            return XCTFail("an answer about another account must not complete a sign-in: \(wrongAccount)")
+        }
+        XCTAssertTrue(detail.contains("someoneelse"), detail)
+        // A helper from before the field existed still gets its yes and its no.
+        XCTAssertEqual(AccountLogin.probe(answer(["hasGraphicalSession": .bool(true)]), for: account),
+                       .graphicalSession)
+        XCTAssertEqual(AccountLogin.probe(answer(["hasGraphicalSession": .bool(false)]), for: account),
+                       .noSession)
+        XCTAssertEqual(AccountLogin.probe(answer([:]), for: account),
+                       .unusable(detail: "the answer carries no sessionDomain or hasGraphicalSession field"))
     }
 
     /// The reason and the condition are one decision, so the sheet can never
