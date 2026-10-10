@@ -248,6 +248,21 @@ if !before.isEmpty {
 
 var pid = launchSubject(root: root)
 let settled = settledWindowCount(pid)
+// A window that is on screen but unreadable must never be scored. In one
+// session (2026-10-10, §381) every app launched after a point — this app *and*
+// a TextEdit control opened with a document — answered the *app* element in
+// place of its windows, and these very checks reported four failures against a
+// build that was fine. The window server's own count is the control: a real
+// window with an unreadable tree is the instrument failing to look, and it
+// refuses (3, "nothing was verified") rather than claiming a verdict.
+if settled.count > 0, !AXUI.windowsHaveWindowRole(pid) {
+    fail("this session's accessibility cannot read \(appName)'s windows: "
+        + "\(settled.count) element(s) in the window list, none with role AXWindow, "
+        + "while the window server reports \(AXUI.onScreenWindowCount(pid)) window(s) for pid \(pid). "
+        + "That is the instrument failing to look, not the app failing a check — re-run once the "
+        + "session's accessibility answers again (a TextEdit control window is the same test).",
+        code: 3)
+}
 reports.check("launch opens exactly one window", "1", "\(settled.count)")
 if settled.count != 1 {
     reports.note("  window count samples: \(settled.samples.joined(separator: ","))")

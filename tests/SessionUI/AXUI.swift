@@ -60,6 +60,24 @@ enum AXUI {
 
     static func app(_ pid: pid_t) -> AXUIElement { AXUIElementCreateApplication(pid) }
 
+    /// The window server's own view of how many windows a process has on
+    /// screen. Used as the control that separates "this session's accessibility
+    /// cannot see the window" from "the window is not there" — measured on
+    /// 2026-10-10, when every app launched after a point in one session answered
+    /// the *app* element in place of its windows (§381).
+    static func onScreenWindowCount(_ pid: pid_t) -> Int {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return 0
+        }
+        return list.filter { ($0[kCGWindowOwnerPID as String] as? pid_t) == pid }.count
+    }
+
+    /// Whether what the app's window list came back with is a window at all.
+    static func windowsHaveWindowRole(_ pid: pid_t) -> Bool {
+        windows(pid).contains { role($0) == (kAXWindowRole as String) }
+    }
+
     static func windows(_ pid: pid_t) -> [AXUIElement] {
         (attribute(app(pid), kAXWindowsAttribute as String) as? [AXUIElement]) ?? []
     }

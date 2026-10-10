@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
+import os
 import AgentSpaceCore
+
+/// One line per aspect re-fit of a Desktop Viewer window, with the numbers that
+/// describe it. One or two per resize is the working state; a stream of them is
+/// the trade that used to end in AppKit's per-display-cycle budget asserting
+/// (§381).
+private let conformLog = Logger(subsystem: BundleIdentifiers.logSubsystem, category: "viewer-conform")
 
 /// Owns the detached Desktop Viewer windows.
 ///
@@ -82,11 +89,29 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
         if !hasShown {
             // A first-run window should be visible and independent of the
             // dashboard. Subsequent calls preserve the user's position.
-            window?.center()
             hasShown = true
+            window?.center()
         }
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
+        bringOnScreenIfOutOfReach()
+    }
+
+    /// A saved frame can name a position the window can no longer be reached
+    /// from — with the title strip off the screen there is nothing left to drag
+    /// it by. macOS constrains a *drag* for exactly that reason; a frame that
+    /// came back from preferences has to be constrained here. Frames like that
+    /// exist in the wild: the ping-pong this round fixes saved one on this Mac.
+    ///
+    /// It runs *after* the window has been ordered on screen, because that is
+    /// when the saved frame is applied — a repair attempted before that would be
+    /// overwritten by the restore it exists to correct.
+    private func bringOnScreenIfOutOfReach() {
+        guard let window, let visible = (window.screen ?? NSScreen.main)?.visibleFrame else { return }
+        let clamped = DesktopViewportSizing.onScreenFrame(window.frame, visibleArea: visible)
+        guard clamped != window.frame else { return }
+        window.setFrame(clamped, display: true)
+        conformLog.log("saved frame was out of reach: window \(Int(clamped.width))x\(Int(clamped.height)) moved to (\(Int(clamped.minX)), \(Int(clamped.minY)))")
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -111,11 +136,21 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
         let screen = sender.screen ?? NSScreen.main
         let titlebar = frameSize.height - content.height
         let maximumHeight = screen?.visibleFrame.height ?? .greatestFiniteMagnitude
-        let fitted = DesktopViewportSizing.contentSize(
-            proposedWidth: min(content.width, screen?.visibleFrame.width ?? .greatestFiniteMagnitude),
+        let maximumWidth = screen?.visibleFrame.width ?? .greatestFiniteMagnitude
+        guard let fitted = DesktopViewportSizing.contentSize(
+            proposedWidth: min(content.width, maximumWidth),
             controlsHeight: controlsHeight,
             titlebarHeight: titlebar, maximumFrameHeight: maximumHeight,
-            displayWidth: Double(display.width), displayHeight: Double(display.height))
+            displayWidth: Double(display.width), displayHeight: Double(display.height),
+            minimumViewportWidth: DesktopViewerView.minimumViewportWidth,
+            minimumViewportHeight: DesktopViewerView.minimumViewportHeight,
+            maximumWidth: maximumWidth) else {
+            // The display's aspect cannot hold at the viewer's own minimum on
+            // this screen. Leave the size alone; a resized window that cannot
+            // show the whole desktop undistorted is still better than a window
+            // that argues with the size SwiftUI enforces (§381).
+            return frameSize
+        }
         let adjusted = NSRect(origin: .zero,
                               size: NSSize(width: fitted.width, height: fitted.height))
         return sender.frameRect(forContentRect: adjusted).size
@@ -132,15 +167,61 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
     }
 
     private func viewportDidLayout(_ viewport: CGSize) {
-        guard let window, let ratio = displayAspectRatio, !conforming else { return }
-        let controls = max(0, window.contentView!.bounds.height - viewport.height)
-        controlsHeight = controls
-        guard !window.inLiveResize else { return }
-        let expectedHeight = viewport.width / ratio
-        guard abs(viewport.height - expectedHeight) > 1 else { return }
-        conforming = true
-        let frame = windowWillResize(window, to: window.frame.size)
-        window.setFrame(NSRect(origin: window.frame.origin, size: frame), display: true)
-        conforming = false
+        lastViewport = viewport
+        guard let window else { return }
+        controlsHeight = max(0, window.contentView!.bounds.height - viewport.height)
+        guard !window.inLiveResize, let ratio = displayAspectRatio else { return }
+        guard abs(viewport.height - viewport.width / ratio) > 1 else { return }
+        scheduleConform()
     }
+
+    /// Queues one aspect re-fit, run out of the layout pass that asked for it.
+    ///
+    /// A window's frame must not be changed from *inside* the layout pass that
+    /// measured it. AppKit answers that by redoing the window's placement, the
+    /// placement re-applies the saved frame, and the two trade the window back
+    /// and forth inside a single display cycle — walking it off the screen
+    /// while AppKit's per-cycle budget (47 constraint updates) runs out and it
+    /// asserts. That is §381: five crashes in one afternoon, every one of them a
+    /// Desktop Viewer window whose saved frame was narrower than the display's
+    /// aspect and the viewer's own minimum can both satisfy.
+    private func scheduleConform() {
+        guard !conformScheduled else { return }
+        conformScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.conformScheduled = false
+            self.conformIfAspectIsOff()
+        }
+    }
+
+    private func conformIfAspectIsOff() {
+        guard let window, !conforming, !window.inLiveResize, let ratio = displayAspectRatio else { return }
+        let viewport = lastViewport
+        guard viewport.width > 0, abs(viewport.height - viewport.width / ratio) > 1 else { return }
+        conforming = true
+        defer { conforming = false }
+        let before = window.frame
+        let target = windowWillResize(window, to: before.size)
+        guard abs(target.width - before.width) > 1 || abs(target.height - before.height) > 1 else {
+            // No size holds the aspect and the viewer's own minimum at once, or
+            // the size is already the answer: either way there is nothing to
+            // change, and retrying is the trade that used to end in AppKit's
+            // budget asserting (§381).
+            conformLog.log("aspect is off (viewport \(Int(viewport.width))x\(Int(viewport.height)) of a \(Int(before.width))x\(Int(before.height)) window) and no re-fit is available — leaving it")
+            return
+        }
+        window.setFrame(NSRect(origin: before.origin, size: target), display: true)
+        conformCount += 1
+        let after = window.frame
+        conformLog.log("conform #\(self.conformCount) viewport \(Int(viewport.width))x\(Int(viewport.height)), expected height \(Int(viewport.width / ratio)): window \(Int(before.width))x\(Int(before.height)) → asked \(Int(target.width))x\(Int(target.height)) → \(Int(after.width))x\(Int(after.height))")
+    }
+
+    /// How many times this window has re-fitted itself, reported with each
+    /// conform line so a runaway is visible as a count rather than inferred.
+    private var conformCount = 0
+    private var conformScheduled = false
+    /// The newest viewport size SwiftUI reported, re-checked when the queued
+    /// re-fit runs so a stale measurement cannot drive a frame change.
+    private var lastViewport: CGSize = .zero
 }

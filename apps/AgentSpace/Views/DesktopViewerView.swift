@@ -23,6 +23,18 @@ private let chromeLog = Logger(subsystem: BundleIdentifiers.logSubsystem, catego
 ///    accepting clicks, because the alternative is clicking on the user's own
 ///    screen.
 struct DesktopViewerView: View {
+    /// The smallest viewport this viewer lays out, in points: what the root
+    /// frame's minimum comes to in this window. The strip takes the title bar's
+    /// own height and the hosting view adds the top safe area (which the content
+    /// ignores) back on top of the minimum, so those two 32 pt terms cancel and
+    /// the viewport floor is the minimum itself.
+    ///
+    /// The aspect conform reads these numbers: a frame whose viewport would be
+    /// smaller is one SwiftUI grows straight back, and the two sizes then trade
+    /// the window forever — which is what crashed 0.1.79 (§381).
+    static let minimumViewportHeight: CGFloat = 520
+    static let minimumViewportWidth: CGFloat = 720
+
     /// Pin a detached viewer to the account that opened it.  A nil value keeps
     /// the selected-account behaviour used by previews and older callers.
     private let spaceID: UUID?
@@ -156,7 +168,8 @@ struct DesktopViewerView: View {
         // then starts at the frame's top edge, its buttons still take clicks, and
         // its empty space still drags the window.
         .ignoresSafeArea(.container, edges: .top)
-        .frame(minWidth: 720, idealWidth: 1120, minHeight: 520, idealHeight: 760)
+        .frame(minWidth: Self.minimumViewportWidth, idealWidth: 1120,
+               minHeight: Self.minimumViewportHeight, idealHeight: 760)
         .background(WindowCapture { hostWindow = $0 })
         .sheet(item: $loginAccount) { account in
             AccountLoginView(account: account, model: model)
