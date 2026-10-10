@@ -129,6 +129,18 @@ struct DesktopViewerView: View {
         return width >= display.pixelWidth ? 0 : width
     }
 
+    /// The height of the window's title bar — the row the strip now *is*.
+    ///
+    /// AppKit centres the traffic lights in that band, so a strip shorter than
+    /// the band sits its own content above them: measured on the first real
+    /// window of this fix, a 24 pt strip in a 32 pt band put the label's centre
+    /// 4 pt above the lights' — one row, but not one line. Matching the band is
+    /// what makes the merge read as merged.
+    private var titlebarHeight: CGFloat {
+        guard let hostWindow else { return 0 }
+        return max(0, hostWindow.frame.height - hostWindow.contentLayoutRect.height)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -394,6 +406,7 @@ struct DesktopViewerView: View {
         .padding(.leading, 78)
         .padding(.trailing, 10)
         .padding(.vertical, 5)
+        .frame(minHeight: titlebarHeight)
         .background(.bar)
         .background(ChromeProbe())
     }
