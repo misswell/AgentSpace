@@ -62,6 +62,26 @@ final class FrameClient: ObservableObject {
     private var renderRate = RateMeter()
     private var latency = FrameLatency()
     private var lastPerformanceUpdate: TimeInterval = 0
+    /// The one question a delivered frame has to answer — has anything the
+    /// interface reads changed? — asked by a value type so that the answer is
+    /// testable without a stream, a socket or a window.
+    ///
+    /// A write to a `@Published` property re-renders every view observing this
+    /// client, and for a viewer a re-render is a layout pass on the main thread,
+    /// so a frame that changes nothing is not published at all. This runs 30–60
+    /// times a second for a number that only moves when the stream is reopened.
+    private var surfaceStatus = FrameSurfaceStatus()
+    private var lastArrivalNoticeAt: TimeInterval = 0
+    private var lastCostLogAt: TimeInterval = 0
+    /// Main-thread handoffs and layout passes since the stream opened, reported
+    /// beside the frame rate by `viewer cost`. They are the same number in a
+    /// version that re-renders per frame and a different number in one that does
+    /// not, and which of those a person is running is otherwise invisible.
+    private var mainThreadUpdates = 0
+    private var layoutPasses = 0
+    /// The counters as they were at the previous `viewer cost` line, so that line
+    /// reports a rate over the window it just covered rather than a lifetime total.
+    private var lastCostCounts = (updates: 0, passes: 0, frames: UInt64(0))
     private var configureWork: DispatchWorkItem?
     private lazy var videoDecoder = VideoFrameDecoder { [weak self] buffer in self?.handleVideoFrame?(buffer) }
     var handleSharedFrame: ((SharedFrameMapping, FrameHeader, SharedFrameNotice, SharedFrameSlotHeader, [SharedPatchDescriptor], @escaping (TimeInterval) -> Void) -> SurfaceApplyOutcome)?
@@ -268,9 +288,7 @@ final class FrameClient: ObservableObject {
                     try feedback(socket, slot: slotIndex, sequence: header.sequence, acceptance: .duplicate)
                     continue
                 case .accepted:
-                    if let onFrameArrived {
-                        DispatchQueue.main.async { onFrameArrived() }
-                    }
+                    if let onFrameArrived { noteArrival(onFrameArrived) }
                     let handling = FrameSignpost.begin("FrameReceive")
                     let outcome = handleSharedFrame?(mapping, header, notice, slot, patches) { [weak self] presentedAt in
                         // Metal finishes on its own queue. The hop back to this
@@ -288,9 +306,7 @@ final class FrameClient: ObservableObject {
                     if outcome != .refused { publishSize(CGSize(width: Int(header.width), height: Int(header.height))) }
                 }
             case .h264:
-                if let onFrameArrived {
-                    DispatchQueue.main.async { onFrameArrived() }
-                }
+                if let onFrameArrived { noteArrival(onFrameArrived) }
                 let handling = FrameSignpost.begin("H264Decode")
                 try videoDecoder.decode(payload)
                 FrameSignpost.end(handling)
@@ -336,13 +352,45 @@ final class FrameClient: ObservableObject {
         latency.record(captureToRendered: Int64(presented) - Int64(header.timestampNanoseconds))
         guard presentedAt - lastPerformanceUpdate >= 1 else { return }
         lastPerformanceUpdate = presentedAt
+        let framesPerSecond = renderRate.current(at: presentedAt)
         let snapshot = FramePerformanceSnapshot(
             updatedAt: presentedAt,
-            framesPerSecond: renderRate.current(at: presentedAt),
+            framesPerSecond: framesPerSecond,
             captureToRenderP50: latency.captureToRender.median,
             captureToRenderP95: latency.captureToRender.p95,
             receiveToRenderP50: latency.receiveToRender.median)
         DispatchQueue.main.async { self.performance = snapshot }
+        logCost(over: presentedAt, framesPerSecond: framesPerSecond)
+    }
+
+    /// One line every ten seconds saying what the picture costs the main thread.
+    ///
+    /// This is the number that decides whether a laggy viewer is a laggy *stream*
+    /// or a viewer that re-renders itself once per frame, and nothing else in the
+    /// product distinguishes them: the two look identical as "the desktop is slow"
+    /// and identical in every other field. Before the fix in this version the three
+    /// rates below were the same number (§382).
+    private func logCost(over presentedAt: TimeInterval, framesPerSecond: Double) {
+        lock.lock()
+        let elapsed = presentedAt - lastCostLogAt
+        if elapsed < 10 { lock.unlock(); return }
+        let updates = mainThreadUpdates, passes = layoutPasses, received = renderStats.framesReceived
+        let baseline = lastCostCounts
+        lastCostCounts = (updates, passes, received)
+        lastCostLogAt = presentedAt
+        lock.unlock()
+        let seconds = max(1, elapsed)
+        Self.log.notice("viewer cost \(self.targetLabel, privacy: .public): frames=\(String(format: "%.1f", framesPerSecond), privacy: .public)/s mainThreadUpdates=\(String(format: "%.1f", Double(updates - baseline.updates) / seconds), privacy: .public)/s layoutPasses=\(String(format: "%.1f", Double(passes - baseline.passes) / seconds), privacy: .public)/s sinceOpen received=\(received, privacy: .public)")
+    }
+
+    /// How the stream is referred to in the log — the same words in both lines, so
+    /// one can be found from the other.
+    private var targetLabel: String {
+        switch target {
+        case .display(let id): return "display:\(id.map(String.init) ?? "main")"
+        case .retinaDesktop: return "retinaDesktop"
+        case .window(let identity): return "window:\(identity.windowID)"
+        }
     }
 
     /// The connection's summary, logged where the frame timeline already lives.
@@ -358,12 +406,7 @@ final class FrameClient: ObservableObject {
         value.endToEndP95 = latency.captureToRender[95] ?? 0
         renderStats = value
         guard value.framesReceived > 0 else { return }
-        let label: String
-        switch target {
-        case .display(let id): label = "display:\(id.map(String.init) ?? "main")"
-        case .retinaDesktop: label = "retinaDesktop"
-        case .window(let identity): label = "window:\(identity.windowID)"
-        }
+        let label = targetLabel
         Self.log.notice("frame stream \(label, privacy: .public) ended: received=\(value.framesReceived, privacy: .public) rendered=\(value.framesRendered, privacy: .public) slots=\(value.sharedFramesPerSlot, privacy: .public) dropped=\(value.framesDropped, privacy: .public) heartbeats=\(value.heartbeatsReceived, privacy: .public) gaps=\(value.sequenceGaps, privacy: .public) reconnects=\(value.socketReconnects, privacy: .public) endToEnd p50=\(String(format: "%.1f", value.endToEndP50), privacy: .public)ms p95=\(String(format: "%.1f", value.endToEndP95), privacy: .public)ms")
     }
 
@@ -388,14 +431,64 @@ final class FrameClient: ObservableObject {
     }
     private func publishState(_ value: State) { DispatchQueue.main.async { self.state = value } }
     private func publishSize(_ value: CGSize) {
+        lock.lock()
         // Pixels arrived, so whatever the mapping count was carrying up to here is
         // history. Without this, a stream that had three bad seconds and then
         // recovered would go on reporting itself unrecoverable while on screen.
-        lock.lock(); recovery.noteStreaming(); lock.unlock()
-        DispatchQueue.main.async { self.surfaceSize = value; self.lastError = nil; self.streamNotice = .none }
+        recovery.noteStreaming()
+        let change = surfaceStatus.accept(value)
+        if change.isWorthPublishing { mainThreadUpdates &+= 1 }
+        lock.unlock()
+        guard change.isWorthPublishing else { return }
+        let newSize = change.newSize
+        DispatchQueue.main.async {
+            if let newSize { self.surfaceSize = newSize }
+            if self.streamNotice != .none { self.streamNotice = .none }
+            if self.lastError != nil { self.lastError = nil }
+        }
     }
-    private func publishError(_ value: AgentSpaceError) { DispatchQueue.main.async { self.lastError = value } }
-    private func publishNotice(_ value: FrameStreamNotice) { DispatchQueue.main.async { self.streamNotice = value } }
+    private func publishError(_ value: AgentSpaceError) {
+        lock.lock(); surfaceStatus.noteStatusShown(); mainThreadUpdates &+= 1; lock.unlock()
+        DispatchQueue.main.async { self.lastError = value }
+    }
+    private func publishNotice(_ value: FrameStreamNotice) {
+        lock.lock(); surfaceStatus.noteStatusShown(); mainThreadUpdates &+= 1; lock.unlock()
+        DispatchQueue.main.async { self.streamNotice = value }
+    }
+
+    /// Frame arrival is reported to the host four times a second rather than once
+    /// per frame. Both hosts do the same two things with it — stamp "the desktop is
+    /// moving" and re-derive the capture rate — and both of those have a tolerance
+    /// of at least a quarter of a second (`FrameActivityTracker.idleAfter` is 1.5),
+    /// while the hop itself at frame rate put a main-thread block, an `NSScreen`
+    /// refresh and a rate recomputation 60 times a second into exactly the moment a
+    /// person's hand needs the main thread.
+    private func noteArrival(_ action: @escaping () -> Void) {
+        let now = FrameClock.uptime()
+        lock.lock()
+        let due = now - lastArrivalNoticeAt >= Self.arrivalNoticeInterval
+        if due { lastArrivalNoticeAt = now; mainThreadUpdates &+= 1 }
+        lock.unlock()
+        guard due else { return }
+        DispatchQueue.main.async { action() }
+    }
+    static let arrivalNoticeInterval: TimeInterval = 0.25
+
+    /// Counted for `viewer cost`. A layout pass is the thing a frame must not
+    /// cost, so its rate next to the frame rate answers "is the picture driving the
+    /// UI?" with one line instead of an Instruments session.
+    func noteLayoutPass() {
+        lock.lock(); layoutPasses &+= 1; lock.unlock()
+    }
+
+    /// What a frame has cost the interface since this stream opened. Read by the
+    /// log line above and by the live test that decides whether a frame is allowed
+    /// to cost a UI update — the two numbers a person cannot tell apart from a
+    /// laggy window, and which no field on the wire describes.
+    var observedCost: (mainThreadUpdates: Int, layoutPasses: Int, framesReceived: UInt64) {
+        lock.lock(); defer { lock.unlock() }
+        return (mainThreadUpdates, layoutPasses, renderStats.framesReceived)
+    }
 
     /// One more connection that could not read its buffer. Returns what the window
     /// should now say, which is the same fact the reconnect loop is acting on: the

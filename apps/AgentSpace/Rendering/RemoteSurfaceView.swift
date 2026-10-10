@@ -237,6 +237,11 @@ class RemoteSurfaceNSView: NSView {
     private var cpuPixels = Data()
     private var cpuWidth = 0
     private var cpuHeight = 0
+    /// Whether the CPU fallback layer is what a person is looking at. Mirrored off
+    /// the main thread so a frame that landed in Metal retires it *once*: setting a
+    /// `CALayer` property per frame is a CoreAnimation transaction per frame, and
+    /// the layer is hidden for every frame of a normal stream.
+    private var cpuLayerVisible = false
 
     init(client: FrameClient) {
         self.client = client; self.renderer = MetalSurfaceRenderer()
@@ -281,7 +286,7 @@ class RemoteSurfaceNSView: NSView {
             let outcome = self.renderer?.apply(mapping: mapping, slot: slot, patches: patches, presented: presented) ?? .refused
             switch outcome {
             case .uploaded, .uploadedWithoutPresent:
-                DispatchQueue.main.async { self.cpuLayer.isHidden = true }
+                self.retireCPU()
                 return outcome
             case .refused:
                 // No Metal, or a texture this view could not build: the CPU layer is
@@ -295,7 +300,7 @@ class RemoteSurfaceNSView: NSView {
         client.handleVideoFrame = { [weak self] buffer in
             guard let self else { return }
             if self.renderer?.applyVideo(buffer) == true {
-                DispatchQueue.main.async { self.cpuLayer.isHidden = true }
+                self.retireCPU()
             } else {
                 self.applyCPU(pixelBuffer: buffer)
             }
@@ -304,7 +309,7 @@ class RemoteSurfaceNSView: NSView {
             self?.renderer?.clear()
             self?.cpuLayer.contents = nil
             self?.cpuLayer.isHidden = true
-            self?.cpuLock.lock(); self?.cpuPixels.removeAll(keepingCapacity: false); self?.cpuWidth = 0; self?.cpuHeight = 0; self?.cpuLock.unlock()
+            self?.cpuLock.lock(); self?.cpuPixels.removeAll(keepingCapacity: false); self?.cpuWidth = 0; self?.cpuHeight = 0; self?.cpuLayerVisible = false; self?.cpuLock.unlock()
         }
     }
 
@@ -355,6 +360,7 @@ class RemoteSurfaceNSView: NSView {
 
     override func layout() {
         super.layout()
+        client.noteLayoutPass()
         let scale = window?.backingScaleFactor ?? 2
         renderer?.resize(bounds.size, scale: scale)
         cpuLayer.frame = bounds
@@ -701,6 +707,18 @@ class RemoteSurfaceNSView: NSView {
                                   bytesPerRow: rowBytes, space: CGColorSpaceCreateDeviceRGB(),
                                   bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue),
                                   provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { return }
+        cpuLock.lock(); cpuLayerVisible = true; cpuLock.unlock()
         DispatchQueue.main.async { [weak self] in self?.cpuLayer.contents = image; self?.cpuLayer.isHidden = false }
+    }
+
+    /// A frame reached Metal, so the fallback layer is covering the picture it no
+    /// longer draws. Handed to the main thread only on the transition.
+    private func retireCPU() {
+        cpuLock.lock()
+        let wasVisible = cpuLayerVisible
+        cpuLayerVisible = false
+        cpuLock.unlock()
+        guard wasVisible else { return }
+        DispatchQueue.main.async { [weak self] in self?.cpuLayer.isHidden = true }
     }
 }

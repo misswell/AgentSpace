@@ -66,10 +66,19 @@ final class MetalSurfaceRenderer {
     }
 
     func resize(_ size: CGSize, scale: CGFloat) {
+        // A layout pass that changes nothing must not touch the layer: writing
+        // `drawableSize` is what tells the window server to hand out a new pair of
+        // drawables, and a viewer laid out once per frame would rebuild its backing
+        // store 60 times a second for a window that has not moved.
+        guard size != appliedSize || scale != appliedScale else { return }
+        appliedSize = size; appliedScale = scale
         layer.contentsScale = scale
         layer.frame = CGRect(origin: .zero, size: size)
         layer.drawableSize = CGSize(width: max(1, size.width * scale), height: max(1, size.height * scale))
     }
+
+    private var appliedSize = CGSize.zero
+    private var appliedScale: CGFloat = 0
 
     /// Puts one shared-memory frame into the texture and, when the GPU has room,
     /// on screen. The answer is what the worker gets told about the slot;
