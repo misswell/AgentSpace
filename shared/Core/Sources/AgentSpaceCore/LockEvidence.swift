@@ -1,26 +1,25 @@
 import Foundation
 
-/// What could be read about the session, and about this account's own
-/// screensaver preference, at the moment its lock bit changed.
+/// What could be read about the session, and about this account's own lock
+/// preferences, at the moment its lock bit changed.
 ///
 /// The reason this is logged instead of measured by hand: the two lock classes
 /// measured in the AgentUse account on 2026-10-09 set the same
-/// `CGSSessionScreenIsLocked` bit and look identical in the interface, but only
-/// one of them is preventable.
+/// `CGSSessionScreenIsLocked` bit and look identical in the interface, and each
+/// has its own preference to blame.
 ///
-/// - **idle** — `loginwindow`'s screensaver daemon fires on the machine-wide HID
-///   idle clock and locks on top of it. `SessionIdleLock` removes that trigger,
-///   so `idleTime=0` in this line means the lock was *not* the idle class.
-/// - **disconnect** — Apple's host-side `ScreensharingAgent` locks the session
-///   directly when the last viewer goes away. No screensaver setting is in that
-///   path (measured: no `ScreenSaverEngine` exists in it on macOS 27), so the
-///   same line reads `idleTime=0` next to a lock that just happened.
+/// - **idle** — `loginwindow`'s screensaver fires on the machine-wide HID idle
+///   clock and locks on top of it. `idleTime=0` in this line means that trigger
+///   was pinned off, so the lock was *not* the idle class.
+/// - **disconnect** — Apple's host-side `ScreensharingAgent` asks loginwindow
+///   `SACScreenLockEnabled:` when the last viewer goes away and locks the session
+///   on a `yes`. That answer is `passcodeDelay != 2147483647`, so this is the line
+///   that says whether the pin held: a lock with `passcodeDelay=2147483647` next to
+///   it came from something else entirely.
 ///
-/// `askForPassword` and its delay are read, never written: whether a lock
-/// accepts an unlock without the account's password is that account's own
-/// setting, and this product must not change it (AGENTS.md §7). It is logged
-/// because it decides what recovery is even possible — with a password required,
-/// the only fix is a person signing in.
+/// `askForPassword` is read, never written: whether a lock accepts an unlock at all
+/// is the account's own decision (AGENTS.md §8). Its delay is the one AgentSpace
+/// pins, and only while a Worker is installed.
 ///
 /// Every field that could not be read says so rather than guessing, which is why
 /// this is a struct of optionals and not a string built at the call site.

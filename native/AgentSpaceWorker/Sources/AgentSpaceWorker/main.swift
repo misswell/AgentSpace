@@ -629,15 +629,27 @@ case .success(let arguments):
         exit(70)
     }
 
-    // The screensaver of an agent account is a lock waiting to happen: measured
-    // 2026-10-09, AgentUse's own loginwindow raised it after ~20 minutes of
-    // machine-wide input silence and the desktop was undrivable from then on,
-    // with no recovery that does not involve a password this product must never
-    // hold. So the account's screensaver is turned off for as long as its Worker
-    // is installed, and put back on the way out. That is the *idle* class only:
-    // a Screen Sharing disconnect lock is Apple locking the session directly,
-    // with no screensaver in the path, and is answered by the viewer's own
-    // sign-in entry rather than by a preference (`SessionIdleLock`).
+    // An agent desktop that locks is one an agent cannot drive and nobody can
+    // recover without the account's password, which this product must never hold.
+    // Two things raise a lock in it, and both are the account's own preferences:
+    // the screensaver's idle clock (measured 2026-10-09: AgentUse's loginwindow
+    // took a wallpaper assertion after ~20 minutes of machine-wide input silence
+    // and the desktop was undrivable from then on), and Apple's host-side
+    // `ScreensharingAgent` locking the session the moment its last viewer goes
+    // away. The second is not a screensaver at all — it asks loginwindow
+    // `SACScreenLockEnabled:`, which answers whether the account's
+    // `askForPasswordDelay` differs from `INT_MAX`, and calls
+    // `SACLockScreenImmediate:` when told yes. Measured 2026-10-10: with
+    // `idleTime=0` already installed, closing the Screen Sharing window locked the
+    // desktop 40 seconds after this Worker had begun waiting for `desktop.ready`.
+    // So while a Worker is installed, both of those keys are pinned to "never" for
+    // as long as it runs, and put back on the way out (`SessionIdleLock`).
+    //
+    // The price of that, said here because it is real: with the delay pinned, this
+    // account's lock screen stops demanding its password. It is that account's own
+    // setting, no other account is affected, and it is restored when the Worker
+    // stops or the account is detached. `askForPassword` is still never written
+    // (AGENTS.md §8).
     //
     // After `bind()`, so a worker that lost the race to serve this account never
     // edits a preference it will not restore. Skipped when the resolved root is

@@ -78,15 +78,29 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
    that user is **not** on the physical console: use the per-session
    `kCGSSessionOnConsoleKey` (`scutil`'s SessionInfo array), not the aggregate name.
 8. **The agent account's screensaver is AgentSpace's to manage; its password is
-   not.** While a Worker is installed it sets that account's own
-   `com.apple.screensaver`/`idleTime` to 0 — written by the Worker *as that user,
-   inside that session*, recorded first so it can be put back, and restored when the
-   Worker stops. Never write `askForPassword`, never clear a lock, and never add a
-   password path for one: a Screen Sharing viewer going away sends loginwindow an
-   explicit `SACLockScreenImmediate:` that no interval can prevent (validation
-   §376), so the recovery for that class stays a human authenticating through macOS
-   — which is why the desktop viewer's locked overlay carries its own
+   not.** While a Worker is installed it pins two of that account's own
+   `com.apple.screensaver` ByHost preferences — `idleTime` to 0 (never start the
+   screensaver) and `askForPasswordDelay` to 2147483647 (never require the password
+   after a lock) — written by the Worker *as that user, inside that session*,
+   recorded first and restored when the Worker stops. `idleTime` removes the idle
+   lock. The delay removes the disconnect lock, because
+   `-[SessionAgentCom SACScreenLockEnabled:]` answers that number against `INT_MAX`
+   and Apple's `ScreensharingAgent` only calls `SACLockScreenImmediate:` when it is
+   told 1 (validation §376, re-measured with `idleTime=0` in place on 2026-10-10:
+   closing the Screen Sharing window still locked the desktop 40 seconds after the
+   Worker had begun waiting for `desktop.ready`). **The cost is stated, not hidden:
+   for as long as a Worker is installed, that agent account's lock screen stops
+   demanding its password** — anyone who can drive that account's Screen Sharing
+   session is through it. The owner accepted that on 2026-10-10 in exchange for a
+   desktop that survives closing the window («关闭窗口不退出子账号桌面啊，否则我登录
+   解锁干什么?»); it is the account's *own* setting, no other account is affected,
+   and it is gone the moment the Worker stops or the account is disconnected.
+   `askForPassword` is never written, AgentSpace never clears a lock, and there is
+   no password argument, log, registry field, helper operation or agent RPC for one
+   anywhere in this product: the recovery path stays a human authenticating through
+   macOS, which is why the desktop viewer's locked overlay carries its own
    **Sign In or Unlock Agent** entry instead of sending the person to another window.
+   Never enable system Screen Sharing or broaden its user list silently.
 
 ## Vocabulary (old → new; both spellings work in code and interface)
 

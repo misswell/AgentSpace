@@ -1,6 +1,6 @@
 import Foundation
 
-/// What AgentSpace does to the agent account's own screensaver interval.
+/// What AgentSpace does to the agent account's own two lock preferences.
 ///
 /// An agent desktop is a real Aqua session, so macOS runs its normal idle
 /// sequence in it, and a locked desktop is one an agent cannot drive and nobody
@@ -17,19 +17,33 @@ import Foundation
 ///   the class this type prevents: setting the account's interval to "never"
 ///   removes the trigger, and it is the same lever System Settings → Lock Screen
 ///   → "Start Screen Saver when inactive" writes.
-/// - **disconnect** — Apple's host-side `ScreensharingAgent` calls
-///   `SACScreenLockEnabled:` (answers 1) and then `SACLockScreenImmediate:` when
-///   the last viewer goes away. No screensaver is involved: measured 2026-10-09,
-///   no `ScreenSaverEngine` exists anywhere in that path on macOS 27, so
-///   "launch screen saver" is loginwindow's own lock UI and an interval of 0
-///   changes nothing for it. The answer there is recovery rather than prevention
-///   — the desktop viewer's locked overlay offers sign-in again.
+/// - **disconnect** — Apple's host-side `ScreensharingAgent` asks
+///   `SACScreenLockEnabled:` and, when loginwindow answers 1, calls
+///   `SACLockScreenImmediate:` as the last viewer goes away. Measured 2026-10-10
+///   09:56:11 with `idleTime=0` already in place, so no screensaver is involved
+///   and the interval changes nothing for it — the inference that has been
+///   standing since 2026-10-09 is now observed rather than reasoned. The gate is
+///   one number: `-[SessionAgentCom SACScreenLockEnabled:]` answers
+///   `-[LWKeybagSupport calculatedPasswordDelayFromPrefs] != INT_MAX`, and
+///   loginwindow's own string on that path reads `Lock on, but int_max, setting
+///   to NO`. So this class *is* preventable, and the lever is the account's
+///   "require password after a lock" delay: at `INT_MAX` the answer is NO and no
+///   lock is ever requested.
 ///
 /// So: while a Worker is installed for an account, that account's screensaver is
-/// set to never. Restoring the previous value when the Worker stops is what keeps
-/// this from being a permanent change to an account AgentSpace no longer manages —
-/// and because `detach` stops the Worker first, disconnecting an account restores
-/// it without detach knowing about it.
+/// set to never *and* its password-required delay is set to never. Restoring the
+/// previous values when the Worker stops is what keeps this from being a
+/// permanent change to an account AgentSpace no longer manages — and because
+/// `detach` stops the Worker first, disconnecting an account restores it without
+/// detach knowing about it.
+///
+/// What the second key costs, said plainly: "never require the password again
+/// after a lock" is also "this account's lock screen stops demanding its
+/// password", for as long as its Worker is installed. That is the price of a
+/// desktop that survives closing the Screen Sharing window, and it is the
+/// owner's decision, recorded in AGENTS.md §8. `askForPassword` is still never
+/// written — it is not the key that gates the disconnect lock, and §8 keeps it
+/// outside AgentSpace regardless.
 ///
 /// Two measured constraints on the mechanism:
 ///
@@ -43,14 +57,45 @@ public enum SessionIdleLock {
     /// The value that means "never start the screensaver".
     public static let never = 0
 
-    /// The write that turns the account's screensaver off.
+    /// The value that means "never ask for the password again after a lock".
     ///
-    /// `unchanged` when the key already says never: a Worker that rewrites the
-    /// same value on every start would produce a preference write per launch,
-    /// and `unchanged` is also what makes the recorded original meaningful —
-    /// only a real write gets a record to undo.
-    public static func apply(current: Int?) -> ScreensaverWrite {
-        current == never ? .unchanged : .value(never)
+    /// `INT_MAX` rather than a large number: that is the sentinel loginwindow
+    /// itself installs when there is nothing to demand (a guest, a machine still
+    /// in Setup Assistant, an account with `askForPassword` off), and
+    /// `-[SessionAgentCom SACScreenLockEnabled:]` compares against it exactly —
+    /// `calculatedPasswordDelayFromPrefs != INT_MAX`. Any other value locks now
+    /// and asks later; only this one means the disconnect lock is never requested.
+    public static let passwordDelayNever = Int(Int32.max)
+
+    /// The writes a Worker makes to an account, in the order it makes them.
+    ///
+    /// One list rather than two call sites: the second key is the one with a
+    /// security cost, so a future reader of the *caller* has to be able to see
+    /// both at once.
+    public static let policy: [ManagedPreference] = [
+        ManagedPreference(key: "idleTime", never: never),
+        ManagedPreference(key: "askForPasswordDelay", never: passwordDelayNever),
+    ]
+
+    /// A `com.apple.screensaver` key AgentSpace pins, and the value that means
+    /// "this trigger never fires".
+    public struct ManagedPreference: Hashable, Sendable {
+        public let key: String
+        public let never: Int
+
+        public init(key: String, never: Int) {
+            self.key = key
+            self.never = never
+        }
+
+        /// The write that pins this key, or `unchanged` when it already says never.
+        ///
+        /// `unchanged` matters twice over: a Worker that rewrote the same value on
+        /// every start would produce a preference write per launch, and only a real
+        /// write gets a record to undo.
+        public func apply(current: Int?) -> ScreensaverWrite {
+            current == never ? .unchanged : .value(never)
+        }
     }
 
     /// The write that puts the account back the way it was found.

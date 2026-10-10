@@ -80,10 +80,14 @@ final class LockEvidenceTests: XCTestCase {
         XCTAssertFalse(evidence.line.contains("\n"), "os_log lines are greppable or they are useless")
     }
 
-    /// The rule this diagnostic must not quietly break: `askForPassword` is read
-    /// to explain a lock, and writing it would be AgentSpace deciding that an
-    /// account's lock screen no longer needs its password — the one thing
-    /// AGENTS.md §7 forbids around explicit login.
+    /// The rule this diagnostic must not quietly break: `askForPassword` is read to
+    /// explain a lock and never written, because it is the switch for *whether* a
+    /// lock demands a password at all. `askForPasswordDelay` is a different switch and
+    /// AgentSpace does write it (AGENTS.md §8): it decides *when* the account stops
+    /// demanding one, and pinning it at `INT_MAX` is what keeps Apple's
+    /// `ScreensharingAgent` from asking loginwindow to lock the desktop the moment a
+    /// viewer goes away. The distinction this test guards is that no write site may
+    /// name the first key, so the walk below is on the literal, not on the prefix.
     func testAskForPasswordIsOnlyEverRead() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // tests/Unit
@@ -97,7 +101,8 @@ final class LockEvidenceTests: XCTestCase {
             for case let file as URL in files where file.pathExtension == "swift" {
                 guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
                 for line in text.split(separator: "\n").map(String.init)
-                where line.contains("askForPassword") && !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
+                where line.contains(#""askForPassword""#)   // the delay key is a legal write; this one is not
+                    && !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
                     if line.contains("SetValue") || line.contains("removeValue") || line.contains("Synchronize") {
                         offenders.append("\(file.lastPathComponent): \(line.trimmingCharacters(in: .whitespaces))")
                     }
