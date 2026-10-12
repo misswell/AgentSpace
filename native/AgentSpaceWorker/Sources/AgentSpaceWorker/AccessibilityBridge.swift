@@ -18,6 +18,14 @@ enum AccessibilityBridge {
     static let maxNodes = 2000
     static let defaultTimeout: Float = 2.0
 
+    /// AX exposes a graph, including shared descendants and (in some apps)
+    /// links back to the application itself. Count and match each element once.
+    private struct Identity: Hashable {
+        let element: AXUIElement
+        static func == (lhs: Self, rhs: Self) -> Bool { CFEqual(lhs.element, rhs.element) }
+        func hash(into hasher: inout Hasher) { hasher.combine(CFHash(element)) }
+    }
+
     static func trusted() -> Bool { AXIsProcessTrusted() }
 
     static func requireTrust() throws {
@@ -147,6 +155,10 @@ enum AccessibilityBridge {
         }
         if let enabled = boolAttribute(element, kAXEnabledAttribute as String) { object["enabled"] = .bool(enabled) }
         if let focused = boolAttribute(element, kAXFocusedAttribute as String) { object["focused"] = .bool(focused) }
+        var valueSettable = DarwinBoolean(false)
+        if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &valueSettable) == .success {
+            object["valueSettable"] = .bool(valueSettable.boolValue)
+        }
         if let frame = frame(element) {
             object["frame"] = .obj([
                 "x": .double(Double(frame.origin.x)),
@@ -183,9 +195,13 @@ enum AccessibilityBridge {
         var queue: [(AXUIElement, Int)] = [(root, 0)]
         var nodes: [JSONValue] = []
         var visited = 0
+        var seen = Set<Identity>()
+        var cursor = 0
 
-        while !queue.isEmpty && nodes.count < nodeLimit {
-            let (element, depth) = queue.removeFirst()
+        while cursor < queue.count && nodes.count < nodeLimit {
+            let (element, depth) = queue[cursor]
+            cursor += 1
+            guard seen.insert(Identity(element: element)).inserted else { continue }
             visited += 1
             if visited > nodeLimit * 4 { break }
 
@@ -204,7 +220,7 @@ enum AccessibilityBridge {
             "pid": .int(Int(pid)),
             "app": .string(NSRunningApplication(processIdentifier: pid)?.localizedName ?? "unknown"),
             "nodeCount": .int(nodes.count),
-            "truncated": .bool(nodes.count >= nodeLimit),
+            "truncated": .bool(cursor < queue.count || visited > nodeLimit * 4),
             "nodes": .array(nodes),
         ])
     }
@@ -238,8 +254,12 @@ enum AccessibilityBridge {
         let root = appElement(pid: pid)
         var queue: [(AXUIElement, Int)] = [(root, 0)]
         var visited = 0
-        while !queue.isEmpty {
-            let (element, depth) = queue.removeFirst()
+        var seen = Set<Identity>()
+        var cursor = 0
+        while cursor < queue.count {
+            let (element, depth) = queue[cursor]
+            cursor += 1
+            guard seen.insert(Identity(element: element)).inserted else { continue }
             visited += 1
             if visited > nodeLimit * 4 { return nil }
 
@@ -293,6 +313,62 @@ enum AccessibilityBridge {
             "performed": .string(resolvedAction),
             "element": describe(element, depth: 0),
         ])
+    }
+
+    /// A scalar value write must name exactly one element. Broad selectors are
+    /// refused rather than silently changing the first of several text fields.
+    static func setValue(pid: pid_t, value: JSONValue, role: String?,
+                         titleContains: String?, identifier: String?) throws -> JSONValue {
+        let converted: CFTypeRef
+        switch value {
+        case .string(let text):
+            try SessionResource.validateText(text)
+            converted = text as CFString
+        case .bool(let flag): converted = NSNumber(value: flag)
+        case .int(let number): converted = NSNumber(value: number)
+        case .double(let number) where number.isFinite: converted = NSNumber(value: number)
+        default: throw AgentSpaceError(code: .badRequest, message: "AX value must be a string, boolean or finite number")
+        }
+        guard [role, titleContains, identifier].contains(where: { $0?.isEmpty == false }) else {
+            throw AgentSpaceError(code: .badRequest, message: "setValue requires a role, title or identifier selector")
+        }
+        var queue: [(AXUIElement, Int)] = [(appElement(pid: pid), 0)]
+        var cursor = 0
+        var seen = Set<Identity>()
+        var match: AXUIElement?
+        while cursor < queue.count {
+            let (element, depth) = queue[cursor]
+            cursor += 1
+            guard seen.insert(Identity(element: element)).inserted else { continue }
+            guard seen.count <= maxNodes * 4 else {
+                throw AgentSpaceError(code: .invalidAction, message: "AX search limit reached; narrow the target application or selector")
+            }
+            let haystack = [kAXTitleAttribute, kAXDescriptionAttribute, kAXValueAttribute]
+                .map { stringAttribute(element, $0 as String) ?? "" }.joined(separator: "\u{1}")
+            if (role == nil || stringAttribute(element, kAXRoleAttribute as String) == role),
+               (identifier == nil || stringAttribute(element, kAXIdentifierAttribute as String) == identifier),
+               (titleContains == nil || haystack.localizedCaseInsensitiveContains(titleContains!)) {
+                guard match == nil else {
+                    throw AgentSpaceError(code: .invalidAction, message: "multiple AX elements match; use a more specific identifier or title")
+                }
+                match = element
+            }
+            if depth < maxDepth { queue.append(contentsOf: children(element).map { ($0, depth + 1) }) }
+        }
+        guard let element = match else {
+            throw AgentSpaceError(code: .appNotFound, message: "no accessibility element matched the value selector")
+        }
+        var settable = DarwinBoolean(false)
+        guard AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success,
+              settable.boolValue else {
+            throw AgentSpaceError(code: .invalidAction, message: "the matched element does not support writing AXValue; use its actions or keyboard input")
+        }
+        let status = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, converted)
+        guard status == .success else {
+            throw AgentSpaceError(code: .invalidAction, message: "setting AXValue failed with \(status.rawValue)")
+        }
+        // Do not echo a potentially sensitive value in the acknowledgement.
+        return .obj(["written": .bool(true)])
     }
 
     /// Click an element via its accessibility frame center, using the same
@@ -421,9 +497,11 @@ enum AccessibilityBridge {
         var queue = [root]
         var found: [AXUIElement] = []
         var index = 0
+        var seen = Set<Identity>()
         while index < queue.count && found.count < maxNodes {
             let node = queue[index]
             index += 1
+            guard seen.insert(Identity(element: node)).inserted else { continue }
             found.append(node)
             queue.append(contentsOf: children(node))
         }

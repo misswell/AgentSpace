@@ -155,7 +155,7 @@ Params: `maxWidth` (positive int), `display` (1-based; 1 is the main display),
   "path": "/Library/Application Support/AgentSpace/Runtime/…/screenshots/shot-1789712260381.png",
   "width": 640, "height": 360,
   "pixelWidth": 3840, "pixelHeight": 2160,
-  "scale": 2
+  "scale": 2, "originX": 0, "originY": 0
 }
 ```
 
@@ -174,8 +174,8 @@ session nobody is looking at.
 **points**:
 
 ```
-pointX = pixelX / scale
-pointY = pixelY / scale
+pointX = originX + imagePixelX * pixelWidth / width / scale
+pointY = originY + imagePixelY * pixelHeight / height / scale
 ```
 
 Measured on macOS 27.0, `CGDisplayPixelsWide()` returns the *point* width on a
@@ -516,7 +516,7 @@ Params: `command`, `cwd`, `env` (object of strings), `timeoutMs` (1–3600000),
 
 `ax.snapshot`: params `pid` (defaults to frontmost), `maxDepth` (12),
 `maxNodes` (2000), `interestingOnly` (true). Returns a bounded breadth-first walk
-with role, title, description, value, identifier, enabled, focused, frame
+with role, title, description, value, identifier, enabled, focused, valueSettable, frame
 (including `centerX`/`centerY` for clicking) and the supported actions.
 
 `ax.perform`: params `pid`, `action` (`"AXPress"`, or `click: true` to find the
@@ -525,6 +525,40 @@ predicate `role`, `titleContains`, `identifier`.
 
 Bounded on both depth and node count: a browser accessibility tree is tens of
 thousands of nodes and walking one unbounded would wedge the worker.
+
+### `ax.elementAt` / `ax.setValue` (additive at version 1)
+
+`ax.elementAt`: finite `x`, `y` in desktop points; returns `pid`, `point`,
+`element`, and application name/bundle ID when available.
+
+`ax.setValue`: `pid` (default frontmost), selector `role`, `titleContains`,
+`identifier`, and `value` (string/finite number/boolean; strings up to 1 MiB).
+At least one nonempty selector must match **exactly one** element in the bounded
+walk. Multiple matches, a search exceeding the node budget or a non-writable
+AXValue return an error. Snapshot `valueSettable` helps choose the operation.
+Success is `{ "written": true }`, without echoing the value. Explicit AX PIDs
+must belong to an application registered in the Worker's own session.
+
+### `resource.open` / `clipboard.read` / `clipboard.write` (0.1.82+)
+
+All three recheck the background desktop session before any observation or
+mutation, including clipboard access. They remain authenticated methods at
+protocol version 1; an older Worker responds `METHOD_NOT_FOUND`.
+
+`resource.open`: `resource` is an absolute local path or a URL with scheme
+`http`, `https`, `file` or `x-apple.systempreferences`. Web URLs require a host
+and cannot embed credentials; file URLs must be local. The Worker opens it via
+NSWorkspace in its own session. This does not request or grant TCC permissions.
+Success is `{ "opened": true }`.
+
+`clipboard.read`: returns `{ "hasText": true, "text": "…" }` or
+`{ "hasText": false, "text": null }` for a non-text clipboard. Text over
+1 MiB fails rather than being silently truncated.
+
+`clipboard.write`: `text` (UTF-8, up to 1 MiB, empty permitted), replacing all
+existing formats with plain text. Returns `{ "written": true, "bytes": N }`.
+The CLI transports both clipboard writes and AX scalar writes on stdin; MCP
+error context and the acknowledgement contain no supplied text.
 
 ### `systemSettings.open`
 

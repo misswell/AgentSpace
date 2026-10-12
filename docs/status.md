@@ -4,7 +4,23 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-10 on `master`. Current public release: **0.1.81**.
+Last updated: 2026-10-12 on `master`. Current public release: **0.1.81**.
+
+0.1.82 candidate (§383, 2026-10-11): the MCP surface gains application
+and window discovery/control, named AX actions and unique scalar writes,
+resource opening, hover and the agent account's text clipboard. Both naming
+families are generated from the same schemas/callbacks. Screenshot point
+conversion now includes downscaling and display origins, and the display index
+is correctly 1-based. The service and production dependencies travel in the App;
+integration prefers its launcher instead of an unpublished npm package, and
+binary discovery uses Helpers rather than a case-insensitive GUI collision.
+**Worker + MCP delivery change**: update/reinstall the Worker as needed, rerun
+client integration, and restart that client. Node 18+ remains required. See
+`docs/MCP_SYSTEM_FEATURES.md` for coverage and human-only boundaries. Local source
+gates and the current-source agent-session GUI check pass (§383 rows 1225–1227);
+live scalar writes and window operations pass after the session’s AX recovers.
+Minimized windows restore through AXRaise, then need a fresh listed identity.
+Publishing is pending; 0.1.81 remains the public release.
 
 Published 0.1.81 (§382 rows 1207–1216, 2026-10-10): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.81), source [7ee8b54](https://github.com/misswell/AgentSpace/commit/7ee8b540d50883707e1ad1da12f0f49773654f58), [Actions 38057526887](https://github.com/misswell/AgentSpace/actions/runs/38057526887) all jobs passed; published 14:02:37Z, DMG 6,887,511 bytes with sha256 `cc3e1460ca1484f2c2f6688f335d6d7dd9452f6c5c1ea534c61a7cb2fb83d12c`, Apple **Accepted** for both `AgentSpace-app-notarize.zip` (`402d8e03-b01b-4d51-a110-12fb795cb61a`, 14:00:12Z) and `AgentSpace-0.1.81.dmg` (`e24be1eb-6222-4380-b343-5537226f96f5`, 14:01:23Z); the downloaded asset re-hashes to that digest and its mounted App is **0.1.81 (563)**, `codesign --verify --deep --strict` clean, `spctl -a -vvv -t install` → `accepted`, `source=Notarized Developer ID` (`Developer ID Application: Guofeng Liu (U8U443D7ZL)`), `stapler validate` → `The validate action worked!`. Runner layers 1–3 green (Swift 832 with 3 skipped, updater 19, MCP smoke) and the local run before it agreed (832/3, MCP 24/24, updater 19, smoke) — **and layer 4 answered 14/14 in the agent account's session this time** (`/tmp/as-382/AgentSpace.app` via `session-gui-verify.sh`), the same instrument that refused in §381: that session's accessibility has recovered. **What changed**: every delivered frame used to write `surfaceSize`/`lastError`/`streamNotice`, queue an arrival notice to the main queue, and (once per layout) rewrite the layer's `drawableSize` — 30–60 complete interface updates a second on the thread that also services the hand. Now a frame publishes only what an interface reads changed (`FrameSurfaceStatus` in Core, six deterministic unit tests), arrival notices are throttled to 4 Hz, the CPU fallback layer is retired once, a layout that changed nothing leaves the layer alone, and the pointer path remembers the panel's rate for a second. Measured with one test file on two trees, same agent and same live stream: **14 frames cost 48 interface publishes before the fix and 5 after** (the assertion fails on the pre-fix tree, 48 > 8), with a settled still desktop showing 25 frames and 0 publishes. A new log line — `viewer cost retinaDesktop: frames=29.3/s mainThreadUpdates=0.0/s layoutPasses=0.0/s sinceOpen received=71` — now puts frames, main-thread updates and layout passes side by side in the field. **What this round does not claim, stated rather than smoothed over**: the 92.4%-of-one-core window that started it published **zero** frames in its 13 s (whole-surface damage, a stream restart every ~5 s), so that number is not attributed to the per-frame path; the stall is recorded as its own lead (§382 row 1213), as is a `frame.requestFull` observation with its numbers and no cause. The console instrument was not run and the owner's own screen was not measured (§324). On this Mac `/Applications/AgentSpace.app` is **0.1.80 (561)** — this fix arrives with the next 「检查更新」. App-side only: no Worker, no helper, no protocol or registry change, no admin approval.
 

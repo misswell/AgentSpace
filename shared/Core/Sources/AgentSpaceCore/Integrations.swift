@@ -69,14 +69,17 @@ public enum Integrations {
     /// CLI — a different copy of the binary would be a different TCC identity, so
     /// permissions granted to one would not apply to the other.
     public static func config(for target: Target, binaryPath: String) -> String {
+        let launch = mcpLaunch(binaryPath: binaryPath)
+        let arguments = "[" + launch.args.map(quoted).joined(separator: ", ") + "]"
+        let commandArray = "[" + ([launch.command] + launch.args).map(quoted).joined(separator: ", ") + "]"
         switch target {
         case .claudeCode, .kimiCode, .generic:
             return """
             {
               "mcpServers": {
                 "agentspace": {
-                  "command": "npx",
-                  "args": ["-y", "@agentspace/mcp"],
+                  "command": \(quoted(launch.command)),
+                  "args": \(arguments),
                   "env": { "AGENTSPACE_BIN": \(quoted(binaryPath)) }
                 }
               }
@@ -88,8 +91,8 @@ public enum Integrations {
             // contain one.
             return """
             [mcp_servers.agentspace]
-            command = "npx"
-            args = ["-y", "@agentspace/mcp"]
+            command = \(quoted(launch.command))
+            args = \(arguments)
             env = { AGENTSPACE_BIN = \(quoted(binaryPath)) }
             """
         case .openCode, .mimoCode:
@@ -98,7 +101,7 @@ public enum Integrations {
               "mcp": {
                 "agentspace": {
                   "type": "local",
-                  "command": ["npx", "-y", "@agentspace/mcp"],
+                  "command": \(commandArray),
                   "environment": { "AGENTSPACE_BIN": \(quoted(binaryPath)) },
                   "enabled": true
                 }
@@ -116,8 +119,8 @@ public enum Integrations {
                 "servers": {
                   "agentspace": {
                     "type": "stdio",
-                    "command": "npx",
-                    "args": ["-y", "@agentspace/mcp"],
+                    "command": \(quoted(launch.command)),
+                    "args": \(arguments),
                     "env": { "AGENTSPACE_BIN": \(quoted(binaryPath)) },
                     "enabled": true
                   }
@@ -284,9 +287,10 @@ public enum Integrations {
             throw InstallError.unreadable(path: "(config)", "not a JSON object")
         }
 
+        let launch = mcpLaunch(binaryPath: binaryPath)
         let entry: [String: Any] = [
-            "command": "npx",
-            "args": ["-y", "@agentspace/mcp"],
+            "command": launch.command,
+            "args": launch.args,
             "env": ["AGENTSPACE_BIN": binaryPath],
         ]
 
@@ -301,7 +305,7 @@ public enum Integrations {
             // use an argv array.
             servers["agentspace"] = [
                 "type": "local",
-                "command": ["npx", "-y", "@agentspace/mcp"],
+                "command": [launch.command] + launch.args,
                 "environment": ["AGENTSPACE_BIN": binaryPath],
                 "enabled": true,
             ]
@@ -313,8 +317,8 @@ public enum Integrations {
             var servers = mcp["servers"] as? [String: Any] ?? [:]
             servers["agentspace"] = [
                 "type": "stdio",
-                "command": "npx",
-                "args": ["-y", "@agentspace/mcp"],
+                "command": launch.command,
+                "args": launch.args,
                 "env": ["AGENTSPACE_BIN": binaryPath],
                 "enabled": true,
             ]
@@ -339,6 +343,15 @@ public enum Integrations {
             let ours = config(for: .codex, binaryPath: binaryPath)
             // Identical is fine: re-running the install must be idempotent.
             if current.contains(ours) { return Data(current.utf8) }
+            let legacy = """
+            [mcp_servers.agentspace]
+            command = "npx"
+            args = ["-y", "@agentspace/mcp"]
+            env = { AGENTSPACE_BIN = \(quoted(binaryPath)) }
+            """
+            if current.contains(legacy) {
+                return Data(current.replacingOccurrences(of: legacy, with: ours).utf8)
+            }
             throw InstallError.conflictingEntry
         }
         var updated = current
@@ -375,6 +388,26 @@ public enum Integrations {
             directory = directory.deletingLastPathComponent()
         }
         return nil
+    }
+
+    /// Prefer the MCP service shipped with this exact install. The legacy npm
+    /// spelling remains for callers pointing at an older, external CLI.
+    public static func mcpLaunch(binaryPath: String) -> (command: String, args: [String]) {
+        let executable = URL(fileURLWithPath: binaryPath)
+        if let bundle = containingAppBundle(of: executable) {
+            let launcher = bundle.appendingPathComponent("Contents/Resources/agentspace-mcp/launch.sh").path
+            if FileManager.default.isExecutableFile(atPath: launcher) { return (launcher, []) }
+        }
+        var directory = executable.deletingLastPathComponent()
+        for _ in 0..<8 {
+            let launcher = directory.appendingPathComponent("packages/agentspace-mcp/launch.sh").path
+            let entry = directory.appendingPathComponent("packages/agentspace-mcp/dist/index.js").path
+            if FileManager.default.isExecutableFile(atPath: launcher), FileManager.default.fileExists(atPath: entry) {
+                return (launcher, [])
+            }
+            directory = directory.deletingLastPathComponent()
+        }
+        return ("npx", ["-y", "@agentspace/mcp"])
     }
 
     private static func quoted(_ text: String) -> String {

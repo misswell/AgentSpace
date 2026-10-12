@@ -9,7 +9,8 @@ keyboard and focus are never touched.
 
 ## Before you start
 
-- AgentSpace **0.1.59 or newer** installed (`AgentSpace.app` → 检查更新).
+- AgentSpace **0.1.82 or newer** installed (`AgentSpace.app` → 检查更新).
+- Node.js **18 or newer** (22 recommended) for the MCP client.
 - At least one agent account connected and its session running — the app's
   account page shows the status cards, or run `agentspace accounts`.
 
@@ -38,9 +39,13 @@ scripting or any other MCP client).
 `agentspace` entry into that file and nothing else; everything already in the
 file is preserved (including MiMo's `$schema` or ZCode's `plugins`). If the
 file existed, its previous contents are saved next to it as
-`<file>.agentspace.bak` first. If the file already contains a different
-`agentspace` entry, the command refuses rather than overwriting your setup.
-The entry pins the MCP server to *this* install's CLI via `AGENTSPACE_BIN` —
+`<file>.agentspace.bak` first. A custom Codex TOML entry is refused rather than
+overwritten; a precisely matching old generated `npx` entry can migrate to the
+bundled service. JSON clients retain their one-key merge behavior.
+From 0.1.82 the configuration starts the server shipped with this App, without
+fetching `@agentspace/mcp` from npm. Rerun integration after updating from an
+older version and restart the client to reload its tools. The entry pins the
+MCP server to *this* install's CLI via `AGENTSPACE_BIN` —
 that binding is what carries the macOS permissions; do not repoint it at
 another copy.
 
@@ -68,7 +73,10 @@ Restart Codex (or whichever client you configured) and ask it something like
 「调用 agentspace_status」/ "call agentspace_status". If it answers, the bridge
 is live: the agent now has the `agentspace_*` tools — `exec`, `launch`,
 `screenshot`, `click`, `type`, `key`, `scroll`, `drag`, `ax_snapshot`,
-`apps`, and friends.
+`apps`, and friends. Every tool also has an identical `agent_*` name.
+Ask for `agent_capabilities` to see application/window management, AX actions,
+value writes, resource opening and clipboard workflows. See
+[system feature coverage](MCP_SYSTEM_FEATURES.md) for the full map.
 
 ## Tell it to work — and give it the rules
 
@@ -107,8 +115,10 @@ safety design working, not a bug.
 
 - **`command not found`** — see the alias above.
 - **The client starts but no `agentspace_*` tools appear** — make sure you
-  restarted the client after the install, and that `npx` works in a terminal
-  (`node` ≥ 18). The MCP server runs via `npx -y @agentspace/mcp`.
+  restarted the client after the install, and that Node.js ≥ 18 is available.
+  The bundled launcher checks PATH, Homebrew and Volta, or uses the absolute
+  `AGENTSPACE_MCP_NODE` path. `@agentspace/mcp` has no public npm release;
+  replace an old npx entry by rerunning integration with the updated App.
 - **Tools error with a session-unavailable code** — wake the account in the
   app. If it persists, `agentspace doctor` diagnoses the machine, and
   `agentspace diagnostics` exports a redacted bundle.

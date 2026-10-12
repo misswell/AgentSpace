@@ -254,7 +254,8 @@ enum AppControl {
 
     static func runningApp(matching reference: String) -> NSRunningApplication? {
         // Exact pid first (the CLI and MCP pass pids around).
-        if let pid = pid_t(reference), let app = NSRunningApplication(processIdentifier: pid) {
+        if let pid = pid_t(reference),
+           let app = NSWorkspace.shared.runningApplications.first(where: { $0.processIdentifier == pid }) {
             return app
         }
         if reference.contains("."), let app = NSRunningApplication

@@ -28,6 +28,10 @@ public enum Method {
     public static let axWindows = "ax.windows"
     public static let axElementAt = "ax.elementAt"
     public static let axPerform = "ax.perform"
+    public static let axSetValue = "ax.setValue"
+    public static let openResource = "resource.open"
+    public static let clipboardRead = "clipboard.read"
+    public static let clipboardWrite = "clipboard.write"
     public static let shutdown = "shutdown"
     /// Open one of the privacy panes in the connected account's own Aqua
     /// session. The worker is the only process that can launch the URL there;

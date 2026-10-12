@@ -84,9 +84,19 @@ try {
     "agentspace_key", "agentspace_scroll", "agentspace_drag",
     "agentspace_launch", "agentspace_quit", "agentspace_apps",
     "agentspace_exec", "agentspace_ax_snapshot",
+    "agentspace_capabilities", "agent_capabilities",
+    "agent_apps_available", "agent_activate", "agent_move",
+    "agent_ax_frontmost", "agent_ax_windows", "agent_ax_element_at",
+    "agent_ax_perform", "agent_ax_set_value", "agent_windows",
+    "agent_window_action", "agent_open_resource",
+    "agent_clipboard_read", "agent_clipboard_write",
   ]) {
     check(`tool ${required} exists`, names.includes(required));
   }
+  check("both MCP prefixes expose all 29 pairs", names.length === 58
+    && names.every((name) => name.startsWith("agent_")
+      ? names.includes(`agentspace_${name.slice("agent_".length)}`)
+      : true));
   check("no tool can create a Space", !names.some((n) => /create|delete|grant|tcc/i.test(n)));
   check("every tool has a description", tools.every((t) => (t.description ?? "").length > 20));
   check("every tool has an input schema", tools.every((t) => t.inputSchema?.type === "object"));
@@ -116,6 +126,26 @@ try {
       text.slice(0, 200));
     check(`${name} says nothing about running locally`,
       !/falling back|running locally|your own session instead/i.test(text));
+  }
+
+  console.log("== new desktop observation/action methods — console must refuse before access =");
+  for (const [name, callArgs] of [
+    ["agent_apps_available", { space: "Demo" }],
+    ["agent_activate", { space: "Demo", app: "org.agentspace.smoke.missing" }],
+    ["agent_move", { space: "Demo", x: 1, y: 1 }],
+    ["agent_ax_frontmost", { space: "Demo" }],
+    ["agent_ax_windows", { space: "Demo", pid: 2_147_483_647 }],
+    ["agent_ax_element_at", { space: "Demo", x: 1, y: 1 }],
+    ["agent_ax_perform", { space: "Demo", pid: 2_147_483_647, identifier: "agentspace-smoke-missing", action: "AXPress" }],
+    ["agent_ax_set_value", { space: "Demo", pid: 2_147_483_647, identifier: "agentspace-smoke-missing", value: "" }],
+    ["agent_windows", { space: "Demo" }],
+    ["agent_window_action", { space: "Demo", action: "close", windowId: 4_294_967_295, pid: 2_147_483_647, generation: Number.MAX_SAFE_INTEGER }],
+    ["agent_open_resource", { space: "Demo", resource: "file:///tmp/agentspace-mcp-smoke-missing-resource" }],
+  ]) {
+    const reply = await request("tools/call", { name, arguments: callArgs });
+    const text = reply.result?.content?.map((c) => c.text ?? "").join("\n") ?? "";
+    const isError = reply.result?.isError === true || Boolean(reply.error);
+    check(`${name} refuses the physical console`, isError && /SESSION_IS_CONSOLE/.test(text));
   }
 
   console.log("== agentspace_scroll with half an anchor — refused by the builder, not the worker ==");

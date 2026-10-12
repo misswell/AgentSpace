@@ -33,7 +33,7 @@ export interface ClickOptions {
 export interface ScreenshotOptions {
   /** Downscale the PNG so its width is at most this many pixels. */
   maxWidth?: number | undefined;
-  /** 0-based display index to capture. */
+  /** 1-based display index to capture (1 is the main display). */
   display?: number | undefined;
   /** Explicit output path for the PNG. */
   out?: string | undefined;
@@ -337,4 +337,69 @@ export function buildAxSnapshotArgs(space: string, options: AxSnapshotOptions = 
   }
   args.push("--json");
   return args;
+}
+
+export function buildActivateArgs(space: string, app: string): string[] {
+  return withFreeText(["activate", requireSpace(space)], requireText(app, "app"), []);
+}
+
+export function buildMoveArgs(space: string, x: number, y: number): string[] {
+  return ["move", requireSpace(space), String(requireNumber(x, "x")), String(requireNumber(y, "y")), "--json"];
+}
+
+export function buildAppsAvailableArgs(space: string, options: { query?: string | undefined; limit?: number | undefined; all?: boolean | undefined } = {}): string[] {
+  const args = ["apps", requireSpace(space), "--available"];
+  if (options.query !== undefined) args.push("--query", options.query);
+  if (options.limit !== undefined) args.push("--limit", String(requireInteger(options.limit, "limit")));
+  if (options.all) args.push("--all");
+  return [...args, "--json"];
+}
+
+export interface AxSelector {
+  pid?: number | undefined;
+  role?: string | undefined;
+  title?: string | undefined;
+  identifier?: string | undefined;
+}
+
+export function buildAxArgs(space: string, command: "frontmost" | "windows" | "element-at" | "perform" | "set-value",
+                            options: AxSelector & { x?: number | undefined; y?: number | undefined; action?: string | undefined; click?: boolean | undefined } = {}): string[] {
+  const args = ["ax", requireSpace(space), options.click ? "click" : command];
+  if (command === "element-at") args.push(String(requireNumber(options.x, "x")), String(requireNumber(options.y, "y")));
+  if (options.pid !== undefined) args.push("--pid", String(requireInteger(options.pid, "pid")));
+  for (const key of ["role", "title", "identifier"] as const) {
+    if (options[key] !== undefined) args.push(`--${key}`, requireText(options[key], key));
+  }
+  if (command === "perform" || command === "set-value") {
+    if (!options.role && !options.title && !options.identifier) throw new ArgError("an AX action needs a role, title or identifier selector");
+    if (command === "set-value") args.push("--file", "-");
+    else if (!options.click) args.push("--action", requireText(options.action, "action"));
+    else if (options.action !== undefined) throw new ArgError("choose action or click, not both");
+  }
+  return [...args, "--json"];
+}
+
+export interface WindowTarget { windowId: number; pid: number; generation: number }
+export interface WindowFrame { x: number; y: number; width: number; height: number }
+
+export function buildWindowArgs(space: string, action: "list" | "activate" | "close" | "minimize" | "set-frame",
+                                target?: WindowTarget, frame?: WindowFrame): string[] {
+  const args = ["window", requireSpace(space), action];
+  if (action !== "list") {
+    if (!target) throw new ArgError("window action needs windowId, pid and generation from windows");
+    args.push(...["windowId", "pid", "generation"].map(key => String(requireInteger(target[key as keyof WindowTarget], key))));
+    if (action === "set-frame") {
+      if (!frame || frame.width <= 40 || frame.height <= 40) throw new ArgError("set-frame needs x, y and width/height greater than 40 points");
+      args.push(...["x", "y", "width", "height"].map(key => String(requireNumber(frame[key as keyof WindowFrame], key))));
+    } else if (frame !== undefined) throw new ArgError("frame is only used with set-frame");
+  }
+  return [...args, "--json"];
+}
+
+export function buildOpenResourceArgs(space: string, resource: string): string[] {
+  return withFreeText(["open-resource", requireSpace(space)], requireText(resource, "resource"), []);
+}
+
+export function buildClipboardArgs(space: string, action: "read" | "write"): string[] {
+  return ["clipboard", requireSpace(space), action, ...(action === "write" ? ["--file", "-"] : []), "--json"];
 }

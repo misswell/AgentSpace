@@ -3,7 +3,7 @@
  *
  * Discovery order (first match wins):
  *   1. the `AGENTSPACE_BIN` environment variable,
- *   2. `/Applications/AgentSpace.app/Contents/MacOS/agentspace`,
+ *   2. `/Applications/AgentSpace.app/Contents/Helpers/agentspace`,
  *   3. each directory on `PATH`.
  *
  * Discovery is deliberately *lazy*: it happens per tool call, not at server
@@ -20,7 +20,7 @@ import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, join } from "node:path";
 
 /** The binary shipped inside the app bundle. */
-export const BUNDLED_BINARY = "/Applications/AgentSpace.app/Contents/MacOS/agentspace";
+export const BUNDLED_BINARY = "/Applications/AgentSpace.app/Contents/Helpers/agentspace";
 
 /** Name of the executable looked for on `PATH`. */
 export const BINARY_NAME = "agentspace";

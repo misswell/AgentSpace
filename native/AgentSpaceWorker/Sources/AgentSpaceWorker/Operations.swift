@@ -53,6 +53,10 @@ struct Operations {
             case Method.axWindows: return .success(try axWindows(params: params))
             case Method.axElementAt: return .success(try axElementAt(params: params))
             case Method.axPerform: return .success(try axPerform(params: params))
+            case Method.axSetValue: return .success(try axSetValue(params: params))
+            case Method.openResource: return .success(try openResource(params: params))
+            case Method.clipboardRead: return .success(try clipboardRead())
+            case Method.clipboardWrite: return .success(try clipboardWrite(params: params))
             case Method.openSystemSettings: return .success(try openSystemSettings(params: params))
             case Method.shutdown: return .success(try shutdown(params: params))
             case Method.previewStart: return .success(try previewStart(params: params))
@@ -100,7 +104,7 @@ struct Operations {
     /// desktop). So a console-session worker answers only what cannot reveal
     /// anyone's desktop: hello, status, exec and shutdown. Everything else
     /// refuses with SESSION_IS_CONSOLE.
-    private func requireDesktopSession(_ what: String) throws {
+    func requireDesktopSession(_ what: String) throws {
         let verdict = context.sessionVerdict()
         guard verdict == .usable else {
             Log.input.error("refused \(what): desktop session is not usable")
@@ -653,8 +657,12 @@ struct Operations {
 
     // MARK: - accessibility
 
-    private func targetPid(_ params: JSONValue) -> pid_t? {
-        if let pid = params["pid"]?.intValue { return pid_t(pid) }
+    func targetPid(_ params: JSONValue) -> pid_t? {
+        if let raw = params["pid"]?.intValue {
+            guard let pid = pid_t(exactly: raw), pid > 0,
+                  NSWorkspace.shared.runningApplications.contains(where: { $0.processIdentifier == pid }) else { return nil }
+            return pid
+        }
         return AppControl.frontmostPID()
     }
 

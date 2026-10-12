@@ -2,7 +2,7 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that lets an
 agent drive a **background macOS desktop** through
-[AgentSpace](https://github.com/agentspace) — without touching the human's own
+[AgentSpace](https://github.com/misswell/AgentSpace) — without touching the human's own
 screen.
 
 AgentSpace runs agents inside isolated macOS user sessions ("Spaces"), each with
@@ -19,7 +19,9 @@ the same core API the AgentSpace GUI uses.
 
 ## Install
 
-Requires **Node >= 18** and a working `agentspace` binary.
+Requires **Node >= 18** and a working `agentspace` binary. Installed-app users
+should use AgentSpace 0.1.82+ → Install MCP Into… (or `agentspace integrate`);
+the app already carries this server and its dependencies. For source development:
 
 ```bash
 # from this directory
@@ -30,9 +32,7 @@ npm run build
 Run it over stdio:
 
 ```bash
-node dist/index.js
-# or, once published:
-npx @agentspace/mcp
+./launch.sh
 ```
 
 ### Client configuration
@@ -41,11 +41,11 @@ npx @agentspace/mcp
 {
   "mcpServers": {
     "agentspace": {
-      "command": "npx",
-      "args": ["-y", "@agentspace/mcp"],
+      "command": "/Applications/AgentSpace.app/Contents/Resources/agentspace-mcp/launch.sh",
+      "args": [],
       "env": {
-        // optional — see "Binary discovery" below
-        "AGENTSPACE_BIN": "/Applications/AgentSpace.app/Contents/MacOS/agentspace"
+        // pins this service to this install — see "Binary discovery" below
+        "AGENTSPACE_BIN": "/Applications/AgentSpace.app/Contents/Helpers/agentspace"
       }
     }
   }
@@ -58,8 +58,9 @@ Pointing at a locally built copy instead:
 {
   "mcpServers": {
     "agentspace": {
-      "command": "node",
-      "args": ["/absolute/path/to/packages/agentspace-mcp/dist/index.js"]
+      "command": "/absolute/path/to/packages/agentspace-mcp/launch.sh",
+      "args": [],
+      "env": { "AGENTSPACE_BIN": "/absolute/path/to/.build/debug/agentspace" }
     }
   }
 }
@@ -72,7 +73,7 @@ Pointing at a locally built copy instead:
 The server looks for the `agentspace` CLI **in this order**:
 
 1. the `AGENTSPACE_BIN` environment variable,
-2. `/Applications/AgentSpace.app/Contents/MacOS/agentspace`,
+2. `/Applications/AgentSpace.app/Contents/Helpers/agentspace`,
 3. each directory on `PATH`.
 
 If `AGENTSPACE_BIN` is set but does not point at an executable file, the server
@@ -92,14 +93,18 @@ because the CLI is missing.
 | --- | --- |
 | `AGENTSPACE_BIN` | Absolute path to the `agentspace` CLI. Highest-priority discovery source. |
 | `AGENTSPACE_ROOT` | Passed through to the CLI unchanged. Use it for alternate installations and testing. |
+| `AGENTSPACE_MCP_NODE` | Optional absolute Node.js executable for the launcher; must be 18+. |
 | `AGENTSPACE_MCP_TIMEOUT_MS` | Per-call timeout in milliseconds. Default `120000` (120s). Non-positive or unparsable values fall back to the default; a call is always bounded. |
 
 ---
 
 ## Tools
 
-All 14 tools are prefixed `agentspace_`. Coordinates are always **display
-points**, never screenshot pixels — see "Points vs pixels" below.
+Every tool has identical `agent_*` and `agentspace_*` names, generated from the
+same schema and callback. Prefer `agent_*` in new work; existing configurations
+keep working. `agent_capabilities` explains the API and its boundaries;
+`agent_status` reports a live account. Coordinates are **display points**.
+See [system feature coverage](../../docs/MCP_SYSTEM_FEATURES.md) for workflows.
 
 ### Read-only
 
@@ -125,6 +130,28 @@ points**, never screenshot pixels — see "Points vs pixels" below.
 | `agentspace_quit` | Quit an app inside the Space (graceful, or `force`). |
 | `agentspace_exec` | Run a shell command **as the Space's user, inside the Space**. Returns stdout, stderr, exitCode and duration. |
 
+### Additional system operations
+
+Use either prefix with these suffixes:
+
+| Suffix | What it does |
+| --- | --- |
+| `capabilities` | API guide, permission requirements, upgrade hints and human-only boundaries; no Worker required. |
+| `apps_available` | Installed app discovery by query, including paths and bundle IDs; `all` includes background agents. |
+| `activate`, `move` | Activate a running application or hover without clicking. |
+| `ax_frontmost`, `ax_windows`, `ax_element_at` | Focused control, app windows or the control under a desktop point. |
+| `ax_perform` | Supported AX actions or a coordinate click, selected by role/title/identifier. |
+| `ax_set_value` | Write a string, number or boolean to exactly one writable matching control; ambiguous targets fail. |
+| `windows`, `window_action` | Discover window identities; activate, close, minimize, move and resize with stale-identity checks. |
+| `open_resource` | Open a webpage, local file/directory or System Settings URL in the agent session. |
+| `clipboard_read`, `clipboard_write` | Read/replace the account's text clipboard, up to 1 MiB; empty text clears it. |
+| `open_desktop` | Open the human-facing viewer when the human requests it. |
+
+`ax_set_value`, `open_resource` and the clipboard tools require Worker 0.1.82+.
+On `METHOD_NOT_FOUND`, update/reinstall the Worker through the AgentSpace GUI.
+No handler runs a local substitute. Value and clipboard writes travel through
+CLI stdin rather than command-line arguments and are not echoed in acknowledgements.
+
 ### The `agentspace_input` batch
 
 ```json
@@ -132,7 +159,7 @@ points**, never screenshot pixels — see "Points vs pixels" below.
   {"type": "move", "x": 500, "y": 300},
   {"type": "click", "x": 500, "y": 300, "button": "left", "count": 1, "modifiers": ["cmd"]},
   {"type": "drag", "fromX": 1, "fromY": 1, "toX": 50, "toY": 50, "button": "left"},
-  {"type": "scroll", "dx": 0, "dy": -500},
+  {"type": "scroll", "dx": 0, "dy": -500, "x": 500, "y": 300},
   {"type": "type", "text": "hello"},
   {"type": "key", "key": "cmd+l"},
   {"type": "key", "keys": ["cmd", "enter"]},
@@ -165,18 +192,18 @@ surface instructions will show it to the model automatically.
 
 ### Points vs pixels
 
-Input coordinates are **display points**, not screenshot pixels:
+Input coordinates are **display points**. For a returned PNG pixel `(px, py)`:
 
 ```
-points = pixels / scale
-pixels = points * scale
+x = originX + px * pixelWidth / width / scale
+y = originY + py * pixelHeight / height / scale
 ```
 
-A feature at pixel `(px, py)` in a screenshot with `scale = 2` is at point
-`(px / 2, py / 2)`. Passing pixel coordinates is the most common mistake and it
-silently clicks the wrong thing, so `agentspace_screenshot` always reports
-`scale`, `width`/`height` (the PNG actually written) and
-`pixelWidth`/`pixelHeight` (the full framebuffer before any downscale).
+The result prints numerical factors for that exact image, including downscaling
+and secondary-display origins. A 3840×2160 framebuffer at scale 2 returned as
+1280×720 uses **1.5 points per image pixel**, not 0.5. Without downscaling and
+with origin (0, 0), the formula reduces to pixels / scale. Display numbers are
+**1-based**, as in the CLI and Worker.
 
 ### If the agent desktop is on the physical console
 
@@ -192,12 +219,12 @@ input resumes. Relay the error's `fix`; do not retry in a loop.
 
 There is **deliberately no tool** for:
 
-- **creating or deleting a Space** — that makes or removes a macOS user, and
+- **connecting or disconnecting an existing account** — a person manages attachment in AgentSpace, and
 - **granting Accessibility or Screen Recording (TCC)** — that is a
   privacy-permission change in the agent user's session.
 
-Both go through AgentSpace's privileged helper and the **AgentSpace GUI**. A
-human must do them. If a task seems to need one of these, stop and ask the human
+AgentSpace never creates or deletes macOS users. Account attachment uses its typed
+helper through the GUI; privacy grants are made by a human through macOS. If a task seems to need one of these, stop and ask the human
 — that is a design decision, not a missing feature. Do not work around it by
 shelling out to `sudo`, `dscl` or `tccutil`.
 
@@ -259,3 +286,19 @@ the rejection of missing or malformed required arguments.
 | `src/cli.ts` | `spawn` wrapper with timeout and buffered capture. |
 | `src/envelope.ts` | JSON parsing, failure-envelope recognition, error formatting. |
 | `test/args.test.mjs` | `node --test` tests for the arg builders. |
+
+## Installed-app delivery
+
+From 0.1.82 the App includes the MCP server and production dependencies at
+`Contents/Resources/agentspace-mcp`. `agentspace integrate <client> --install`
+(or the GUI integration action) prefers that install's `launch.sh`; a source
+checkout uses its own launcher after `npm ci && npm run build`. Restart the MCP
+client to reload the tool list. The launcher requires Node.js 18+ (22 recommended),
+checks PATH, Homebrew and Volta installations, or accepts an explicit absolute
+`AGENTSPACE_MCP_NODE` executable. It never downloads a package at connection time.
+
+The old `npx @agentspace/mcp` spelling is retained only for configurations pointing
+at an external/older CLI with no service alongside it. This project has not
+published that npm package; for a working setup use the bundled launcher or a
+built source checkout. A known generated Codex TOML entry upgrades in place while
+other/custom entries retain the existing refusal and backup behavior.

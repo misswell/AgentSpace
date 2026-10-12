@@ -85,6 +85,22 @@ for lproj in apps/AgentSpace/Resources/*.lproj; do
   cp -R "$lproj" "$APP/Contents/Resources/"
 done
 
+# The generated MCP configuration must work for DMG users as well as a source
+# checkout. @agentspace/mcp has no public npm release: ship the exact service
+# and production dependencies that this release gates, without requiring a
+# package download when a client connects. Node remains a client prerequisite.
+echo "== bundling MCP service =="
+npm ci --prefix packages/agentspace-mcp --ignore-scripts --silent
+npm run build --prefix packages/agentspace-mcp
+MCP_DEST="$APP/Contents/Resources/agentspace-mcp"
+mkdir -p "$MCP_DEST"
+cp packages/agentspace-mcp/package.json packages/agentspace-mcp/package-lock.json "$MCP_DEST/"
+cp packages/agentspace-mcp/launch.sh "$MCP_DEST/launch.sh"
+chmod 755 "$MCP_DEST/launch.sh"
+cp -R packages/agentspace-mcp/dist "$MCP_DEST/dist"
+npm ci --prefix "$MCP_DEST" --omit=dev --ignore-scripts --silent
+rm "$MCP_DEST/package-lock.json"
+
 # The plist and the client must agree about the Mach service name, or the app
 # times out with no error to explain why. Asserted rather than assumed.
 PLIST="$APP/Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist"

@@ -21,6 +21,8 @@ enum ScreenCapture {
         var pixelWidth: Int
         var pixelHeight: Int
         var scale: Int
+        var originX: Double
+        var originY: Double
 
         var json: JSONValue {
             .obj([
@@ -30,6 +32,8 @@ enum ScreenCapture {
                 "pixelWidth": .int(pixelWidth),
                 "pixelHeight": .int(pixelHeight),
                 "scale": .int(scale),
+                "originX": .double(originX),
+                "originY": .double(originY),
             ])
         }
     }
@@ -97,8 +101,11 @@ enum ScreenCapture {
         if !directory.isEmpty {
             try? fm.createDirectory(atPath: directory, withIntermediateDirectories: true)
         }
+        let displays = viewerDisplays()
+        if let display, display < 1 || !displays.indices.contains(display - 1) {
+            throw AgentSpaceError(code: .badRequest, message: "display index is outside the session's available displays (1-based)")
+        }
         try? fm.removeItem(atPath: destination)
-
         var arguments = ["-x", "-t", "png"]
         if let display {
             // `-D` is 1-based; the protocol's `display` is 1-based too, which is
@@ -127,9 +134,11 @@ enum ScreenCapture {
         // `-D` can capture a second Retina display. Report *that* display's
         // backing store and scale, not the main display's 1× mode.
         let geometry = display.flatMap { index in
-            let displays = viewerDisplays()
             return displays.indices.contains(index - 1) ? displays[index - 1].geometry : nil
         } ?? mainDisplayGeometry()
+        let origin = display.map { index in
+            CGPoint(x: displays[index - 1].originX, y: displays[index - 1].originY)
+        } ?? CGDisplayBounds(CGMainDisplayID()).origin
         var width = geometry.pixelWidth
         var height = geometry.pixelHeight
         if let header = pngHeader(path: destination) {
@@ -156,7 +165,8 @@ enum ScreenCapture {
             height: height,
             pixelWidth: geometry.pixelWidth,
             pixelHeight: geometry.pixelHeight,
-            scale: geometry.scale)
+            scale: geometry.scale,
+            originX: origin.x, originY: origin.y)
     }
 
     /// Read width/height straight out of the PNG IHDR. Cheaper and more honest

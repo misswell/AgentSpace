@@ -11,7 +11,7 @@ import AgentSpaceCore
 // print why and stop. There is no code path here that runs a GUI command
 // locally "because the background session was unavailable".
 
-let cliVersion = "0.1.81"
+let cliVersion = "0.1.82"
 
 // MARK: - Argument parsing
 
@@ -281,6 +281,9 @@ func usage() -> String {
       ax <account> snapshot           Accessibility tree of the frontmost app
       ax <account> frontmost          Frontmost app and focused element
       ax <account> windows            Windows of the frontmost app
+      ax <account> element-at X Y     Inspect the control under a desktop point
+      window <account> list           Window identities and geometry
+      clipboard <account> read        Read this account's text clipboard
 
     ACT
       move <account> X Y              Move the pointer (points, not pixels)
@@ -292,6 +295,14 @@ func usage() -> String {
       input <account> --file F | -    Submit a batch of actions as JSON
       launch <account> APP            Launch an app in the agent session
       activate <account> APP          Bring an app to the front
+      open-resource <account> URL|PATH Open a webpage, local file or settings pane
+      clipboard <account> write --file -
+                                      Replace the agent clipboard from stdin
+      ax <account> perform            Control by --role/--title/--identifier
+                                      [--pid N] --action AXPress (or ax click)
+      ax <account> set-value --file - Write a JSON scalar to a unique AX selector
+      window <account> activate|close|minimize|set-frame ID PID GENERATION
+                                      set-frame also takes X Y WIDTH HEIGHT
       quit <account> APP              Quit  [--force]
       exec <account> COMMAND          Run a shell command as the agent user
                                       [--cwd DIR] [--timeout MS] [--env K=V]
@@ -1147,6 +1158,55 @@ case "exec":
         exit(code == 0 ? 0 : 1)
     }
 
+case "open-resource":
+    guard rest.count == 2 else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace open-resource <account> URL|ABSOLUTE_PATH"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
+    let result = callJSON(emitter, connection, Method.openResource, .obj(["resource": .string(rest[1])]))
+    emitter.success(result)
+
+case "clipboard":
+    guard rest.count == 2, ["read", "write"].contains(rest[1]) else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace clipboard <account> read|write [--file -]"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
+    var params: [String: JSONValue] = [:]
+    if rest[1] == "write" {
+        guard parsed.flag("file") == "-",
+              let text = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) else {
+            emitter.failure(AgentSpaceError(code: .badRequest, message: "clipboard write requires UTF-8 text on stdin with --file -"))
+        }
+        params["text"] = .string(text)
+    }
+    emitter.success(callJSON(emitter, connection, rest[1] == "read" ? Method.clipboardRead : Method.clipboardWrite, .object(params)))
+
+case "window":
+    guard rest.count >= 2 else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace window <account> list|activate|close|minimize|set-frame"))
+    }
+    let (_, connection) = resolveSpace(rest[0], root: rootOverride, emitter: emitter)
+    if rest[1] == "list" {
+        emitter.success(callJSON(emitter, connection, Method.windowList, .obj([:])))
+    }
+    let methods = ["activate": Method.windowActivate, "close": Method.windowClose,
+                   "minimize": Method.windowMinimize, "set-frame": Method.windowSetFrame]
+    guard let method = methods[rest[1]], rest.count == (rest[1] == "set-frame" ? 9 : 5),
+          let id = UInt32(rest[2]), let pid = Int32(rest[3]), pid > 0,
+          let generation = Int(rest[4]), generation >= 0 else {
+        emitter.failure(AgentSpaceError(code: .badRequest, message: "window action requires ID PID GENERATION from window list; set-frame also requires X Y WIDTH HEIGHT"))
+    }
+    var params: [String: JSONValue] = ["windowId": .int(Int(id)), "pid": .int(Int(pid)), "generation": .int(generation)]
+    if rest[1] == "set-frame" {
+        let values = rest[5...8].compactMap(Double.init)
+        guard values.count == 4, values.allSatisfy(\.isFinite), values[2] > 40, values[3] > 40 else {
+            emitter.failure(AgentSpaceError(code: .invalidCoordinate, message: "frame must contain finite coordinates and width/height greater than 40 points"))
+        }
+        params["frame"] = .obj(["x": .double(values[0]), "y": .double(values[1]),
+                                "width": .double(values[2]), "height": .double(values[3])])
+    }
+    emitter.success(callJSON(emitter, connection, method, .object(params)))
+
 case "ax":
     guard rest.count >= 2 else {
         emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace ax <space> snapshot|frontmost|windows|perform"))
@@ -1167,6 +1227,23 @@ case "ax":
         method = Method.axFrontmost
     case "windows":
         method = Method.axWindows
+    case "element-at":
+        guard rest.count == 4, let x = Double(rest[2]), let y = Double(rest[3]), x.isFinite, y.isFinite else {
+            emitter.failure(AgentSpaceError(code: .invalidCoordinate, message: "ax element-at requires finite X Y in display points"))
+        }
+        method = Method.axElementAt
+        params["x"] = .double(x)
+        params["y"] = .double(y)
+    case "set-value":
+        guard parsed.flag("file") == "-",
+              let value = try? JSONDecoder().decode(JSONValue.self, from: FileHandle.standardInput.readDataToEndOfFile()) else {
+            emitter.failure(AgentSpaceError(code: .badRequest, message: "ax set-value requires a JSON scalar on stdin with --file -"))
+        }
+        method = Method.axSetValue
+        params["value"] = value
+        if let role = parsed.flag("role") { params["role"] = .string(role) }
+        if let title = parsed.flag("title") { params["titleContains"] = .string(title) }
+        if let identifier = parsed.flag("identifier") { params["identifier"] = .string(identifier) }
     case "perform", "click":
         method = Method.axPerform
         if subcommand == "click" { params["click"] = .bool(true) }
