@@ -119,6 +119,14 @@ safety design working, not a bug.
   The bundled launcher checks PATH, Homebrew and Volta, or uses the absolute
   `AGENTSPACE_MCP_NODE` path. `@agentspace/mcp` has no public npm release;
   replace an old npx entry by rerunning integration with the updated App.
+- **The AI says there is no AgentSpace while the account page says 就绪** —
+  the two answer different questions: the page describes the desktop, the
+  client's config decides whether it has any `agentspace_*` tools. An entry
+  written before 0.1.82 still runs `npx -y @agentspace/mcp`, which cannot
+  start. Since 0.1.83 `agentspace doctor` prints an **Agent connections**
+  check naming each client and, for one that is broken, the exact repair
+  command; the account page shows the same as **Agent 连接**. Repair with
+  `agentspace integrate <target> --install` and restart that client.
 - **Tools error with a session-unavailable code** — wake the account in the
   app. If it persists, `agentspace doctor` diagnoses the machine, and
   `agentspace diagnostics` exports a redacted bundle.

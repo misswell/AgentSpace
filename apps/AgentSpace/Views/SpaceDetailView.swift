@@ -291,6 +291,21 @@ struct SpaceDetailView: View {
             Field(label: NSLocalizedString("Accepts input", comment: ""),
                   value: snapshot.acceptsInput ? NSLocalizedString("yes", comment: "") : NSLocalizedString("no", comment: ""),
                   tint: snapshot.acceptsInput ? .green : .orange)
+            // Which clients can actually launch this install's MCP service (§384).
+            // 就绪 describes the desktop; this describes the client, and an account
+            // on this very page has read as ready while every client registration
+            // was dead — the client then reports "no AgentSpace" and drives the
+            // human's own session. The two facts belong side by side.
+            Field(label: NSLocalizedString("Agent connections", comment: ""),
+                  value: connectionValue,
+                  tint: connectionTint,
+                  identifier: "agentConnectionsValue")
+            if let caption = connectionCaption {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let display = snapshot.display {
                 Field(label: NSLocalizedString("Points", comment: ""), value: "\(display.width) × \(display.height)", monospaced: true)
                 Field(label: NSLocalizedString("Pixels", comment: ""), value: "\(display.pixelWidth) × \(display.pixelHeight)", monospaced: true)
@@ -308,6 +323,35 @@ struct SpaceDetailView: View {
                 }
             }
         }
+    }
+
+    /// Which clients can launch this install's MCP service (§384), in the terms a
+    /// person reads on this page: the client names, and what to run when one of
+    /// them cannot start.
+    private var connectionValue: String {
+        guard let connections = model.mcpConnections else { return NSLocalizedString("checking…", comment: "") }
+        let names = connections.reachable.map(\.target.displayName)
+            + connections.broken.map { "\($0.target.displayName) (\(NSLocalizedString("not usable", comment: "")))" }
+        return names.isEmpty ? NSLocalizedString("none", comment: "") : names.joined(separator: ", ")
+    }
+
+    private var connectionTint: Color? {
+        guard let connections = model.mcpConnections, !connections.reachable.isEmpty else { return .orange }
+        return connections.broken.isEmpty ? .green : .orange
+    }
+
+    private var connectionCaption: String? {
+        guard let connections = model.mcpConnections else { return nil }
+        if !connections.broken.isEmpty {
+            let fixes = connections.broken
+                .map { MCPClients.repairCommand(for: $0.target) }
+                .joined(separator: "; ")
+            return String(format: NSLocalizedString("Fix: %@, then restart that client.", comment: ""), fixes)
+        }
+        if connections.reachable.isEmpty {
+            return NSLocalizedString("No AI client is set up to use this desktop, so its sessions begin with no agentspace_* tools. For the one you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo).", comment: "")
+        }
+        return nil
     }
 
     /// Permissions are a first-class main-page action, not a step hidden inside

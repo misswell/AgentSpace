@@ -133,6 +133,11 @@ final class AppModel: ObservableObject {
     /// sheet at a time (§269) — a request raised earlier would be swallowed.
     @Published var permissionGuideRequest: UUID?
     @Published private(set) var doctorReport: Doctor.Report?
+    /// Which AI clients can actually launch this install's MCP service (§384).
+    /// Measured on the status tick, because a person who runs
+    /// `agentspace integrate <client> --install` in a terminal should see the
+    /// account page change without touching the app. `nil` until the first tick.
+    @Published private(set) var mcpConnections: MCPClients.Summary?
     /// AgentSpace-named accounts with no agent record, as last computed by
     /// `runDoctor`. Empty when the helper could not be reached, so the delete
     /// button never appears for a list this app could not verify.
@@ -1055,14 +1060,20 @@ final class AppModel: ObservableObject {
               finishingSetup == nil, authorizingPermission == nil,
               authorizingCurrentPermission == nil else { return }
         let root = service.root
-        let outcome: (registry: SpaceRegistry, snapshots: [SpaceSnapshot]) =
+        let outcome: (registry: SpaceRegistry, snapshots: [SpaceSnapshot], connections: MCPClients.Summary?) =
             await Task.detached(priority: .utility) {
                 let service = SpaceService(root: root)
                 let registry = service.loadRegistry()
                 let snapshots = registry.spaces.map { service.snapshot(for: $0) }
-                return (registry, snapshots)
+                let binary = Integrations.defaultBinaryPath()
+                let connections = binary.map {
+                    MCPClients.summary(home: FileManager.default.homeDirectoryForCurrentUser.path,
+                                       binaryPath: $0)
+                }
+                return (registry, snapshots, connections)
             }.value
         guard !Task.isCancelled else { return }
+        if let connections = outcome.connections { mcpConnections = connections }
         // An attach, a detach or a CLI delete moved the registry while this
         // tick polled: only the full path may add, remove or repair accounts.
         guard outcome.registry.spaces.map(\.id) == snapshots.map(\.id) else {

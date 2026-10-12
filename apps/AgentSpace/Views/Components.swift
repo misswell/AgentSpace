@@ -62,6 +62,9 @@ struct Field: View {
     var value: String
     var monospaced: Bool = false
     var tint: Color?
+    /// Set when a layer-4 check has to read this row. The identifier is the
+    /// language-proof handle; the printed value is not (§273's rule).
+    var identifier: String?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -69,12 +72,20 @@ struct Field: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(width: 108, alignment: .leading)
-            Text(value)
-                .font(monospaced ? .callout.monospaced() : .callout)
-                .foregroundStyle(tint ?? .primary)
-                .textSelection(.enabled)
+            if let identifier {
+                valueText.accessibilityIdentifier(identifier)
+            } else {
+                valueText
+            }
             Spacer(minLength: 0)
         }
+    }
+
+    private var valueText: some View {
+        Text(value)
+            .font(monospaced ? .callout.monospaced() : .callout)
+            .foregroundStyle(tint ?? .primary)
+            .textSelection(.enabled)
     }
 }
 

@@ -277,7 +277,60 @@ public enum Doctor {
             }
         }
 
+        // 13. Can an agent reach this machine at all? (§384)
+        //
+        // The account page can print 就绪 while every client registration is dead,
+        // and the two facts are not in conflict: 就绪 describes the desktop, this
+        // describes the client. Measured 2026-10-12 — a `ready` / `usable` account
+        // whose only client still ran `npx -y @agentspace/mcp`, which has never
+        // been published, so that client had zero AgentSpace tools and answered
+        // "there is no AgentSpace available" before driving the human's own
+        // session. Nothing else on this machine noticed.
+        checks.append(mcpClientCheck())
+
         return Report(checks: checks)
+    }
+
+    /// The clients' own config files, read the way the clients will read them
+    /// (§384). `home` and `binaryPath` are parameters so the check is observable
+    /// without touching the real machine.
+    static func mcpClientCheck(home: String = FileManager.default.homeDirectoryForCurrentUser.path,
+                               binaryPath: String? = Integrations.defaultBinaryPath()) -> Check {
+        guard let binaryPath else {
+            // Without knowing which install this process belongs to, every `current`
+            // entry would compare unequal to a launcher we never resolved. Saying so
+            // beats guessing.
+            return Check(
+                name: NSLocalizedString("Agent connections", comment: ""),
+                status: .skip,
+                detail: NSLocalizedString("This process cannot tell which AgentSpace install it belongs to, so client registrations cannot be compared against it.", comment: ""))
+        }
+        let summary = MCPClients.summary(home: home, binaryPath: binaryPath)
+        let names = summary.reachable.map(\.target.displayName).joined(separator: ", ")
+        if !summary.broken.isEmpty {
+            let offenders = summary.broken
+                .map { "\($0.target.displayName) — \($0.verdict.explanation)" }
+                .joined(separator: "; ")
+            let repairs = summary.broken
+                .map { MCPClients.repairCommand(for: $0.target) }
+                .joined(separator: "; ")
+            return Check(
+                name: NSLocalizedString("Agent connections", comment: ""),
+                status: .fail,
+                detail: NSLocalizedString("A configured client cannot start AgentSpace's MCP service, so its sessions have no agentspace_* tools and report that no AgentSpace exists while the desktop reads as ready.", comment: "") + " " + offenders,
+                fix: String(format: NSLocalizedString("%@, then restart that client.", comment: ""), repairs))
+        }
+        if summary.reachable.isEmpty {
+            return Check(
+                name: NSLocalizedString("Agent connections", comment: ""),
+                status: .warn,
+                detail: NSLocalizedString("No AI client is set up to launch this install's MCP service, so every agent session begins with no agentspace_* tools.", comment: ""),
+                fix: NSLocalizedString("For the client you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo).", comment: ""))
+        }
+        return Check(
+            name: NSLocalizedString("Agent connections", comment: ""),
+            status: .pass,
+            detail: String(format: NSLocalizedString("The MCP service is ready for %@.", comment: ""), names))
     }
 
     /// Per-Space checks: the worker itself plus the two TCC grants §38 wants

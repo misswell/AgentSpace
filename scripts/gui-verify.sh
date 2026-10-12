@@ -770,6 +770,51 @@ sleep 1
 osascript -e "tell application \"System Events\" to tell ($PT) to keystroke \"w\" using command down" >/dev/null 2>&1
 sleep 1
 
+# --- Account page: the Agent connections row (§384) --------------------------
+# Every phase above ran against an empty registry, so the account *detail* page
+# never rendered — and §384's "Agent connections" row lives on it. One seeded,
+# offline account brings the page up. The identifier is the assertion; the
+# printed value is recorded only, because it depends on which client configs
+# this account's home happens to hold — a gate that fails on the machine's
+# leftovers is a gate people learn to ignore. The value itself is pinned in
+# MCPClientsTests, language-proof and environment-free.
+kill $APP_PID 2>/dev/null; sleep 1
+cat > "$TMPROOT/Spaces/index.json" <<'JSON'
+{"spaces":[{"id":"22222222-3333-4444-8555-666666666666","name":"gui verify","username":"gui-verify","uid":501,"state":"offline","createdAt":"2026-01-01T00:00:00Z"}]}
+JSON
+AGENTSPACE_ROOT="$TMPROOT" "$APP_BIN" -NSQuitAlwaysKeepsWindows NO >/dev/null 2>&1 &
+APP_PID=$!
+PT="first application process whose unix id is $APP_PID"
+sleep 4
+CONN_ROW=""
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  CONN_ROW="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	set _p to ($PT)
+	repeat with _w in (windows of _p)
+		set _e to my findAny(_w, \"agentConnectionsValue\", 0)
+		if _e is not missing value then
+			try
+				return (value of attribute \"AXValue\" of _e) as text
+			end try
+			return \"found (no readable value)\"
+		end if
+	end repeat
+	return \"\"
+end tell" 2>/dev/null | tr -d '\n')"
+  [ -n "$CONN_ROW" ] && break
+  sleep 2
+done
+case "$CONN_ROW" in
+  "") check "account page shows the Agent connections row" "found" "missing";;
+  *)
+    check "account page shows the Agent connections row" "found" "found"
+    note "  Agent connections value: [$CONN_ROW]"
+    ;;
+esac
+# This phase's instance is left running; the EXIT trap kills it and this root is
+# removed in the report section below, same as the deep-link phase's.
+
 # --- report ------------------------------------------------------------------
 rm -rf "$TMPROOT" /tmp/gui-verify-lib.applescript /tmp/gui-verify-windows.txt
 echo

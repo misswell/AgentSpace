@@ -135,12 +135,24 @@ guard FileManager.default.isExecutableFile(atPath: appBinary.path) else {
 
 /// Fresh scratch registry, inside the agent account's home so no permission
 /// dance is needed: this program is that account's own process.
-func prepareRoot(_ url: URL) {
+///
+/// `seeded` writes one synthetic, deliberately **offline** account instead of
+/// the empty registry. The account-detail page renders only when an account is
+/// selected, so the empty registry this run's other phases use is exactly the
+/// state in which the overview card — where §384's Agent connections row
+/// lives — has never been observable. Only the keys `AgentAccount.init(from:)`
+/// requires are present: the point is a page that renders, not a record the
+/// CLI would act on. Offline because a snapshot for an account with no socket
+/// fails fast and touches nothing outside this scratch root.
+func prepareRoot(_ url: URL, seeded: Bool = false) {
     let fileManager = FileManager.default
     try? fileManager.removeItem(at: url)
     try? fileManager.createDirectory(at: url.appendingPathComponent("Spaces"),
                                      withIntermediateDirectories: true)
-    try? Data(#"{"spaces":[]}"#.utf8)
+    let registry = seeded
+        ? #"{"spaces":[{"id":"22222222-3333-4444-8555-666666666666","name":"gui verify","username":"gui-verify","uid":501,"state":"offline","createdAt":"2026-01-01T00:00:00Z"}]}"#
+        : #"{"spaces":[]}"#
+    try? Data(registry.utf8)
         .write(to: url.appendingPathComponent("Spaces/index.json"))
 }
 prepareRoot(root)
@@ -573,6 +585,33 @@ reports.check("dead link alert", "SPACE_NOT_FOUND", alert.map { String($0.prefix
 if alert == nil {
     let seen = alertContainers().map { staticTexts($0) }
     reports.note("  alert containers=\(alertContainers().count) texts=\(seen)")
+    reports.note("  \(windowDiagnostics(pid))")
+}
+
+// MARK: - Phase E: the account page names its agent connections (§384)
+
+// The phases above run against an empty registry, so the account *detail* page
+// has never rendered in these checks — and §384's "Agent connections" row
+// lives on it. One seeded, offline account brings the page up; the row's
+// identifier is the assertion, its printed value is only recorded, because the
+// value depends on which client configs this account's home happens to hold —
+// and a gate that fails on the machine's leftovers teaches people to ignore it.
+// The value itself is pinned in MCPClientsTests, language-proof and
+// environment-free.
+quit(runningInstances())
+prepareRoot(root, seeded: true)
+pid = launchSubject(root: root)
+_ = settledWindowCount(pid)
+
+let connectionsRow = AXUI.wait(20) { () -> AXUIElement? in
+    guard let main = AXUI.mainWindow(pid) else { return nil }
+    return AXUI.find(main, identifier: "agentConnectionsValue")
+}
+reports.check("account page shows the Agent connections row", "found",
+              connectionsRow == nil ? "missing" : "found")
+if let row = connectionsRow, let value = AXUI.string(row, kAXValueAttribute as String) {
+    reports.note("  Agent connections value: [\(value)]")
+} else if connectionsRow == nil {
     reports.note("  \(windowDiagnostics(pid))")
 }
 
