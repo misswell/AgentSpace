@@ -4,28 +4,49 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-12 on `master`. Current public release: **0.1.82**.
+Last updated: 2026-10-12 on `master`. Current public release: **0.1.83**.
 
-0.1.83 candidate (§384, 2026-10-12): an AI client said 「当前环境没有可用的
+Published 0.1.83 (§384, 2026-10-12): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.83),
+source [62ed042](https://github.com/misswell/AgentSpace/commit/62ed042f22c4f09519a2bb24920df95f6024cbe4),
+[Actions 38242703235](https://github.com/misswell/AgentSpace/actions/runs/38242703235)
+all jobs passed; `releases/latest` returns v0.1.83 with no §318 lag. DMG
+27,545,346 bytes, sha256
+`d514045e3c236f2d24cb329cc746af4f420924934aaf662f41e570ef76a46f12`.
+Apple live `asc notarization list` readback: App ZIP `5786d6a1-7359-478c-a368-c4d63ebf70b4`
+and DMG `9c0b725f-5dd9-4878-86cd-5fb6e5addb66` both **Accepted**.
+Downloaded DMG matches that digest and `hdiutil verify` says VALID; inner App
+**0.1.83 (567)**, CLI 0.1.83 (protocol 1), MCP 0.1.16, deep strict signature,
+Developer ID / Team U8U443D7ZL, App and DMG staples, Gatekeeper verified; the
+mounted bundle's own `doctor` prints `✓ Agent connections` and its `--json`
+check 13 reads `The MCP service is ready for Codex, ZCode.` (17 checks, 2
+warnings — console input isolation is correct for the CLI, and the installed
+helper is still 0.1.82's, so the next update offers the usual worker/helper
+reconcile, §332); the
+bundle-gated MCP suite passes 29/29 against the mounted copy, including the
+live `launch.sh` handshake + `agent_list`. The DMG's 4.3 MB growth over 0.1.82
+is UDIF container padding, not content (in-use compressed payload +82 KB;
+row 1238). **Why this release exists**: an AI client said 「当前环境没有可用的
 AgentSpace」 and proposed driving the human's own session while the account page
-showed 就绪 — because the command in the *client's* config still named
+showed 就绪 — the command in the *client's* config still named
 `npx -y @agentspace/mcp`, a package that was never published, so the client had
-zero `agentspace_*` tools (the owner's screenshot, §384 row 1229). New in Core:
+zero `agentspace_*` tools (the owner's screenshot, row 1229). New in Core:
 `MCPClients` reads all six clients' documented config paths and classifies each
 entry — absent / current / packageNeverPublished / commandMissing /
 agentCLIMissing / other / unreadable — without writing anything (13 unit tests).
-`agentspace doctor` gains check 13 「Agent connections」: a broken client is named
-with its verdict line and the `agentspace integrate <target> --install` fix; on
-this Mac it named the stale Codex and ZCode registrations, and both were repaired
-through the product's own path (backups beside each config). The account detail
-page gains 「Agent 连接」 beside 就绪 (identifier `agentConnectionsValue`, both
-`.lproj` tables). **Layer 4 has no verdict this round**: the session twin refused
-with the §381 AX wedge (`1 element(s) in the window list, none with role AXWindow,
-while the window server reports 1 window(s)`) identically for the candidate
-bundle and for the installed 0.1.82 bytes, so it is that session's accessibility,
-not this build (row 1235); the console instrument was not run (§324). Layers 1–3
-pass locally (Swift 852 with 3 skipped, `npm test` 28 pass / 1 skip, updater 19,
-MCP smoke). Publishing is pending; 0.1.82 remains the public release.
+`agentspace doctor` gains check 13 「Agent connections」: a broken client is
+named with its verdict line and the `agentspace integrate <target> --install`
+fix; on this Mac it named the stale Codex and ZCode registrations, and both
+were repaired through the product's own path (backups beside each config). The
+account detail page gains 「Agent 连接」 beside 就绪 (identifier
+`agentConnectionsValue`, both `.lproj` tables). **Layer 4 has no verdict for
+this round**: the session twin refused with the §381 AX wedge (`1 element(s) in
+the window list, none with role AXWindow, while the window server reports 1
+window(s)`) identically for the candidate bundle and for the installed 0.1.82
+bytes, so it is that session's accessibility, not this build (row 1235); the
+console instrument was not run (§324). Runner layers 1–3 green (Swift 852 with
+3 skipped, updater 19, MCP smoke incl. 29 tool pairs). On this Mac
+`/Applications/AgentSpace.app` is 0.1.82 (565) — this fix arrives with the next
+「检查更新」.
 
 Published 0.1.82 (§383, 2026-10-12): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.82),
 source [ddfdb7a](https://github.com/misswell/AgentSpace/commit/ddfdb7a7af2c51db4e82dfbe959dee74fba8aacb),
