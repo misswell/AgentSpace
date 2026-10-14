@@ -4,10 +4,27 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-15 on `master`. Current public release: **0.1.84** —
-0.1.85 is tagged (`v0.1.85`) and in the release pipeline; its first runner
-attempt was rejected by this round's own new byte gate, which turned out to be a
-`pipefail` bug in the gate rather than a missing handle (§386 row 1256).
+Last updated: 2026-10-15 on `master`. Current public release: **0.1.85**.
+
+Published 0.1.85 (§386, 2026-10-15): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.85),
+source [84e0e28](https://github.com/misswell/AgentSpace/commit/84e0e283403d17eac5a7b1b68cbeb43d4a4578a8),
+[Actions 38613511851](https://github.com/misswell/AgentSpace/actions/runs/38613511851)
+all three jobs green; `releases/latest` returns v0.1.85 with no §318 lag. DMG
+28,065,942 bytes, sha256
+`bf9e102ece2f31b5f305e95f229e0bc530c5c2dbed28938e65b4d0ea84ba71f8`. Apple live
+`asc notarization list` readback: App ZIP `ed2cb4d2-c5e9-451c-bc3c-491e07972f7d`
+and DMG `c0cda9e4-454f-4336-91c6-f1b282cb0f9b` both **Accepted**. Runner gate:
+Swift **862** (3 skipped — the four new gate checks are the difference from
+0.1.84's 858), updater **19**, MCP suite + smoke all passed, and step 1b against
+the runner's own bundle reads **21 handles ok, 0 MISSING**; **layer 4 is not run
+on a runner**, and it did not run on this Mac either (row 1255) — so the door's
+placement rests on source assertions and its handle on the byte check, not on a
+live press. The tag moved three times (`7f27e64` → `ff96cff` → `84e0e28`): the
+first attempt was rejected by this round's own new gate, whose `pipefail` bug
+turned a hit into a miss (row 1256), and the second carried a measurement that
+had compared two trees at once (row 1249). Because the workflow creates the
+Release only in its last step, no 0.1.85 page or asset existed for anyone until
+the third run succeeded.
 
 **What this release changes for a person**: where the Screen Sharing entry sits,
 and the names of six accessibility handles. The owner's screenshot of a sleeping
@@ -17,7 +34,10 @@ three 「打开…设置」buttons, so in the state where nothing below it works
 session, the way in was the last thing on the page. It now leads the card while
 `signInDoorIsUrgent` and stays after the grant buttons when the account is
 healthy — still exactly one door on screen, because the two branches are
-mutually exclusive, and the caption's 「上方/下方」 follows the position.
+mutually exclusive, and the caption's 「上方/下方」 follows the position. On this
+Mac `/Applications/AgentSpace.app` is the owner's 0.1.84 (build 569), so this
+arrives with the next 「检查更新」 and the app then offers the usual
+worker/helper reconcile (§332).
 
 The second half is the handle names, and the record matters because the first
 conclusion was wrong. Reading 0.1.84's downloaded bytes for row 1247, this
