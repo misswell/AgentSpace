@@ -505,6 +505,7 @@
 "Hide sign-in" = "Hide sign-in";
 "Open this desktop with Screen Sharing" = "Open this desktop with Screen Sharing";
 "Keep that window on screen while you approve. Every pane the buttons above open appears inside it, so all three grants happen in one visit and you never switch users." = "Keep that window on screen while you approve. Every pane the buttons above open appears inside it, so all three grants happen in one visit and you never switch users.";
+"Keep that window on screen while you approve. Every pane the buttons below open appears inside it, so all three grants happen in one visit and you never switch users." = "Keep that window on screen while you approve. Every pane the buttons below open appears inside it, so all three grants happen in one visit and you never switch users.";
 "Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window." = "Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window.";
 "Preparing authorization…" = "Preparing authorization…";
 "Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session." = "Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session.";

@@ -218,7 +218,7 @@ struct EmptyStateView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .textSelection(.enabled)
-                .accessibilityIdentifier("appBuildVersion")
+                .accessibilityIdentifier("appBuildVersionStamp")
             if let current = model.currentAccountAuthorization {
                 CurrentAccountPermissionCard(current: current)
                     .environmentObject(model)

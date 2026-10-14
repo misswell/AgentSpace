@@ -39,6 +39,59 @@ APP="dist/AgentSpace.app"
 DMG="dist/AgentSpace-$VERSION.dmg"
 
 echo
+echo "== 1b. the handles layer 4 presses are readable in these bytes =="
+# Layer 4 finds buttons by accessibility identifier, so a shipped bundle that
+# lost one means a person driving the UI by name — or this repo's own gate —
+# has nothing to press. This reads the bundle that is about to be signed, which
+# is the only build anybody installs.
+#
+# What the check can see: Swift stores an ASCII string literal of 15 bytes or
+# fewer *inside the String's own words* (a small string), so an optimized build
+# materializes it as mov/movk halfword immediates and never as a contiguous
+# `__cstring` entry — measured on this tree, where all four app identifiers of
+# <=15 bytes are absent from the release binary as bytes while all 50 of 16+
+# bytes are present (validation §386). Absence of bytes therefore proves
+# nothing about a short name, so every handle below is named at 16 characters or
+# longer and ReleaseIdentifierGateTests keeps it that way. Matching is on a whole
+# pooled string rather than a substring, because a short name that is also a
+# prefix of another literal would otherwise be satisfied by that other view.
+LAYER4_HANDLES=(
+  agentSignInDoorCard
+  agentViewerSignInDoor
+  openAgentPermissionGuide
+  openAgentSystemSignIn
+  permissionGuideSignIn
+  agentConnectionsValue
+  appBuildVersionStamp
+  automaticUpdateCheckToggle
+  createAgentButton
+  displayQualityPicker
+  mainToolbarSettings
+  newAgentContinue
+  newAgentNameField
+  newAgentUserPicker
+  openUsersGroupsButton
+  refreshAccountsButton
+  registryRootOverrideNotice
+  softwareUpdatePane
+  statusRefreshSlider
+  updateCheckButton
+  updateInstallButton
+)
+GUI_BIN="$APP/Contents/MacOS/AgentSpace"
+GUI_STRINGS="$(strings -a "$GUI_BIN")"
+missing_handles=0
+for handle in "${LAYER4_HANDLES[@]}"; do
+  if printf '%s\n' "$GUI_STRINGS" | grep -qx "$handle"; then
+    echo "  ok  $handle"
+  else
+    echo "  MISSING  $handle is not a whole string in $GUI_BIN: layer 4 cannot press it in a shipped build" >&2
+    missing_handles=1
+  fi
+done
+[[ $missing_handles -eq 0 ]] || exit 1
+
+echo
 echo "== 2. signatures =="
 # Strict: every nested binary must verify, not just the outer envelope. The helper
 # and the worker are the two whose signature is a *security* boundary — the helper

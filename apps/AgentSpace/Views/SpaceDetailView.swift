@@ -43,7 +43,7 @@ struct SidebarView: View {
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                             .textSelection(.enabled)
-                            .accessibilityIdentifier("appBuildVersion")
+                            .accessibilityIdentifier("appBuildVersionStamp")
 
                         Spacer()
 
@@ -358,6 +358,14 @@ struct SpaceDetailView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            // While the worker is offline or the desktop is locked, every button
+            // below this point needs the session this door starts — so the door
+            // goes above them. It is still one control on the page (§344): the
+            // healthy state draws it after the grant buttons instead.
+            if snapshot.offersSignInDoor, snapshot.signInDoorIsUrgent {
+                signInDoor(snapshot)
+            }
+
             HStack(spacing: 8) {
                 PermissionChip(name: NSLocalizedString("Accessibility", comment: ""), granted: snapshot.accessibility)
                 PermissionChip(name: NSLocalizedString("Screen Recording", comment: ""), granted: snapshot.screenRecording)
@@ -394,7 +402,7 @@ struct SpaceDetailView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if snapshot.offersSignInDoor {
+            if snapshot.offersSignInDoor, !snapshot.signInDoorIsUrgent {
                 signInDoor(snapshot)
             }
 
@@ -428,7 +436,9 @@ struct SpaceDetailView: View {
     private func signInDoor(_ snapshot: SpaceSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             doorButton(space: snapshot.space, urgent: snapshot.signInDoorIsUrgent)
-            Text(NSLocalizedString("Keep that window on screen while you approve. Every pane the buttons above open appears inside it, so all three grants happen in one visit and you never switch users.", comment: ""))
+            Text(snapshot.signInDoorIsUrgent
+                 ? NSLocalizedString("Keep that window on screen while you approve. Every pane the buttons below open appears inside it, so all three grants happen in one visit and you never switch users.", comment: "")
+                 : NSLocalizedString("Keep that window on screen while you approve. Every pane the buttons above open appears inside it, so all three grants happen in one visit and you never switch users.", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -437,20 +447,28 @@ struct SpaceDetailView: View {
 
     @ViewBuilder
     private func doorButton(space: AgentAccount, urgent: Bool) -> some View {
-        let button = Button {
-            loginAccount = space
-        } label: {
-            Label(urgent
-                  ? NSLocalizedString("Sign In or Unlock Agent", comment: "")
-                  : NSLocalizedString("Open this desktop with Screen Sharing", comment: ""),
-                  systemImage: "person.crop.circle.badge.key")
-        }
-        .accessibilityIdentifier("signInAgent")
-        .disabled(model.finishingSetup != nil || model.updatingWorker != nil || model.authorizingPermission != nil)
+        let label = Label(urgent
+                          ? NSLocalizedString("Sign In or Unlock Agent", comment: "")
+                          : NSLocalizedString("Open this desktop with Screen Sharing", comment: ""),
+                          systemImage: "person.crop.circle.badge.key")
+        // One handle per surface, at 16 characters or longer. Both halves are
+        // about `scripts/release.sh` step 1b, which reads the identifiers layer 4
+        // presses out of the bundle it is about to sign: this surface's name must
+        // not be a substring of the viewer's or it could be satisfied by the other
+        // view's literal, and a name of 15 bytes or fewer is a Swift *small
+        // string* — inline in the String's own words, never contiguous in the
+        // binary — so the check cannot see it at all (validation §386).
+        let action: () -> Void = { loginAccount = space }
+        let blocked = model.finishingSetup != nil || model.updatingWorker != nil || model.authorizingPermission != nil
         if urgent {
-            button.buttonStyle(.borderedProminent)
+            Button(action: action) { label }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("agentSignInDoorCard")
+                .disabled(blocked)
         } else {
-            button
+            Button(action: action) { label }
+                .accessibilityIdentifier("agentSignInDoorCard")
+                .disabled(blocked)
         }
     }
 

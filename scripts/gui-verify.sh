@@ -420,7 +420,7 @@ tell application \"System Events\"
 		set frontmost to true
 		set _t to \"\"
 		repeat with _w in windows
-			set _e to my findById(_w, \"appBuildVersion\", static text, 0)
+			set _e to my findById(_w, \"appBuildVersionStamp\", static text, 0)
 			if _e is not missing value then set _t to (value of _e) as text
 		end repeat
 		return _t
@@ -642,7 +642,7 @@ tell application \"System Events\"
 		end if
 		delay 1
 		repeat with _cand in (windows of _p)
-			set _try to my findById(_cand, \"agentNameField\", text field, 0)
+			set _try to my findById(_cand, \"newAgentNameField\", text field, 0)
 			if _try is not missing value then
 				set _f to _try
 				set _w to _cand
@@ -668,7 +668,7 @@ tell application \"System Events\"
 				if (count of sheets of _cand) > 0 then set _d to _d & \" sheet\"
 			end try
 			if my findById(_cand, \"createAgentButton\", button, 0) is not missing value then set _d to _d & \" review\"
-			if my findById(_cand, \"macOSUserPicker\", radio group, 0) is not missing value then set _d to _d & \" picker\"
+			if my findById(_cand, \"newAgentUserPicker\", radio group, 0) is not missing value then set _d to _d & \" picker\"
 			set _d to _d & \"]\"
 		end repeat
 		return _d
@@ -680,7 +680,7 @@ tell application \"System Events\"
 	-- before deciding which state the wizard is really in (§300).
 	set _pkr to missing value
 	repeat 6 times
-		set _pkr to my findById(_w, \"macOSUserPicker\", radio group, 0)
+		set _pkr to my findById(_w, \"newAgentUserPicker\", radio group, 0)
 		if _pkr is not missing value then exit repeat
 		if my findById(_w, \"openUsersGroupsButton\", button, 0) is not missing value then exit repeat
 		delay 1
@@ -700,7 +700,7 @@ tell application \"System Events\"
 	-- a wizard that really has no way forward still fails.
 	set _c to missing value
 	repeat 5 times
-		set _c to my findById(_w, \"wizardContinue\", button, 0)
+		set _c to my findById(_w, \"newAgentContinue\", button, 0)
 		if _c is not missing value then exit repeat
 		delay 1
 	end repeat
@@ -869,7 +869,7 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
   DOOR_CARD="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
 tell application \"System Events\"
 	set _p to ($PT)
-	if my findEverywhere(_p, \"signInAgent\") is missing value then return \"\"
+	if my findEverywhere(_p, \"agentSignInDoorCard\") is missing value then return \"\"
 	return \"found\"
 end tell" 2>/dev/null | tr -d '\n')"
   [ -n "$DOOR_CARD" ] && break

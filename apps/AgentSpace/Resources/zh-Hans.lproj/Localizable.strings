@@ -505,6 +505,7 @@
 "Hide sign-in" = "收起登录面板";
 "Open this desktop with Screen Sharing" = "用屏幕共享打开该桌面";
 "Keep that window on screen while you approve. Every pane the buttons above open appears inside it, so all three grants happen in one visit and you never switch users." = "授权期间请保持该窗口可见。上方按钮打开的设置面板都会出现在其中，因此三项授权一次进入即可完成，无需切换用户。";
+"Keep that window on screen while you approve. Every pane the buttons below open appears inside it, so all three grants happen in one visit and you never switch users." = "授权期间请保持该窗口可见。下方按钮打开的设置面板都会出现在其中，因此三项授权一次进入即可完成，无需切换用户。";
 "Permissions for this desktop belong to agentspace-worker, the background process in this account. Use the Permissions & authorization card in the main account's AgentSpace window." = "这个桌面的权限属于该账号中的后台进程 agentspace-worker。请回到主账号的 AgentSpace 窗口，使用「权限与授权」卡片。";
 "Preparing authorization…" = "正在准备授权…";
 "Use the Permissions & authorization card above. Its buttons install/start the worker when needed, then open the privacy pane inside the connected account's session." = "请使用上方的「权限与授权」卡片。按钮会在需要时安装并启动 worker，然后在已连接账号的会话中打开隐私设置。";

@@ -289,7 +289,7 @@ let build = Bundle(url: bundle)?.object(forInfoDictionaryKey: "CFBundleVersion")
 let wanted = "\(short) (\(build))"
 let stamp = AXUI.wait(10) { () -> String? in
     for window in AXUI.windows(pid) {
-        if let element = AXUI.find(window, identifier: "appBuildVersion"),
+        if let element = AXUI.find(window, identifier: "appBuildVersionStamp"),
            let value = AXUI.string(element, kAXValueAttribute as String), value.contains(wanted) {
             return value
         }
@@ -438,17 +438,17 @@ if let rawClose = AXUI.attribute(settings, kAXCloseButtonAttribute as String) {
 let wizardOpener = AXUI.pressMenuItem(pid, cmdChar: "n")
 let nameField = AXUI.wait(14) { () -> AXUIElement? in
     for window in AXUI.windows(pid) {
-        if let field = AXUI.find(window, identifier: "agentNameField") { return field }
+        if let field = AXUI.find(window, identifier: "newAgentNameField") { return field }
     }
     return nil
 }
 guard let nameField else {
     reports.note("wizard opener: \(wizardOpener)")
     reports.note("  \(windowDiagnostics(pid))")
-    abort("the wizard did not open (no agentNameField)")
+    abort("the wizard did not open (no newAgentNameField)")
 }
 
-let wizardWindow = AXUI.windows(pid).first { AXUI.find($0, identifier: "agentNameField") != nil }
+let wizardWindow = AXUI.windows(pid).first { AXUI.find($0, identifier: "newAgentNameField") != nil }
 AXUI.setValue(nameField, "gui verify")
 
 // The account list is filled asynchronously by Directory Service. Reading the
@@ -458,7 +458,7 @@ AXUI.setValue(nameField, "gui verify")
 enum AccountCard { case picker(AXUIElement), emptyState }
 let accountCard = AXUI.wait(10) { () -> AccountCard? in
     guard let wizardWindow else { return nil }
-    if let group = AXUI.find(wizardWindow, identifier: "macOSUserPicker") { return .picker(group) }
+    if let group = AXUI.find(wizardWindow, identifier: "newAgentUserPicker") { return .picker(group) }
     if AXUI.find(wizardWindow, identifier: "openUsersGroupsButton") != nil { return .emptyState }
     return nil
 }
@@ -475,7 +475,7 @@ if case .picker(let group) = accountCard {
 let wizardVerdict: String
 let continueButton: AXUIElement? = {
     guard let wizardWindow else { return nil }
-    return AXUI.wait(6) { AXUI.find(wizardWindow, identifier: "wizardContinue") }
+    return AXUI.wait(6) { AXUI.find(wizardWindow, identifier: "newAgentContinue") }
 }()
 if let continueButton, AXUI.bool(continueButton, kAXEnabledAttribute as String) == true {
     AXUI.press(continueButton)
@@ -634,7 +634,7 @@ func findInView(_ identifier: String) -> AXUIElement? {
 
 let cardDoor = AXUI.wait(20) { () -> AXUIElement? in
     guard let main = AXUI.mainWindow(pid) else { return nil }
-    return AXUI.find(main, identifier: "signInAgent")
+    return AXUI.find(main, identifier: "agentSignInDoorCard")
 }
 reports.check("the permissions card carries the sign-in door", "found",
               cardDoor == nil ? "missing" : "found")

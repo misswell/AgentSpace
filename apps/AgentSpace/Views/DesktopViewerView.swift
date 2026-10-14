@@ -463,7 +463,13 @@ struct DesktopViewerView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!snapshot.workerOnline)
-                .accessibilityIdentifier("signInAgent")
+                // This surface's own handle, not the account page's: the locked
+                // overlay and the card can be on screen at the same moment, and
+                // `scripts/release.sh` step 1b reads one name per surface out of
+                // the bundle it signs. 16 characters or longer, so it is a pooled
+                // string in the binary rather than a Swift small string that only
+                // exists inside the String's own words (validation §386).
+                .accessibilityIdentifier("agentViewerSignInDoor")
                 .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

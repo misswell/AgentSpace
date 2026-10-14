@@ -4,7 +4,47 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-14 on `master`. Current public release: **0.1.84**.
+Last updated: 2026-10-15 on `master`. Current public release: **0.1.85**.
+
+**What this release changes for a person**: where the Screen Sharing entry sits,
+and the names of six accessibility handles. The owner's screenshot of a sleeping
+account (「此时如果我退出登录…那么应该要显示登录的按钮才对」) showed the first: §385
+moved the entry onto the Permissions & authorization card and put it *after* the
+three 「打开…设置」buttons, so in the state where nothing below it works without that
+session, the way in was the last thing on the page. It now leads the card while
+`signInDoorIsUrgent` and stays after the grant buttons when the account is
+healthy — still exactly one door on screen, because the two branches are
+mutually exclusive, and the caption's 「上方/下方」 follows the position.
+
+The second half is the handle names, and the record matters because the first
+conclusion was wrong. Reading 0.1.84's downloaded bytes for row 1247, this
+repo's own note said the release binary contains no `signInAgent` — and the
+inference drawn from that, 「so the shipped door had no handle to press」, is
+**retracted**. Sweeping all 54 app identifiers through three binaries gives a
+clean cut: the 4 absent ones are all ≤15 bytes, the 50 present ones all ≥16, and
+the same names are present in §385's debug bundle at every length. Swift stores
+ASCII literals of ≤15 bytes inside the `String`'s own two words, so an optimized
+build emits them as `mov`/`movk` halfword immediates (`mov x0, #0x6e49` = "In")
+rather than a contiguous `__cstring` entry — the runtime name was always there,
+only the bytes a grep can look at are not. So `scripts/release.sh` step **1b**
+(now matching `strings -a` of the bundle it is about to sign with `grep -qx`, a
+whole pooled string, `exit 1` on a miss) can only speak for names ≥16 bytes, and
+that is why six handles were renamed up out of the small-string range
+(`agentNameField`→`newAgentNameField`, `macOSUserPicker`→`newAgentUserPicker`,
+`wizardContinue`→`newAgentContinue`, `appBuildVersion`→`appBuildVersionStamp`)
+and why the two door surfaces got separate names
+(`agentSignInDoorCard`, `agentViewerSignInDoor`) — they can be on screen
+together, and one shared name cannot say which one a search found. Short names no
+instrument presses (`fusionAppRow`, `fusionAppList`, `updateStateText`) were left
+alone. All 21 gated names measure present in this tree's release binary.
+`tests/Unit/ReleaseIdentifierGateTests` (4 checks) keeps the list from rotting:
+pressed ⊆ gated, gated ⊆ sources (both `accessibilityIdentifier("…")` and the
+`Field` helper's `identifier: "…"` form), nothing under 16 bytes, nothing hidden
+inside another identifier as a substring.
+
+Still unchanged: three grants are three toggles in three panes, the console
+account is never offered the door (§3), and how many displays Apple's Screen
+Sharing window shows is that client's own choice, not ours to script.
 
 Published 0.1.84 (§385, 2026-10-14): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.84),
 source [032b868](https://github.com/misswell/AgentSpace/commit/032b86899e1db9305017e2253f7612cb74afe607),
@@ -16,29 +56,27 @@ all three jobs passed; `releases/latest` returns v0.1.84 with no §318 lag. DMG
 and DMG `74b89b77-733b-491a-a00d-3fc4db12e5ac` both **Accepted**. Runner gate:
 Swift 858 (3 skipped), updater 19, MCP smoke all passed; **layer 4 is not run on
 a runner** and this round's verdict came from the session instrument — 17 checks
-green including both new door names — because the owner is at this Mac (§324).
+green — because the owner is at this Mac (§324). Its door handle is the one
+0.1.85 renames for attributability, not because it was missing (§386).
 
-**What this release changes for a person**: the first time they authorize an
+**What 0.1.84 changed for a person**: the first time they authorize an
 agent account they no longer switch macOS users. The owner's report named an
 experience, not a defect — 「首次的权限授权体验很糟糕，需要用户来回切换账号」 — and
 behind it was a real one: the account page offered the Screen Sharing entry
 **only while the worker was offline or the desktop locked**, so signing in
 successfully deleted the only way to look at that session again, exactly when a
-person with one grant ticked and two to go needs it. The entry is now permanent
-on both authorization surfaces — the Permissions & authorization card
-(`signInAgent`, one copy on the page, §344) and inline inside 「授权此 Agent」 —
-drawn as 「用屏幕共享打开该桌面」 when healthy and as the prominent
-「登录 / 解锁 Agent」 while `!workerOnline || desktopLocked`.
-`SpaceSnapshot.offersSignInDoor` / `signInDoorIsUrgent` replace the inline
+person with one grant ticked and two to go needs it. The entry became permanent
+on both authorization surfaces — the Permissions & authorization card and inline
+inside 「授权此 Agent」 — drawn as 「用屏幕共享打开该桌面」 when healthy and as the
+prominent 「登录 / 解锁 Agent」 while `!workerOnline || desktopLocked`.
+`SpaceSnapshot.offersSignInDoor` / `signInDoorIsUrgent` replaced the inline
 condition; the console account is never offered it (§3). The guide embeds the
 sign-in panel rather than presenting a second sheet because
 `AccountLoginController.stop()` closes the loopback relay that *is* the Screen
-Sharing data path, and a window presents one sheet at a time (§269) — so
-「一次进入、三项授权、不切换用户」 is mechanically true, and the release notes say
-plainly what is still three toggles in three panes (macOS raises one panel per
-privacy category). On this Mac `/Applications/AgentSpace.app` is still 0.1.83
-(567) with a 0.1.83 worker — this arrives with the next 「检查更新」, and the
-app then offers the usual worker/helper reconcile (§332).
+Sharing data path, and a window presents one sheet at a time (§269). On this Mac
+`/Applications/AgentSpace.app` is still 0.1.83 (567) with a 0.1.83 worker —
+0.1.85 arrives with the next 「检查更新」, and the app then offers the usual
+worker/helper reconcile (§332).
 
 Published 0.1.83 (§384, 2026-10-12): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.83),
 source [62ed042](https://github.com/misswell/AgentSpace/commit/62ed042f22c4f09519a2bb24920df95f6024cbe4),

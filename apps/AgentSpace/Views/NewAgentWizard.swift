@@ -117,7 +117,7 @@ struct NewAgentWizard: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(trimmedName.isEmpty || selectedAccount == nil)
                     .help(Text(continueButtonHint ?? NSLocalizedString("Continue to review the connection.", comment: "")))
-                    .accessibilityIdentifier("wizardContinue")
+                    .accessibilityIdentifier("newAgentContinue")
                 } else {
                     Button(NSLocalizedString("Connect Account", comment: "")) {
                         guard let selectedAccount else { return }
@@ -196,7 +196,7 @@ struct NewAgentWizard: View {
                     }
                 }
                 .pickerStyle(.radioGroup)
-                .accessibilityIdentifier("macOSUserPicker")
+                .accessibilityIdentifier("newAgentUserPicker")
             }
 
             HStack(spacing: 8) {
@@ -217,7 +217,7 @@ struct NewAgentWizard: View {
                 .font(.callout.weight(.medium))
             TextField(NSLocalizedString("Agent name", comment: ""), text: $name)
                 .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("agentNameField")
+                .accessibilityIdentifier("newAgentNameField")
             Text(NSLocalizedString("The name below is a label only; it does not create a macOS account.", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
         }
