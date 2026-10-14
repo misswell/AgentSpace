@@ -48,9 +48,11 @@ echo "== 1b. the handles layer 4 presses are readable in these bytes =="
 # What the check can see: Swift stores an ASCII string literal of 15 bytes or
 # fewer *inside the String's own words* (a small string), so an optimized build
 # materializes it as mov/movk halfword immediates and never as a contiguous
-# `__cstring` entry — measured on this tree, where all four app identifiers of
-# <=15 bytes are absent from the release binary as bytes while all 50 of 16+
-# bytes are present (validation §386). Absence of bytes therefore proves
+# `__cstring` entry — measured as matched pairs, a tree against the binary built
+# from that tree: 0.1.84's sources leave 8 of 62 identifiers absent from their
+# shipped binary, all <=15 bytes with the present ones starting at 17, and this
+# tree leaves 3 of 63 absent, all <=15 bytes with the present ones starting at
+# exactly 16 (validation section 386). Absence of bytes therefore proves
 # nothing about a short name, so every handle below is named at 16 characters or
 # longer and ReleaseIdentifierGateTests keeps it that way. Matching is on a whole
 # pooled string rather than a substring, because a short name that is also a

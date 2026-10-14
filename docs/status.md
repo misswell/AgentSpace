@@ -20,9 +20,13 @@ The second half is the handle names, and the record matters because the first
 conclusion was wrong. Reading 0.1.84's downloaded bytes for row 1247, this
 repo's own note said the release binary contains no `signInAgent` — and the
 inference drawn from that, 「so the shipped door had no handle to press」, is
-**retracted**. Sweeping all 54 app identifiers through three binaries gives a
-clean cut: the 4 absent ones are all ≤15 bytes, the 50 present ones all ≥16, and
-the same names are present in §385's debug bundle at every length. Swift stores
+**retracted**. Re-running the sweep as three matched source↔binary pairs gives a
+clean cut: 0.1.84's own 62 identifiers against its own shipped binary — 8 absent,
+every one ≤15 bytes, 54 present, shortest 17 — and this tree's 63 against its own
+release binary — 3 absent (the three left short on purpose), 60 present including
+`newAgentContinue` at exactly 16 — while §385's debug bundle of the old sources
+carries all 62 at every length. (The first count of that sweep, "4 absent of 54",
+compared this tree's names to the old binary and is corrected in row 1249.) Swift stores
 ASCII literals of ≤15 bytes inside the `String`'s own two words, so an optimized
 build emits them as `mov`/`movk` halfword immediates (`mov x0, #0x6e49` = "In")
 rather than a contiguous `__cstring` entry — the runtime name was always there,

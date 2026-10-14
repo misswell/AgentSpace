@@ -8,13 +8,16 @@ import XCTest
 /// The byte check is worth having precisely because of what it cannot do: Swift
 /// stores an ASCII string literal of 15 bytes or fewer *inside the `String`'s own
 /// words* (a small string), so an optimized build materializes it as `mov`/`movk`
-/// halfword immediates and never as a contiguous `__cstring` entry. Measured on
-/// this tree: the four app identifiers of ≤15 bytes are absent from
-/// `.build/release/AgentSpaceApp` as bytes while all 50 identifiers of ≥16 bytes
-/// are present, and a debug build carries every one of them — so absence of bytes
-/// says nothing about a short name, and a grep of the shipped bundle can only
-/// speak for names long enough to be pooled. That is what the 16-character rule
-/// below defends, and validation §386 is where the boundary was measured.
+/// halfword immediates and never as a contiguous `__cstring` entry. Measured as
+/// matched pairs — a tree against the binary built from that tree, both the
+/// `accessibilityIdentifier("…")` and the `identifier: "…"` form: 0.1.84's 62
+/// identifiers against its shipped binary leave 8 absent, all ≤15 bytes, with the
+/// 54 present starting at 17; this tree's 63 against its release binary leave 3
+/// absent (the names deliberately left short) with the 60 present starting at 16;
+/// a debug build of the old sources carries all 62. So absence of bytes says
+/// nothing about a short name, and a grep of the shipped bundle can only speak
+/// for names long enough to be pooled. That is what the 16-character rule below
+/// defends, and validation §386 is where the boundary was measured.
 final class ReleaseIdentifierGateTests: XCTestCase {
     private let repoRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent()
