@@ -57,6 +57,19 @@ Still unchanged: three grants are three toggles in three panes, the console
 account is never offered the door (§3), and how many displays Apple's Screen
 Sharing window shows is that client's own choice, not ours to script.
 
+Two things this round leaves open rather than closed. **Layer 4 never pressed
+the door** (row 1255): the session instrument refuses while the only attached
+account is `misswell` with `"worker": false`, and the console instrument was
+withheld because the owner is at this Mac (§324) — so the placement fix and the
+renamed handles rest on source assertions plus the byte check on the shipping
+bundle, and a live `agentSignInDoorCard` press in a release bundle is still
+outstanding. **`release.sh` should refuse to write a distribution DMG over an
+ad-hoc signature** (row 1257): with no `Developer ID Application` identity on
+this Mac it prints the ad-hoc warning, then reports `signatures ok`, writes
+`dist/AgentSpace-0.1.85.dmg` and exits 0 — and Apple answered Invalid on that
+artifact. Until the published notarized DMG is downloaded, digest-checked and
+put back, this Mac's `dist/` is not a release-grade bundle.
+
 Published 0.1.84 (§385, 2026-10-14): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.84),
 source [032b868](https://github.com/misswell/AgentSpace/commit/032b86899e1db9305017e2253f7612cb74afe607),
 [Actions 38578225178](https://github.com/misswell/AgentSpace/actions/runs/38578225178)
