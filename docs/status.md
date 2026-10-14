@@ -24,7 +24,9 @@ first attempt was rejected by this round's own new gate, whose `pipefail` bug
 turned a hit into a miss (row 1256), and the second carried a measurement that
 had compared two trees at once (row 1249). Because the workflow creates the
 Release only in its last step, no 0.1.85 page or asset existed for anyone until
-the third run succeeded.
+the third run succeeded. The downloaded asset reads back as **0.1.85 (573)**,
+Developer ID + hardened runtime, ticket stapled to both DMG and app, and step 1b
+over *those* bytes finds all 21 handles present (row 1259).
 
 **What this release changes for a person**: where the Screen Sharing entry sits,
 and the names of six accessibility handles. The owner's screenshot of a sleeping
@@ -87,8 +89,10 @@ outstanding. **`release.sh` should refuse to write a distribution DMG over an
 ad-hoc signature** (row 1257): with no `Developer ID Application` identity on
 this Mac it prints the ad-hoc warning, then reports `signatures ok`, writes
 `dist/AgentSpace-0.1.85.dmg` and exits 0 — and Apple answered Invalid on that
-artifact. Until the published notarized DMG is downloaded, digest-checked and
-put back, this Mac's `dist/` is not a release-grade bundle.
+artifact. The published bytes have since been downloaded, digest-matched and put
+back in `dist/`'s place, so it is release-grade again — but because the release
+was fetched, not because this Mac could have built it, and the guard itself is
+still missing (row 1259).
 
 Published 0.1.84 (§385, 2026-10-14): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.84),
 source [032b868](https://github.com/misswell/AgentSpace/commit/032b86899e1db9305017e2253f7612cb74afe607),
