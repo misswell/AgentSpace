@@ -5,33 +5,53 @@ import AgentSpaceCore
 /// grants belong to the attached account's Aqua session, while the AgentSpace
 /// GUI stays in the controller account. The buttons deliberately remain in
 /// this sheet so the user never has to hunt for a second copy of the app.
+///
+/// The sign-in door lives here too, inline rather than as a second sheet: a
+/// window presents one sheet at a time (§269), and the temporary Screen Sharing
+/// path stays live only while the view that opened it is on screen. Approving
+/// three grants therefore needs one visit to that session, not one switch per
+/// permission.
 struct PermissionGuideView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
 
     let spaceID: UUID
 
+    @State private var showingSignIn = false
+
     private var snapshot: SpaceSnapshot? {
         model.snapshots.first { $0.id == spaceID }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
             header
-            if let snapshot {
-                guide(snapshot)
-            } else {
-                Text(NSLocalizedString("This agent is no longer attached. Close this guide and refresh the account list.", comment: ""))
-                    .foregroundStyle(.secondary)
+                .padding(24)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let snapshot {
+                        guide(snapshot)
+                    } else {
+                        Text(NSLocalizedString("This agent is no longer attached. Close this guide and refresh the account list.", comment: ""))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(24)
             }
+
+            Divider()
+
             HStack {
                 Spacer()
                 Button(NSLocalizedString("Done", comment: "")) { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
+            .padding(16)
         }
-        .padding(24)
-        .frame(width: 560)
+        .frame(width: 560, height: 620)
     }
 
     private var header: some View {
@@ -51,80 +71,123 @@ struct PermissionGuideView: View {
 
     @ViewBuilder
     private func guide(_ snapshot: SpaceSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(String(format: NSLocalizedString("You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. Switch to %@ only to approve it, then return here.", comment: ""), snapshot.space.username, snapshot.space.username))
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(NSLocalizedString("If no entry appears in the list, the worker has not asked yet. Pressing Open settings below asks on the worker's behalf and opens the pane in one step; the prompt then waits in the account's own session.", comment: ""))
+        Text(String(format: NSLocalizedString("You do not need to find AgentSpace in %@. The permission entry is agentspace-worker, a background process rather than a separate app. You also do not have to switch users: sign in below, keep that window on screen, and each pane opened from this guide appears inside it.", comment: ""), snapshot.space.username))
+            .font(.callout)
+            .fixedSize(horizontal: false, vertical: true)
+        Text(NSLocalizedString("If no entry appears in the list, the worker has not asked yet. Pressing Open settings below asks on the worker's behalf and opens the pane in one step; the prompt then waits in the account's own session.", comment: ""))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+        VStack(alignment: .leading, spacing: 10) {
+            permissionRow(
+                space: snapshot.space,
+                title: NSLocalizedString("Accessibility", comment: ""),
+                detail: NSLocalizedString("Lets agentspace-worker operate the attached desktop.", comment: ""),
+                granted: snapshot.accessibility,
+                pane: .accessibility,
+                identifier: "permissionGuideAccessibility")
+            permissionRow(
+                space: snapshot.space,
+                title: NSLocalizedString("Screen & System Audio Recording", comment: ""),
+                detail: NSLocalizedString("Lets the worker capture the attached desktop for previews.", comment: ""),
+                granted: snapshot.screenRecording,
+                pane: .screenRecording,
+                identifier: "permissionGuideScreenRecording")
+            if let fileAccess = snapshot.fileAccess {
+                permissionRow(
+                    space: snapshot.space,
+                    title: NSLocalizedString("Full Disk Access", comment: ""),
+                    detail: NSLocalizedString("Optional. Lets agentspace-worker read this account's Desktop, Documents, Downloads and other apps' data. Without it those folders stay closed and the agent works normally everywhere else.", comment: ""),
+                    granted: fileAccess,
+                    pane: .fullDiskAccess,
+                    identifier: "permissionGuideFullDiskAccess",
+                    optional: true)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+
+        if !snapshot.workerOnline {
+            Label(NSLocalizedString("Sign in to the attached account first — the entry below does it without switching users. The worker must be running before macOS can show its permission entry.", comment: ""), systemImage: "person.crop.circle.badge.exclamationmark")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)
+        }
 
-            VStack(alignment: .leading, spacing: 10) {
-                permissionRow(
-                    space: snapshot.space,
-                    title: NSLocalizedString("Accessibility", comment: ""),
-                    detail: NSLocalizedString("Lets agentspace-worker operate the attached desktop.", comment: ""),
-                    granted: snapshot.accessibility,
-                    pane: .accessibility,
-                    identifier: "permissionGuideAccessibility")
-                permissionRow(
-                    space: snapshot.space,
-                    title: NSLocalizedString("Screen & System Audio Recording", comment: ""),
-                    detail: NSLocalizedString("Lets the worker capture the attached desktop for previews.", comment: ""),
-                    granted: snapshot.screenRecording,
-                    pane: .screenRecording,
-                    identifier: "permissionGuideScreenRecording")
-                if let fileAccess = snapshot.fileAccess {
-                    permissionRow(
-                        space: snapshot.space,
-                        title: NSLocalizedString("Full Disk Access", comment: ""),
-                        detail: NSLocalizedString("Optional. Lets agentspace-worker read this account's Desktop, Documents, Downloads and other apps' data. Without it those folders stay closed and the agent works normally everywhere else.", comment: ""),
-                        granted: fileAccess,
-                        pane: .fullDiskAccess,
-                        identifier: "permissionGuideFullDiskAccess",
-                        optional: true)
-                }
+        if snapshot.offersSignInDoor {
+            signInDoor(snapshot.space)
+        }
+
+        HStack(spacing: 8) {
+            Button {
+                model.reload()
+            } label: {
+                Label(NSLocalizedString("Refresh authorization status", comment: ""), systemImage: "arrow.clockwise")
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            )
-
+            .accessibilityIdentifier("refreshPermissionGuide")
+            .disabled(model.isLoading)
+            Spacer()
             if !snapshot.workerOnline {
-                Label(NSLocalizedString("Sign in to the attached account first. The worker must be running before macOS can show its permission entry.", comment: ""), systemImage: "person.crop.circle.badge.exclamationmark")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            HStack(spacing: 8) {
-                Button {
-                    model.reload()
-                } label: {
-                    Label(NSLocalizedString("Refresh authorization status", comment: ""), systemImage: "arrow.clockwise")
+                Button(NSLocalizedString("Finish setup", comment: "")) {
+                    model.finishPendingSetup(snapshot.space)
                 }
-                .accessibilityIdentifier("refreshPermissionGuide")
-                .disabled(model.isLoading)
-                Spacer()
-                if !snapshot.workerOnline {
-                    Button(NSLocalizedString("Finish setup", comment: "")) {
-                        model.finishPendingSetup(snapshot.space)
+                .disabled(model.finishingSetup != nil || model.updatingWorker != nil)
+            }
+        }
+
+        Text(NSLocalizedString("AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings.", comment: ""))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Always available, because the reason to open that session changes
+    /// mid-approval: the window is the only way to see a pane while the
+    /// permission that governs the built-in viewer — Screen Recording — is
+    /// still missing.
+    private func signInDoor(_ space: AgentAccount) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(NSLocalizedString("Approve without switching users", comment: ""))
+                        .font(.callout.weight(.semibold))
+                    Text(NSLocalizedString("The window this opens is also how you see the panes above: it stays live only while this guide is open.", comment: ""))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                if !showingSignIn {
+                    Button(NSLocalizedString("Sign in without switching users…", comment: "")) {
+                        showingSignIn = true
                     }
+                    .accessibilityIdentifier("permissionGuideSignIn")
                     .disabled(model.finishingSetup != nil || model.updatingWorker != nil)
                 }
             }
-
-            Text(NSLocalizedString("AgentSpace never writes the TCC database. You approve each grant yourself in the attached account's System Settings.", comment: ""))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if showingSignIn {
+                AgentSignInPanel(account: space, model: model, context: .authorization) {
+                    showingSignIn = false
+                }
+            }
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.30), lineWidth: 1)
+        )
     }
 
     private func permissionRow(

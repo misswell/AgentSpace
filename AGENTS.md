@@ -125,7 +125,7 @@ never a fallback to the human's own session. Modules: `apps/AgentSpace` (GUI),
   `scripts/gui-verify.sh` verifies the UI on the console: it closes every
   AgentSpace copy this uid owns and drives a window on the human's screen, so it
   asks first and exits **3** ("nothing was verified") when it will not — hence
-  exit 3 ≠ failure. `scripts/session-gui-verify.sh` runs the same 13 checks
+  exit 3 ≠ failure. `scripts/session-gui-verify.sh` runs the same checks
   inside an agent account's own session via `agentspace exec`
   (`tests/SessionUI`, product `agentspace-gui-check`), where nothing appears on
   the owner's screen and their processes cannot even be signalled.

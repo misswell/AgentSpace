@@ -615,6 +615,45 @@ if let row = connectionsRow, let value = AXUI.string(row, kAXValueAttribute as S
     reports.note("  \(windowDiagnostics(pid))")
 }
 
+// MARK: - Phase F: both authorization surfaces keep the Screen Sharing door (§385)
+
+// The report this phase exists for: the entry that opens the agent's own session
+// was drawn only while the worker was offline or the desktop locked, so it hid
+// itself the moment signing in worked — which is exactly when a person part-way
+// through three privacy grants needs it back. Both authorization surfaces draw
+// it now, and the guide draws the flow *inside itself*: a window presents one
+// sheet at a time (§269), and the temporary Screen Sharing path lives only while
+// the view that opened it stays on screen, so a second sheet would close the
+// window it exists to keep open.
+func findInView(_ identifier: String) -> AXUIElement? {
+    for container in AXUI.windows(pid) + alertContainers() {
+        if let element = AXUI.find(container, identifier: identifier) { return element }
+    }
+    return nil
+}
+
+let cardDoor = AXUI.wait(20) { () -> AXUIElement? in
+    guard let main = AXUI.mainWindow(pid) else { return nil }
+    return AXUI.find(main, identifier: "signInAgent")
+}
+reports.check("the permissions card carries the sign-in door", "found",
+              cardDoor == nil ? "missing" : "found")
+if cardDoor == nil { reports.note("  \(windowDiagnostics(pid))") }
+
+if let guideButton = findInView("openAgentPermissionGuide") {
+    AXUI.press(guideButton)
+    // The guide's own arrival is the evidence the press landed: a click on a
+    // disabled SwiftUI button is a no-op, so the door inside it cannot be
+    // reported as proof of anything but its own presence.
+    let guideDoor = AXUI.wait(15) { findInView("permissionGuideSignIn") }
+    reports.check("the authorization guide carries the same door inline", "found",
+                  guideDoor == nil ? "missing" : "found")
+    if guideDoor == nil { reports.note("  \(windowDiagnostics(pid))") }
+} else {
+    reports.check("the authorization guide carries the same door inline", "found",
+                  "guide button missing")
+}
+
 // MARK: - Report
 
 quit(runningInstances())

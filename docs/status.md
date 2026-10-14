@@ -4,7 +4,29 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-12 on `master`. Current public release: **0.1.83**.
+Last updated: 2026-10-14 on `master`. Current public release: **0.1.83**.
+
+0.1.84 candidate (§385, 2026-10-14): the owner's report named an experience, not
+a defect — 「首次的权限授权体验很糟糕，需要用户来回切换账号」 — and behind it was a
+real one: the account page offered the Screen Sharing entry **only while the
+worker was offline or the desktop locked**, so signing in successfully deleted
+the only way to look at that session again, exactly when a person with one grant
+ticked and two to go needs it. The entry is now permanent on both authorization
+surfaces — the Permissions & authorization card (`signInAgent`, one copy on the
+page, §344) and inline inside 「授权此 Agent」 — drawn as
+「用屏幕共享打开该桌面」 when healthy and as the prominent 「登录 / 解锁 Agent」
+while `!workerOnline || desktopLocked`. `SpaceSnapshot.offersSignInDoor` /
+`signInDoorIsUrgent` replace the inline condition; the console account is never
+offered it (§3). The guide embeds the sign-in panel rather than presenting a
+second sheet because `AccountLoginController.stop()` closes the loopback relay
+that *is* the Screen Sharing data path, and a window presents one sheet at a
+time (§269) — so 「一次进入、三项授权、不切换用户」 is mechanically true, and the
+release notes say plainly what is still three toggles in three panes (macOS
+raises one panel per privacy category). Layers 1–3 locally green (Swift 858 with
+3 skipped, updater 19, MCP suite 28/1 skip, MCP smoke); **layer 4 ran on the
+session instrument only** — 17 checks including both new door names — because
+the owner is at this Mac (§324); the console instrument's two new checks exist
+and are syntax-checked but were not executed.
 
 Published 0.1.83 (§384, 2026-10-12): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.83),
 source [62ed042](https://github.com/misswell/AgentSpace/commit/62ed042f22c4f09519a2bb24920df95f6024cbe4),
@@ -842,6 +864,15 @@ Phase 1 (attach existing account) is implemented in this tree:
   given in that account's own System Settings after the worker is installed;
   the agent card now has buttons that open each privacy pane in that account's
   session, so the main account never opens the wrong System Settings window.
+- That card, and the authorization guide it opens, also keep a **permanent
+  Screen Sharing entry** (§385). It used to be drawn only while the worker was
+  offline or the desktop locked, so it hid itself exactly when signing in had
+  worked — and watching that session is how a pane gets approved at all while
+  the grant governing the built-in viewer is still missing. The guide hosts the
+  sign-in flow inline rather than as a second sheet, because the temporary
+  Screen Sharing path lives only while the view that opened it is on screen.
+  Three grants are still three toggles in three panes; what changed is that
+  they happen in one visit with no user switching.
 - Desktop Viewer has an explicit **Close** action (and ⌘W/ Escape cancellation)
   even when the worker is offline or a permission is missing.
 - CLI primary verbs are `attach` and `detach`; legacy `create`/`delete`
@@ -1151,7 +1182,7 @@ env PATH=/usr/bin:/bin:/usr/sbin:/sbin swift test
 scripts/mcp-smoke.sh
 scripts/updater-e2e.sh
 scripts/check-all.sh
-scripts/session-gui-verify.sh   # layer 4's 13 checks, in the agent session (no screen, no consent)
+scripts/session-gui-verify.sh   # layer 4's checks, in the agent session (no screen, no consent)
 ```
 
 For official `dist/`, always run `scripts/release.sh` and then
@@ -1179,7 +1210,7 @@ session.
 
 **The durable fix is no longer owed: layer 4 now has a second instrument, and it
 cannot reach the owner's session at all** (§324). `scripts/session-gui-verify.sh`
-runs the same 13 checks, in the same order and under the same names, inside an
+runs the same checks, in the same order and under the same names, inside an
 **agent account's own session** — it hands `tests/SessionUI`'s
 `agentspace-gui-check` to that session through the worker's shipped `exec`, and
 the app under test opens on that account's desktop. Nothing appears on the

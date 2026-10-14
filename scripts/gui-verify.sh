@@ -105,6 +105,47 @@ on findAny(theWindow, wantedId, theDepth)
 	return missing value
 end findAny
 
+on findDeep(_root, wantedId, theDepth)
+	-- The same lookup with a higher ceiling, for controls that do not live two
+	-- levels under a window: a guide sheet's button sits inside a sheet, inside
+	-- a scroll area, inside a card. Bounded anyway — a walk with no ceiling
+	-- turns one missing identifier into a hung verification run.
+	if theDepth > 24 then return missing value
+	tell application "System Events"
+		try
+			repeat with _e in (UI elements of _root)
+				try
+					if ((value of attribute "AXIdentifier" of _e) as text) is wantedId then return _e
+				end try
+			end repeat
+		end try
+		repeat with _e in (UI elements of _root)
+			set _found to my findDeep(_e, wantedId, theDepth + 1)
+			if _found is not missing value then return _found
+		end repeat
+	end tell
+	return missing value
+end findDeep
+
+on findEverywhere(theProcess, wantedId)
+	-- Both places this round's assertion lives: the account page's card, and the
+	-- sheet that card opens. A sheet is not reported among `windows` on every
+	-- macOS, so it is walked on its own.
+	tell application "System Events"
+		repeat with _w in (windows of theProcess)
+			set _found to my findDeep(_w, wantedId, 0)
+			if _found is not missing value then return _found
+			try
+				repeat with _s in (sheets of _w)
+					set _found to my findDeep(_s, wantedId, 0)
+					if _found is not missing value then return _found
+				end repeat
+			end try
+		end repeat
+	end tell
+	return missing value
+end findEverywhere
+
 on advancedSettingsWindow(theProcess)
 	-- Which window is Settings cannot be answered by `window 1`: the dashboard
 	-- and the Settings window are both on screen and the order the accessibility
@@ -814,6 +855,42 @@ case "$CONN_ROW" in
 esac
 # This phase's instance is left running; the EXIT trap kills it and this root is
 # removed in the report section below, same as the deep-link phase's.
+
+# --- The sign-in door on both authorization surfaces (§385) -------------------
+# The owner's report: the entry that opens the agent's own session was drawn only
+# while the worker was offline or the desktop locked, so it hid itself the moment
+# signing in worked — exactly when a person part-way through three privacy grants
+# needs it back. Asserted on the card, then inside the guide the card opens: the
+# guide carries the sign-in flow itself, because a window presents one sheet at a
+# time (§269) and the temporary Screen Sharing path lives only while the view
+# that opened it stays on screen.
+DOOR_CARD=""
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  DOOR_CARD="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	set _p to ($PT)
+	if my findEverywhere(_p, \"signInAgent\") is missing value then return \"\"
+	return \"found\"
+end tell" 2>/dev/null | tr -d '\n')"
+  [ -n "$DOOR_CARD" ] && break
+  sleep 2
+done
+check "the permissions card carries the sign-in door" "found" "$DOOR_CARD"
+
+# The press is the only way to reach the sheet, and a click on a disabled
+# SwiftUI button is a no-op, so the door is read back from inside the sheet this
+# run opened rather than assumed from the button being there.
+DOOR_GUIDE="$(osascript -e "$(cat /tmp/gui-verify-lib.applescript)
+tell application \"System Events\"
+	set _p to ($PT)
+	set _g to my findEverywhere(_p, \"openAgentPermissionGuide\")
+	if _g is missing value then return \"guide button missing\"
+	click _g
+	delay 3
+	if my findEverywhere(_p, \"permissionGuideSignIn\") is missing value then return \"missing\"
+	return \"found\"
+end tell" 2>/dev/null | tr -d '\n')"
+check "the authorization guide carries the same door inline" "found" "$DOOR_GUIDE"
 
 # --- report ------------------------------------------------------------------
 rm -rf "$TMPROOT" /tmp/gui-verify-lib.applescript /tmp/gui-verify-windows.txt

@@ -68,7 +68,7 @@ FAILED=()
 # console. Exit 3 means *nothing was verified*, so giving up there would stop a
 # release for a reason that is not the build.
 #
-# `scripts/session-gui-verify.sh` answers the same 13 checks from inside an
+# `scripts/session-gui-verify.sh` answers the same checks from inside an
 # agent account's own session, where the human's screen, focus and windows are
 # not in play at all. So the layer falls back to it — never silently: which
 # instrument produced the verdict is printed either way, because "layer 4 passed"

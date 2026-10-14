@@ -279,15 +279,6 @@ struct SpaceDetailView: View {
                     : NSLocalizedString("not running", comment: ""),
                   tint: snapshot.workerOnline ? nil : .red)
             Field(label: NSLocalizedString("Session", comment: ""), value: snapshot.sessionVerdict ?? NSLocalizedString("unknown", comment: ""), monospaced: true)
-            if !snapshot.workerOnline || snapshot.desktopLocked {
-                Button {
-                    loginAccount = snapshot.space
-                } label: {
-                    Label("Sign In or Unlock Agent", systemImage: "person.crop.circle.badge.key")
-                }
-                .disabled(model.finishingSetup != nil || model.updatingWorker != nil || model.authorizingPermission != nil)
-                .accessibilityIdentifier("signInAgent")
-            }
             Field(label: NSLocalizedString("Accepts input", comment: ""),
                   value: snapshot.acceptsInput ? NSLocalizedString("yes", comment: "") : NSLocalizedString("no", comment: ""),
                   tint: snapshot.acceptsInput ? .green : .orange)
@@ -403,6 +394,10 @@ struct SpaceDetailView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if snapshot.offersSignInDoor {
+                signInDoor(snapshot)
+            }
+
             HStack(spacing: 8) {
                 Button {
                     model.permissionGuideRequest = snapshot.space.id
@@ -419,6 +414,43 @@ struct SpaceDetailView: View {
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// The door stays on the page whatever the worker says. It used to appear
+    /// only while the account was offline or locked, so the one person who most
+    /// needed it — a grant ticked, the Screen Sharing window closed, two panes
+    /// still to approve — had a single way back into that session: Fast User
+    /// Switching, once per remaining permission. Watching that session is also
+    /// the only way to approve at all while Screen Recording, the permission
+    /// being granted, is still missing: the built-in viewer cannot show a frame
+    /// without it.
+    private func signInDoor(_ snapshot: SpaceSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            doorButton(space: snapshot.space, urgent: snapshot.signInDoorIsUrgent)
+            Text(NSLocalizedString("Keep that window on screen while you approve. Every pane the buttons above open appears inside it, so all three grants happen in one visit and you never switch users.", comment: ""))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private func doorButton(space: AgentAccount, urgent: Bool) -> some View {
+        let button = Button {
+            loginAccount = space
+        } label: {
+            Label(urgent
+                  ? NSLocalizedString("Sign In or Unlock Agent", comment: "")
+                  : NSLocalizedString("Open this desktop with Screen Sharing", comment: ""),
+                  systemImage: "person.crop.circle.badge.key")
+        }
+        .accessibilityIdentifier("signInAgent")
+        .disabled(model.finishingSetup != nil || model.updatingWorker != nil || model.authorizingPermission != nil)
+        if urgent {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button
         }
     }
 

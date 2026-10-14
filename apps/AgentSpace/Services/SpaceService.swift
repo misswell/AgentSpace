@@ -62,6 +62,23 @@ struct SpaceSnapshot: Identifiable, Equatable {
     }
 }
 
+extension SpaceSnapshot {
+    /// Whether a surface may offer the Screen Sharing door for this account.
+    ///
+    /// Every state except one: an account whose session *is* the physical
+    /// console has no other desktop to open, and `AccountLogin.permits` refuses
+    /// it. The door used to be hidden by `!workerOnline || desktopLocked`, which
+    /// is the opposite mistake — it disappeared exactly when the account was
+    /// usable, which is when a person mid-authorization needs to look at that
+    /// session again.
+    var offersSignInDoor: Bool { effectiveState != .console }
+
+    /// Offline or locked, signing in is the action that unblocks everything the
+    /// card offers, so the door is that card's prominent button. Otherwise it is
+    /// a way to keep eyes on the other session while approving.
+    var signInDoorIsUrgent: Bool { !workerOnline || desktopLocked }
+}
+
 /// The GUI's bridge to the core, and the only place the app touches the worker.
 ///
 /// Two rules are visible in this file on purpose:
