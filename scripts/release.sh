@@ -81,10 +81,17 @@ LAYER4_HANDLES=(
   updateInstallButton
 )
 GUI_BIN="$APP/Contents/MacOS/AgentSpace"
-GUI_STRINGS="$(strings -a "$GUI_BIN")"
+# Written to a file, not piped: this script runs under `pipefail`, and `grep -q`
+# exits the moment it matches, so `printf '%s\n' "$GUI_STRINGS" | grep -qx` made
+# *printf* die of SIGPIPE and the pipeline reported failure for handles that were
+# present — 16 of 21 on the 0.1.85 runner, which then correctly refused to
+# publish a build whose only defect was this check (§386 row 1256).
+GUI_STRINGS_FILE="$(mktemp /tmp/agentspace-strings.XXXXXX)"
+trap 'rm -f "$GUI_STRINGS_FILE"' EXIT
+strings -a "$GUI_BIN" > "$GUI_STRINGS_FILE"
 missing_handles=0
 for handle in "${LAYER4_HANDLES[@]}"; do
-  if printf '%s\n' "$GUI_STRINGS" | grep -qx "$handle"; then
+  if grep -qx "$handle" "$GUI_STRINGS_FILE"; then
     echo "  ok  $handle"
   else
     echo "  MISSING  $handle is not a whole string in $GUI_BIN: layer 4 cannot press it in a shipped build" >&2

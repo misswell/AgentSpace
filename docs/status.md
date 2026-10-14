@@ -4,7 +4,10 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-15 on `master`. Current public release: **0.1.85**.
+Last updated: 2026-10-15 on `master`. Current public release: **0.1.84** —
+0.1.85 is tagged (`v0.1.85`) and in the release pipeline; its first runner
+attempt was rejected by this round's own new byte gate, which turned out to be a
+`pipefail` bug in the gate rather than a missing handle (§386 row 1256).
 
 **What this release changes for a person**: where the Screen Sharing entry sits,
 and the names of six accessibility handles. The owner's screenshot of a sleeping
@@ -40,7 +43,11 @@ and why the two door surfaces got separate names
 (`agentSignInDoorCard`, `agentViewerSignInDoor`) — they can be on screen
 together, and one shared name cannot say which one a search found. Short names no
 instrument presses (`fusionAppRow`, `fusionAppList`, `updateStateText`) were left
-alone. All 21 gated names measure present in this tree's release binary.
+alone. All 21 gated names measure present in this tree's release binary — and
+the first runner attempt said the opposite, 3 ok / 18 MISSING, because step 1b
+piped a megabyte of `strings` into `grep -q` and `pipefail` counted *printf*'s
+SIGPIPE as a failed check (row 1256); it now greps a file, and `./scripts/release.sh`
+answers 21 ok end to end.
 `tests/Unit/ReleaseIdentifierGateTests` (4 checks) keeps the list from rotting:
 pressed ⊆ gated, gated ⊆ sources (both `accessibilityIdentifier("…")` and the
 `Field` helper's `identifier: "…"` form), nothing under 16 bytes, nothing hidden
