@@ -4,29 +4,41 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-14 on `master`. Current public release: **0.1.83**.
+Last updated: 2026-10-14 on `master`. Current public release: **0.1.84**.
 
-0.1.84 candidate (§385, 2026-10-14): the owner's report named an experience, not
-a defect — 「首次的权限授权体验很糟糕，需要用户来回切换账号」 — and behind it was a
-real one: the account page offered the Screen Sharing entry **only while the
-worker was offline or the desktop locked**, so signing in successfully deleted
-the only way to look at that session again, exactly when a person with one grant
-ticked and two to go needs it. The entry is now permanent on both authorization
-surfaces — the Permissions & authorization card (`signInAgent`, one copy on the
-page, §344) and inline inside 「授权此 Agent」 — drawn as
-「用屏幕共享打开该桌面」 when healthy and as the prominent 「登录 / 解锁 Agent」
-while `!workerOnline || desktopLocked`. `SpaceSnapshot.offersSignInDoor` /
-`signInDoorIsUrgent` replace the inline condition; the console account is never
-offered it (§3). The guide embeds the sign-in panel rather than presenting a
-second sheet because `AccountLoginController.stop()` closes the loopback relay
-that *is* the Screen Sharing data path, and a window presents one sheet at a
-time (§269) — so 「一次进入、三项授权、不切换用户」 is mechanically true, and the
-release notes say plainly what is still three toggles in three panes (macOS
-raises one panel per privacy category). Layers 1–3 locally green (Swift 858 with
-3 skipped, updater 19, MCP suite 28/1 skip, MCP smoke); **layer 4 ran on the
-session instrument only** — 17 checks including both new door names — because
-the owner is at this Mac (§324); the console instrument's two new checks exist
-and are syntax-checked but were not executed.
+Published 0.1.84 (§385, 2026-10-14): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.84),
+source [032b868](https://github.com/misswell/AgentSpace/commit/032b86899e1db9305017e2253f7612cb74afe607),
+[Actions 38578225178](https://github.com/misswell/AgentSpace/actions/runs/38578225178)
+all three jobs passed; `releases/latest` returns v0.1.84 with no §318 lag. DMG
+27,528,491 bytes, sha256
+`6547c6e2cf9e8ea5ffc16bed06141a4d113e004db2dfcdc3a18039d64b3d664f`. Apple live
+`asc notarization list` readback: App ZIP `90502f25-337d-4d48-9670-4f01226df520`
+and DMG `74b89b77-733b-491a-a00d-3fc4db12e5ac` both **Accepted**. Runner gate:
+Swift 858 (3 skipped), updater 19, MCP smoke all passed; **layer 4 is not run on
+a runner** and this round's verdict came from the session instrument — 17 checks
+green including both new door names — because the owner is at this Mac (§324).
+
+**What this release changes for a person**: the first time they authorize an
+agent account they no longer switch macOS users. The owner's report named an
+experience, not a defect — 「首次的权限授权体验很糟糕，需要用户来回切换账号」 — and
+behind it was a real one: the account page offered the Screen Sharing entry
+**only while the worker was offline or the desktop locked**, so signing in
+successfully deleted the only way to look at that session again, exactly when a
+person with one grant ticked and two to go needs it. The entry is now permanent
+on both authorization surfaces — the Permissions & authorization card
+(`signInAgent`, one copy on the page, §344) and inline inside 「授权此 Agent」 —
+drawn as 「用屏幕共享打开该桌面」 when healthy and as the prominent
+「登录 / 解锁 Agent」 while `!workerOnline || desktopLocked`.
+`SpaceSnapshot.offersSignInDoor` / `signInDoorIsUrgent` replace the inline
+condition; the console account is never offered it (§3). The guide embeds the
+sign-in panel rather than presenting a second sheet because
+`AccountLoginController.stop()` closes the loopback relay that *is* the Screen
+Sharing data path, and a window presents one sheet at a time (§269) — so
+「一次进入、三项授权、不切换用户」 is mechanically true, and the release notes say
+plainly what is still three toggles in three panes (macOS raises one panel per
+privacy category). On this Mac `/Applications/AgentSpace.app` is still 0.1.83
+(567) with a 0.1.83 worker — this arrives with the next 「检查更新」, and the
+app then offers the usual worker/helper reconcile (§332).
 
 Published 0.1.83 (§384, 2026-10-12): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.83),
 source [62ed042](https://github.com/misswell/AgentSpace/commit/62ed042f22c4f09519a2bb24920df95f6024cbe4),
