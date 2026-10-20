@@ -4,7 +4,41 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-20 on `master`. Current public release: **0.1.86**.
+Last updated: 2026-10-20 on `master`. Current public release: **0.1.87**.
+
+Published 0.1.87 (§388, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.87),
+source [c583584](https://github.com/misswell/AgentSpace/commit/c583584c39284de144951fddea01930a824df32d),
+[Actions 39380832595](https://github.com/misswell/AgentSpace/actions/runs/39380832595)
+all three jobs green; `releases/latest` returns v0.1.87 with no §318 lag. DMG
+28,563,921 bytes, sha256
+`d37d0c06ae2ddc7ba98053eb6cc6e9e659ee34237db0969eaea68120c917a34a`. Apple live
+`asc notarization list` readback: App ZIP `cd1ce0d4-e58e-4578-b77a-bcd588ffaf54`
+and DMG `4ce0460b-5b69-427b-912d-d9efa253c89c` both **Accepted**. Runner gate:
+Swift **877** (3 skipped), updater **19**, MCP suite + smoke all passed, and step
+1b reads **21 handles ok, 0 MISSING**. **Layer 4 is not run on a runner**; on
+this Mac the console instrument refused (an AgentSpace copy was running) and the
+session twin passed **17 checks, 0 failed** in AgentUse's session against a
+debug bundle of this tree — but those checks do not press the new Install menu
+(row 1279). The downloaded asset reads back as **0.1.87 (579)**, CLI 0.1.87
+(protocol 1), MCP service 0.1.17, Developer ID + hardened runtime, ticket
+stapled to both DMG and app, Gatekeeper accepted, and step 1b over *those* bytes
+finds all 21 handles present (row 1281). `dist/` now holds the published app and
+DMG, staples included.
+
+**What 0.1.87 changes for a person**: the Install MCP menu now suffixes each of
+the 24 clients with the scanner's state — 就绪 / 可运行，但不是本次安装 /
+需要修复 / 未配置 — sorts ready clients first, and refreshes with the account
+page's 3-second poll; a client that was never opened stays a plain name.
+Installing judges the bytes it just wrote and appends **Verified** (or why not)
+to the confirmation instead of stopping at 「已配置」. The bundled MCP service
+(0.1.17) gains read-only `agentspace_doctor`/`agent_doctor` and
+`agentspace_diagnostics`/`agent_diagnostics` — 31 pairs, 62 tools. Doctor
+returns failing checks with their fixes as a report even at exit 1; diagnostics
+returns the redacted bundle without writing a file. Client configs need no
+rewrite; restart the client to pick up the new service. Worker, helper,
+protocol and the other 29 pairs are unchanged. Layer 4 passed its 17 checks on
+a 0.1.87 bundle but did not press the new menu, so the menu's live rendering
+rests on source and unit evidence (§388 rows 1272–1274, 1279).
 
 Published 0.1.86 (§387, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.86),
 source [90a0fe8](https://github.com/misswell/AgentSpace/commit/90a0fe80619928fee857218778844be79fdf2342),
