@@ -1358,24 +1358,16 @@ final class AppModel: ObservableObject {
     /// has already said yes.
     func installIntegration(_ target: Integrations.Target) {
         guard let binary = Integrations.defaultBinaryPath() else { return }
+        guard !target.configPath.isEmpty else {
+            // No single file to write; copying is the whole feature.
+            copyMCPConfiguration()
+            return
+        }
         let path = (target.configPath as NSString).expandingTildeInPath
         let existing = FileManager.default.contents(atPath: path)
         do {
-            let merged: Data
-            switch target {
-            case .codex:
-                merged = try Integrations.mergeTOMLConfig(existing: existing, binaryPath: binary)
-            case .claudeCode, .kimiCode:
-                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcpServers", binaryPath: binary)
-            case .openCode, .mimoCode:
-                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp", binaryPath: binary)
-            case .zcode:
-                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp.servers", binaryPath: binary)
-            case .generic:
-                // No single file to write; copying is the whole feature.
-                copyMCPConfiguration()
-                return
-            }
+            let merged = try Integrations.merge(existing: existing, target: target,
+                                                binaryPath: binary)
             try FileManager.default.createDirectory(
                 atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
             if let existing, !FileManager.default.fileExists(atPath: path + ".agentspace.bak") {

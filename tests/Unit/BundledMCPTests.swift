@@ -48,7 +48,7 @@ final class BundledMCPTests: XCTestCase {
     func testJSONMergesKeepOtherServersAndUseBundledLauncher() throws {
         try withBundle { binary, launcher in
             let before = Data(#"{"mcpServers":{"other":{"command":"keep"}},"setting":"keep"}"#.utf8)
-            let data = try Integrations.mergeJSONConfig(existing: before, rootKey: "mcpServers", binaryPath: binary)
+            let data = try Integrations.merge(existing: before, target: .claudeCode, binaryPath: binary)
             let result = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
             XCTAssertEqual(result["setting"] as? String, "keep")
             let servers = try XCTUnwrap(result["mcpServers"] as? [String: [String: Any]])

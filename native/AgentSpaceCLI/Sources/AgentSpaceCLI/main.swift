@@ -11,7 +11,7 @@ import AgentSpaceCore
 // print why and stop. There is no code path here that runs a GUI command
 // locally "because the background session was unavailable".
 
-let cliVersion = "0.1.85"
+let cliVersion = "0.1.86"
 
 // MARK: - Argument parsing
 
@@ -261,8 +261,11 @@ func usage() -> String {
       helper                          Privileged helper: installed? answering?
 
     MANAGEMENT (changes the machine; needs the privileged helper)
-      integrate <target>              Print MCP config for claude|codex|opencode|zcode|kimi|mimo
+      integrate <target>              Print MCP config for an AI client; run
+                                      `agentspace integrate` with no target to
+                                      list every client it can configure
                                       [--install writes it, backing up first]
+                                      [--config PATH aims the write elsewhere]
                                       agentspace integrate rules       Agent safety rules (§35)
       attach <username>               Connect an existing standard macOS user
       detach <account>                Remove AgentSpace worker/runtime only;
@@ -552,13 +555,33 @@ case "detach":
     exit(0)
 
 case "integrate":
-    // Plan §34: one-click MCP configuration for Claude Code, Codex and OpenCode.
+    // Plan §34: one-click MCP configuration for every supported AI client.
     //
     // The default prints the config for the user to paste; `--install` writes it,
     // touching only the key AgentSpace owns. Installing is a deliberate flag rather
     // than a default because it edits a file another tool owns.
     guard let targetName = rest.first else {
-        emitter.failure(AgentSpaceError(code: .badRequest, message: "usage: agentspace integrate <claude|codex|opencode|generic> [--install]"), exitCode: 64)
+        // No target is a discovery question, not a malformed request: list every
+        // client this build can configure, with the file each one reads.
+        if emitter.json {
+            emitter.success(.obj([
+                "targets": .array(Integrations.installableTargets.map { target in
+                    .obj([
+                        "target": .string(target.rawValue),
+                        "name": .string(target.displayName),
+                        "path": .string(target.configPath),
+                    ])
+                }),
+            ]))
+        }
+        print("MCP clients AgentSpace can configure:\n")
+        for target in Integrations.installableTargets {
+            let name = target.rawValue.padding(toLength: 15, withPad: " ", startingAt: 0)
+            print("  \(name)\(target.displayName)  \(target.configPath)")
+        }
+        print("\n  \("generic".padding(toLength: 15, withPad: " ", startingAt: 0))\(Integrations.Target.generic.displayName)  (copy the printed config; --install needs --config PATH)")
+        print("\nusage: agentspace integrate <target> [--install] [--config PATH]")
+        exit(0)
     }
     if targetName == "rules" {
         // Plan §35: the safety rules recommended for any agent driving AgentSpace.
@@ -609,29 +632,20 @@ case "integrate":
     }
 
     if parsed.bool("install") {
-        guard !target.configPath.isEmpty else {
-            emitter.failure(AgentSpaceError(code: .badRequest, message: "the generic shape has no single config file; use --json to copy it into your client's configuration"), exitCode: 64)
-        }
         // `--config` exists so the write can be aimed somewhere other than the
         // real home — non-standard installs, and tests. Never assume a HOME
         // redirect works: tilde expansion ignores it (measured, validation.md §18).
+        // It is also the only way `generic` can install: that target has no file
+        // of its own, so the caller must say which one to merge into.
         let chosen = parsed.flag("config") ?? target.configPath
+        guard !chosen.isEmpty else {
+            emitter.failure(AgentSpaceError(code: .badRequest, message: "\(target.displayName) has no fixed config file; pass --config PATH to choose the file to merge into, or use --json to copy the configuration"), exitCode: 64)
+        }
         let expanded = (chosen as NSString).expandingTildeInPath
         let existing = FileManager.default.contents(atPath: expanded)
         do {
-            let merged: Data
-            switch target {
-            case .codex:
-                merged = try Integrations.mergeTOMLConfig(existing: existing, binaryPath: binaryPath)
-            case .claudeCode, .kimiCode:
-                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcpServers", binaryPath: binaryPath)
-            case .openCode, .mimoCode:
-                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp", binaryPath: binaryPath)
-            case .zcode:
-                merged = try Integrations.mergeJSONConfig(existing: existing, rootKey: "mcp.servers", binaryPath: binaryPath)
-            case .generic:
-                exit(64) // unreachable: guarded above
-            }
+            let merged = try Integrations.merge(existing: existing, target: target,
+                                                binaryPath: binaryPath)
             let directory = (expanded as NSString).deletingLastPathComponent
             try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
             // A backup before the first write to an existing file: the undo for

@@ -244,13 +244,22 @@ public enum MCPClients {
     }
 
     /// Pull the client's `agentspace` entry out of its own config.
+    ///
+    /// The key path and the entry shape are owned by `Integrations.Target`, so a
+    /// client added there is scanned here without a second list to keep in step.
     static func entry(in data: Data, target: Integrations.Target) -> Parsed {
-        switch target {
-        case .codex:
+        switch target.shape {
+        case .toml:
             return tomlEntry(String(decoding: data, as: UTF8.self)).map(Parsed.entry) ?? .noEntry
-        case .claudeCode, .kimiCode, .generic:
+        case .plain, .miniMax:
             return jsonEntry(parsedJSON(data), through: ["mcpServers", "agentspace"])
-        case .openCode, .mimoCode:
+        case .vsCode:
+            return jsonEntry(parsedJSON(data), through: ["servers", "agentspace"])
+        case .zed:
+            return jsonEntry(parsedJSON(data), through: ["context_servers", "agentspace"])
+        case .amp:
+            return jsonEntry(parsedJSON(data), through: ["amp.mcpServers", "agentspace"])
+        case .openCode, .crush:
             return jsonEntry(parsedJSON(data), through: ["mcp", "agentspace"])
         case .zcode:
             return jsonEntry(parsedJSON(data), through: ["mcp", "servers", "agentspace"])

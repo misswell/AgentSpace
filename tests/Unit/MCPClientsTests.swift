@@ -131,13 +131,32 @@ final class MCPClientsTests: XCTestCase {
     func testOpenCodeArrayCommandShape() throws {
         let config = Integrations.config(for: .openCode, binaryPath: binary)
         XCTAssertEqual(verdict(config, for: .openCode), .current)
-        XCTAssertTrue(config.contains("\"type\": \"local\""))
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(config.utf8)) as? [String: Any])
+        let server = try XCTUnwrap((root["mcp"] as? [String: Any])?["agentspace"] as? [String: Any])
+        XCTAssertEqual(server["type"] as? String, "local")
+        XCTAssertTrue(server["command"] is [String], "OpenCode takes argv as one array")
     }
 
-    func testZCodeNestedShape() {
+    func testZCodeNestedShape() throws {
         let config = Integrations.config(for: .zcode, binaryPath: binary)
         XCTAssertEqual(verdict(config, for: .zcode), .current)
-        XCTAssertTrue(config.contains("\"servers\""))
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(config.utf8)) as? [String: Any])
+        XCTAssertNotNil(((root["mcp"] as? [String: Any])?["servers"] as? [String: Any])?["agentspace"])
+    }
+
+    /// Each client is scanned through the key *it* reads. A working Claude-shaped
+    /// entry is therefore not evidence that VS Code, Zed or Amp can see it: those
+    /// clients read different roots, and reporting them reachable would send a
+    /// person back to a client that still has no tools.
+    func testEachShapeIsInvisibleToTheOthers() {
+        let standard = Integrations.config(for: .claudeCode, binaryPath: binary)
+        XCTAssertEqual(verdict(standard, for: .vsCode), .absent)
+        XCTAssertEqual(verdict(standard, for: .zed), .absent)
+        XCTAssertEqual(verdict(standard, for: .amp), .absent)
+        XCTAssertEqual(verdict(standard, for: .zcode), .absent)
+
+        let vsCode = Integrations.config(for: .vsCode, binaryPath: binary)
+        XCTAssertEqual(verdict(vsCode, for: .claudeCode), .absent)
     }
 
     /// MiMo keeps `.jsonc`: comments and a trailing comma are legal there, so a

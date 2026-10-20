@@ -266,10 +266,16 @@ let settled = settledWindowCount(pid)
 // place of its windows, and these very checks reported four failures against a
 // build that was fine. The window server's own count is the control: a real
 // window with an unreadable tree is the instrument failing to look, and it
-// refuses (3, "nothing was verified") rather than claiming a verdict.
-if settled.count > 0, !AXUI.windowsHaveWindowRole(pid) {
+// refuses (3, "nothing was verified") rather than claiming a verdict. The
+// control has to cover the *empty* list too: on 2026-10-20 the same failure
+// first answered nothing at all for 15 seconds while the window server held
+// one window, and that was scored as "expected 1 got 0" — a failed launch
+// verdict against a fine build (§387).
+if !AXUI.windows(pid).isEmpty && !AXUI.windowsHaveWindowRole(pid)
+    || settled.count == 0 && AXUI.onScreenWindowCount(pid) > 0 {
     fail("this session's accessibility cannot read \(appName)'s windows: "
-        + "\(settled.count) element(s) in the window list, none with role AXWindow, "
+        + "\(AXUI.windows(pid).count) element(s) in the window list, "
+        + "\(AXUI.windows(pid).filter { AXUI.role($0) == (kAXWindowRole as String) }.count) with role AXWindow, "
         + "while the window server reports \(AXUI.onScreenWindowCount(pid)) window(s) for pid \(pid). "
         + "That is the instrument failing to look, not the app failing a check — re-run once the "
         + "session's accessibility answers again (a TextEdit control window is the same test).",

@@ -59,17 +59,22 @@ session.
 
 ## Connect an agent
 
-Give the agent you already use — Codex, Claude Code, ZCode, Kimi Code, Xiaomi
-MiMo, OpenCode, or any MCP client — the tools to work **on the agent desktop**:
-launch apps, type, click, screenshot, run tests. One command per client:
+Give the agent you already use the tools to work **on the agent desktop**:
+launch apps, type, click, screenshot, run tests. One command per client, for
+24 real clients — Claude Code and Claude Desktop, Codex, Cursor, Windsurf,
+VS Code, Zed, Kiro, Gemini CLI, Qwen Code, Qoder, Amazon Q, Copilot CLI,
+Cline, OpenCode, ZCode, Kimi Code, Xiaomi MiMo, Crush, Amp, Factory, MiniMax,
+LM Studio, Antigravity:
 
 ```bash
-agentspace integrate zcode --install   # also: claude | codex | opencode | kimi | mimo
+agentspace integrate zcode --install   # agentspace integrate (no target) lists all 24
 ```
 
-It writes one `agentspace` MCP entry into that client's config file (backing
-the file up first) and nothing else. Restart the client and ask it to work on
-the agent desktop — it will find the `agentspace_*` tools itself. The full
+It writes one `agentspace` MCP entry into that client's own config file, in
+the shape that client reads (backing the file up first), and nothing else.
+Restart the client and ask it to work on the agent desktop — it will find the
+`agentspace_*` tools itself. Any other MCP client can take the printed config
+(`agentspace integrate generic`, or `--install --config PATH`). The full
 walk-through, the `command not found` fix, and the safety rules live in
 [`docs/connect-your-agent.md`](docs/connect-your-agent.md).
 

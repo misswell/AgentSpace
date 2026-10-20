@@ -709,7 +709,11 @@
 "checking…" = "检查中…";
 "not usable" = "不可用";
 "Fix: %@, then restart that client." = "修复：执行 %@，然后重启该客户端。";
-"No AI client is set up to use this desktop, so its sessions begin with no agentspace_* tools. For the one you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo)." = "没有 AI 客户端配置为使用这个桌面，因此它的会话开始时没有 agentspace_* 工具。对你使用的客户端执行：`agentspace integrate claude --install`（或 codex、opencode、zcode、kimi、mimo）。";
+"No AI client is set up to use this desktop, so its sessions begin with no agentspace_* tools. Configure yours from the Install MCP Into… menu on this page, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client)." = "没有 AI 客户端配置为使用这个桌面，因此它的会话开始时没有 agentspace_* 工具。请在本页的「把 MCP 安装到…」菜单中选择你使用的客户端，或执行 `agentspace integrate <target> --install`（不带目标运行 `agentspace integrate` 可列出全部受支持的客户端）。";
+"Command-line agents" = "命令行 Agent";
+"Editors" = "编辑器";
+"Desktop apps" = "桌面应用";
+"Editor extensions" = "编辑器扩展";
 "no entry" = "未配置";
 "this install" = "本次安装";
 "runs `npx -y @agentspace/mcp`, and that package was never published — it cannot start" = "运行 `npx -y @agentspace/mcp`，而该包从未发布，无法启动";
@@ -721,6 +725,6 @@
 "A configured client cannot start AgentSpace's MCP service, so its sessions have no agentspace_* tools and report that no AgentSpace exists while the desktop reads as ready." = "已配置的客户端无法启动 AgentSpace 的 MCP 服务：它的会话里没有 agentspace_* 工具，在桌面显示就绪时会报告「没有 AgentSpace」。";
 "%@, then restart that client." = "执行 %@，然后重启该客户端。";
 "No AI client is set up to launch this install's MCP service, so every agent session begins with no agentspace_* tools." = "没有 AI 客户端配置为启动本次安装的 MCP 服务，因此每个 Agent 会话开始时都没有 agentspace_* 工具。";
-"For the client you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo)." = "对你使用的客户端执行：`agentspace integrate claude --install`（或 codex、opencode、zcode、kimi、mimo）。";
+"Configure the client you use from the account page's Install MCP Into… menu, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client)." = "在账号页的「把 MCP 安装到…」菜单中选择你使用的客户端，或执行 `agentspace integrate <target> --install`（不带目标运行 `agentspace integrate` 可列出全部受支持的客户端）。";
 "The MCP service is ready for %@." = "MCP 服务可供 %@ 使用。";
 "This process cannot tell which AgentSpace install it belongs to, so client registrations cannot be compared against it." = "本进程无法确定自己属于哪次 AgentSpace 安装，因此无法比对客户端注册。";

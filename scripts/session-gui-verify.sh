@@ -82,8 +82,12 @@ swift build --product agentspace-gui-check 2>&1 | grep -Ev "^\[|^warning: 'agent
 
 # --- which account's session -------------------------------------------------
 # Names may contain spaces, so the name is what sits between the status marker
-# and the two spaces before the state label — not a whitespace-split field.
-ACCOUNTS="$("$CLI" list 2>/dev/null | sed -n 's/^[●○][[:space:]]\{1,\}\(.*\)[[:space:]]\{2\}\[.*/\1/p')"
+# and the two spaces before the state label — not a whitespace-split field. The
+# marker is matched as "any non-space bytes", not as `[●○]`: BSD sed in the C
+# locale treats a bracket of multibyte characters as individual bytes, matches
+# the first byte of ● and then fails on the second, so a UTF-8 host works and a
+# gate run from a C-locale shell finds zero accounts and refuses (§387).
+ACCOUNTS="$("$CLI" list 2>/dev/null | sed -n 's/^[^[:space:]]\{1,\}[[:space:]]\{1,\}\(.*\)[[:space:]]\{2\}\[.*/\1/p')"
 COUNT="$(printf '%s' "$ACCOUNTS" | grep -c . || true)"
 if [ -z "$ACCOUNT" ]; then
   case "$COUNT" in

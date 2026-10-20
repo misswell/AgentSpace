@@ -340,7 +340,7 @@ struct SpaceDetailView: View {
             return String(format: NSLocalizedString("Fix: %@, then restart that client.", comment: ""), fixes)
         }
         if connections.reachable.isEmpty {
-            return NSLocalizedString("No AI client is set up to use this desktop, so its sessions begin with no agentspace_* tools. For the one you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo).", comment: "")
+            return NSLocalizedString("No AI client is set up to use this desktop, so its sessions begin with no agentspace_* tools. Configure yours from the Install MCP Into… menu on this page, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client).", comment: "")
         }
         return nil
     }
@@ -670,16 +670,32 @@ struct SpaceDetailView: View {
         }
     }
 
+    private func categoryTitle(_ category: Integrations.Target.Category) -> String {
+        switch category {
+        case .terminal: return NSLocalizedString("Command-line agents", comment: "")
+        case .editor: return NSLocalizedString("Editors", comment: "")
+        case .desktop: return NSLocalizedString("Desktop apps", comment: "")
+        case .editorExtension: return NSLocalizedString("Editor extensions", comment: "")
+        }
+    }
+
     private func dangerCard(_ snapshot: SpaceSnapshot) -> some View {
         let space = snapshot.space
         return Card(title: NSLocalizedString("Maintenance", comment: "")) {
             HStack(spacing: 8) {
                 Button(NSLocalizedString("Reveal Runtime Folder", comment: "")) { model.revealRuntimeDirectory() }
                 Menu(NSLocalizedString("Install MCP Into…", comment: "")) {
-                    ForEach([Integrations.Target.claudeCode, .codex, .openCode, .zcode, .kimiCode, .mimoCode], id: \.self) { target in
-                        Button(target.displayName) {
-                            integrationTarget = target
-                            showingIntegrationConfirm = true
+                    ForEach(Integrations.Target.Category.allCases, id: \.self) { category in
+                        let targets = Integrations.installableTargets.filter { $0.category == category }
+                        if !targets.isEmpty {
+                            Section(header: Text(categoryTitle(category))) {
+                                ForEach(targets, id: \.self) { target in
+                                    Button(target.displayName) {
+                                        integrationTarget = target
+                                        showingIntegrationConfirm = true
+                                    }
+                                }
+                            }
                         }
                     }
                 }

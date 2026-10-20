@@ -713,7 +713,11 @@
 "checking…" = "checking…";
 "not usable" = "not usable";
 "Fix: %@, then restart that client." = "Fix: %@, then restart that client.";
-"No AI client is set up to use this desktop, so its sessions begin with no agentspace_* tools. For the one you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo)." = "No AI client is set up to use this desktop, so its sessions begin with no agentspace_* tools. For the one you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo).";
+"No AI client is set up to use this desktop, so its sessions begin with no agentspace_* tools. Configure yours from the Install MCP Into… menu on this page, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client)." = "No AI client is set up to use this desktop, so its sessions begin with no agentspace_* tools. Configure yours from the Install MCP Into… menu on this page, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client).";
+"Command-line agents" = "Command-line agents";
+"Editors" = "Editors";
+"Desktop apps" = "Desktop apps";
+"Editor extensions" = "Editor extensions";
 "no entry" = "no entry";
 "this install" = "this install";
 "runs `npx -y @agentspace/mcp`, and that package was never published — it cannot start" = "runs `npx -y @agentspace/mcp`, and that package was never published — it cannot start";
@@ -725,6 +729,6 @@
 "A configured client cannot start AgentSpace's MCP service, so its sessions have no agentspace_* tools and report that no AgentSpace exists while the desktop reads as ready." = "A configured client cannot start AgentSpace's MCP service, so its sessions have no agentspace_* tools and report that no AgentSpace exists while the desktop reads as ready.";
 "%@, then restart that client." = "%@, then restart that client.";
 "No AI client is set up to launch this install's MCP service, so every agent session begins with no agentspace_* tools." = "No AI client is set up to launch this install's MCP service, so every agent session begins with no agentspace_* tools.";
-"For the client you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo)." = "For the client you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo).";
+"Configure the client you use from the account page's Install MCP Into… menu, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client)." = "Configure the client you use from the account page's Install MCP Into… menu, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client).";
 "The MCP service is ready for %@." = "The MCP service is ready for %@.";
 "This process cannot tell which AgentSpace install it belongs to, so client registrations cannot be compared against it." = "This process cannot tell which AgentSpace install it belongs to, so client registrations cannot be compared against it.";

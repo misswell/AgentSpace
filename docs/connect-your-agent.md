@@ -1,15 +1,15 @@
 # Connect your agent to AgentSpace
 
 AgentSpace gives your AI agent its own macOS account and desktop. This guide
-is for the person who wants their agent — Codex, Claude Code, ZCode, Kimi
-Code, Xiaomi MiMo, OpenCode, or any MCP client — to actually **work on that
-desktop**: launch apps, type, click, scroll, take screenshots, run tests in
-Terminal. Everything happens inside the agent's own session; your screen,
-keyboard and focus are never touched.
+is for the person who wants their agent — Claude Code, Codex, Cursor, VS Code,
+Zed, or any other MCP client — to actually **work on that desktop**: launch
+apps, type, click, scroll, take screenshots, run tests in Terminal. Everything
+happens inside the agent's own session; your screen, keyboard and focus are
+never touched.
 
 ## Before you start
 
-- AgentSpace **0.1.82 or newer** installed (`AgentSpace.app` → 检查更新).
+- AgentSpace **0.1.86 or newer** installed (`AgentSpace.app` → 检查更新).
 - Node.js **18 or newer** (22 recommended) for the MCP client.
 - At least one agent account connected and its session running — the app's
   account page shows the status cards, or run `agentspace accounts`.
@@ -22,14 +22,50 @@ Run this in Terminal (see the next section if `agentspace` is not found):
 agentspace integrate <target> --install
 ```
 
+`agentspace integrate` with no target lists every supported client, its
+display name and the file it writes. The 24 built-in targets:
+
 | Target | Client | Writes |
 |---|---|---|
 | `claude` | Claude Code | `~/.claude.json` |
 | `codex` | Codex | `~/.codex/config.toml` |
+| `cursor` | Cursor | `~/.cursor/mcp.json` |
+| `windsurf` | Windsurf | `~/.codeium/windsurf/mcp_config.json` |
+| `vscode` | VS Code (1.99+) | `~/Library/Application Support/Code/User/mcp.json` |
+| `zed` | Zed | `~/.config/zed/settings.json` |
+| `kiro` | Kiro | `~/.kiro/settings/mcp.json` |
+| `gemini` | Gemini CLI | `~/.gemini/settings.json` |
+| `qwen` | Qwen Code | `~/.qwen/settings.json` |
+| `qoder` | Qoder CLI | `~/.qoder/settings.json` |
+| `amazonq` | Amazon Q Developer | `~/.aws/amazonq/mcp.json` |
+| `copilot` | GitHub Copilot CLI | `~/.copilot/mcp-config.json` |
+| `cline` | Cline (VS Code extension) | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` |
 | `opencode` | OpenCode | `~/.config/opencode/opencode.json` |
 | `zcode` | ZCode | `~/.zcode/cli/config.json` |
 | `kimi` | Kimi Code | `~/.kimi-code/mcp.json` |
 | `mimo` | Xiaomi MiMo | `~/.config/mimocode/mimocode.jsonc` |
+| `crush` | Crush | `~/.config/crush/crush.json` |
+| `amp` | Amp | `~/.config/amp/settings.json` |
+| `factory` | Factory Droid | `~/.factory/mcp.json` |
+| `minimax` | MiniMax Code | `~/.minimax/mcp.json` |
+| `antigravity` | Google Antigravity | `~/.gemini/config/mcp_config.json` |
+| `claude-desktop` | Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| `lmstudio` | LM Studio | `~/.lmstudio/mcp.json` |
+
+Each target gets the **shape that client actually reads**, not one universal
+JSON blob: VS Code wants `servers`, Zed wants `context_servers`, Amp wants
+`amp.mcpServers`, OpenCode/Crush want `mcp`, ZCode wants nested `mcp.servers`,
+Codex wants TOML. Most others take a plain `mcpServers` entry. The app's
+**Install MCP Into…** menu groups the same 24 by 命令行 Agent / 编辑器 / 桌面应用 /
+编辑器扩展.
+
+For any MCP client not on that list, `agentspace integrate generic` prints a
+generic `mcpServers` entry to paste into whatever file that client reads — or
+point `--install` at the file directly:
+
+```bash
+agentspace integrate generic --install --config ~/path/to/your-client.json
+```
 
 Every target also accepts plain `agentspace integrate <target>` (prints the
 config for you to paste yourself) and `--json` (machine-readable, for
@@ -41,7 +77,10 @@ file is preserved (including MiMo's `$schema` or ZCode's `plugins`). If the
 file existed, its previous contents are saved next to it as
 `<file>.agentspace.bak` first. A custom Codex TOML entry is refused rather than
 overwritten; a precisely matching old generated `npx` entry can migrate to the
-bundled service. JSON clients retain their one-key merge behavior.
+bundled service. JSON clients retain their one-key merge behavior. A settings
+file that uses `//` comments (VS Code, Zed, MiMo) is left untouched and the
+command says so: rewriting it would delete your comments, so edit that one by
+hand with the printed config.
 From 0.1.82 the configuration starts the server shipped with this App, without
 fetching `@agentspace/mcp` from npm. Rerun integration after updating from an
 older version and restart the client to reload its tools. The entry pins the

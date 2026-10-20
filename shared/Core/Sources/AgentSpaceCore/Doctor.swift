@@ -325,7 +325,7 @@ public enum Doctor {
                 name: NSLocalizedString("Agent connections", comment: ""),
                 status: .warn,
                 detail: NSLocalizedString("No AI client is set up to launch this install's MCP service, so every agent session begins with no agentspace_* tools.", comment: ""),
-                fix: NSLocalizedString("For the client you use: `agentspace integrate claude --install` (or codex, opencode, zcode, kimi, mimo).", comment: ""))
+                fix: NSLocalizedString("Configure the client you use from the account page's Install MCP Into… menu, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client).", comment: ""))
         }
         return Check(
             name: NSLocalizedString("Agent connections", comment: ""),
