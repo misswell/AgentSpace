@@ -4,7 +4,35 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-20 on `master`. Current public release: **0.1.87**.
+Last updated: 2026-10-20 on `master`. Current public release: **0.1.88**.
+
+Published 0.1.88 (§389, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.88),
+source [66cdbcf](https://github.com/misswell/AgentSpace/commit/66cdbcfee1492c1e8a5b011c110fbdc515b9a974),
+[Actions 39407826177](https://github.com/misswell/AgentSpace/actions/runs/39407826177)
+all three jobs green; `releases/latest` returns v0.1.88 with no §318 lag. DMG
+29,331,951 bytes, sha256
+`a298106c8cb70422db8abf6da39ee1c7af9f00759ec0aed747ee5974bcdc39b6`. Apple live
+`asc notarization list` readback: App ZIP `8bd4718e-3dd2-4cc3-a2ab-3983fba7e121`
+and DMG `9af67af2-36c9-4f77-b013-f6b9ffb90bdd` both **Accepted**. Runner gate:
+Swift **880** (3 skipped), updater **19**, MCP suite + smoke all passed, and step
+1b reads 21 handles ok. **Layer 4 is not run on a runner**; on this Mac the console
+instrument refused (an AgentSpace copy was running) and the session twin passed
+**17 checks, 0 failed** in AgentUse's session against a debug bundle of this tree
+(0.1.88 (581)) — those checks never create a helper fault, so they do not press
+the new repair button (row 1284). The downloaded asset reads back as **0.1.88
+(581)**, CLI 0.1.88 (protocol 1), Developer ID + hardened runtime, ticket stapled
+to both DMG and app, Gatekeeper accepted; its binary carries
+`signInReinstallHelperButton` and all three new failure sentences, and `dist/` now
+holds the published app and DMG, staples included.
+
+**What 0.1.88 changes for a person**: 「登录 / 解锁 Agent」 no longer tells anyone
+to go install or repair the helper somewhere else. The three failures that mean
+the helper this app needs is not the one answering — no answer, an older build
+answering, or ten minutes of unusable probes — now put 「重新安装助手…」 in the
+dialog's action row. It runs the same waiting swap as Doctor (one macOS
+administrator approval, the retry budget included), shows a refusal in place,
+and resumes the blocked sign-in once the current helper answers. App-only:
+Worker, helper, CLI, protocol and the helper's operation list are unchanged.
 
 Published 0.1.87 (§388, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.87),
 source [c583584](https://github.com/misswell/AgentSpace/commit/c583584c39284de144951fddea01930a824df32d),
