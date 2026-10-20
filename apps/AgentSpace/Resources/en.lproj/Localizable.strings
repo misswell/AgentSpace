@@ -726,6 +726,12 @@
 "runs %@, which is reachable but not this install" = "runs %@, which is reachable but not this install";
 "could not be read as this client's expected format" = "could not be read as this client's expected format";
 "the agentspace entry has no command" = "the agentspace entry has no command";
+"ready" = "ready";
+"reachable, but not this install" = "reachable, but not this install";
+"needs repair" = "needs repair";
+"not configured" = "not configured";
+"Verified: the entry starts this install's MCP service." = "Verified: the entry starts this install's MCP service.";
+"But the entry will not start this install's MCP service: %@." = "But the entry will not start this install's MCP service: %@.";
 "A configured client cannot start AgentSpace's MCP service, so its sessions have no agentspace_* tools and report that no AgentSpace exists while the desktop reads as ready." = "A configured client cannot start AgentSpace's MCP service, so its sessions have no agentspace_* tools and report that no AgentSpace exists while the desktop reads as ready.";
 "%@, then restart that client." = "%@, then restart that client.";
 "No AI client is set up to launch this install's MCP service, so every agent session begins with no agentspace_* tools." = "No AI client is set up to launch this install's MCP service, so every agent session begins with no agentspace_* tools.";

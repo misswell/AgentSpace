@@ -679,6 +679,54 @@ struct SpaceDetailView: View {
         }
     }
 
+    private func menuRegistration(_ target: Integrations.Target) -> MCPClients.Registration? {
+        model.mcpConnections?.registration(for: target)
+    }
+
+    /// What a person needs at the moment of choosing a client: the ones already
+    /// wired to this install first, then a reachable foreign command, then a
+    /// broken entry that wants attention, then clients whose config file exists
+    /// but has no AgentSpace entry, then the rest. Ties keep the declared order.
+    private func menuTargets(_ category: Integrations.Target.Category) -> [Integrations.Target] {
+        Integrations.installableTargets
+            .filter { $0.category == category }
+            .enumerated()
+            .sorted { lhs, rhs in
+                let left = menuRank(lhs.element)
+                let right = menuRank(rhs.element)
+                return left == right ? lhs.offset < rhs.offset : left < right
+            }
+            .map(\.element)
+    }
+
+    private func menuRank(_ target: Integrations.Target) -> Int {
+        guard let registration = menuRegistration(target) else { return 4 }
+        switch registration.verdict {
+        case .current: return 0
+        case .other: return 1
+        case .absent: return registration.hasConfig ? 3 : 4
+        default: return 2
+        }
+    }
+
+    private func menuState(_ target: Integrations.Target) -> (text: String, symbol: String)? {
+        guard let registration = menuRegistration(target) else { return nil }
+        switch registration.verdict {
+        case .current:
+            return (NSLocalizedString("ready", comment: ""), "checkmark.circle")
+        case .other:
+            return (NSLocalizedString("reachable, but not this install", comment: ""), "questionmark.circle")
+        case .packageNeverPublished, .commandMissing, .agentCLIMissing, .unreadable:
+            return (NSLocalizedString("needs repair", comment: ""), "exclamationmark.triangle")
+        case .absent:
+            // No config file at all is not the same state as a client already
+            // configured with something else; only the second is worth a mark.
+            return registration.hasConfig
+                ? (NSLocalizedString("not configured", comment: ""), "circle.dashed")
+                : nil
+        }
+    }
+
     private func dangerCard(_ snapshot: SpaceSnapshot) -> some View {
         let space = snapshot.space
         return Card(title: NSLocalizedString("Maintenance", comment: "")) {
@@ -686,13 +734,23 @@ struct SpaceDetailView: View {
                 Button(NSLocalizedString("Reveal Runtime Folder", comment: "")) { model.revealRuntimeDirectory() }
                 Menu(NSLocalizedString("Install MCP Into…", comment: "")) {
                     ForEach(Integrations.Target.Category.allCases, id: \.self) { category in
-                        let targets = Integrations.installableTargets.filter { $0.category == category }
+                        let targets = menuTargets(category)
                         if !targets.isEmpty {
                             Section(header: Text(categoryTitle(category))) {
                                 ForEach(targets, id: \.self) { target in
-                                    Button(target.displayName) {
+                                    Button {
                                         integrationTarget = target
                                         showingIntegrationConfirm = true
+                                    } label: {
+                                        if let state = menuState(target) {
+                                            Label {
+                                                Text(verbatim: "\(target.displayName) — \(state.text)")
+                                            } icon: {
+                                                Image(systemName: state.symbol)
+                                            }
+                                        } else {
+                                            Text(verbatim: target.displayName)
+                                        }
                                     }
                                 }
                             }

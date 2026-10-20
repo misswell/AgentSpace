@@ -112,9 +112,17 @@ See [system feature coverage](../../docs/MCP_SYSTEM_FEATURES.md) for workflows.
 | --- | --- |
 | `agentspace_list` | List every Space: id, name, macOS user, state, workspace, worker reachability. Start here to discover Space names. |
 | `agentspace_status` | One Space's health: worker liveness, session verdict, Accessibility + Screen Recording grants, display geometry, resource use. |
+| `agentspace_doctor` | Installation-wide diagnosis on this Mac: helper, Fast User Switching, each worker, socket paths, permissions, registry, and whether installed AI clients can actually launch this install's MCP service. Every failing check carries a fix; a failed check is a report, not a tool error. |
+| `agentspace_diagnostics` | The redacted support bundle as text, for a bug report. Whitelisted and scrubbed in Core; token contents, screenshots and input are never collected. The file-writing form stays a human action. |
 | `agentspace_screenshot` | Capture the Space's desktop. Returns an **image** plus path, width, height, pixelWidth, pixelHeight and scale. |
 | `agentspace_apps` | List apps running inside the Space (pid, name, policy, frontmost). |
 | `agentspace_ax_snapshot` | Accessibility element tree of the Space (or one pid) with roles, titles and identifiers. |
+
+When a call is refused — `SESSION_IS_CONSOLE`, a missing grant, a worker that
+will not answer — call `agentspace_doctor` before retrying. It returns the
+checks, the fix for each one, and the client registrations that would leave a
+model with zero AgentSpace tools. `agentspace_diagnostics` returns the redacted
+support bundle when a person asks for one.
 
 ### Input (these change the Space's desktop)
 

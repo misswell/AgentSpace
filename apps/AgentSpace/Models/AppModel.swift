@@ -1374,8 +1374,24 @@ final class AppModel: ObservableObject {
                 try existing.write(to: URL(fileURLWithPath: path + ".agentspace.bak"))
             }
             try merged.write(to: URL(fileURLWithPath: path))
+            // The confirmation reports the scanner's verdict on the bytes that
+            // were just written, not "Configured" plus hope. Both surfaces then
+            // describe the same state in the same words (§384).
+            let verdict = MCPClients.verdict(for: target, config: merged, binaryPath: binary)
             var message = String(format: NSLocalizedString("Configured %1$@: %2$@. Restart %3$@ to pick it up.", comment: ""), target.displayName, path, target.displayName)
+            switch verdict {
+            case .current:
+                message += " " + NSLocalizedString("Verified: the entry starts this install's MCP service.", comment: "")
+            default:
+                message += " " + String(format: NSLocalizedString("But the entry will not start this install's MCP service: %@.", comment: ""), verdict.explanation)
+            }
             if existing != nil { message += String(format: NSLocalizedString(" Previous contents are at %@.agentspace.bak.", comment: ""), path) }
+            if var connections = mcpConnections,
+               let index = connections.registrations.firstIndex(where: { $0.target == target }) {
+                connections.registrations[index] = MCPClients.Registration(
+                    target: target, path: path, verdict: verdict, hasConfig: true)
+                mcpConnections = connections
+            }
             copiedMessage = message
         } catch {
             lastError = PresentedError(

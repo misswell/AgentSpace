@@ -15,6 +15,8 @@ import {
   buildAppsArgs,
   buildAxSnapshotArgs,
   buildClickArgs,
+  buildDiagnosticsArgs,
+  buildDoctorArgs,
   buildDragArgs,
   buildExecArgs,
   buildInputArgs,
@@ -38,6 +40,14 @@ test("list always passes --json", () => {
 test("status omits the space when none is given", () => {
   assert.deepEqual(buildStatusArgs(), ["status", "--json"]);
   assert.deepEqual(buildStatusArgs(SPACE), ["status", SPACE, "--json"]);
+});
+
+test("doctor is a bare read-only JSON call", () => {
+  assert.deepEqual(buildDoctorArgs(), ["doctor", "--json"]);
+});
+
+test("diagnostics returns the bundle without asking for a file", () => {
+  assert.deepEqual(buildDiagnosticsArgs(), ["diagnostics", "--json"]);
 });
 
 test("click builds the documented argv", () => {
@@ -287,6 +297,8 @@ test("no builder ever returns a shell string", () => {
   const all = [
     buildListArgs(),
     buildStatusArgs(SPACE),
+    buildDoctorArgs(),
+    buildDiagnosticsArgs(),
     buildScreenshotArgs(SPACE),
     buildInputArgs(SPACE),
     buildClickArgs(SPACE, 1, 2),

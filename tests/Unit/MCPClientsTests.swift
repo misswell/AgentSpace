@@ -235,4 +235,41 @@ final class MCPClientsTests: XCTestCase {
         XCTAssertEqual(summary.broken.map(\.target), [.codex])
         XCTAssertEqual(MCPClients.repairCommand(for: .codex), "agentspace integrate codex --install")
     }
+
+    // MARK: - What the Install menu needs to rank and explain a client
+
+    /// A config file with someone else's entry is a client the person uses; no
+    /// file at all is a client they may not have. The Install menu shows the
+    /// first as "not configured" and leaves the second unmarked.
+    func testScanDistinguishesAnExistingConfigFromNoFile() throws {
+        let home = root.appendingPathComponent("home3")
+        let cursor = (home.path as NSString).appendingPathComponent(".cursor/mcp.json")
+        try FileManager.default.createDirectory(atPath: (cursor as NSString).deletingLastPathComponent,
+                                                withIntermediateDirectories: true)
+        try Data(#"{"mcpServers":{"other":{"command":"keep"}}}"#.utf8)
+            .write(to: URL(fileURLWithPath: cursor))
+
+        let summary = MCPClients.summary(home: home.path, binaryPath: binary)
+        let used = try XCTUnwrap(summary.registration(for: .cursor))
+        XCTAssertTrue(used.hasConfig)
+        XCTAssertEqual(used.verdict, .absent)
+        let untouched = try XCTUnwrap(summary.registration(for: .zed))
+        XCTAssertFalse(untouched.hasConfig)
+        XCTAssertEqual(untouched.verdict, .absent)
+    }
+
+    /// The post-install confirmation judges the bytes it just wrote, so it says
+    /// what the client's next launch will do instead of "Configured" plus hope.
+    func testWrittenBytesAreJudgedDirectly() {
+        let written = Data(Integrations.config(for: .zcode, binaryPath: binary).utf8)
+        XCTAssertEqual(MCPClients.verdict(for: .zcode, config: written, binaryPath: binary), .current)
+
+        let stale = Data("""
+        [mcp_servers.agentspace]
+        command = "npx"
+        args = ["-y", "@agentspace/mcp"]
+        """.utf8)
+        XCTAssertEqual(MCPClients.verdict(for: .codex, config: stale, binaryPath: binary),
+                       .packageNeverPublished)
+    }
 }

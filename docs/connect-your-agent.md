@@ -9,7 +9,7 @@ never touched.
 
 ## Before you start
 
-- AgentSpace **0.1.86 or newer** installed (`AgentSpace.app` → 检查更新).
+- AgentSpace **0.1.87 or newer** installed (`AgentSpace.app` → 检查更新).
 - Node.js **18 or newer** (22 recommended) for the MCP client.
 - At least one agent account connected and its session running — the app's
   account page shows the status cards, or run `agentspace accounts`.
@@ -114,7 +114,9 @@ is live: the agent now has the `agentspace_*` tools — `exec`, `launch`,
 `screenshot`, `click`, `type`, `key`, `scroll`, `drag`, `ax_snapshot`,
 `apps`, and friends. Every tool also has an identical `agent_*` name.
 Ask for `agent_capabilities` to see application/window management, AX actions,
-value writes, resource opening and clipboard workflows. See
+value writes, resource opening and clipboard workflows. If a call is refused,
+ask for `agent_doctor`: it returns the failing installation check and the fix,
+without retrying against anything else. See
 [system feature coverage](MCP_SYSTEM_FEATURES.md) for the full map.
 
 ## Tell it to work — and give it the rules

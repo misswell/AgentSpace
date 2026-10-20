@@ -90,10 +90,11 @@ try {
     "agent_ax_perform", "agent_ax_set_value", "agent_windows",
     "agent_window_action", "agent_open_resource",
     "agent_clipboard_read", "agent_clipboard_write",
+    "agentspace_doctor", "agentspace_diagnostics",
   ]) {
     check(`tool ${required} exists`, names.includes(required));
   }
-  check("both MCP prefixes expose all 29 pairs", names.length === 58
+  check("both MCP prefixes expose all 31 pairs", names.length === 62
     && names.every((name) => name.startsWith("agent_")
       ? names.includes(`agentspace_${name.slice("agent_".length)}`)
       : true));

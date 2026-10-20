@@ -25,7 +25,7 @@ const packageDir = path.dirname(here);
 const serverPath = path.join(packageDir, "dist", "index.js");
 
 const pairedSuffixes = [
-  "list", "status", "screenshot", "apps", "ax_snapshot", "input", "click",
+  "list", "status", "doctor", "diagnostics", "screenshot", "apps", "ax_snapshot", "input", "click",
   "type", "key", "scroll", "drag", "launch", "quit", "exec", "open_desktop",
   "capabilities", "apps_available", "activate", "move", "ax_frontmost",
   "ax_windows", "ax_element_at", "ax_perform", "ax_set_value", "windows",
@@ -173,6 +173,7 @@ if (mode.code) {
 } else {
   const result = mode.results?.[argv[0]];
   process.stdout.write(JSON.stringify(result ?? { argv, stdin }));
+  if (mode.exitCode) process.exitCode = mode.exitCode;
 }
 `);
   chmodSync(mockPath, 0o755);
@@ -191,7 +192,7 @@ if (mode.code) {
     const tools = listed.result?.tools ?? [];
     const byName = new Map(tools.map(tool => [tool.name, tool]));
     assert.equal(byName.size, tools.length, "tool names must be unique");
-    assert.equal(tools.length, 58, "all 29 tool pairs should be registered");
+    assert.equal(tools.length, 62, "all 31 tool pairs should be registered");
 
     for (const suffix of pairedSuffixes) {
       const modern = byName.get(`agent_${suffix}`);
@@ -219,6 +220,8 @@ if (mode.code) {
     const argsBySuffix = {
       list: {},
       status: { space: "Demo" },
+      doctor: {},
+      diagnostics: {},
       screenshot: { space: "Demo", maxWidth: 1280, display: 2 },
       apps: { space: "Demo" },
       ax_snapshot: { space: "Demo", pid: 321, maxDepth: 3 },
@@ -274,6 +277,8 @@ if (mode.code) {
     const records = cliCalls(logPath);
     assert.equal(records.length, (pairedSuffixes.length - 1) * 2);
     const expectedArgv = new Map([
+      ["doctor", ["doctor", "--json"]],
+      ["diagnostics", ["diagnostics", "--json"]],
       ["apps_available", ["apps", "Demo", "--available", "--query", "Safari", "--limit", "7", "--all", "--json"]],
       ["open_desktop", ["open", "Demo", "--json"]],
       ["screenshot", ["screenshot", "Demo", "--inline", "--max-width", "1280", "--display", "2", "--json"]],
@@ -302,6 +307,30 @@ if (mode.code) {
     assert.ok(!existsSync(markerPath), "resource text must never execute through a shell");
     const resourceRecord = records[pairedSuffixes.filter(name => name !== "capabilities").indexOf("open_resource") * 2];
     assert.ok(resourceRecord.argv.includes(`; touch ${markerPath}; #`), "resource is passed as a literal argv value");
+
+    // Doctor exits 1 when a check fails. That is the report the caller asked
+    // for, so it must arrive as content (with its fix) and not as a bridge
+    // failure — otherwise an agent cannot relay the one thing that helps.
+    writeMockMode(modePath, {
+      exitCode: 1,
+      results: {
+        doctor: {
+          ok: false,
+          failed: 1,
+          warned: 0,
+          checks: [{
+            name: "Input isolated",
+            status: "fail",
+            detail: "this session is the physical console",
+            fix: "Switch back to your own account.",
+          }],
+        },
+      },
+    });
+    const doctorReport = await server.request("tools/call", { name: "agent_doctor", arguments: {} });
+    assert.equal(doctorReport.result?.isError, undefined, toolText(doctorReport.result));
+    assert.match(toolText(doctorReport.result), /Input isolated/);
+    assert.match(toolText(doctorReport.result), /Switch back to your own account/);
 
     // Validation mistakes stay inside MCP and never spawn the CLI.
     for (const invalid of [
@@ -374,7 +403,7 @@ test("bundled launcher selects Node and completes MCP handshake", async () => {
     assert.equal(info.serverInfo.name, "agentspace");
     const listed = await server.request("tools/list", {});
     assert.equal(listed.error, undefined, JSON.stringify(listed.error));
-    assert.ok(listed.result?.tools?.length >= 58);
+    assert.ok(listed.result?.tools?.length >= 62);
   } finally {
     await server.stop();
     rmSync(tempRoot, { recursive: true, force: true });

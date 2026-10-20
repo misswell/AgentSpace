@@ -75,11 +75,18 @@ public enum MCPClients {
         public var target: Integrations.Target
         public var path: String
         public var verdict: Verdict
+        /// Whether the client's own config file exists, even when it carries no
+        /// `agentspace` entry. A client that has never been opened is a different
+        /// thing from one already configured with something else, and the Install
+        /// menu uses that difference to put a person's real clients first.
+        public var hasConfig: Bool
 
-        public init(target: Integrations.Target, path: String, verdict: Verdict) {
+        public init(target: Integrations.Target, path: String, verdict: Verdict,
+                    hasConfig: Bool = false) {
             self.target = target
             self.path = path
             self.verdict = verdict
+            self.hasConfig = hasConfig
         }
     }
 
@@ -105,13 +112,24 @@ public enum MCPClients {
                 ? String(target.configPath.dropFirst(2))
                 : target.configPath
             let file = (home as NSString).appendingPathComponent(relative)
-            let data = FileManager.default.fileExists(atPath: file)
-                ? (try? Data(contentsOf: URL(fileURLWithPath: file)))
-                : nil
+            let exists = FileManager.default.fileExists(atPath: file)
+            let data = exists ? (try? Data(contentsOf: URL(fileURLWithPath: file))) : nil
             return Registration(target: target, path: file,
                                 verdict: classify(data: data, target: target,
-                                                 binaryPath: binaryPath, path: path))
+                                                 binaryPath: binaryPath, path: path),
+                                hasConfig: exists)
         }
+    }
+
+    /// What a client will do with exactly these bytes.
+    ///
+    /// The installer calls this on the file it just wrote: re-reading the path
+    /// would add a race and a home-directory mismatch to a question the merged
+    /// bytes already answer.
+    public static func verdict(for target: Integrations.Target, config: Data,
+                               binaryPath: String,
+                               path: [String] = searchPath) -> Verdict {
+        classify(data: config, target: target, binaryPath: binaryPath, path: path)
     }
 
     /// The one command that repairs an entry this scan can name.
@@ -126,6 +144,10 @@ public enum MCPClients {
         public var registrations: [Registration]
 
         public init(registrations: [Registration]) { self.registrations = registrations }
+
+        public func registration(for target: Integrations.Target) -> Registration? {
+            registrations.first { $0.target == target }
+        }
 
         /// Configured and able to start: the client will have `agentspace_*` tools.
         public var reachable: [Registration] { registrations.filter { $0.verdict.isReachable } }

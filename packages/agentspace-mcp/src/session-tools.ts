@@ -38,6 +38,7 @@ export function registerSessionTools(server: McpServer, bridge: Bridge): void {
       clipboard: "clipboard_read / clipboard_write operate only on this account's text clipboard; use key cmd+v to paste.",
       filesAndAutomation: "exec runs file, search, network, scripting and developer tools as the agent user. cwd follows declared workspace roots; status.workspace.confined reports whether roots are declared. Inspect stdout/stderr/exitCode; OS permissions still apply.",
       systemSettings: "launch System Settings, inspect AX then act; open_resource also accepts x-apple.systempreferences URLs. Opening a pane does not grant permission.",
+      diagnostics: "doctor returns every installation check with its status, detail and fix — helper, Fast User Switching, each worker, socket paths, grants, registry, and whether configured AI clients can launch this install's MCP service. A failed check is part of the report, not a tool error. diagnostics returns the redacted support bundle for a bug report.",
     },
     permissions: { inputAndAX: "Accessibility", screenshots: "Screen Recording", protectedFiles: "Full Disk Access when needed; optional" },
     boundaries: ["No fallback to the human's physical console", "No root/admin execution, account lifecycle or TCC bypass", "Login, unlock, password prompts and privacy grants require a human in macOS", "An app must expose AX or accept input; unsupported controls return errors"],

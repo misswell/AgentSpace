@@ -126,6 +126,25 @@ export function buildListArgs(): string[] {
 }
 
 /**
+ * `agentspace doctor [--json]` — read-only installation diagnostics.
+ *
+ * The CLI exits 1 when any check fails; that is part of the report, not a
+ * transport failure, so the caller must keep the JSON either way.
+ */
+export function buildDoctorArgs(): string[] {
+  return ["doctor", "--json"];
+}
+
+/**
+ * `agentspace diagnostics --json` — the redacted support bundle, printed to
+ * stdout. Without `--out` the CLI writes no file; the MCP surface deliberately
+ * does not expose the file-writing form.
+ */
+export function buildDiagnosticsArgs(): string[] {
+  return ["diagnostics", "--json"];
+}
+
+/**
  * `agentspace open <account> [--json]` — plan(v2) §16/§17. The CLI verb is
  * `open`; the pre-V2 spelling `desktop` is the same code path.
  */

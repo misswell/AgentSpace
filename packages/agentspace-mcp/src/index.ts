@@ -35,6 +35,8 @@ import {
   buildAppsArgs,
   buildAxSnapshotArgs,
   buildClickArgs,
+  buildDiagnosticsArgs,
+  buildDoctorArgs,
   buildDragArgs,
   buildExecArgs,
   buildInputArgs,
@@ -100,6 +102,17 @@ interface InvokeOptions {
   context: string;
   /** Text written to the child's stdin (`agentspace input --file -`). */
   stdin?: string | undefined;
+  /**
+   * Exit codes that carry a normal answer. `agentspace doctor` exits 1 when a
+   * check fails, and that report is exactly what the caller asked for.
+   */
+  acceptExitCodes?: number[] | undefined;
+  /**
+   * The command's JSON is itself a report: `doctor` sets `ok: false` when
+   * checks fail, which is not the CLI's failure envelope. Skip envelope
+   * detection for it.
+   */
+  isReport?: boolean | undefined;
 }
 
 /**
@@ -175,13 +188,14 @@ async function invoke(argsArray: string[], options: InvokeOptions): Promise<Invo
     };
   }
 
-  const failure = readFailureEnvelope(parsed);
+  const failure = options.isReport === true ? undefined : readFailureEnvelope(parsed);
   if (failure !== undefined) {
     // The important branch: relay code + message + fix, and do not retry.
     return { kind: "error", result: errorResult(formatFailure(failure, options.context)) };
   }
 
-  if (result.exitCode !== 0) {
+  if (result.exitCode !== 0 &&
+      (result.exitCode === null || !(options.acceptExitCodes ?? [0]).includes(result.exitCode))) {
     // Non-zero without a failure envelope. `agentspace exec` is the documented
     // case: a successful RPC whose inner command exited non-zero. Report it as
     // an error (never swallow it) but hand back the full result either way.
@@ -282,12 +296,14 @@ Scroll must name its point. A scroll without x/y posts a wheel event, and in a b
 
 WARNING: synthetic input is refused with code SESSION_IS_CONSOLE when the agent desktop is currently on the physical console (for example someone fast-user-switched into it). The refusal is deliberate: the events would otherwise land on the human's own screen. Switch back to your own account and input resumes. Relay the error's fix rather than retrying in a loop.
 
+When a call is refused, a worker will not answer, or a client reports that AgentSpace is unavailable, call agent_doctor before retrying. It is read-only, runs on this Mac, and returns every installation check with the fix for the ones that fail — including whether the configured AI clients can actually launch this install's MCP service. agent_diagnostics returns the redacted support bundle when a person asks for a bug report.
+
 No tool creates or deletes macOS users or grants privacy permissions. A human connects existing accounts in AgentSpace and authenticates/grants permissions through macOS. If a task needs these, report the required human action.`;
 
 const server = new McpServer(
   {
     name: "agentspace",
-    version: "0.1.16",
+    version: "0.1.17",
   },
   {
     capabilities: { tools: {} },
@@ -416,6 +432,36 @@ registerPairedTool(
     callCli(buildStatusArgs(space), {
       context: `agentspace status ${space ?? "(default space)"}`,
     }),
+);
+
+registerPairedTool(
+  "agentspace_doctor",
+  {
+    title: "Diagnose this AgentSpace installation",
+    description:
+      "Run AgentSpace's read-only doctor on this Mac: architecture, macOS version, session isolation, window server, display geometry, privileged helper, Fast User Switching, registry integrity, every account's worker, socket path budget, workspace confinement, permission grants, orphaned accounts, and whether installed AI clients can actually launch this install's MCP service. Each failing check carries a fix. A failed check is still a report, not a tool error. Use it after a refusal (for example SESSION_IS_CONSOLE or a missing grant) or when a client reports that AgentSpace is unavailable. Read-only.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  // Doctor exits 1 when any check fails; the JSON is the answer the caller
+  // asked for, so it must not be turned into a bridge failure.
+  async () => callCli(buildDoctorArgs(), {
+    context: "agentspace doctor",
+    acceptExitCodes: [0, 1],
+    isReport: true,
+  }),
+);
+
+registerPairedTool(
+  "agentspace_diagnostics",
+  {
+    title: "Collect AgentSpace's redacted support bundle",
+    description:
+      "Return AgentSpace's support bundle as text: version and install details, registry and worker state, logs, paths and permission status after the whitelist and redaction rules in Core. Token contents, screenshots and input are never collected. Use it when a person asks for a bug report or doctor's summary is not enough; the file-writing form stays a human action. Read-only.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  async () => callCli(buildDiagnosticsArgs(), { context: "agentspace diagnostics" }),
 );
 
 registerPairedTool(
