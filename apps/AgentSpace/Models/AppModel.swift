@@ -376,7 +376,7 @@ final class AppModel: ObservableObject {
             if state.isReachable && !state.isStaleBinary {
                 helperReady = true
             } else {
-                helperReady = await reinstallHelperForWorker()
+                helperReady = await reinstallHelperNow()
             }
             self.updatingWorker = nil
             guard helperReady else { return }
@@ -384,12 +384,16 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// The completion-aware helper swap used by the worker-update fix-it. The
-    /// Doctor button intentionally keeps its older fire-and-forget behaviour;
-    /// this path must wait until the current helper can answer before copying a
-    /// worker from it.
-    private func reinstallHelperForWorker() async -> Bool {
+    /// The completion-aware helper swap. The worker-update fix-it waits for it
+    /// before copying a worker, and the sign-in sheet's repair button waits for
+    /// it before running the check that was blocked.
+    ///
+    /// `alertOnFailure` exists for the sheet: it renders `helperFailure` in
+    /// place, and a second copy routed to the app-level alert would wait for
+    /// the sheet to close (§269) and then repeat a fact already read.
+    func reinstallHelperNow(alertOnFailure: Bool = true) async -> Bool {
         isInstallingHelper = true
+        helperFailure = nil
         let result: Result<Void, Error> = await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 _ = try? SMAppService.daemon(plistName: BundleIdentifiers.helperPlist).unregister()
@@ -412,7 +416,7 @@ final class AppModel: ObservableObject {
             let refusal = HelperRegistrationGuidance.refusal(
                 for: error,
                 status: HelperInstallation.inspect(ping: false).appServiceStatus)
-            lastError = PresentedError(
+            let presented = PresentedError(
                 code: "HELPER_UNAVAILABLE",
                 message: refusal.message,
                 fix: refusal.fix,
@@ -422,13 +426,17 @@ final class AppModel: ObservableObject {
                 action: refusal.approvalPending
                     ? { [weak self] in self?.openLoginItemsSettings() }
                     : nil)
+            if alertOnFailure { lastError = presented }
+            helperFailure = presented
             return false
         }
         guard state.isReachable && !state.isStaleBinary else {
-            lastError = PresentedError(
+            let presented = PresentedError(
                 code: "HELPER_UNAVAILABLE",
                 message: NSLocalizedString("The helper was reinstalled but is not answering with the current build yet.", comment: ""),
                 fix: state.fix ?? NSLocalizedString("Try Update worker again after a moment.", comment: ""))
+            if alertOnFailure { lastError = presented }
+            helperFailure = presented
             return false
         }
         return true
@@ -705,7 +713,7 @@ final class AppModel: ObservableObject {
             HelperInstallation.inspect()
         }.value
         if !helperState.isReachable || helperState.isStaleBinary {
-            guard await reinstallHelperForWorker() else {
+            guard await reinstallHelperNow() else {
                 return AgentSpaceError(
                     code: .helperUnavailable,
                     message: NSLocalizedString(

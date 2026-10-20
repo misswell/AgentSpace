@@ -21,6 +21,8 @@ struct AgentSignInPanel: View {
     }
 
     @StateObject private var controller: AccountLoginController
+    @ObservedObject private var model: AppModel
+    @State private var repairAttempted = false
     private let account: AgentAccount
     private let context: Context
     private let onClose: () -> Void
@@ -30,6 +32,7 @@ struct AgentSignInPanel: View {
         self.account = account
         self.context = context
         self.onClose = onClose
+        _model = ObservedObject(wrappedValue: model)
         _controller = StateObject(wrappedValue: AccountLoginController(account: account, model: model))
     }
 
@@ -60,7 +63,14 @@ struct AgentSignInPanel: View {
                 Text(connectedHint)
                     .fixedSize(horizontal: false, vertical: true)
             case .failed(let message):
-                Text(message).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                if controller.isRepairingHelper {
+                    ProgressView("Reinstalling…")
+                } else {
+                    Text(message).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if repairAttempted, controller.needsHelperRepair {
+                HelperFailureBanner().environmentObject(model)
             }
             Text(footnote)
                 .font(.caption).foregroundStyle(.secondary)
@@ -70,6 +80,20 @@ struct AgentSignInPanel: View {
                         .keyboardShortcut(.cancelAction)
                 }
                 Spacer()
+                if controller.needsHelperRepair {
+                    Button {
+                        repairAttempted = true
+                        controller.repairHelper()
+                    } label: {
+                        if controller.isRepairingHelper {
+                            HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Reinstalling…") }
+                        } else {
+                            Text("Reinstall Helper…")
+                        }
+                    }
+                    .disabled(controller.isRepairingHelper || model.isInstallingHelper)
+                    .accessibilityIdentifier("signInReinstallHelperButton")
+                }
                 if canStart {
                     Button("Open macOS Sign-In") { controller.start() }
                         .keyboardShortcut(.defaultAction)
@@ -143,7 +167,8 @@ struct AgentSignInPanel: View {
 
     private var canStart: Bool {
         switch controller.phase {
-        case .idle, .sharingDisabled, .failed: return true
+        case .idle, .sharingDisabled: return true
+        case .failed: return !controller.needsHelperRepair
         default: return false
         }
     }

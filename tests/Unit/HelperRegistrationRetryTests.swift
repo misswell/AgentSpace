@@ -31,12 +31,13 @@ final class HelperRegistrationRetryTests: XCTestCase {
 
     // MARK: - Every swap site pays the race
 
-    /// The app swaps the helper from two places: 「重新安装助手…」, and the worker
-    /// update that discovers a stale helper by itself. The measurement above was
-    /// made on the first one, and the second kept a bare `register()` — which is
-    /// how the owner came to press an update button twice, with a
-    /// `HELPER_UNAVAILABLE` dialog between the two presses that was nobody's
-    /// failure but ours. These tests fail if a swap site goes back to asking once.
+    /// The app swaps the helper from more than one place: 「重新安装助手…」, the
+    /// worker update that discovers a stale helper by itself, and the sign-in
+    /// sheet's repair button. The measurement above was made on the first one,
+    /// and the worker update kept a bare `register()` — which is how the owner
+    /// came to press an update button twice, with a `HELPER_UNAVAILABLE` dialog
+    /// between the two presses that was nobody's failure but ours. These tests
+    /// fail if a swap site goes back to asking once.
     /// `AppModel.swift` with its doc comments removed: this test counts *calls*,
     /// and prose about `SMAppService.register()` must not read as one.
     private var appModelCode: String {
@@ -75,7 +76,7 @@ final class HelperRegistrationRetryTests: XCTestCase {
 
     func testTheWorkerUpdateSwapWaitsOutTheTeardown() throws {
         let source = try appModelCode
-        let swap = body(of: "reinstallHelperForWorker", in: source)
+        let swap = body(of: "reinstallHelperNow", in: source)
         XCTAssertTrue(swap.contains("unregister()"), "this test exists because that swap takes the daemon down")
         XCTAssertTrue(swap.contains("registerDaemon(attempts:HelperRegistrationRetry.maximumAttempts"),
                       "the worker update re-registers with one bare ask again, so its first press can lose launchd's teardown race")

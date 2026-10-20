@@ -698,15 +698,15 @@
 "The macOS Screen Sharing app could not be found." = "The macOS Screen Sharing app could not be found.";
 "The macOS sign-in window could not be opened. Try again." = "The macOS sign-in window could not be opened. Try again.";
 "Sign-in timed out. Close the temporary Screen Sharing window and try again." = "Sign-in timed out. Close the temporary Screen Sharing window and try again.";
-"AgentSpace could not confirm the agent account's desktop session. Reinstall the helper in AgentSpace, then try again." = "AgentSpace could not confirm the agent account's desktop session. Reinstall the helper in AgentSpace, then try again.";
-"The installed helper is from an earlier version of AgentSpace. Reinstall it in Doctor and allow the administrator approval, then try again." = "The installed helper is from an earlier version of AgentSpace. Reinstall it in Doctor and allow the administrator approval, then try again.";
+"AgentSpace could not confirm the agent account's desktop session. Reinstall the helper below, then try again." = "AgentSpace could not confirm the agent account's desktop session. Reinstall the helper below, then try again.";
+"The installed helper is from an earlier version of AgentSpace. Reinstall it below and allow the administrator approval, then try again." = "The installed helper is from an earlier version of AgentSpace. Reinstall it below and allow the administrator approval, then try again.";
 "The local sign-in connection could not be started. Try again." = "The local sign-in connection could not be started. Try again.";
 "Another account setup operation is running. Wait for it to finish and try again." = "Another account setup operation is running. Wait for it to finish and try again.";
 "The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used." = "The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used.";
 "Use Sign In Agent to sign in from this desktop, or use Fast User Switching." = "Use Sign In Agent to sign in from this desktop, or use Fast User Switching.";
 "Return to AgentSpace" = "Return to AgentSpace";
 "After signing in with Screen Sharing, AgentSpace finishes setup automatically. After Fast User Switching, return here and click Finish setup." = "After signing in with Screen Sharing, AgentSpace finishes setup automatically. After Fast User Switching, return here and click Finish setup.";
-"The privileged helper could not inspect this account. Install or repair the helper in AgentSpace, then try again." = "The privileged helper could not inspect this account. Install or repair the helper in AgentSpace, then try again.";
+"The privileged helper could not inspect this account. Reinstall it below, then try again." = "The privileged helper could not inspect this account. Reinstall it below, then try again.";
 
 /* Agent connections — §384. Whether an AI client can actually launch this install's MCP service. */
 "Agent connections" = "Agent connections";

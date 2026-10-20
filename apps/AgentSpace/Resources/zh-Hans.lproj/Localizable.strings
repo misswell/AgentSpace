@@ -694,15 +694,15 @@
 "The macOS Screen Sharing app could not be found." = "未找到 macOS 屏幕共享应用。";
 "The macOS sign-in window could not be opened. Try again." = "无法打开 macOS 登录窗口，请重试。";
 "Sign-in timed out. Close the temporary Screen Sharing window and try again." = "登录等待已超时，请关闭临时屏幕共享窗口后重试。";
-"AgentSpace could not confirm the agent account's desktop session. Reinstall the helper in AgentSpace, then try again." = "AgentSpace 无法确认 Agent 账号的桌面会话，请在 AgentSpace 中重新安装助手后重试。";
-"The installed helper is from an earlier version of AgentSpace. Reinstall it in Doctor and allow the administrator approval, then try again." = "已安装的助手来自旧版本 AgentSpace。请在「诊断」中点「重新安装助手…」并允许管理员授权，然后重试。";
+"AgentSpace could not confirm the agent account's desktop session. Reinstall the helper below, then try again." = "AgentSpace 无法确认 Agent 账号的桌面会话，请在下方重新安装助手后重试。";
+"The installed helper is from an earlier version of AgentSpace. Reinstall it below and allow the administrator approval, then try again." = "已安装的助手来自旧版本 AgentSpace。请在下方点「重新安装助手…」并允许管理员授权，然后重试。";
 "The local sign-in connection could not be started. Try again." = "无法启动本机登录连接，请重试。";
 "Another account setup operation is running. Wait for it to finish and try again." = "另一个账号设置操作正在进行，请等待完成后重试。";
 "The agent desktop is not yet available in the background. Finish signing in as the agent, then try again. The main desktop will not be used." = "Agent 桌面尚未能在后台使用。请完成 Agent 账号登录后重试；不会使用你的主桌面。";
 "Use Sign In Agent to sign in from this desktop, or use Fast User Switching." = "使用“登录 Agent”在当前桌面登录，或使用快速用户切换。";
 "Return to AgentSpace" = "返回 AgentSpace";
 "After signing in with Screen Sharing, AgentSpace finishes setup automatically. After Fast User Switching, return here and click Finish setup." = "通过屏幕共享登录后，AgentSpace 会自动完成设置。通过快速用户切换登录后，请返回这里点击“完成设置”。";
-"The privileged helper could not inspect this account. Install or repair the helper in AgentSpace, then try again." = "特权助手无法检查此账号。请在 AgentSpace 中安装或修复助手，然后重试。";
+"The privileged helper could not inspect this account. Reinstall it below, then try again." = "特权助手无法检查此账号。请在下方重新安装助手，然后重试。";
 
 /* Agent 连接 —— §384。AI 客户端能否真正启动本次安装的 MCP 服务。 */
 "Agent connections" = "Agent 连接";

@@ -16,6 +16,12 @@ final class AccountLoginController: ObservableObject {
     /// Why `phase == .waiting`. Set by the same poll that decides it, and only
     /// logged when it changes.
     @Published private(set) var wait: AccountLogin.Wait?
+    /// True while the sheet is showing one of the failures whose fix is the
+    /// helper swap. The sheet draws 「重新安装助手…」 for exactly this state, so a
+    /// message that used to send the person to another window ends in the
+    /// button that does the work.
+    @Published private(set) var needsHelperRepair = false
+    @Published private(set) var isRepairingHelper = false
     private var task: Task<Void, Never>?
     private var relay: ScreenSharingRelay?
     private weak var model: AppModel?
@@ -78,9 +84,10 @@ final class AccountLoginController: ObservableObject {
     }
 
     func start() {
-        guard task == nil else { return }
+        guard task == nil, !isRepairingHelper else { return }
         watched = nil
         sinceChange = Date()
+        needsHelperRepair = false
         phase = .starting
         task = Task { [weak self] in
             guard let self else { return }
@@ -103,7 +110,8 @@ final class AccountLoginController: ObservableObject {
             }.value
             guard !Task.isCancelled else { return }
             guard helperAvailable else {
-                self.fail(NSLocalizedString("The privileged helper could not inspect this account. Install or repair the helper in AgentSpace, then try again.", comment: "")); return
+                self.needsHelperRepair = true
+                self.fail(NSLocalizedString("The privileged helper could not inspect this account. Reinstall it below, then try again.", comment: "")); return
             }
             // An in-app update replaces only /Applications/AgentSpace.app, so the
             // daemon that answers this question can still be the one the previous
@@ -114,7 +122,8 @@ final class AccountLoginController: ObservableObject {
                 await model.recheckHelper()
                 guard !Task.isCancelled else { return }
                 if model.helperState.isStaleBinary {
-                    self.fail(NSLocalizedString("The installed helper is from an earlier version of AgentSpace. Reinstall it in Doctor and allow the administrator approval, then try again.", comment: ""))
+                    self.needsHelperRepair = true
+                    self.fail(NSLocalizedString("The installed helper is from an earlier version of AgentSpace. Reinstall it below and allow the administrator approval, then try again.", comment: ""))
                     return
                 }
             }
@@ -166,7 +175,8 @@ final class AccountLoginController: ObservableObject {
                     case .unusable(let detail):
                         note(.probeFailed, detail: detail)
                         guard !stalled() else {
-                            self.fail(NSLocalizedString("AgentSpace could not confirm the agent account's desktop session. Reinstall the helper in AgentSpace, then try again.", comment: ""), stalledOn: .probeFailed)
+                            self.needsHelperRepair = true
+                            self.fail(NSLocalizedString("AgentSpace could not confirm the agent account's desktop session. Reinstall the helper below, then try again.", comment: ""), stalledOn: .probeFailed)
                             return
                         }
                     case .noSession:
@@ -206,6 +216,26 @@ final class AccountLoginController: ObservableObject {
                     self.fail(NSLocalizedString("The local sign-in connection could not be started. Try again.", comment: ""))
                 }
             }
+        }
+    }
+
+    /// Repair the helper from inside the sheet.
+    ///
+    /// This is the same awaited swap 「重新安装助手…」 runs elsewhere, including
+    /// macOS's single administrator approval. When it returns ready, the sign-in
+    /// that was blocked resumes by itself; when it does not, `helperFailure`
+    /// carries the refusal where this sheet can show it (§269: no alert presents
+    /// over a sheet).
+    func repairHelper() {
+        guard let model, !isRepairingHelper, !model.isInstallingHelper else { return }
+        isRepairingHelper = true
+        Task { [weak self] in
+            let repaired = await model.reinstallHelperNow(alertOnFailure: false)
+            guard let self else { return }
+            self.isRepairingHelper = false
+            guard repaired else { return }
+            self.needsHelperRepair = false
+            self.start()
         }
     }
 
