@@ -32,7 +32,56 @@ public enum LaunchdDomain {
     static let loginTypeMarker = "type = login"
 
     /// launchd's status for "there is no such domain" (measured above).
-    static let absentDomainExitCode: Int32 = 112
+    public static let absentDomainExitCode: Int32 = 112
+
+    /// launchd's status for "this job is already registered" (EEXIST). A
+    /// bootout returns before launchd has finished removing the job, so a
+    /// bootstrap that arrives first is answered with this even though removal
+    /// is under way.
+    public static let alreadyLoadedExitCode: Int32 = 17
+
+    /// launchd's status for "this domain will not take that action".
+    ///
+    /// Measured on this Mac 2026-10-20: `launchctl print gui/0` and
+    /// `launchctl bootstrap gui/0 …` both answer exit 125 with this message.
+    /// The product met it as the intermittent `start failed: Bootstrap failed:
+    /// 125: Domain does not support specified action` after a remote login;
+    /// pressing the button again later worked, which is what waiting inside
+    /// one press replaces (§390).
+    public static let unsupportedActionExitCode: Int32 = 125
+
+    /// How long one call waits for launchd to settle, and how often it asks.
+    /// Ten seconds covers a domain finishing its login transition; every
+    /// pause is bounded so an unavailable desktop still fails promptly.
+    public static let retryPause: TimeInterval = 0.25
+    public static let retryWindow: TimeInterval = 10
+    /// Defensive cap: launchctl refusals can return in milliseconds, and a
+    /// tight loop inside the helper is not a substitute for waiting.
+    public static let maximumRetryAttempts = 40
+
+    /// Whether asking launchd again can change this answer. 17 and 112 are
+    /// launchd still moving a job or a domain; 125 is a domain that exists but
+    /// is not ready for the action yet. A malformed plist, a refused caller or
+    /// a killed process will answer the same way every time.
+    public static func isTransientStatus(_ exitCode: Int32) -> Bool {
+        exitCode == alreadyLoadedExitCode
+            || exitCode == absentDomainExitCode
+            || exitCode == unsupportedActionExitCode
+    }
+
+    /// How long to wait before the next attempt, or `nil` when the status is
+    /// final or the budget is spent. `attempts` counts attempts already made;
+    /// `elapsed` is measured from the first one.
+    public static func retryDelay(
+        exitCode: Int32,
+        attempts: Int,
+        elapsed: TimeInterval
+    ) -> TimeInterval? {
+        guard isTransientStatus(exitCode),
+              attempts < maximumRetryAttempts,
+              elapsed < retryWindow else { return nil }
+        return retryPause
+    }
 
     public enum Verdict: Equatable, Sendable {
         case graphical

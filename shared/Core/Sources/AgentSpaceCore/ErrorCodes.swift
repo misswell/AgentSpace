@@ -119,7 +119,7 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     public var remediation: String {
         switch self {
         case .sessionNotReady:
-            return NSLocalizedString("Fast user switch into the AgentSpace user once (System Settings → Control Center → Fast User Switching), then switch back. The session stays alive afterwards.", comment: "")
+            return NSLocalizedString("Wait until the agent account's desktop is visible, then try again. If that account has no desktop yet, open it once through Sign In Agent or fast user switching; its session stays alive afterwards.", comment: "")
         case .sessionIsConsole:
             return NSLocalizedString("The AgentSpace desktop is on your physical display right now. Switch back to your own account; input resumes automatically and is refused until then.", comment: "")
         case .previewNotRunning:

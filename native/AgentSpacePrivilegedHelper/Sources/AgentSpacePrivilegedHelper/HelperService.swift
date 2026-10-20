@@ -601,6 +601,25 @@ final class HelperService: NSObject, HelperXPCProtocol {
                 try refuseSymbolicLink(at: plist)
                 try requireRootOwnedRegularFile(plist)
 
+                // Waiting cannot create a session. When the account has no GUI
+                // domain at all, answer now instead of spending the retry
+                // window below on a status that will not change. An
+                // unreadable probe is not evidence of absence, so it falls
+                // through to the bootstrap itself.
+                let probe = CommandRunner.run(
+                    [HelperCommand.launchctl, "print", "gui/\(uidValue)"], timeout: 30)
+                let verdict = LaunchdDomain.verdict(
+                    exitCode: probe.exitCode,
+                    output: probe.standardOutput,
+                    errorOutput: probe.standardError)
+                if verdict == .absent {
+                    log.info("startWorker: gui/\(uidValue) has no login domain")
+                    return HelperResponse(id: request.id, error: AgentSpaceError(
+                        code: .sessionNotReady,
+                        message: "\(username) has no desktop session yet, so its worker was not started",
+                        recoverable: true))
+                }
+
                 let commands = HelperCommand.workerReloadCommands(
                     uid: uidValue, spaceID: spaceID, plistPath: plist)
                 let bootedOut = CommandRunner.run(commands.bootout, timeout: 60)
@@ -618,9 +637,22 @@ final class HelperService: NSObject, HelperXPCProtocol {
                 // that may answer afterwards.
                 terminateUnmanagedWorkerProcesses(uid: uidValue)
 
-                let bootstrapped = CommandRunner.run(commands.bootstrap, timeout: 60)
-                log.info("\(bootstrapped.displayCommand) → exit \(bootstrapped.exitCode)")
+                let bootstrapped = runWithLaunchdRetries(commands.bootstrap) {
+                    // A refusal can be launchd still holding the previous
+                    // registration — the label (17) or a half-removed job
+                    // (125). Ask for that removal again before repeating the
+                    // load; on a domain that is merely not ready yet this is
+                    // an immediate 112 and costs nothing.
+                    let again = CommandRunner.run(commands.bootout, timeout: 60)
+                    log.info("\(again.displayCommand) → exit \(again.exitCode)")
+                }
                 guard bootstrapped.ok else {
+                    if LaunchdDomain.isTransientStatus(bootstrapped.exitCode) {
+                        return HelperResponse(id: request.id, error: AgentSpaceError(
+                            code: .sessionNotReady,
+                            message: "\(username)'s desktop session is still starting and did not accept its worker yet (launchd exit \(bootstrapped.exitCode))",
+                            recoverable: true))
+                    }
                     throw NSError(domain: "AgentSpace.Helper", code: Int(bootstrapped.exitCode), userInfo: [
                         NSLocalizedDescriptionKey: bootstrapped.standardError.isEmpty
                             ? "could not load the updated worker LaunchAgent"
@@ -628,8 +660,7 @@ final class HelperService: NSObject, HelperXPCProtocol {
                     ])
                 }
 
-                result = CommandRunner.run(commands.kickstart, timeout: 60)
-                log.info("\(result.displayCommand) → exit \(result.exitCode)")
+                result = runWithLaunchdRetries(commands.kickstart)
             } catch {
                 return HelperResponse(id: request.id, error: AgentSpaceError(
                     code: .helperRejected,
@@ -642,6 +673,12 @@ final class HelperService: NSObject, HelperXPCProtocol {
         }
 
         guard result.ok else {
+            if start, LaunchdDomain.isTransientStatus(result.exitCode) {
+                return HelperResponse(id: request.id, error: AgentSpaceError(
+                    code: .sessionNotReady,
+                    message: "\(username)'s desktop session is still starting and did not start its worker yet (launchd exit \(result.exitCode))",
+                    recoverable: true))
+            }
             return HelperResponse(id: request.id, error: AgentSpaceError(
                 code: .helperRejected,
                 message: "\(start ? "start" : "stop") failed: \(result.standardError.isEmpty ? "exit \(result.exitCode)" : result.standardError)"))
@@ -651,6 +688,37 @@ final class HelperService: NSObject, HelperXPCProtocol {
             "domain": .string(domain),
             "started": .bool(start),
         ]))
+    }
+
+    /// Runs one launchctl command, asking again while launchd answers with a
+    /// status that changes by itself: a GUI domain finishing its login
+    /// transition, or a label whose bootout has not completed yet. Everything
+    /// else is returned on the first answer — a malformed plist or a refused
+    /// caller will not improve by waiting.
+    ///
+    /// `onRetry` runs before each repeated attempt, so the bootstrap can also
+    /// repeat the bootout that launchd may not have finished.
+    private func runWithLaunchdRetries(
+        _ arguments: [String],
+        onRetry: () -> Void = {}
+    ) -> CommandRunner.Result {
+        let started = Date()
+        var attempts = 1
+        var result = CommandRunner.run(arguments, timeout: 60)
+        log.info("\(result.displayCommand) → exit \(result.exitCode)")
+        while !result.ok,
+              let pause = LaunchdDomain.retryDelay(
+                  exitCode: result.exitCode,
+                  attempts: attempts,
+                  elapsed: Date().timeIntervalSince(started)) {
+            log.info("launchctl answered exit \(result.exitCode); asking again in \(pause)s")
+            Thread.sleep(forTimeInterval: pause)
+            onRetry()
+            attempts += 1
+            result = CommandRunner.run(arguments, timeout: 60)
+            log.info("\(result.displayCommand) → exit \(result.exitCode)")
+        }
+        return result
     }
 
     private func sessionInfo(_ request: HelperRequest) -> HelperResponse {

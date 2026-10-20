@@ -771,6 +771,18 @@ final class AppModel: ObservableObject {
                 runtimeRoot: space.runtimeRoot ?? RuntimePaths.root,
                 uid: space.uid))
             guard start.ok else {
+                // The helper waits for launchd itself; this is the answer
+                // after that wait, not a single refusal. Say which condition
+                // it is, in the interface's own language, instead of showing
+                // launchctl's prose behind HELPER_REJECTED (§390).
+                if start.error?.code == .sessionNotReady {
+                    return AgentSpaceError(
+                        code: .sessionNotReady,
+                        message: NSLocalizedString(
+                            "The agent account has no usable desktop session yet, so its worker was not started. Open that account's desktop, wait for it to finish starting, and try again.",
+                            comment: ""),
+                        recoverable: true)
+                }
                 return start.error ?? AgentSpaceError(
                     code: .workerOffline,
                     message: NSLocalizedString(

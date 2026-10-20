@@ -201,7 +201,7 @@
 "Git Worktree — %1$@ @ %2$@" = "Git Worktree — %1$@ @ %2$@";
 "not measured" = "not measured";
 "at least %@" = "at least %@";
-"Fast user switch into the AgentSpace user once (System Settings → Control Center → Fast User Switching), then switch back. The session stays alive afterwards." = "Fast user switch into the AgentSpace user once (System Settings → Control Center → Fast User Switching), then switch back. The session stays alive afterwards.";
+"Wait until the agent account's desktop is visible, then try again. If that account has no desktop yet, open it once through Sign In Agent or fast user switching; its session stays alive afterwards." = "Wait until the agent account's desktop is visible, then try again. If that account has no desktop yet, open it once through Sign In Agent or fast user switching; its session stays alive afterwards.";
 "The AgentSpace desktop is on your physical display right now. Switch back to your own account; input resumes automatically and is refused until then." = "The AgentSpace desktop is on your physical display right now. Switch back to your own account; input resumes automatically and is refused until then.";
 "Start the preview first (`preview.start`); a stream also stops itself after 10 seconds with no frame pulls." = "Start the preview first (`preview.start`); a stream also stops itself after 10 seconds with no frame pulls.";
 "The capture stream ended on its own, so the picture on screen is the last one taken, not the desktop now. AgentSpace reconnects on the next frame request; if it repeats, the window or display being watched closed or went to sleep." = "The capture stream ended on its own, so the picture on screen is the last one taken, not the desktop now. AgentSpace reconnects on the next frame request; if it repeats, the window or display being watched closed or went to sleep.";
@@ -525,6 +525,7 @@
 "The updated worker was started but did not become ready." = "The updated worker was started but did not become ready.";
 "The worker is still running version %@ instead of %@." = "The worker is still running version %@ instead of %@.";
 "The worker could not be started in the attached account's desktop." = "The worker could not be started in the attached account's desktop.";
+"The agent account has no usable desktop session yet, so its worker was not started. Open that account's desktop, wait for it to finish starting, and try again." = "The agent account has no usable desktop session yet, so its worker was not started. Open that account's desktop, wait for it to finish starting, and try again.";
 "The helper could not prepare the worker: %@" = "The helper could not prepare the worker: %@";
 "If this account has already been attached, refresh this window to reveal its authorization card." = "If this account has already been attached, refresh this window to reveal its authorization card.";
 "Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card." = "Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card.";

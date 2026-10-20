@@ -201,7 +201,7 @@
 "Git Worktree — %1$@ @ %2$@" = "Git worktree — %1$@ @ %2$@";
 "not measured" = "未测量";
 "at least %@" = "至少 %@";
-"Fast user switch into the AgentSpace user once (System Settings → Control Center → Fast User Switching), then switch back. The session stays alive afterwards." = "用快速用户切换登录一次 AgentSpace 用户（系统设置 → 控制中心 → 快速用户切换），再切回你自己的账号。此后该会话会一直保持。";
+"Wait until the agent account's desktop is visible, then try again. If that account has no desktop yet, open it once through Sign In Agent or fast user switching; its session stays alive afterwards." = "等 Agent 账号的桌面显示出来后再试。如果该账号还没有桌面，请通过「登录 / 解锁 Agent」或快速用户切换登录一次；此后它的会话会一直保持。";
 "The AgentSpace desktop is on your physical display right now. Switch back to your own account; input resumes automatically and is refused until then." = "AgentSpace 桌面此刻就在你的物理显示器上。请切回你自己的账号；在此之前输入会被拒绝，切回后自动恢复。";
 "Start the preview first (`preview.start`); a stream also stops itself after 10 seconds with no frame pulls." = "请先启动预览（`preview.start`）；流在 10 秒内没有帧拉取时也会自行停止。";
 "The capture stream ended on its own, so the picture on screen is the last one taken, not the desktop now. AgentSpace reconnects on the next frame request; if it repeats, the window or display being watched closed or went to sleep." = "捕获流已自行结束，因此屏幕上显示的是最后一帧，而不是当前的桌面。AgentSpace 会在下一次帧请求时重连；如果反复出现，说明被观察的窗口或显示器已关闭或进入睡眠。";
@@ -525,6 +525,7 @@
 "The updated worker was started but did not become ready." = "新版 worker 已启动，但未能进入就绪状态。";
 "The worker is still running version %@ instead of %@." = "worker 仍在运行版本 %@，而不是 %@。";
 "The worker could not be started in the attached account's desktop." = "无法在已连接账号的桌面中启动 worker。";
+"The agent account has no usable desktop session yet, so its worker was not started. Open that account's desktop, wait for it to finish starting, and try again." = "Agent 账号还没有可用的桌面会话，因此它的 worker 没有启动。请打开该账号的桌面，等它完全启动后再试。";
 "The helper could not prepare the worker: %@" = "助手无法准备 worker：%@";
 "If this account has already been attached, refresh this window to reveal its authorization card." = "如果此账号已经连接，请刷新此窗口以显示授权卡片。";
 "Permissions for this desktop belong to agentspace-worker, the background process in this account. If this account has already been attached, refresh this window to reveal its authorization card." = "这个桌面的权限属于该账号中的后台进程 agentspace-worker。如果此账号已经连接，请刷新此窗口以显示授权卡片。";

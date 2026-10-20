@@ -68,4 +68,47 @@ final class LaunchdDomainTests: XCTestCase {
         XCTAssertEqual(verdict(1, "", Self.refusalError).wireValue, "unusable")
         XCTAssertTrue(verdict(0).detail(domain: "gui/501", bytes: 145268).contains("145268"))
     }
+
+    /// Only the statuses that can change by themselves may be waited out.
+    /// Measured on this Mac 2026-10-20: `launchctl print gui/0` and
+    /// `launchctl bootstrap gui/0 …` both answer 125, the status the product
+    /// met between a remote login and a ready desktop.
+    func testOnlyLaunchdStatusesThatCanChangeAreRetried() {
+        for code in [LaunchdDomain.alreadyLoadedExitCode,
+                     LaunchdDomain.absentDomainExitCode,
+                     LaunchdDomain.unsupportedActionExitCode] {
+            XCTAssertTrue(LaunchdDomain.isTransientStatus(code), "exit \(code)")
+            XCTAssertNotNil(
+                LaunchdDomain.retryDelay(exitCode: code, attempts: 1, elapsed: 0),
+                "exit \(code) was treated as final, so the person presses again")
+        }
+        for code: Int32 in [0, 1, 5, 113, -2] {
+            XCTAssertFalse(LaunchdDomain.isTransientStatus(code), "exit \(code)")
+            XCTAssertNil(LaunchdDomain.retryDelay(exitCode: code, attempts: 1, elapsed: 0),
+                         "exit \(code) will answer the same way however long the helper waits")
+        }
+    }
+
+    /// The wait is bounded twice: by the clock a person would spend watching,
+    /// and by a cap that stops a millisecond-fast refusal from spinning.
+    func testTheRetryBudgetEnds() {
+        let busy = LaunchdDomain.unsupportedActionExitCode
+        XCTAssertEqual(LaunchdDomain.retryDelay(exitCode: busy, attempts: 1, elapsed: 0),
+                       LaunchdDomain.retryPause)
+        XCTAssertNotNil(LaunchdDomain.retryDelay(
+            exitCode: busy,
+            attempts: LaunchdDomain.maximumRetryAttempts - 1,
+            elapsed: LaunchdDomain.retryWindow - 0.1))
+        XCTAssertNil(LaunchdDomain.retryDelay(
+            exitCode: busy,
+            attempts: LaunchdDomain.maximumRetryAttempts,
+            elapsed: 0))
+        XCTAssertNil(LaunchdDomain.retryDelay(
+            exitCode: busy,
+            attempts: 1,
+            elapsed: LaunchdDomain.retryWindow))
+        XCTAssertGreaterThanOrEqual(
+            LaunchdDomain.retryWindow, 5,
+            "the budget must outlast a GUI login transition; a shorter one turns the same press into an alert")
+    }
 }
