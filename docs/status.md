@@ -4,7 +4,44 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-15 on `master`. Current public release: **0.1.85**.
+Last updated: 2026-10-20 on `master`. Current public release: **0.1.86**.
+
+Published 0.1.86 (§387, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.86),
+source [90a0fe8](https://github.com/misswell/AgentSpace/commit/90a0fe80619928fee857218778844be79fdf2342),
+[Actions 39370691489](https://github.com/misswell/AgentSpace/actions/runs/39370691489)
+all three jobs green; `releases/latest` returns v0.1.86 with no §318 lag. DMG
+27,766,061 bytes, sha256
+`6d8be4c44b7322c0c06e173b8422afc05373826fca70a6cc0dba4144970362fe`. Apple live
+`asc notarization list` readback: App ZIP `9f85d316-7af0-458c-bc37-0f3b7d8cf844`
+and DMG `cd562e67-6685-48e3-9b32-071246e6c9e9` both **Accepted**. Runner gate:
+Swift **875** (3 skipped), updater **19**, MCP suite + smoke all passed, and step
+1b against the runner's own bundle reads **21 handles ok, 0 MISSING**; **layer 4
+is not run on a runner**, and it did not run on this Mac either (row 1267: the
+console was locked, `dist/` had no bundle, and the agent session's accessibility
+answered the application element for its window list — reproduced against the
+installed 0.1.84 as an A/B control). The downloaded asset reads back as
+**0.1.86 (577)**, CLI 0.1.86 (protocol 1), MCP service 0.1.16, Developer ID +
+hardened runtime, ticket stapled to both DMG and app, Gatekeeper accepted, and
+step 1b over *those* bytes finds all 21 handles present (row 1271). `dist/` now
+holds the published app and DMG, staples included.
+
+**What 0.1.86 changes for a person**: 「把 MCP 安装到…」now covers **24 clients**
+plus a copy-only `generic` target. The menu groups them as 命令行 Agent / 编辑器 /
+桌面应用 / 编辑器扩展, and each one is written in the exact schema its client
+reads — `mcpServers` for most, VS Code's `servers` + `type`, Zed's
+`context_servers` + `source`, Amp's `amp.mcpServers`, OpenCode/MiMo's `mcp` with
+an argv array and `environment`, ZCode's nested `mcp.servers`, Crush's `mcp`,
+MiniMax's `type`+`enabled`, Codex's TOML. `agentspace integrate` with no target
+now lists all 24 with their files and exits 0; `generic --install` requires
+`--config PATH`. The merge still touches only AgentSpace's own key, backs an
+existing file up as `<file>.agentspace.bak`, refuses a Codex block it did not
+generate, and refuses to rewrite a `//`-comment file rather than deleting the
+comments. Worker, helper, protocol and the MCP tool set are unchanged; updating
+the App needs no re-login. The empty-state caption now says the menu is on the
+page (it sits in the Maintenance card) instead of 「above」. Layer 4 for this
+round is **unverified**: the menu's live press was not performed, so the release
+rests on 875 tests, the shape/merge/scanner suites, the runner's 21-handle byte
+gate and the downloaded-byte re-check.
 
 Published 0.1.85 (§386, 2026-10-15): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.85),
 source [84e0e28](https://github.com/misswell/AgentSpace/commit/84e0e283403d17eac5a7b1b68cbeb43d4a4578a8),
