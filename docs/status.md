@@ -4,7 +4,37 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-20 on `master`. Current public release: **0.1.89**.
+Last updated: 2026-10-20 on `master`. Current public release: **0.1.90**.
+
+Published 0.1.90 (§391, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.90),
+source [a5261ea](https://github.com/misswell/AgentSpace/commit/a5261ea248389f73b88d0e66492f19a374261a1e),
+[Actions 39416036272](https://github.com/misswell/AgentSpace/actions/runs/39416036272)
+all three jobs green; `releases/latest` returns v0.1.90 with no §318 lag. DMG
+28,536,724 bytes, sha256
+`11ffcdc7e0160e02e49ed7eafefadd1f6463d8a065a09b34823b48beb4fac4b2`. Apple live
+`asc notarization list` readback: App ZIP `e79dcc40-6577-4629-86be-317057e0b55f`
+and DMG `22e92c48-742e-43ff-b99e-8de73c28fe68` both **Accepted**. Runner gate:
+Swift **889** (3 skipped), updater **19**, MCP suite + smoke all passed, and step
+1b reads **21** UI handles plus the five bundled binaries ok. **Layer 4 is not run
+on a runner**; on this Mac the console instrument refused (an AgentSpace copy was
+running) and the session twin passed **17 checks, 0 failed** in AgentUse's session
+against a debug bundle of this tree (0.1.90 (584)), but those checks never open or
+drag an Agent window, so the live frame-rate curve rests on the policy tests and
+the old logged measurements (row 1295). The downloaded asset reads back as
+**0.1.90 (585)**, CLI 0.1.90 (protocol 1), MCP 0.1.17, Developer ID + hardened
+runtime, ticket stapled to both DMG and app, Gatekeeper accepted; `dist/` now
+holds the published app and DMG, staples included.
+
+**What 0.1.90 changes for a person**: a Fusion window being used no longer starts
+every burst at the 5 FPS idle probe or oscillates between 5 and the ceiling. The
+capture ceiling now follows attention — the window is key, or the pointer is over
+it while AgentSpace is active — and holds through still stretches; a still picture
+at a high cap draws no frames, so this costs almost nothing. Leaving attention
+grants the 1.5 s idle window before the 5 FPS probe, a held button and scrolling
+still raise the rate to 60, and the desktop viewer makes the same decision through
+the same Core tracker. Transport, protocol, helper operation list and permission
+model are unchanged; the fix is in the App. The helper's version-alignment prompt
+after updating is unrelated and may be done later.
 
 Published 0.1.89 (§390, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.89),
 source [f5b1b92](https://github.com/misswell/AgentSpace/commit/f5b1b92a4bed21a4ee555adcbfb7932b57034c70),
