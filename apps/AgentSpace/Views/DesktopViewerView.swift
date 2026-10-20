@@ -865,6 +865,10 @@ struct DesktopViewerView: View {
 
     private func updateCaptureRate() {
         guard let frameClient else { return }
+        // Same rule as a Fusion proxy: a window the person is looking at holds
+        // the ceiling through a still stretch, so the next change is captured
+        // at full rate instead of starting at the idle probe.
+        activityClock.tracker.noteWatched(hostWindow?.isUnderViewerAttention == true, at: Date())
         let policy = InputRatePolicy(ceiling: previewFPS,
                                      pointerRate: HostDisplayRefresh.pointerRate(for: hostWindow))
         let target = policy.frames(for: activityClock.tracker.activity(at: Date()))

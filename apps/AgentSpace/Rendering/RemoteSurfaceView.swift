@@ -722,3 +722,21 @@ class RemoteSurfaceNSView: NSView {
         DispatchQueue.main.async { [weak self] in self?.cpuLayer.isHidden = true }
     }
 }
+
+extension NSWindow {
+    /// Whether this window has the person's attention right now: it is key, or
+    /// AgentSpace is the active app and the pointer is over its frame.
+    ///
+    /// The capture rate follows this rather than individual captured frames.
+    /// A frame is not attention: a mostly still window with a small change
+    /// every second or two used to raise the rate on each change and drop it
+    /// again after the idle window, reconfiguring the stream twice per burst
+    /// and holding the first frame of the next burst at the idle rate.
+    /// Attention is stable, costs one rectangle test, and is what actually
+    /// decides whether the person is looking at this picture.
+    var isUnderViewerAttention: Bool {
+        guard isVisible else { return false }
+        if isKeyWindow { return true }
+        return NSApp.isActive && frame.contains(NSEvent.mouseLocation)
+    }
+}

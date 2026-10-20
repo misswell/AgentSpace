@@ -348,6 +348,12 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
 
     private func updateCaptureRate() {
         guard let frameClient else { return }
+        // Attention outranks the frame history: as long as this proxy is key or
+        // the pointer is over it, the ceiling stands even through a still
+        // stretch. The next change is then captured at full rate instead of
+        // waiting at the idle probe, and a bursty window no longer flaps
+        // between 5 and the ceiling twice per burst.
+        activityTracker.noteWatched(window?.isUnderViewerAttention == true, at: Date())
         let policy = InputRatePolicy(ceiling: ViewerFrameRate.ceiling(),
                                      pointerRate: HostDisplayRefresh.pointerRate(for: window))
         input.setPointerRate(policy.pointerRate)

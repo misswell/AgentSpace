@@ -101,6 +101,46 @@ final class InputRatePolicyTests: XCTestCase {
         XCTAssertEqual(tracker.activity(at: start.addingTimeInterval(2)), .idle)
     }
 
+    // MARK: - Attention
+
+    /// Attention, not frames. A window the person is looking at keeps the
+    /// ceiling through a still stretch, so the next change does not start at
+    /// the idle probe — and a bursty window no longer reconfigures the stream
+    /// up and down around every burst.
+    func testAttentionKeepsTheCeilingWithoutAnyFrames() {
+        let start = Date()
+        var tracker = FrameActivityTracker(now: start)
+        tracker.noteWatched(true, at: start)
+        let later = start.addingTimeInterval(FrameActivityTracker.idleAfter * 10)
+        XCTAssertEqual(tracker.activity(at: later), .active)
+        XCTAssertEqual(InputRatePolicy(ceiling: 30).frames(for: tracker.activity(at: later)), 30)
+    }
+
+    /// Leaving attention is not an instant drop: the idle window is granted so
+    /// a pointer crossing the edge does not tear the rate down mid-glance.
+    /// Repeated "still not watched" calls must not keep extending it.
+    func testLeavingAttentionGrantsTheIdleWindowAndThenFalls() {
+        let start = Date()
+        var tracker = FrameActivityTracker(now: start)
+        tracker.noteWatched(true, at: start)
+        let left = start.addingTimeInterval(4)
+        tracker.noteWatched(false, at: left)
+        XCTAssertEqual(tracker.activity(at: left.addingTimeInterval(FrameActivityTracker.idleAfter - 0.1)), .active)
+        tracker.noteWatched(false, at: left.addingTimeInterval(1))
+        XCTAssertEqual(tracker.activity(at: left.addingTimeInterval(FrameActivityTracker.idleAfter + 0.1)), .idle,
+                       "the grace starts when attention left, not each time it is re-checked")
+    }
+
+    /// A held button is still a gesture first: attention alone never reaches
+    /// the interactive rate.
+    func testAHeldButtonStillOutranksAttention() {
+        let start = Date()
+        var tracker = FrameActivityTracker(now: start)
+        tracker.noteWatched(true, at: start)
+        tracker.notePress(true, at: start)
+        XCTAssertEqual(tracker.activity(at: start.addingTimeInterval(5)), .interactive)
+    }
+
     // MARK: - Display refresh
 
     /// The pointer rate comes from the display rather than from a constant, and

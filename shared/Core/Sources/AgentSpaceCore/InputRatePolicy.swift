@@ -131,12 +131,34 @@ public struct FrameActivityTracker {
     private var pressHeld = false
     private var sustainedDamage = false
     private var lastScroll: Date = .distantPast
+    /// Whether a person has this surface under their attention right now —
+    /// its window is key, or the pointer is over it.
+    ///
+    /// Unlike a captured frame, attention is a stable statement about intent:
+    /// it does not arrive and expire with each burst of content. A surface
+    /// under attention keeps the viewer's ceiling even while its picture is
+    /// still, which costs nothing (a still capture draws no frames) and means
+    /// the first change after a pause is captured at full rate instead of
+    /// spending its opening moments at the idle probe. It is also what stops
+    /// the old 5↔ceiling flap: a frame used to raise the rate and the silence
+    /// that followed dropped it again 1.5 seconds later, reconfiguring the
+    /// stream twice per burst.
+    private var watched = false
 
     public init(now: Date = Date()) {
         lastActivity = now
     }
 
     public mutating func noteChange(at now: Date) { lastActivity = now }
+
+    /// The surface came under, or left, the person's attention. The transition
+    /// itself counts as activity: leaving grants the idle window rather than
+    /// dropping the rate in the middle of a glance.
+    public mutating func noteWatched(_ isWatched: Bool, at now: Date) {
+        guard watched != isWatched else { return }
+        watched = isWatched
+        lastActivity = now
+    }
 
     public mutating func notePress(_ held: Bool, at now: Date) {
         pressHeld = held
@@ -155,6 +177,7 @@ public struct FrameActivityTracker {
         if pressHeld { return .interactive }
         if now.timeIntervalSince(lastScroll) < 0.35 { return .scrolling }
         if sustainedDamage { return .video }
+        if watched { return .active }
         return now.timeIntervalSince(lastActivity) < Self.idleAfter ? .active : .idle
     }
 }
