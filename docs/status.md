@@ -4,7 +4,38 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-20 on `master`. Current public release: **0.1.88**.
+Last updated: 2026-10-20 on `master`. Current public release: **0.1.89**.
+
+Published 0.1.89 (§390, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.89),
+source [f5b1b92](https://github.com/misswell/AgentSpace/commit/f5b1b92a4bed21a4ee555adcbfb7932b57034c70),
+[Actions 39411240673](https://github.com/misswell/AgentSpace/actions/runs/39411240673)
+all three jobs green; `releases/latest` returns v0.1.89 with no §318 lag. DMG
+28,482,541 bytes, sha256
+`e8009f095f1b9d2cd24634228f0d57918d494b68917eee628338fd998de70cf6`. Apple live
+`asc notarization list` readback: App ZIP `35b752b5-0666-4991-945a-9e2c67d2c6c3`
+and DMG `6e2ed846-2481-4e1e-b1cd-7664d64e74f3` both **Accepted**. Runner gate:
+Swift **886** (3 skipped), updater **19**, MCP suite + smoke all passed, and step
+1b reads 21 handles ok. **Layer 4 is not run on a runner**; on this Mac the console
+instrument refused (an AgentSpace copy was running) and the session twin passed
+**17 checks, 0 failed** in AgentUse's session against a debug bundle of this tree
+(0.1.89 (582)), but those checks never create a launchd transition, so they do not
+press start against a settling domain (row 1290). The downloaded asset reads back
+as **0.1.89 (583)**, CLI 0.1.89 (protocol 1), Developer ID + hardened runtime,
+ticket stapled to both DMG and app, Gatekeeper accepted; its
+`agentspace-helper` carries `asking again in` and `has no desktop session yet`,
+both string tables carry the new sentence, and `dist/` now holds the published
+app and DMG, staples included.
+
+**What 0.1.89 changes for a person**: the intermittent `HELPER_REJECTED` /
+`Bootstrap failed: 125: Domain does not support specified action` no longer needs
+a second press. The helper now asks launchd again while its answer can still
+change (17/112/125, 0.25 s apart, 10 s at most) and repeats the bootout before
+each bootstrap retry. A desktop that genuinely does not exist is answered at once
+as `SESSION_NOT_READY` with an interface sentence telling the person to open that
+desktop, instead of a helper refusal carrying launchctl's prose. **The fix lives
+in the root helper**, so 0.1.88's helper still asks once: after updating, use
+「重新安装助手…」 once (one macOS administrator approval). Worker, CLI and the
+wire protocol are unchanged; no shell, sudo, password or new helper operation.
 
 Published 0.1.88 (§389, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.88),
 source [66cdbcf](https://github.com/misswell/AgentSpace/commit/66cdbcfee1492c1e8a5b011c110fbdc515b9a974),
