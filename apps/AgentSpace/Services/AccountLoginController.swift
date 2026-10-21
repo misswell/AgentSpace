@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import AgentSpaceCore
 import CoreGraphics
 import os
@@ -11,12 +12,23 @@ private let loginLog = Logger(subsystem: BundleIdentifiers.logSubsystem, categor
 /// What the sign-in sheet may do to the system window that carried the sign-in.
 ///
 /// The window belongs to Apple's Screen Sharing app, and quitting that app ends
-/// every window it owns. So the sheet ends it only when the app owes this sheet
-/// its existence and holds no other window; a person's own Screen Sharing
-/// session is not AgentSpace's to close.
+/// every window it owns. So the sheet ends it only when no visible window was
+/// there before this sign-in and no second visible one appeared during it; a
+/// person's own Screen Sharing session is not AgentSpace's to close.
 enum SignInWindowPolicy {
-    static func closesTemporaryWindow(launchedByAgentSpace: Bool, windowCount: Int) -> Bool {
-        launchedByAgentSpace && windowCount <= 1
+    /// One visible window is the one this sign-in opened; zero is the person
+    /// having closed it already. Two means a session this sign-in did not open.
+    static func closesTemporaryWindow(visibleWindowCount: Int) -> Bool {
+        visibleWindowCount <= 1
+    }
+
+    /// The window server lists five to eleven layer-0 windows for one Screen
+    /// Sharing connection: 0×0 placeholders, screen-wide 30-point strips, and
+    /// the hidden connection browser. Only a window a person could see, at a
+    /// size a connection window can have, is a session (measured 2026-10-21 in
+    /// AgentUse's session: one connection window, six to eleven layer-0 windows).
+    static func countsAsWindow(layer: Int, onScreen: Bool, alpha: Double, width: CGFloat, height: CGFloat) -> Bool {
+        layer == 0 && onScreen && alpha > 0 && width >= 200 && height >= 100
     }
 }
 
@@ -46,7 +58,11 @@ final class AccountLoginController: ObservableObject {
     /// The guide context needs the window on screen to approve panes in; only
     /// the account page's sign-in dialog ends it.
     private let closesTemporaryWindow: Bool
-    private var screenSharingWasRunning = false
+    /// How many windows the Screen Sharing app already showed before this
+    /// sign-in opened its own. Zero means nothing was there to lose — the app
+    /// may still be running from an earlier attempt with no window, which must
+    /// not block the close the way a bare process check did on 2026-10-21.
+    private var screenSharingPriorWindows = 0
 
     private static let screenSharingBundleID = "com.apple.ScreenSharing"
 
@@ -170,8 +186,10 @@ final class AccountLoginController: ObservableObject {
                       let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.screenSharingBundleID) else {
                     self.fail(NSLocalizedString("The macOS Screen Sharing app could not be found.", comment: "")); return
                 }
-                self.screenSharingWasRunning = !NSRunningApplication
-                    .runningApplications(withBundleIdentifier: Self.screenSharingBundleID).isEmpty
+                let running = NSRunningApplication
+                    .runningApplications(withBundleIdentifier: Self.screenSharingBundleID)
+                self.screenSharingPriorWindows = running.first
+                    .map { Self.visibleWindowsOwned(by: $0.processIdentifier) } ?? 0
                 let opened: Bool = await withCheckedContinuation { continuation in
                     let configuration = NSWorkspace.OpenConfiguration()
                     NSWorkspace.shared.open([url], withApplicationAt: application, configuration: configuration) { application, error in
@@ -283,10 +301,17 @@ final class AccountLoginController: ObservableObject {
     /// Closing it is safe only because a running Worker has pinned this
     /// account's own `askForPasswordDelay` (AGENTS.md §8): measured 2026-10-10,
     /// the last viewer going away no longer locks that desktop. The quit is
-    /// scoped to the app this sheet launched and to a single window, so a
-    /// Screen Sharing session of the person's own is never ended by a sign-in.
+    /// scoped to a sign-in that found no visible Screen Sharing window open, so
+    /// a session of the person's own is never ended by it.
     private func closeTemporarySystemWindow() {
-        guard closesTemporaryWindow, !screenSharingWasRunning else { return }
+        guard closesTemporaryWindow else { return }
+        guard screenSharingPriorWindows == 0 else {
+            // A window existed before this sign-in: a session of the person's
+            // own, or one an earlier attempt left open. Quitting the app would
+            // end what this sheet did not open.
+            loginLog.log("sign-in left the Screen Sharing app open: it already owned \(self.screenSharingPriorWindows, privacy: .public) visible windows before this sign-in")
+            return
+        }
         guard let application = NSRunningApplication
             .runningApplications(withBundleIdentifier: Self.screenSharingBundleID).first else {
             // The person closed it while the worker was starting; there is
@@ -295,10 +320,9 @@ final class AccountLoginController: ObservableObject {
             closedTemporaryWindow = true
             return
         }
-        let windows = Self.windowsOwned(by: application.processIdentifier)
-        guard SignInWindowPolicy.closesTemporaryWindow(
-            launchedByAgentSpace: !screenSharingWasRunning, windowCount: windows) else {
-            loginLog.log("sign-in left the Screen Sharing app open: it owns \(windows, privacy: .public) windows")
+        let windows = Self.visibleWindowsOwned(by: application.processIdentifier)
+        guard SignInWindowPolicy.closesTemporaryWindow(visibleWindowCount: windows) else {
+            loginLog.log("sign-in left the Screen Sharing app open: it owns \(windows, privacy: .public) visible windows")
             return
         }
         let requested = application.terminate()
@@ -316,16 +340,38 @@ final class AccountLoginController: ObservableObject {
         }
     }
 
-    private static func windowsOwned(by pid: pid_t) -> Int {
+    /// The windows a person could be looking at.
+    ///
+    /// AX answers first: its window list is what the app itself calls a window
+    /// (one per connection, minimized ones included), while the window server
+    /// lists five to eleven layer-0 windows for the same connection. If this
+    /// process may not read AX, the on-screen layer-0 list with a real size is
+    /// the same question, minus windows on another Space or minimized.
+    private static func visibleWindowsOwned(by pid: pid_t) -> Int {
+        if AXIsProcessTrusted(), let windows = axWindows(pid) { return windows.count }
         guard let windows = CGWindowListCopyWindowInfo(
-            [.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return 0 }
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return 0 }
         return windows.reduce(into: 0) { count, window in
             guard let owner = window[kCGWindowOwnerPID as String] as? NSNumber,
                   owner.int32Value == pid,
-                  let layer = window[kCGWindowLayer as String] as? NSNumber,
-                  layer.intValue == 0 else { return }
+                  let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue,
+                  let alpha = (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue,
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = bounds["Width"] as? CGFloat,
+                  let height = bounds["Height"] as? CGFloat,
+                  SignInWindowPolicy.countsAsWindow(
+                    layer: layer, onScreen: true, alpha: alpha, width: width, height: height) else { return }
             count += 1
         }
+    }
+
+    private static func axWindows(_ pid: pid_t) -> [AXUIElement]? {
+        let application = AXUIElementCreateApplication(pid)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            application, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else { return nil }
+        return windows
     }
 
     private func fail(_ message: String) {
