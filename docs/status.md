@@ -4,7 +4,44 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-21 on `master`. Current public release: **0.1.92**.
+Last updated: 2026-10-21 on `master`. Current public release: **0.1.93**.
+
+Published 0.1.93 (§394, 2026-10-21): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.93),
+source [5fa14d7](https://github.com/misswell/AgentSpace/commit/5fa14d76ff2749cab1a7e8c5340a79f9b4335cdc),
+[Actions 39569709821](https://github.com/misswell/AgentSpace/actions/runs/39569709821)
+all three jobs green; `releases/latest` answered v0.1.93 on attempt 1 with no §318
+lag. DMG 28,765,978 bytes, sha256
+`390fec5e7b1c14824f85abd8ad247a04156983eaa2ffd6290d38b0dcbe7a396d`. Apple live
+`asc notarization list` readback: App ZIP `a1f6dabf-6444-456d-9f05-1dba49e88c58`
+and DMG `72392c45-3232-4ec3-b6cc-90f008c8a1c4` both **Accepted**. Runner gate:
+Swift **898** (3 skipped), updater **19**, MCP smoke passed, and step 1b reads
+**21** UI handles plus the five bundled binaries ok. **Layer 4 is not run on a
+runner**; on this Mac the console instrument refused (an AgentSpace copy was
+running) and the session twin passed **17 checks, 0 failed** in AgentUse's
+session against a debug bundle of this tree (0.1.93 (590)), but those checks
+never sign in, so the quit at `.connected` still has to happen in a real sign-in
+(row 1311). The downloaded asset reads back as **0.1.93 (591)**, CLI 0.1.93
+(protocol 1), MCP 0.1.17, Developer ID + hardened runtime, CDHash
+`887ae9e5c88d1910c4897ea897b4713d7c1fd93d`, ticket stapled to both DMG and app,
+Gatekeeper accepted; `dist/` now holds the published app and DMG, staples
+included (row 1312). The live release body was corrected after the tag: the
+sign-in that failed to close ran on **0.1.91**, not 0.1.92 (row 1313).
+
+**What 0.1.93 changes for a person**: the temporary Screen Sharing window
+really closes once the desktop is connected. The old close counted every
+layer-0 window the window server lists — five to eleven for one connection — and
+took a still-running Screen Sharing app for a session, so on 2026-10-21 the
+owner's window stayed open and the next sign-in skipped the close silently. The
+count is now of visible windows (the app's AX window list, or on-screen windows
+with a real size), the sheet records how many were visible **before** it opened
+its window, and quits the app only when there were none and no second one
+appeared. A window that was already open is left alone by design. The 0.1.92
+stable-port fix for 「记住密码」 is included; the owner's `/Applications` copy was
+still 0.1.91 (587) when the close failed, so this update carries both. Transport,
+protocol, helper operation list and permission model are unchanged, but the
+helper binary's version moved with the app, so the first sign-in asks for a
+one-time 「重新安装助手…」; after updating, close any Screen Sharing window left
+from the earlier attempts before signing in.
 
 Published 0.1.92 (§393, 2026-10-21): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.92),
 source [ad674d5](https://github.com/misswell/AgentSpace/commit/ad674d5264a6bf6b41da0b7ced5052aef96b0300),
