@@ -4,7 +4,43 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-20 on `master`. Current public release: **0.1.90**.
+Last updated: 2026-10-21 on `master`. Current public release: **0.1.91**.
+
+Published 0.1.91 (§392, 2026-10-21): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.91),
+source [7b09b48](https://github.com/misswell/AgentSpace/commit/7b09b48368048469a34da3c7e75ee774743e48fc),
+[Actions 39561380534](https://github.com/misswell/AgentSpace/actions/runs/39561380534)
+all three jobs green; `releases/latest` answered v0.1.91 on attempt 1 with no §318
+lag. DMG 29,453,523 bytes, sha256
+`cc99791e9d41938968213f2ed49aa6ab25187605562db438e949f3a1cc3567cc`. Apple live
+`asc notarization list` readback: App ZIP `b4837504-c5ee-44db-8017-fb4db65b86f9`
+and DMG `cbe5dbd8-3684-49d9-9a3e-5e8dd0339811` both **Accepted**. Runner gate:
+Swift **893** (3 skipped), updater **19**, MCP smoke passed, and step 1b reads
+**21** UI handles plus the five bundled binaries ok. **Layer 4 is not run on a
+runner**; on this Mac the console instrument refused (an AgentSpace copy was
+running) and the session twin passed **17 checks, 0 failed** in AgentUse's
+session against a debug bundle of this tree (0.1.91 (586)), but those checks
+never perform a sign-in, so the window close has not run live (row 1302). The
+downloaded asset reads back as **0.1.91 (587)**, CLI 0.1.91 (protocol 1), MCP
+0.1.17, Developer ID + hardened runtime, ticket stapled to both DMG and app,
+Gatekeeper accepted; `dist/` now holds the published app and DMG, staples
+included. The tagged notes were corrected after the tag — the first sign-in
+needs a one-time helper alignment, and macOS's own 「记住密码」 checkbox is the
+password-memory answer, replacing a false claim that the client had none — and
+the published body was edited in place; the bytes did not move (row 1304).
+
+**What 0.1.91 changes for a person**: the 「登录 / 解锁 Agent」 door no longer
+leaves a Screen Sharing window to close by hand. Once the agent desktop is
+connected, AgentSpace ends the window it launched; the account stays signed in
+and the desktop moves to AgentSpace's own Open Desktop. The quit only happens
+when this sign-in started Screen Sharing and it owns no second window, so a
+Screen Sharing session the person already had is never ended. 「用屏幕共享打开
+该桌面」 and the permission guide keep their window — those exist to watch and
+approve. Closing does not lock the desktop, because the agent account's
+password delay is pinned to never while a Worker runs (§376). The password is
+still typed by a person: AgentSpace holds none, and ticking Apple's 「记住密码」
+may let macOS keychain it. Transport, protocol, helper operation list and
+permission model are unchanged; the helper binary's version moved with the app,
+so the first sign-in asks for a one-time 「重新安装助手…」.
 
 Published 0.1.90 (§391, 2026-10-20): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.90),
 source [a5261ea](https://github.com/misswell/AgentSpace/commit/a5261ea248389f73b88d0e66492f19a374261a1e),
