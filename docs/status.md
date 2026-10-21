@@ -4,7 +4,45 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-21 on `master`. Current public release: **0.1.91**.
+Last updated: 2026-10-21 on `master`. Current public release: **0.1.92**.
+
+Published 0.1.92 (§393, 2026-10-21): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.92),
+source [ad674d5](https://github.com/misswell/AgentSpace/commit/ad674d5264a6bf6b41da0b7ced5052aef96b0300),
+[Actions 39566195078](https://github.com/misswell/AgentSpace/actions/runs/39566195078)
+all three jobs green; `releases/latest` answered v0.1.92 on attempt 1 with no §318
+lag. DMG 28,541,192 bytes, sha256
+`c9debfbcc2a71bbfc61eabd6d9e2070b83d6835fcb128f7a2c9d02330b0a1dab`. Apple live
+`asc notarization list` readback: App ZIP `e95e288f-f36b-455e-b108-4d272b0ce09d`
+and DMG `98a571d1-9913-4561-9a82-2fa560292107` both **Accepted**. Runner gate:
+Swift **897** (3 skipped), updater **19**, MCP smoke passed, and step 1b reads
+**21** UI handles plus the five bundled binaries ok. **Layer 4 is not run on a
+runner**; on this Mac the console instrument refused (an AgentSpace copy was
+running) and the session twin passed **17 checks, 0 failed** in AgentUse's
+session against a debug bundle of this tree (0.1.92 (588)), but those checks
+never sign in, so the remembered password has not been exercised live (rows
+1306–1307). The downloaded asset reads back as **0.1.92 (589)**, CLI 0.1.92
+(protocol 1), MCP 0.1.17, Developer ID + hardened runtime, ticket stapled to both
+DMG and app, Gatekeeper accepted; `dist/` now holds the published app and DMG,
+staples included (row 1308).
+
+**What 0.1.92 changes for a person**: 「记住密码」 can now actually take effect.
+macOS files a remembered Screen Sharing password under the exact
+`127.0.0.1:<port>` it was entered on — four old keychain items name four old
+ports — and the relay used to ask for a fresh port every sign-in, so the saved
+item could never be looked up again. Each agent account now signs in through its
+own stable port (47,000–47,999, derived from its id, below the ephemeral range);
+if another local process holds that port the relay falls back to any port, the
+sign-in still works, and the log says `sign-in relay fell back to port …` because
+that attempt cannot reuse the saved password. The four saved items are stale:
+after updating, tick 「记住密码」 once more on the next sign-in, and that item is
+the one later sign-ins find. AgentSpace still never reads, stores or submits the
+password itself — the credential is macOS's keychain item, entered by a person in
+Apple's window. Whether the client then submits it without a prompt is macOS's
+behaviour, not something this release claims; the notes ask for a screenshot and
+`Export Diagnostics` if a prompt still appears. The 0.1.91 window close is
+unchanged, as are transport, protocol, helper operation list and permission
+model; the helper binary's version moved with the app, so the first sign-in asks
+for a one-time 「重新安装助手…」.
 
 Published 0.1.91 (§392, 2026-10-21): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.91),
 source [7b09b48](https://github.com/misswell/AgentSpace/commit/7b09b48368048469a34da3c7e75ee774743e48fc),
