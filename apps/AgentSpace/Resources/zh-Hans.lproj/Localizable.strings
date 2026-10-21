@@ -686,6 +686,8 @@
 "Preparing the agent worker…" = "正在准备 Agent Worker…";
 "The agent desktop is connected." = "Agent 桌面已连接。";
 "Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace." = "关闭临时的屏幕共享窗口，然后点击完成。之后可在 AgentSpace 中使用“打开桌面”和权限按钮。";
+"AgentSpace closed the temporary Screen Sharing window. Click Done; you can use Open Desktop and the permission buttons in AgentSpace." = "AgentSpace 已关闭临时的屏幕共享窗口。点击完成即可，之后可在 AgentSpace 中使用“打开桌面”和权限按钮。";
+"When the desktop is ready, AgentSpace closes that temporary window; the agent account stays signed in." = "桌面就绪后，AgentSpace 会关闭那个临时窗口；Agent 账号保持登录。";
 "Closing this dialog ends only the temporary login connection. It does not log out the agent account." = "关闭此对话框只会结束临时登录连接，不会注销 Agent 账号。";
 "Open macOS Sign-In" = "打开 macOS 登录窗口";
 "In the system window, enter %@ and that account's password." = "在系统窗口中输入 %@ 和该账号的密码。";

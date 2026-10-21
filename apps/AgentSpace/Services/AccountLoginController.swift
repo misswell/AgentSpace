@@ -1,11 +1,24 @@
 import AppKit
 import AgentSpaceCore
+import CoreGraphics
 import os
 
 /// The sheet's own log line. Measured on 2026-10-09: a sign-in that had actually
 /// succeeded sat on 「正在等待 Agent 桌面…」 for minutes it could not explain, and nothing outside
 /// this process could say which of four conditions it was waiting on.
 private let loginLog = Logger(subsystem: BundleIdentifiers.logSubsystem, category: "login")
+
+/// What the sign-in sheet may do to the system window that carried the sign-in.
+///
+/// The window belongs to Apple's Screen Sharing app, and quitting that app ends
+/// every window it owns. So the sheet ends it only when the app owes this sheet
+/// its existence and holds no other window; a person's own Screen Sharing
+/// session is not AgentSpace's to close.
+enum SignInWindowPolicy {
+    static func closesTemporaryWindow(launchedByAgentSpace: Bool, windowCount: Int) -> Bool {
+        launchedByAgentSpace && windowCount <= 1
+    }
+}
 
 @MainActor
 final class AccountLoginController: ObservableObject {
@@ -22,14 +35,25 @@ final class AccountLoginController: ObservableObject {
     /// button that does the work.
     @Published private(set) var needsHelperRepair = false
     @Published private(set) var isRepairingHelper = false
+    /// Whether the temporary Screen Sharing window was asked to quit once the
+    /// desktop came up. The sheet's connected sentence depends on it, because a
+    /// window that is still there has to be closed by the person.
+    @Published private(set) var closedTemporaryWindow = false
     private var task: Task<Void, Never>?
     private var relay: ScreenSharingRelay?
     private weak var model: AppModel?
     private let account: AgentAccount
+    /// The guide context needs the window on screen to approve panes in; only
+    /// the account page's sign-in dialog ends it.
+    private let closesTemporaryWindow: Bool
+    private var screenSharingWasRunning = false
 
-    init(account: AgentAccount, model: AppModel) {
+    private static let screenSharingBundleID = "com.apple.ScreenSharing"
+
+    init(account: AgentAccount, model: AppModel, closesTemporaryWindow: Bool = false) {
         self.account = account
         self.model = model
+        self.closesTemporaryWindow = closesTemporaryWindow
     }
 
     /// One edge per reason, so a wait that lasts ten minutes is one log line
@@ -88,6 +112,7 @@ final class AccountLoginController: ObservableObject {
         watched = nil
         sinceChange = Date()
         needsHelperRepair = false
+        closedTemporaryWindow = false
         phase = .starting
         task = Task { [weak self] in
             guard let self else { return }
@@ -138,9 +163,11 @@ final class AccountLoginController: ObservableObject {
                 let port = try await relay.start()
                 guard !Task.isCancelled else { relay.stop(); return }
                 guard let url = AccountLogin.url(username: self.account.username, port: port),
-                      let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.ScreenSharing") else {
+                      let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.screenSharingBundleID) else {
                     self.fail(NSLocalizedString("The macOS Screen Sharing app could not be found.", comment: "")); return
                 }
+                self.screenSharingWasRunning = !NSRunningApplication
+                    .runningApplications(withBundleIdentifier: Self.screenSharingBundleID).isEmpty
                 let opened: Bool = await withCheckedContinuation { continuation in
                     let configuration = NSWorkspace.OpenConfiguration()
                     NSWorkspace.shared.open([url], withApplicationAt: application, configuration: configuration) { application, error in
@@ -202,6 +229,7 @@ final class AccountLoginController: ObservableObject {
                             case .connected:
                                 self.phase = .connected
                                 note(nil)
+                                self.closeTemporarySystemWindow()
                                 // Keep the authenticated connection until the person
                                 // closes this sheet. stop() closes only our transport.
                                 self.task = nil
@@ -244,6 +272,56 @@ final class AccountLoginController: ObservableObject {
         task = nil
         relay?.stop()
         relay = nil
+    }
+
+    /// Ends the temporary window the sign-in ran in.
+    ///
+    /// Closing it is safe only because a running Worker has pinned this
+    /// account's own `askForPasswordDelay` (AGENTS.md §8): measured 2026-10-10,
+    /// the last viewer going away no longer locks that desktop. The quit is
+    /// scoped to the app this sheet launched and to a single window, so a
+    /// Screen Sharing session of the person's own is never ended by a sign-in.
+    private func closeTemporarySystemWindow() {
+        guard closesTemporaryWindow, !screenSharingWasRunning else { return }
+        guard let application = NSRunningApplication
+            .runningApplications(withBundleIdentifier: Self.screenSharingBundleID).first else {
+            // The person closed it while the worker was starting; there is
+            // nothing left to end, and the connected sentence must not ask for
+            // a window that is already gone.
+            closedTemporaryWindow = true
+            return
+        }
+        let windows = Self.windowsOwned(by: application.processIdentifier)
+        guard SignInWindowPolicy.closesTemporaryWindow(
+            launchedByAgentSpace: !screenSharingWasRunning, windowCount: windows) else {
+            loginLog.log("sign-in left the Screen Sharing app open: it owns \(windows, privacy: .public) windows")
+            return
+        }
+        let requested = application.terminate()
+        closedTemporaryWindow = requested
+        loginLog.log("sign-in ended the temporary Screen Sharing window: \(requested ? "quit requested" : "quit refused", privacy: .public)")
+        guard requested else { return }
+        // Quit is asynchronous, and the sheet's sentence may only claim what
+        // happened: if the app is still there after a breath, the person is
+        // told to close the window after all.
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard let self, !application.isTerminated else { return }
+            self.closedTemporaryWindow = false
+            loginLog.log("the Screen Sharing app is still running after the sign-in asked it to quit")
+        }
+    }
+
+    private static func windowsOwned(by pid: pid_t) -> Int {
+        guard let windows = CGWindowListCopyWindowInfo(
+            [.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return 0 }
+        return windows.reduce(into: 0) { count, window in
+            guard let owner = window[kCGWindowOwnerPID as String] as? NSNumber,
+                  owner.int32Value == pid,
+                  let layer = window[kCGWindowLayer as String] as? NSNumber,
+                  layer.intValue == 0 else { return }
+            count += 1
+        }
     }
 
     private func fail(_ message: String) {

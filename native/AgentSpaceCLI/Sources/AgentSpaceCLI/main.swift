@@ -11,7 +11,7 @@ import AgentSpaceCore
 // print why and stop. There is no code path here that runs a GUI command
 // locally "because the background session was unavailable".
 
-let cliVersion = "0.1.90"
+let cliVersion = "0.1.91"
 
 // MARK: - Argument parsing
 

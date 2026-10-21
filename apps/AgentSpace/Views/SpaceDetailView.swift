@@ -95,7 +95,16 @@ struct SpaceDetailView: View {
     @State private var showingApps = false
     @State private var showingFusionPicker = false
     @State private var showingFusionWindows = false
-    @State private var loginAccount: AgentAccount?
+    @State private var desktopSheet: DesktopSheet?
+
+    /// The page's one Screen Sharing door has two intents: sign in (the window
+    /// is temporary and closes when the desktop is up), and look at a working
+    /// desktop to approve panes (the window stays until the person is done).
+    private struct DesktopSheet: Identifiable {
+        let account: AgentAccount
+        let closesWindowWhenConnected: Bool
+        var id: AgentAccount.ID { account.id }
+    }
 
     var body: some View {
         Group {
@@ -246,8 +255,9 @@ struct SpaceDetailView: View {
                 FusionWindowPickerView(space: space)
             }
         }
-        .sheet(item: $loginAccount) { account in
-            AccountLoginView(account: account, model: model)
+        .sheet(item: $desktopSheet) { sheet in
+            AccountLoginView(account: sheet.account, model: model,
+                             closesWindowWhenConnected: sheet.closesWindowWhenConnected)
         }
     }
 
@@ -458,7 +468,9 @@ struct SpaceDetailView: View {
         // view's literal, and a name of 15 bytes or fewer is a Swift *small
         // string* — inline in the String's own words, never contiguous in the
         // binary — so the check cannot see it at all (validation §386).
-        let action: () -> Void = { loginAccount = space }
+        let action: () -> Void = {
+            desktopSheet = DesktopSheet(account: space, closesWindowWhenConnected: urgent)
+        }
         let blocked = model.finishingSetup != nil || model.updatingWorker != nil || model.authorizingPermission != nil
         if urgent {
             Button(action: action) { label }

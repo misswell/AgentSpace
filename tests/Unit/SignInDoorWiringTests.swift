@@ -86,7 +86,7 @@ final class SignInDoorWiringTests: XCTestCase {
     /// Both surfaces share one flow, and that flow owns the relay's lifetime.
     func testTheSheetAndThePanelAreTheSameFlow() throws {
         let sheet = flat(try source("apps/AgentSpace/Views/AccountLoginView.swift"))
-        XCTAssertTrue(sheet.contains("AgentSignInPanel(account:account,model:model)"),
+        XCTAssertTrue(sheet.contains("AgentSignInPanel(account:account,model:model,closesTemporaryWindow:closesWindowWhenConnected)"),
                       "the sheet is chrome around the shared panel, not a second copy of the flow")
         let panelPath = "apps/AgentSpace/Views/AgentSignInPanel.swift"
         let panel = flat(try source(panelPath))

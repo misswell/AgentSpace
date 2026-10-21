@@ -690,6 +690,8 @@
 "Preparing the agent worker…" = "Preparing the agent worker…";
 "The agent desktop is connected." = "The agent desktop is connected.";
 "Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace." = "Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace.";
+"AgentSpace closed the temporary Screen Sharing window. Click Done; you can use Open Desktop and the permission buttons in AgentSpace." = "AgentSpace closed the temporary Screen Sharing window. Click Done; you can use Open Desktop and the permission buttons in AgentSpace.";
+"When the desktop is ready, AgentSpace closes that temporary window; the agent account stays signed in." = "When the desktop is ready, AgentSpace closes that temporary window; the agent account stays signed in.";
 "Closing this dialog ends only the temporary login connection. It does not log out the agent account." = "Closing this dialog ends only the temporary login connection. It does not log out the agent account.";
 "Open macOS Sign-In" = "Open macOS Sign-In";
 "In the system window, enter %@ and that account's password." = "In the system window, enter %@ and that account's password.";

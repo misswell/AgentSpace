@@ -25,15 +25,22 @@ struct AgentSignInPanel: View {
     @State private var repairAttempted = false
     private let account: AgentAccount
     private let context: Context
+    /// The window is temporary only for a sign-in. The 「用屏幕共享打开该桌面」
+    /// door and the authorization guide need it on screen to watch and approve.
+    private let closesTemporaryWindow: Bool
     private let onClose: () -> Void
 
     init(account: AgentAccount, model: AppModel,
-         context: Context = .login, onClose: @escaping () -> Void) {
+         context: Context = .login, closesTemporaryWindow: Bool = true,
+         onClose: @escaping () -> Void) {
+        let closes = closesTemporaryWindow && context == .login
         self.account = account
         self.context = context
+        self.closesTemporaryWindow = closes
         self.onClose = onClose
         _model = ObservedObject(wrappedValue: model)
-        _controller = StateObject(wrappedValue: AccountLoginController(account: account, model: model))
+        _controller = StateObject(wrappedValue: AccountLoginController(
+            account: account, model: model, closesTemporaryWindow: closes))
     }
 
     var body: some View {
@@ -109,6 +116,9 @@ struct AgentSignInPanel: View {
             Text(String(format: NSLocalizedString("In the system window, enter %@ and that account's password.", comment: ""), account.username))
             Text("If asked, choose Log In to your own desktop. Choose Standard screen sharing. Finish any first-login setup in that window.")
             Text("If the agent desktop is locked, unlock that account in the system window. Unlocking your main account does not unlock the agent desktop.")
+            if closesTemporaryWindow {
+                Text("When the desktop is ready, AgentSpace closes that temporary window; the agent account stays signed in.")
+            }
             Text("AgentSpace will detect the desktop and start the worker automatically.")
         }
         .font(.callout).fixedSize(horizontal: false, vertical: true)
@@ -137,9 +147,12 @@ struct AgentSignInPanel: View {
     /// The sheet's connected step ends the visit; the guide's is the middle of
     /// it, and closing the window there would close the transport with it.
     private var connectedHint: String {
-        context == .login
-            ? NSLocalizedString("Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace.", comment: "")
-            : NSLocalizedString("Keep that window on screen and this guide open. Every pane this guide opens appears inside it — approve there and the tick lands here.", comment: "")
+        if context == .login {
+            return controller.closedTemporaryWindow
+                ? NSLocalizedString("AgentSpace closed the temporary Screen Sharing window. Click Done; you can use Open Desktop and the permission buttons in AgentSpace.", comment: "")
+                : NSLocalizedString("Close the temporary Screen Sharing window, then click Done. You can use Open Desktop and the permission buttons in AgentSpace.", comment: "")
+        }
+        return NSLocalizedString("Keep that window on screen and this guide open. Every pane this guide opens appears inside it — approve there and the tick lands here.", comment: "")
     }
 
     private var footnote: String {
