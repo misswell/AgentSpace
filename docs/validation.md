@@ -10229,8 +10229,12 @@ owner has to tick the box once more because the four old items name old ports.
 
 ## 394. The close counted the window server's hidden windows, and a running app (2026-10-21)
 
-The owner updated to 0.1.92 and reported 「登录后自动关闭也没有成功」. The sign-in log
-named the reason on the first attempt:
+The owner reported 「登录后自动关闭也没有成功」. The installed copy was still
+0.1.91 — `/Applications/AgentSpace.app` read back **0.1.91 (587)**, its process
+had started at 15:50 local, and the last sign-in was 16:03, nine minutes before
+0.1.92 was published (16:12 local) — so the close path under test was 0.1.91's,
+and 0.1.92 changed only the relay port. The sign-in log named the reason on the
+first attempt:
 
 ```
 15:54:37  sign-in is complete: the agent desktop is ready
