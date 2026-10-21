@@ -160,7 +160,11 @@ final class AccountLoginController: ObservableObject {
             let relay = ScreenSharingRelay()
             self.relay = relay
             do {
-                let port = try await relay.start()
+                let stablePort = ScreenSharingRelay.stablePort(for: self.account.id)
+                let port = try await relay.start(preferredPort: stablePort)
+                if port != stablePort {
+                    loginLog.log("sign-in relay fell back to port \(port, privacy: .public), not the account's \(stablePort, privacy: .public): another local process held it, so macOS cannot find the remembered password this time")
+                }
                 guard !Task.isCancelled else { relay.stop(); return }
                 guard let url = AccountLogin.url(username: self.account.username, port: port),
                       let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.screenSharingBundleID) else {

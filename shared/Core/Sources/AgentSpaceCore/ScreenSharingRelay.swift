@@ -25,7 +25,7 @@ public final class ScreenSharingRelay: @unchecked Sendable {
         self.destinationPort = NWEndpoint.Port(rawValue: destinationPort)!
     }
 
-    public func start() async throws -> UInt16 {
+    public func start(preferredPort: UInt16? = nil) async throws -> UInt16 {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 queue.async { [self] in
@@ -35,40 +35,87 @@ public final class ScreenSharingRelay: @unchecked Sendable {
                     }
                     started = true
                     pending = continuation
-                    do {
-                        let parameters = NWParameters.tcp
-                        parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
-                        let listener = try NWListener(using: parameters)
-                        self.listener = listener
-                        listener.stateUpdateHandler = { [weak self] state in
-                            guard let self else { return }
-                            switch state {
-                            case .ready:
-                                guard let port = listener.port?.rawValue else {
-                                    self.finish(.failure(Failure.unavailable)); return
-                                }
-                                self.finish(.success(port))
-                            case .failed:
-                                self.finish(.failure(Failure.unavailable))
-                                self.close()
-                            default: break
-                            }
-                        }
-                        listener.newConnectionHandler = { [weak self] in self?.accept($0) }
-                        let timeout = DispatchWorkItem { [weak self] in
-                            self?.finish(.failure(Failure.unavailable))
-                            self?.close()
-                        }
-                        deadline = timeout
-                        queue.asyncAfter(deadline: .now() + 5, execute: timeout)
-                        listener.start(queue: queue)
-                    } catch {
-                        finish(.failure(Failure.unavailable))
-                        close()
+                    listen(on: preferredPort.flatMap(NWEndpoint.Port.init(rawValue:)) ?? .any,
+                           mayFallBack: preferredPort != nil)
+                    let timeout = DispatchWorkItem { [weak self] in
+                        self?.finish(.failure(Failure.unavailable))
+                        self?.close()
                     }
+                    deadline = timeout
+                    queue.asyncAfter(deadline: .now() + 5, execute: timeout)
                 }
             }
         } onCancel: { self.stop() }
+    }
+
+    /// The port this account's sign-in always asks for.
+    ///
+    /// macOS keys the remembered Screen Sharing password by `host:port`: the
+    /// login keychain holds one `ptcl = "vnc "` item per past attempt with
+    /// `srvr = "127.0.0.1:<that attempt's port>"` (measured 2026-10-21, four
+    /// items, four ports). A fresh `.any` port every time therefore made
+    /// 「记住密码」 a checkbox that could never take effect. Derived from the
+    /// account id rather than stored, so it survives relaunches without a
+    /// registry field. 47,000–47,999 sits outside the kernel's ephemeral range.
+    public static func stablePort(for account: UUID) -> UInt16 {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in account.uuidString.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100_0000_01b3
+        }
+        return 47_000 + UInt16(hash % 1_000)
+    }
+
+    private func listen(on port: NWEndpoint.Port, mayFallBack: Bool) {
+        do {
+            let parameters = NWParameters.tcp
+            parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: port)
+            let listener = try NWListener(using: parameters)
+            self.listener = listener
+            listener.stateUpdateHandler = { [weak self, weak listener] state in
+                guard let self else { return }
+                switch state {
+                case .ready:
+                    guard let port = listener?.port?.rawValue else {
+                        self.finish(.failure(Failure.unavailable)); return
+                    }
+                    self.finish(.success(port))
+                case .waiting:
+                    // A fixed port can be held by another local process, or
+                    // waiting out a transient refusal. Falling back once keeps
+                    // the sheet working; the remembered password is keyed to
+                    // the preferred port and will be asked again this time.
+                    // Only before `.ready`: rebinding afterwards would pull the
+                    // live sign-in connection off its port.
+                    if mayFallBack, self.pending != nil { self.relistenOnAnyPort(listener) }
+                case .failed:
+                    if mayFallBack, self.pending != nil {
+                        self.relistenOnAnyPort(listener)
+                    } else {
+                        self.finish(.failure(Failure.unavailable))
+                        self.close()
+                    }
+                default: break
+                }
+            }
+            listener.newConnectionHandler = { [weak self] in self?.accept($0) }
+            listener.start(queue: queue)
+        } catch {
+            if mayFallBack {
+                relistenOnAnyPort(nil)
+            } else {
+                finish(.failure(Failure.unavailable))
+                close()
+            }
+        }
+    }
+
+    private func relistenOnAnyPort(_ failed: NWListener?) {
+        failed?.stateUpdateHandler = nil
+        failed?.newConnectionHandler = nil
+        failed?.cancel()
+        listener = nil
+        listen(on: .any, mayFallBack: false)
     }
 
     public func stop() { queue.async { [self] in close() } }
