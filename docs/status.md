@@ -4,7 +4,34 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-21 on `master`. Current public release: **0.1.93**.
+Last updated: 2026-10-22 on `master`. Current public release: **0.1.94**.
+
+Published 0.1.94 (§395, 2026-10-22): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.94),
+source [1dda15d](https://github.com/misswell/AgentSpace/commit/1dda15d640ef638d915d4e31bffe12ea16ba5970),
+[Actions 39699598370](https://github.com/misswell/AgentSpace/actions/runs/39699598370)
+all three jobs green; `releases/latest` answered v0.1.94 on attempt 1 with no §318
+lag. DMG 28,818,706 bytes, sha256
+`9c2514c1dab07505904356e0d7d5c73ccbe1d081d08fd791b5ea53357fafdc5a`. Apple live
+`asc notarization list` readback: App ZIP `6d3b5843-24c4-441e-98ac-154a93392a46`
+and DMG `2ce16f76-ec0e-4b13-adf4-9a221dbf3f87` both **Accepted**. Runner gate:
+Swift **898** (3 skipped), updater **19**, MCP smoke passed, and step 1b reads
+**21** UI handles plus the five bundled binaries ok. **Layer 4 is not run on a
+runner**, and this round changed no app code or UI, so no local layer-4 run was
+made (§395). The downloaded asset reads back as **0.1.94 (594)**, CLI 0.1.94
+(protocol 1), MCP 0.1.17, Developer ID + hardened runtime, CDHash
+`9b1d4b62a1de28416283e872647775ad075fea7e`, ticket stapled to both DMG and app,
+Gatekeeper accepted (row 1317). The tagged notes claimed the app was “完全相同”
+and that no helper reinstall was needed; version matching compares the Worker's
+hello with `helperVersion`, so an update does need the one-time reinstall, and
+the live body was corrected to say so. The bytes did not move.
+
+**What 0.1.94 changes for a person**: nothing in the app, and updating is
+optional. `marketing/promo/` now holds a 45-second, bilingual, eight-scene film
+in 16:9 and 9:16 with an original score; the four MP4s are local build artifacts
+and the tracked source is `promo.html`, `audio.mjs` and `render.mjs`. Transport,
+protocol, helper operation list, MCP tools and sign-in flow are unchanged. If a
+person does update, the helper version moves with the app, so the first use asks
+for the usual one-time 「重新安装助手…」 — alignment only, no new behaviour.
 
 Published 0.1.93 (§394, 2026-10-21): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.93),
 source [5fa14d7](https://github.com/misswell/AgentSpace/commit/5fa14d76ff2749cab1a7e8c5340a79f9b4335cdc),
