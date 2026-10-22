@@ -432,6 +432,35 @@ if updateWindow == nil {
     reports.note("  update pane not found; \(windowDiagnostics(pid))")
 }
 
+// MARK: - Phase B2: a Dock click returns to the work surface (§396)
+
+// `/usr/bin/open -a` on a running app delivers the same reopen event as a Dock
+// click. Settings is front here — the state the owner reported on 2026-10-22:
+// 「我点击dock栏图标，很多时候跳出设置页面，应该是跳出主页或是桌面」. The app used
+// to identify the dashboard by "has a toolbar", which Settings also has, and
+// AppKit's default left Settings in front. The dashboard is the window that
+// carries the `mainToolbarSettings` gear.
+let reopen = Process()
+reopen.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+reopen.arguments = ["-a", bundle.path]
+var reopenFailure: String?
+do {
+    try reopen.run()
+    reopen.waitUntilExit()
+} catch {
+    reopenFailure = "open did not run: \(error.localizedDescription)"
+}
+let dashboardCameFront = AXUI.wait(8) { () -> Bool? in
+    guard reopenFailure == nil, reopen.terminationStatus == 0,
+          let main = AXUI.mainWindow(pid) else { return nil }
+    return AXUI.find(main, identifier: "mainToolbarSettings") != nil ? true : nil
+}
+reports.check("Dock reopen returns from Settings to the dashboard", "y",
+              dashboardCameFront == true ? "y" : (reopenFailure ?? "n"))
+if dashboardCameFront != true {
+    reports.note("  main after reopen: \(windowDiagnostics(pid))")
+}
+
 // Close the Settings window — *its own* close button, and only that one: a
 // sweep over every window with a toolbar once closed the dashboard too.
 if let rawClose = AXUI.attribute(settings, kAXCloseButtonAttribute as String) {

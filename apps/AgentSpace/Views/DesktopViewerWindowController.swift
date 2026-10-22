@@ -61,6 +61,9 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
             backing: .buffered,
             defer: false)
         window.title = "\(space.displayName) Desktop"
+        // The Dock icon finds an open agent desktop by this tag, not by title
+        // or chrome (§396).
+        AgentSpaceWindowRegistry.shared.remember(window, as: .desktop)
         // The status strip IS the title bar (§361): the traffic lights sit on
         // the strip's left, the window title stays for Mission Control but is
         // not drawn, and the strip's controls live in what used to be two
@@ -115,6 +118,7 @@ final class DesktopViewerWindowController: NSWindowController, NSWindowDelegate 
     }
 
     func windowWillClose(_ notification: Notification) {
+        if let window { AgentSpaceWindowRegistry.shared.forget(window) }
         model?.showingDesktopViewer = false
         DesktopViewerWindowManager.shared.remove(spaceID: space.id)
     }

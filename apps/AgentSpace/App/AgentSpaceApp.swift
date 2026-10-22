@@ -1,10 +1,155 @@
 import SwiftUI
 import AgentSpaceCore
+import os
+
+/// What a window is for.
+///
+/// Window chrome cannot answer this: on macOS 26 the Settings window carries a
+/// toolbar too (one button per tab), so the old "has a toolbar" rule matched
+/// Settings as well as the dashboard and a Dock click could land on the pane
+/// the person had used last (§396).
+enum AgentSpaceWindowRole: Equatable {
+    case dashboard
+    case desktop
+
+    /// The WindowGroup's SwiftUI id, so the dashboard can be recreated after
+    /// the person closed its window.
+    static let dashboardScene = "main"
+}
+
+enum AgentSpaceWindowPolicy {
+    /// A window a person works in. Only windows the app tagged have a role at
+    /// all, so Settings — which has no role — is never a work surface, however
+    /// much its chrome resembles the dashboard's.
+    static func isWorkSurface(role: AgentSpaceWindowRole?,
+                              isSheet: Bool,
+                              canBecomeKey: Bool) -> Bool {
+        guard !isSheet, canBecomeKey, let role else { return false }
+        return role == .dashboard || role == .desktop
+    }
+}
+
+/// Remembers which windows are the app's work surfaces.
+///
+/// A weak reference, not the window's `identifier`: SwiftUI rewrites that
+/// property after the content attaches, and a Dock click in the first build of
+/// this round found no tagged window and created a duplicate dashboard
+/// (measured 2026-10-22 in the agent session).
+@MainActor
+final class AgentSpaceWindowRegistry {
+    static let shared = AgentSpaceWindowRegistry()
+
+    private final class WeakWindow {
+        weak var window: NSWindow?
+        init(_ window: NSWindow) { self.window = window }
+    }
+
+    private weak var dashboard: NSWindow?
+    private var dashboards: [WeakWindow] = []
+    private var desktops: [WeakWindow] = []
+
+    func remember(_ window: NSWindow, as role: AgentSpaceWindowRole) {
+        prune()
+        switch role {
+        case .dashboard:
+            dashboard = window
+            guard !dashboards.contains(where: { $0.window === window }) else { return }
+            dashboards.append(WeakWindow(window))
+        case .desktop:
+            guard !desktops.contains(where: { $0.window === window }) else { return }
+            desktops.append(WeakWindow(window))
+        }
+    }
+
+    func forget(_ window: NSWindow) {
+        dashboards.removeAll { $0.window == nil || $0.window === window }
+        desktops.removeAll { $0.window == nil || $0.window === window }
+        if dashboard === window { dashboard = dashboards.first?.window }
+    }
+
+    func role(of window: NSWindow) -> AgentSpaceWindowRole? {
+        prune()
+        if dashboards.contains(where: { $0.window === window }) { return .dashboard }
+        if desktops.contains(where: { $0.window === window }) { return .desktop }
+        return nil
+    }
+
+    /// Every live dashboard, in the order SwiftUI made them. More than one is
+    /// the launch-storm duplicate the delegate closes; the first is the main.
+    func dashboardWindows() -> [NSWindow] {
+        prune()
+        return dashboards.compactMap(\.window)
+    }
+
+    func isWorkSurface(_ window: NSWindow) -> Bool {
+        AgentSpaceWindowPolicy.isWorkSurface(role: role(of: window),
+                                             isSheet: window.isSheet,
+                                             canBecomeKey: window.canBecomeKey)
+    }
+
+    /// The window a Dock click should show: the frontmost work surface AppKit
+    /// has on screen, else one that is minimized or otherwise not visible.
+    func workSurface() -> NSWindow? {
+        NSApp.orderedWindows.first(where: isWorkSurface)
+            ?? NSApp.windows.first(where: isWorkSurface)
+    }
+
+    /// The dashboard's window, if SwiftUI still owns one. A closed WindowGroup
+    /// window is released, so this answers nil and the caller recreates it.
+    func dashboardWindow() -> NSWindow? { dashboard }
+
+    func dashboardState() -> String {
+        guard let dashboard else { return "no dashboard reference" }
+        return "dashboard ref: windows \(dashboard.windowNumber), visible \(dashboard.isVisible), miniaturized \(dashboard.isMiniaturized)"
+    }
+
+    private func prune() {
+        dashboards.removeAll { $0.window == nil }
+        desktops.removeAll { $0.window == nil }
+        if dashboard == nil { dashboard = dashboards.first?.window }
+    }
+}
+
+/// The dashboard's `openWindow`, captured where SwiftUI vends it. The app
+/// delegate is not a view; without it a closed dashboard window could not be
+/// brought back.
+@MainActor
+final class MainWindowOpener {
+    static let shared = MainWindowOpener()
+    var open: (() -> Void)?
+}
+
+/// Reports the NSWindow hosting this view to the registry, with its role.
+private struct WindowTag: NSViewRepresentable {
+    let role: AgentSpaceWindowRole
+
+    func makeNSView(context: Context) -> NSView { TaggingView(role: role) }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class TaggingView: NSView {
+        private let role: AgentSpaceWindowRole
+
+        init(role: AgentSpaceWindowRole) {
+            self.role = role
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { fatalError("not used") }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window else { return }
+            AgentSpaceWindowRegistry.shared.remember(window, as: role)
+            windowLog.log("window \(window.title, privacy: .public) is a \(String(describing: self.role), privacy: .public) work surface")
+        }
+    }
+}
 
 /// The window's layout shell — plan §27's two-pane dashboard, native macOS.
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var updater: SoftwareUpdater
+    @Environment(\.openWindow) private var openWindow
     @AppStorage("automaticallyChecksForUpdates") private var checksAutomatically = true
 
     var body: some View {
@@ -44,7 +189,10 @@ struct RootView: View {
                 message: Text([error.message, error.fix].compactMap { $0 }.joined(separator: "\n\n")),
                 dismissButton: dismiss)
         }
-        .onAppear { model.reload() }
+        .onAppear {
+            model.reload()
+            MainWindowOpener.shared.open = { openWindow(id: AgentSpaceWindowRole.dashboardScene) }
+        }
         // The dashboard's automatic half: the Settings slider's status tick.
         // Owned by this view's lifecycle — closing the window stops the RPCs,
         // reopening starts them after the onAppear reload — so the loop is
@@ -61,6 +209,7 @@ struct RootView: View {
         // Running-app delivery goes through the scene modifier; the delegate
         // below handles only the launch-storm dedup.
         .onOpenURL { model.handleDeepLink($0) }
+        .background(WindowTag(role: .dashboard))
     }
 }
 
@@ -69,15 +218,18 @@ struct AgentSpaceApp: App {
     @StateObject private var model = AppModel()
     @StateObject private var updater = SoftwareUpdater()
 
-    /// Bring the main window forward, optionally selecting one account.
-    /// The menu bar must not rely on SwiftUI's window-management APIs here:
-    /// activating the app and ordering the WindowGroup's window front is the
-    /// whole job, and it works whether or not the window is already open.
+    /// Bring the dashboard forward, optionally selecting one account.
+    /// The window is found by the role its content tagged, never by its
+    /// chrome; when the person has closed it, the captured `openWindow`
+    /// recreates it.
     private func showMainWindow(selecting id: UUID? = nil) {
         if let id { model.selection = id }
         NSApp.activate(ignoringOtherApps: true)
-        let window = NSApp.windows.first { $0.toolbar != nil || $0.title == "AgentSpace" }
-        window?.makeKeyAndOrderFront(nil)
+        if let window = AgentSpaceWindowRegistry.shared.dashboardWindow() {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            MainWindowOpener.shared.open?()
+        }
     }
     // The deep link arrives through the AppKit open-documents path, not
     // through `.onOpenURL`: when LaunchServices re-delivers a backlog of
@@ -98,7 +250,7 @@ struct AgentSpaceApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("AgentSpace") {
+        WindowGroup("AgentSpace", id: AgentSpaceWindowRole.dashboardScene) {
             RootView()
                 .environmentObject(model)
                 .environmentObject(updater)
@@ -159,14 +311,37 @@ struct AgentSpaceApp: App {
     }
 }
 
+private let windowLog = Logger(subsystem: BundleIdentifiers.logSubsystem, category: "windows")
+
 /// Receives `agentspace://` open events through the AppKit documents path.
 /// Holding the model here is safe: the adaptor creates the delegate before the
 /// first scene, and the model is the app's single source of truth.
+@MainActor
 final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
     weak var model: AppModel?
 
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls { model?.handleDeepLink(url) }
+    }
+
+    /// A Dock click asks for the app's work surface. AppKit's default leaves
+    /// whichever window was frontmost in front, which is Settings whenever the
+    /// person checked a preference last — the report of 2026-10-22
+    /// 「我点击dock栏图标，很多时候跳出设置页面」. Order the frontmost dashboard or
+    /// agent desktop instead; recreate the dashboard when none is left.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        sender.activate(ignoringOtherApps: true)
+        if let window = AgentSpaceWindowRegistry.shared.workSurface() {
+            window.makeKeyAndOrderFront(nil)
+            windowLog.log("Dock click showed the work surface \(window.title, privacy: .public)")
+            return false
+        }
+        if let open = MainWindowOpener.shared.open {
+            windowLog.log("Dock click recreated the dashboard: \(AgentSpaceWindowRegistry.shared.dashboardState(), privacy: .public)")
+            open()
+            return false
+        }
+        return true
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -188,21 +363,26 @@ final class OpenLinkDelegate: NSObject, NSApplicationDelegate {
         // this is the first point where the extras can be closed. The main
         // window is the one SwiftUI created first; sheets are not windows.
         DispatchQueue.main.async {
-            let mains = NSApp.windows.filter {
-                // WindowGroup titles are the selected agent's display name
-                // (for example, "AgentUse"), not the scene label.  The
-                // toolbar is the stable AppKit marker for the dashboard
-                // window; matching the old fixed title left restored
-                // duplicates alive and made every settings sheet ambiguous.
-                !$0.isSheet && $0.toolbar != nil
-            }
+            // WindowGroup titles are the selected agent's display name (for
+            // example, "AgentUse"), not the scene label, and Settings has a
+            // toolbar of its own — so the dashboard is the window tagged with
+            // its role. The old toolbar guess could match Settings and order
+            // it in front on activation (§396).
+            let registry = AgentSpaceWindowRegistry.shared
+            let dashboards = registry.dashboardWindows()
             // State restoration can recreate the dashboard without ordering it
             // on screen. That leaves a healthy process with no usable window,
             // which looks exactly like a hung app after switching accounts.
-            // Activation is the user's request to see the app, so make the
-            // surviving dashboard visible before closing any duplicates.
-            mains.first?.makeKeyAndOrderFront(nil)
-            for extra in mains.dropFirst() { extra.close() }
+            // Order it only when it is the app's only window: activation from
+            // a Settings window must not pull the dashboard over it.
+            if let dashboard = dashboards.first, !dashboard.isVisible,
+               !NSApp.windows.contains(where: { $0.isVisible && $0 !== dashboard && !$0.isSheet }) {
+                dashboard.makeKeyAndOrderFront(nil)
+            }
+            for extra in dashboards.dropFirst() {
+                registry.forget(extra)
+                extra.close()
+            }
 
             // A worker can be restarted while this account's AgentSpace window
             // remains open. Re-read the worker status when the session returns
