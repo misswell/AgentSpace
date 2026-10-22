@@ -5,515 +5,900 @@
 <title>AgentSpace — Promo</title>
 <style>
   :root{
-    --ink:#f4f7ff;
-    --muted:rgba(226,232,240,.62);
-    --dim:rgba(226,232,240,.42);
-    --grad:linear-gradient(100deg,#4cc9ff,#8b7bff 55%,#e879f9);
-    --cyan:#22d3ee; --violet:#8b5cf6; --green:#34d399; --red:#f87171; --amber:#fbbf24;
-    --card-bg:linear-gradient(165deg,rgba(255,255,255,.075),rgba(255,255,255,.028));
-    --card-bd:rgba(255,255,255,.11);
+    --ink:#f6f8ff;
+    --muted:rgba(226,232,240,.66);
+    --dim:rgba(226,232,240,.40);
+    --cyan:#3ddcff; --blue:#6d8bff; --violet:#b07bff; --pink:#e879f9;
+    --green:#3ddc97; --red:#ff6b6b; --amber:#ffc857;
+    --grad:linear-gradient(100deg,#3ddcff 0%,#6d8bff 42%,#b07bff 70%,#e879f9 100%);
+    --card:linear-gradient(168deg,rgba(255,255,255,.062),rgba(255,255,255,.022));
+    --line:rgba(255,255,255,.10);
+    --line-2:rgba(255,255,255,.16);
+    --shadow:0 34px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.07);
+    --mono:"SF Mono",ui-monospace,Menlo,Monaco,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif;
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;background:#000;overflow:hidden}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Helvetica Neue",sans-serif;
-    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;color:var(--ink);
-  }
-  #stage{position:relative;width:1920px;height:1080px;background:#060a14;overflow:hidden;flex:0 0 auto}
+  body{font-family:var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+    color:var(--ink);font-feature-settings:"ss01","cv11"}
+  #stage{position:relative;width:1920px;height:1080px;background:#060910;overflow:hidden;flex:0 0 auto}
   body.v #stage{width:1080px;height:1920px}
+  .scene{position:absolute;inset:0;display:none;will-change:opacity,transform}
+  .gd{color:transparent;background:var(--grad);-webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent}
 
-  /* ---------- background ---------- */
+  /* ---------------- background ---------------- */
   #bg{position:absolute;inset:0}
-  .blob{position:absolute;border-radius:50%;filter:blur(90px);will-change:transform,opacity}
-  .b1{width:1100px;height:1100px;left:-260px;top:-320px;background:radial-gradient(circle,rgba(34,211,238,.17),transparent 62%)}
-  .b2{width:1250px;height:1250px;right:-320px;top:-240px;background:radial-gradient(circle,rgba(139,92,246,.16),transparent 62%)}
-  .b3{width:1300px;height:1000px;left:22%;bottom:-430px;background:radial-gradient(circle,rgba(59,130,246,.13),transparent 62%)}
-  #grid{position:absolute;inset:-40px;
-    background-image:radial-gradient(rgba(148,163,184,.15) 1px,transparent 1.4px);
-    background-size:36px 36px;opacity:.5}
+  .blob{position:absolute;border-radius:50%;filter:blur(110px);will-change:transform,opacity}
+  .b1{width:1200px;height:1200px;left:-300px;top:-380px;background:radial-gradient(circle,rgba(61,220,255,.15),transparent 63%)}
+  .b2{width:1350px;height:1350px;right:-360px;top:-300px;background:radial-gradient(circle,rgba(176,123,255,.155),transparent 63%)}
+  .b3{width:1450px;height:1100px;left:16%;bottom:-520px;background:radial-gradient(circle,rgba(80,120,255,.13),transparent 64%)}
+  .b4{width:700px;height:700px;left:38%;top:18%;background:radial-gradient(circle,rgba(232,121,249,.055),transparent 66%)}
+  #grid{position:absolute;inset:-44px;background-image:radial-gradient(rgba(148,163,184,.16) 1px,transparent 1.4px);
+    background-size:40px 40px;opacity:.42}
   #stars{position:absolute;inset:0}
-  #stars .dot{position:absolute;border-radius:50%;background:#cfe6ff;will-change:transform,opacity}
-  #vignette{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 42%,transparent 55%,rgba(2,4,10,.65) 100%)}
-  #noise{position:absolute;inset:0;opacity:.05;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E")}
+  #stars .dot{position:absolute;border-radius:50%;background:#d6e8ff}
+  #vignette{position:absolute;inset:0;background:radial-gradient(118% 90% at 50% 42%,transparent 52%,rgba(2,4,10,.72) 100%)}
+  #grain{position:absolute;inset:0;opacity:.045;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E")}
+  #beam{position:absolute;top:-20%;bottom:-20%;width:340px;left:0;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(220,240,255,.10),rgba(255,255,255,.20),rgba(220,240,255,.10),transparent);
+    transform:rotate(14deg);opacity:0;filter:blur(3px)}
   #fade{position:absolute;inset:0;background:#000;pointer-events:none}
 
-  /* ---------- shared ---------- */
-  .scene{position:absolute;inset:0;display:none;will-change:opacity}
-  .kicker{position:absolute;top:86px;left:0;right:0;text-align:center;font-size:23px;
-    font-weight:600;letter-spacing:7px;color:transparent;background:var(--grad);
-    -webkit-background-clip:text;background-clip:text;opacity:0}
-  .h1{position:absolute;top:138px;left:0;right:0;text-align:center;font-size:58px;
-    font-weight:700;letter-spacing:.5px;opacity:0}
-  .h1 .gd{color:transparent;background:var(--grad);-webkit-background-clip:text;background-clip:text}
-  .row{display:flex;align-items:center;gap:16px;opacity:0}
-  .ric{width:34px;height:34px;border-radius:10px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700}
-  .row.ok .ric{background:rgba(52,211,153,.14);border:1px solid rgba(52,211,153,.35);color:var(--green)}
-  .row.deny .ric{background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.30);color:var(--red)}
-  .rtxt{font-size:24px;font-weight:500;color:rgba(238,242,252,.88)}
-  .row.deny .rtxt{color:rgba(226,232,240,.55)}
-  .rmark{margin-left:auto;font-size:22px;font-weight:700}
-  .row.ok .rmark{color:var(--green)}
-  .row.deny .rmark{color:var(--red)}
-  .card{background:var(--card-bg);border:1px solid var(--card-bd);border-radius:24px;
-    box-shadow:0 34px 90px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
-  #watermark{position:absolute;left:52px;top:42px;display:flex;align-items:center;gap:12px;opacity:0}
-  #watermark img{width:32px;height:32px;border-radius:8px}
-  #watermark span{font-size:21px;font-weight:700;letter-spacing:.4px;color:rgba(238,242,252,.8)}
-  .foot{position:absolute;left:0;right:0;text-align:center;font-size:27px;color:var(--muted);font-weight:500;opacity:0}
+  /* ---------------- shared chrome ---------------- */
+  #watermark{position:absolute;left:54px;top:44px;display:flex;align-items:center;gap:13px;opacity:0;z-index:20}
+  #watermark img{width:34px;height:34px;border-radius:9px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
+  #watermark span{font-size:21px;font-weight:650;letter-spacing:.2px;color:rgba(238,242,252,.82)}
 
-  /* ---------- S0 opening ---------- */
-  #s0 .center{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:0}
-  .s0-iconwrap{position:relative;width:190px;height:190px;margin-bottom:44px}
-  .s0-glow{position:absolute;inset:-90px;border-radius:50%;
-    background:radial-gradient(circle,rgba(76,201,255,.30),rgba(139,123,255,.14) 45%,transparent 70%);opacity:0}
-  .s0-icon{position:relative;width:190px;height:190px;border-radius:42px;
-    box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.10);opacity:0}
-  .s0-word{font-size:104px;font-weight:800;letter-spacing:-2.5px;display:flex;overflow:hidden;height:120px}
-  .s0-word span{display:inline-block;opacity:0;transform:translateY(34px)}
-  .s0-word .gd{color:transparent;background:var(--grad);-webkit-background-clip:text;background-clip:text}
-  .s0-tag{margin-top:26px;font-size:33px;font-weight:500;color:rgba(233,238,250,.92);opacity:0}
-  .s0-pill{margin-top:30px;font-size:20px;font-weight:600;color:rgba(210,220,240,.75);
-    border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:10px 26px;
-    background:rgba(255,255,255,.045);opacity:0}
+  .head{position:absolute;left:120px;right:120px;top:58px;text-align:center;z-index:6}
+  .kicker{font-size:19px;font-weight:650;letter-spacing:5.2px;color:rgba(186,204,235,.62);
+    display:flex;align-items:center;justify-content:center;gap:14px;opacity:0}
+  .kicker b{font-weight:750;color:transparent;background:var(--grad);-webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;letter-spacing:2px}
+  .kicker i{width:26px;height:1px;background:linear-gradient(90deg,transparent,rgba(160,190,240,.55));font-style:normal}
+  .kicker i:last-child{background:linear-gradient(90deg,rgba(160,190,240,.55),transparent)}
+  .h1{font-size:66px;font-weight:750;letter-spacing:-1.4px;line-height:1.12;margin-top:15px;opacity:0}
+  body.zh .h1{font-weight:600;letter-spacing:-.4px}
+  .sub{font-size:27px;font-weight:450;color:var(--muted);margin-top:15px;line-height:1.45;opacity:0}
+  body.zh .sub{font-weight:400}
+  .foot{position:absolute;left:100px;right:100px;bottom:42px;text-align:center;font-size:23px;
+    font-weight:450;color:rgba(210,222,244,.50);opacity:0;z-index:5;letter-spacing:.1px}
+  .body{position:absolute;left:100px;right:100px;top:258px;bottom:92px}
 
-  /* ---------- S1 what it is ---------- */
-  #s1 .sub{position:absolute;top:224px;left:0;right:0;text-align:center;font-size:27px;color:var(--muted);opacity:0}
-  .s1-card{position:absolute;top:300px;width:640px;height:490px;padding:34px 38px}
-  #s1L{left:220px;opacity:0}
-  #s1R{left:1060px;opacity:0}
-  .s1-cardtitle{font-size:21px;font-weight:700;letter-spacing:3px;color:var(--dim);margin-bottom:24px}
-  .s1-card .row{margin-bottom:24px}
-  .s1-note{margin-top:14px;font-size:19px;color:rgba(226,232,240,.34);line-height:1.6}
-  .s1-desk{margin-top:6px;height:168px;border-radius:16px;overflow:hidden;position:relative;
-    border:1px solid rgba(255,255,255,.13);opacity:0;
-    background:linear-gradient(155deg,#0c1430,#10204a 48%,#1a2f63)}
-  .s1-menubar{height:24px;background:rgba(8,11,22,.72);display:flex;align-items:center;
-    padding:0 12px;font-size:12px;color:rgba(230,236,250,.75);gap:6px}
-  .s1-menubar b{font-weight:700}
-  .s1-menubar .clk{margin-left:auto}
-  .s1-miniwin{position:absolute;border-radius:8px;background:rgba(16,22,40,.88);
-    border:1px solid rgba(255,255,255,.14);overflow:hidden}
-  .s1-miniwin .bar{height:16px;background:rgba(255,255,255,.07);display:flex;align-items:center;gap:4px;padding:0 7px}
-  .s1-miniwin .bar i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.35)}
-  .s1-miniwin .body{display:flex;gap:6px;padding:8px}
-  .s1-miniwin .body i{height:7px;border-radius:3px;background:rgba(148,163,184,.30)}
-  .s1-dockmini{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:9px;
-    padding:8px 12px;border-radius:14px;background:rgba(10,14,26,.6);border:1px solid rgba(255,255,255,.14)}
-  .s1-dockmini i{width:26px;height:26px;border-radius:7px}
-  .s1-chip{position:absolute;left:520px;top:830px;display:flex;align-items:center;gap:13px;
-    padding:14px 24px;border-radius:18px;background:linear-gradient(160deg,rgba(76,201,255,.16),rgba(139,123,255,.12));
-    border:1px solid rgba(140,180,255,.35);font-size:24px;font-weight:700;opacity:0;
-    box-shadow:0 18px 50px rgba(20,60,160,.35)}
-  .s1-chip img{width:36px;height:36px;border-radius:9px}
-  .s1-ripple{position:absolute;width:20px;height:20px;border-radius:50%;
-    border:2.5px solid rgba(96,205,255,.9);opacity:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 12px rgba(61,220,151,.85);flex:0 0 auto}
+  .dot.amber{background:var(--amber);box-shadow:0 0 12px rgba(255,200,87,.75)}
+  .dot.gray{background:rgba(148,163,184,.65);box-shadow:none}
+  .pill{display:inline-flex;align-items:center;gap:9px;border-radius:999px;border:1px solid var(--line-2);
+    background:rgba(255,255,255,.045);font-size:18px;font-weight:550;color:rgba(232,240,255,.82);padding:9px 18px}
+  .light{display:flex;gap:7px;flex:0 0 auto}
+  .light i{width:11px;height:11px;border-radius:50%}
+  .light i:nth-child(1){background:#ff5f57}.light i:nth-child(2){background:#febc2e}.light i:nth-child(3){background:#28c840}
 
-  /* ---------- S2 drive the desktop ---------- */
-  #s2win{position:absolute;left:410px;top:242px;width:1100px;height:664px;border-radius:16px;
-    background:#0d1220;border:1px solid rgba(255,255,255,.13);overflow:hidden;opacity:0;
-    box-shadow:0 50px 120px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06)}
-  .s2-titlebar{height:46px;background:rgba(255,255,255,.045);display:flex;align-items:center;
-    padding:0 18px;border-bottom:1px solid rgba(255,255,255,.07)}
-  .s2-lights{display:flex;gap:8px}
-  .s2-lights i{width:13px;height:13px;border-radius:50%}
-  .s2-lights i:nth-child(1){background:#ff5f57}.s2-lights i:nth-child(2){background:#febc2e}.s2-lights i:nth-child(3){background:#28c840}
-  .s2-title{flex:1;text-align:center;font-size:16px;color:rgba(226,232,240,.55);font-weight:500;
-    margin-left:-52px}
-  .s2-body{display:flex;height:calc(100% - 46px)}
-  .s2-side{width:212px;background:rgba(255,255,255,.028);border-right:1px solid rgba(255,255,255,.07);
-    padding:16px 12px;display:flex;flex-direction:column;gap:8px}
-  .s2-side div{font-size:16px;color:rgba(226,232,240,.62);padding:9px 14px;border-radius:9px;font-weight:500}
-  .s2-side div.on{background:rgba(90,150,255,.16);color:#bcd6ff}
-  .s2-desk{flex:1;position:relative;overflow:hidden;
-    background:linear-gradient(160deg,#0b1226,#0f1e44 50%,#1a2c5c)}
-  .s2-mb{height:24px;background:rgba(6,9,18,.72);display:flex;align-items:center;padding:0 12px;gap:11px;
-    font-size:12px;color:rgba(230,236,250,.7)}
-  .s2-mb .clk{margin-left:auto}
-  .s2-term{position:absolute;left:26px;top:52px;width:472px;border-radius:12px;overflow:hidden;
-    background:rgba(7,10,20,.86);border:1px solid rgba(255,255,255,.13);
-    box-shadow:0 20px 50px rgba(0,0,0,.45)}
-  .s2-termbar{height:30px;background:rgba(255,255,255,.06);display:flex;align-items:center;gap:6px;padding:0 11px}
-  .s2-termbar i{width:9px;height:9px;border-radius:50%}
-  .s2-termbar i:nth-child(1){background:#ff5f57}.s2-termbar i:nth-child(2){background:#febc2e}.s2-termbar i:nth-child(3){background:#28c840}
-  .s2-termbar span{margin-left:6px;font-size:12px;color:rgba(226,232,240,.5)}
-  .s2-termscreen{padding:14px 16px;font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:15.5px;line-height:1.85;min-height:118px}
-  .s2-l1{color:#7dd3fc}
-  .s2-l1 .caret{display:inline-block;width:8px;height:16px;background:#7dd3fc;vertical-align:-2px}
-  .s2-l2{color:rgba(203,213,225,.85);opacity:0}
-  .s2-l3{color:#34d399;opacity:0}
-  .s2-prog{margin-top:9px;height:7px;border-radius:4px;background:rgba(148,163,184,.18);overflow:hidden;opacity:0}
-  .s2-progfill{height:100%;width:0%;border-radius:4px;background:linear-gradient(90deg,#4cc9ff,#8b7bff)}
-  .s2-dock{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:14px;
-    padding:11px 15px;border-radius:18px;background:rgba(10,14,26,.62);
-    border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(6px);opacity:0}
-  .s2-tile{width:58px;height:58px;border-radius:14px;position:relative}
-  .s2-tile i{position:absolute;inset:0;border-radius:14px}
-  .t-saf i{background:linear-gradient(160deg,#38bdf8,#2563eb)}
-  .t-term i{background:linear-gradient(160deg,#334155,#0f172a);border:1px solid rgba(255,255,255,.18)}
-  .t-msgs i{background:linear-gradient(160deg,#4ade80,#16a34a)}
-  .t-files i{background:linear-gradient(160deg,#fcd34d,#f59e0b)}
-  .s2-pop{position:absolute;right:26px;top:118px;width:410px;height:296px;border-radius:12px;
-    background:#0e1526;border:1px solid rgba(255,255,255,.15);overflow:hidden;opacity:0;
-    box-shadow:0 30px 70px rgba(0,0,0,.5)}
-  .s2-pop .ubar{height:34px;background:rgba(255,255,255,.05);display:flex;align-items:center;padding:0 12px;gap:8px}
-  .s2-pop .ubar .ur{flex:1;height:19px;border-radius:6px;background:rgba(148,163,184,.16);
-    font-size:11.5px;color:rgba(226,232,240,.6);display:flex;align-items:center;padding:0 9px}
-  .s2-pop .pbody{padding:16px;display:flex;flex-direction:column;gap:11px}
-  .s2-pop .hero{height:104px;border-radius:9px;background:linear-gradient(120deg,rgba(56,189,248,.35),rgba(139,92,246,.35))}
-  .s2-pop .tl{height:11px;border-radius:5px;background:rgba(148,163,184,.28)}
-  .s2-pop .tl.s{width:62%}
-  .s2-cursor{position:absolute;width:30px;height:30px;opacity:0;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5));z-index:5}
-  .s2-rip{position:absolute;width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(255,255,255,.85);opacity:0;z-index:4}
-  .s2-chips{position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;gap:22px}
-  .s2-chips .pill{font-size:22px;font-weight:600;color:rgba(233,238,250,.9);padding:14px 30px;
-    border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);opacity:0}
+  .cursor-svg{display:block;filter:drop-shadow(0 4px 8px rgba(0,0,0,.55))}
+  .cursor{position:absolute;width:30px;height:30px;opacity:0;z-index:30;will-change:transform}
+  .ripple{position:absolute;border-radius:50%;border:2.5px solid rgba(120,220,255,.9);opacity:0;z-index:29}
 
-  /* ---------- S3 parallel agents ---------- */
-  .s3-row{position:absolute;top:308px;left:0;right:0;display:flex;justify-content:center;gap:64px}
-  .s3-card{width:424px;height:472px;padding:26px;opacity:0}
-  .s3-shot{position:relative;height:218px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.13);
-    background:linear-gradient(155deg,#0c1430,#10204a 48%,#1a2f63)}
-  .s3-shot .mb{height:22px;background:rgba(6,9,18,.72);font-size:11px;color:rgba(230,236,250,.7);
-    display:flex;align-items:center;padding:0 10px}
-  .s3-shot .mw{position:absolute;border-radius:7px;background:rgba(16,22,40,.88);border:1px solid rgba(255,255,255,.14)}
-  .s3-shot .mw .b{height:14px;background:rgba(255,255,255,.07);display:flex;align-items:center;gap:4px;padding:0 6px}
-  .s3-shot .mw .b i{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.35)}
-  .s3-shot .dk{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:7px;
-    padding:6px 9px;border-radius:11px;background:rgba(10,14,26,.6);border:1px solid rgba(255,255,255,.14)}
-  .s3-shot .dk i{width:19px;height:19px;border-radius:5px}
-  .s3-name{margin-top:22px;font-size:25px;font-weight:700;letter-spacing:.3px;display:flex;align-items:center;gap:11px}
-  .s3-dot{width:11px;height:11px;border-radius:50%;background:var(--green);position:relative;flex:0 0 auto}
-  .s3-dot::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(52,211,153,.5)}
-  .s3-status{margin-top:9px;font-size:18px;color:var(--muted);font-weight:500}
-  .s3-act{margin-top:26px}
-  .s3-act .lab{font-size:15.5px;color:var(--dim);margin-bottom:9px;letter-spacing:1px}
-  .s3-track{height:8px;border-radius:4px;background:rgba(148,163,184,.16);overflow:hidden;position:relative}
-  .s3-fill{position:absolute;top:0;height:100%;width:44%;border-radius:4px;
-    background:linear-gradient(90deg,#4cc9ff,#8b7bff)}
-  #s3 .foot{bottom:64px}
+  .wall{position:absolute;inset:0;overflow:hidden;
+    background:linear-gradient(155deg,#0a1430 0%,#10204c 45%,#1b2f68 100%)}
+  .wall::before{content:"";position:absolute;width:120%;height:80%;left:-20%;top:-30%;border-radius:50%;
+    background:radial-gradient(circle at 30% 40%,rgba(61,220,255,.30),transparent 55%),
+               radial-gradient(circle at 72% 58%,rgba(176,123,255,.30),transparent 58%);filter:blur(26px)}
+  .wall::after{content:"";position:absolute;inset:0;background:radial-gradient(90% 70% at 50% 110%,rgba(232,121,249,.16),transparent 60%)}
+  .menubar{position:relative;z-index:3;height:25px;background:rgba(6,10,20,.62);display:flex;align-items:center;
+    padding:0 13px;gap:14px;font-size:11.5px;color:rgba(230,238,252,.78);font-weight:500}
+  .menubar b{font-weight:700}
+  .menubar .clk{margin-left:auto;font-variant-numeric:tabular-nums}
+  .dock{position:absolute;z-index:4;left:50%;bottom:13px;transform:translateX(-50%);display:flex;gap:10px;
+    padding:8px 11px;border-radius:15px;background:rgba(8,12,24,.58);border:1px solid rgba(255,255,255,.15);
+    backdrop-filter:blur(8px)}
+  .dock i{width:34px;height:34px;border-radius:9px;box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 5px 12px rgba(0,0,0,.35)}
+  .t-blue{background:linear-gradient(155deg,#57c8ff,#2463f0)}
+  .t-slate{background:linear-gradient(155deg,#475569,#0f172a)}
+  .t-green{background:linear-gradient(155deg,#5ef0a8,#16a34a)}
+  .t-amber{background:linear-gradient(155deg,#ffe08a,#f59e0b)}
+  .t-pink{background:linear-gradient(155deg,#f9a8d4,#db2777)}
+  .t-violet{background:linear-gradient(155deg,#c4b5fd,#7c3aed)}
 
-  /* ---------- S4 safety ---------- */
-  .s4-wrap{position:absolute;top:312px;left:0;right:0;display:flex;justify-content:center;align-items:flex-start;gap:96px}
-  .s4-shield{width:330px;padding-top:26px;text-align:center;opacity:0}
-  .s4-shield svg{filter:drop-shadow(0 20px 55px rgba(76,201,255,.30))}
-  .s4-shield .cap{margin-top:22px;font-size:21px;color:var(--muted);letter-spacing:2px}
-  .s4-rows{width:660px;padding-top:16px;display:flex;flex-direction:column;gap:42px}
-  .s4-rows .row{opacity:0}
-  .s4-rows .rtxt{font-size:27px;font-weight:600}
+  .win{position:absolute;border-radius:13px;overflow:hidden;background:rgba(10,15,28,.94);
+    border:1px solid rgba(255,255,255,.14);box-shadow:0 26px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);z-index:3}
+  .win-bar{height:31px;background:rgba(255,255,255,.05);display:flex;align-items:center;gap:6px;padding:0 11px;
+    border-bottom:1px solid rgba(255,255,255,.055)}
+  .win-bar .light i{width:8px;height:8px}
+  .win-bar span{margin-left:6px;font-size:11.5px;color:rgba(226,232,240,.52);font-weight:500}
+  .term-screen{padding:12px 15px;font-family:var(--mono);font-size:14.5px;line-height:1.85}
+  .term-cmd{color:#7dd3fc}
+  .term-out{color:rgba(203,213,225,.82);opacity:0}
+  .term-ok{color:var(--green);opacity:0}
+  .caret{display:inline-block;width:8px;height:15px;background:#7dd3fc;vertical-align:-2px;border-radius:1px}
+  .track{height:7px;border-radius:4px;background:rgba(148,163,184,.18);overflow:hidden}
+  .track i{display:block;height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#3ddcff,#6d8bff)}
 
-  /* ---------- S5 integrate ---------- */
-  .s5-term{position:absolute;left:300px;top:312px;width:660px;height:404px;border-radius:20px;
-    background:rgba(9,13,26,.88);border:1px solid rgba(255,255,255,.13);overflow:hidden;opacity:0;
-    box-shadow:0 34px 90px rgba(0,0,0,.5)}
-  .s5-termbar{height:44px;background:rgba(255,255,255,.05);display:flex;align-items:center;gap:7px;padding:0 16px}
-  .s5-termbar i{width:11px;height:11px;border-radius:50%}
-  .s5-termbar i:nth-child(1){background:#ff5f57}.s5-termbar i:nth-child(2){background:#febc2e}.s5-termbar i:nth-child(3){background:#28c840}
-  .s5-termbar span{margin-left:10px;font-size:14px;color:rgba(226,232,240,.5);font-family:"SF Mono",ui-monospace,Menlo,monospace}
-  .s5-screen{padding:26px 30px;font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:19px;line-height:2.15}
-  .s5-cmd{color:#7dd3fc}
-  .s5-cmd .caret{display:inline-block;width:10px;height:20px;background:#7dd3fc;vertical-align:-3px}
-  .s5-out{color:#34d399;opacity:0}
-  .s5-out2{color:rgba(203,213,225,.8);opacity:0}
-  .s5-badge{display:inline-flex;align-items:center;gap:9px;margin-top:26px;font-size:16px;font-weight:700;
-    letter-spacing:1px;color:#c4d4ff;background:rgba(90,150,255,.14);border:1px solid rgba(120,170,255,.35);
-    border-radius:9px;padding:7px 14px}
-  .s5-chips{position:absolute;left:1060px;top:330px;width:600px;display:flex;flex-wrap:wrap;gap:24px}
-  .s5-chips .chip{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:20.5px;font-weight:500;
-    color:rgba(235,240,252,.92);padding:17px 26px;border-radius:14px;border:1px solid rgba(255,255,255,.14);
-    background:rgba(255,255,255,.05);opacity:0;display:flex;align-items:center;gap:11px}
-  .s5-chips .chip i{width:9px;height:9px;border-radius:50%;background:var(--cyan);flex:0 0 auto;
-    box-shadow:0 0 10px rgba(34,211,238,.9)}
-  #s5 .foot{bottom:78px}
+  /* ---------------- S0 ---------------- */
+  #s0{display:block}
+  #s0 .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .s0-halo{position:absolute;left:50%;top:50%;width:980px;height:980px;margin:-490px 0 0 -490px;border-radius:50%;
+    background:radial-gradient(circle,rgba(61,220,255,.14),rgba(176,123,255,.10) 38%,transparent 66%);
+    filter:blur(30px);opacity:0}
+  .s0-ring{position:absolute;left:50%;top:50%;border-radius:50%;border:1px solid rgba(150,190,255,.20);opacity:0}
+  .s0-ring.r1{width:360px;height:360px;margin:-180px 0 0 -180px}
+  .s0-ring.r2{width:520px;height:520px;margin:-260px 0 0 -260px;border-color:rgba(150,190,255,.10)}
+  .s0-iconwrap{position:relative;width:212px;height:212px;margin-bottom:46px}
+  .s0-icon{position:relative;width:212px;height:212px;border-radius:49px;opacity:0;
+    box-shadow:0 46px 110px rgba(0,0,0,.72),0 0 0 1px rgba(255,255,255,.12),0 0 90px rgba(90,150,255,.22)}
+  .s0-word{font-size:112px;font-weight:780;letter-spacing:-3.4px;display:flex;height:128px;align-items:center}
+  .s0-word span{display:inline-block;opacity:0;will-change:transform}
+  .s0-tag{margin-top:24px;font-size:32px;font-weight:450;color:rgba(236,242,255,.92);opacity:0;letter-spacing:.2px}
+  .s0-pill{margin-top:30px;font-size:19px;font-weight:550;color:rgba(205,218,240,.72);opacity:0;
+    border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:10px 24px;
+    background:rgba(255,255,255,.035);letter-spacing:.6px}
+  .s0-line{position:absolute;left:50%;bottom:120px;width:1px;height:54px;margin-left:-.5px;
+    background:linear-gradient(180deg,rgba(160,200,255,.5),transparent);opacity:0}
 
-  /* ---------- S6 end ---------- */
-  #s6 .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .s6-iconwrap{position:relative;width:168px;height:168px;margin-bottom:40px}
-  .s6-glow{position:absolute;inset:-110px;border-radius:50%;
-    background:radial-gradient(circle,rgba(76,201,255,.30),rgba(139,123,255,.16) 45%,transparent 70%);opacity:0}
-  .s6-icon{position:relative;width:168px;height:168px;border-radius:38px;opacity:0;
-    box-shadow:0 40px 100px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.10)}
-  .s6-word{font-size:92px;font-weight:800;letter-spacing:-2px;display:flex;overflow:hidden;height:106px}
-  .s6-word span{display:inline-block;opacity:0;transform:translateY(30px)}
-  .s6-word .gd{color:transparent;background:var(--grad);-webkit-background-clip:text;background-clip:text}
-  .s6-tag{margin-top:24px;font-size:34px;font-weight:500;color:rgba(233,238,250,.92);opacity:0}
-  .s6-url{margin-top:38px;display:flex;align-items:center;gap:15px;font-family:"SF Mono",ui-monospace,Menlo,monospace;
-    font-size:26px;font-weight:600;color:#dbe7ff;padding:18px 36px;border-radius:999px;
-    border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.055);opacity:0}
-  .s6-url svg{flex:0 0 auto}
-  .s6-sub{margin-top:20px;font-size:21px;color:var(--dim);opacity:0}
+  /* ---------------- S1 ---------------- */
+  #s1 .body{top:252px;bottom:84px}
+  .duo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;gap:56px;align-items:center}
+  .pane{width:818px}
+  .pane-head{height:56px;display:flex;align-items:center;gap:13px;padding:0 6px;opacity:0}
+  .pane-head .avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:750;color:#06121f;background:linear-gradient(155deg,#9fe7ff,#5ea8ff)}
+  .pane-head .avatar.agent{background:linear-gradient(155deg,#c9b5ff,#8f6bff);color:#120a26}
+  .pane-head b{font-size:23px;font-weight:650;letter-spacing:.1px}
+  .pane-head small{font-size:15px;color:var(--dim);font-weight:500;margin-left:2px}
+  .pane-head .tag{margin-left:auto}
+  .desk{height:544px;border-radius:23px;overflow:hidden;position:relative;border:1px solid rgba(255,255,255,.15);
+    box-shadow:0 46px 110px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.1);opacity:0}
+  .seam{position:relative;width:2px;height:470px;border-radius:2px;opacity:0;
+    background:linear-gradient(180deg,transparent,rgba(120,205,255,.85) 18%,rgba(255,255,255,.95) 50%,rgba(176,123,255,.85) 82%,transparent);
+    box-shadow:0 0 34px rgba(100,190,255,.55)}
+  .seam::after{content:"";position:absolute;left:50%;top:50%;width:260px;height:340px;transform:translate(-50%,-50%);
+    background:radial-gradient(ellipse,rgba(90,170,255,.18),transparent 70%);filter:blur(14px)}
+  .w-code{left:38px;top:57px;width:392px;height:318px}
+  .w-code .screen{display:flex;height:calc(100% - 31px)}
+  .w-code .rail{width:92px;background:rgba(255,255,255,.035);border-right:1px solid rgba(255,255,255,.06);padding:12px 9px;
+    display:flex;flex-direction:column;gap:9px}
+  .w-code .rail i{height:6px;border-radius:3px;background:rgba(148,163,184,.22)}
+  .w-code .code{flex:1;padding:14px 14px;display:flex;flex-direction:column;gap:10px}
+  .w-code .code i{height:7px;border-radius:3px;background:rgba(148,163,184,.24)}
+  .w-code .code i.c1{background:rgba(125,211,252,.55);width:52%}
+  .w-code .code i.c2{background:rgba(196,181,253,.55);width:74%}
+  .w-code .code i.c3{background:rgba(52,211,153,.48);width:61%}
+  .w-browser{right:34px;top:96px;width:330px;height:262px}
+  .w-browser .page{padding:16px;display:flex;flex-direction:column;gap:10px}
+  .w-browser .hero{height:88px;border-radius:9px;background:linear-gradient(120deg,rgba(61,220,255,.38),rgba(176,123,255,.40))}
+  .w-browser .tl{height:8px;border-radius:4px;background:rgba(148,163,184,.28)}
+  .w-browser .tl.s{width:64%}
+  .w-term{left:52px;top:96px;width:472px;height:326px}
+  .w-term .term-screen{min-height:96px}
+  .focus-chip{position:absolute;left:38px;bottom:78px;display:flex;align-items:center;gap:10px;z-index:6;
+    padding:10px 16px;border-radius:12px;background:rgba(6,12,24,.72);border:1px solid rgba(120,220,255,.28);
+    font-size:15px;font-weight:550;color:rgba(210,238,255,.92);opacity:0;backdrop-filter:blur(6px)}
+  .focus-chip .pulse{width:9px;height:9px;border-radius:50%;background:#5ee0ff;box-shadow:0 0 14px rgba(94,224,255,.9)}
+  .focus-chip small{color:var(--dim);font-weight:500}
+  .s1-curL{left:58%;top:66%}
+  .s1-curR{left:0;top:0}
+  .s1-rip{width:16px;height:16px}
+  #s1 .foot{bottom:34px}
 
-  /* ---------- vertical (9:16) overrides ---------- */
-  body.v .kicker{top:128px;font-size:26px}
-  body.v .h1{top:186px;font-size:62px;padding:0 40px}
-  #s0 .s0-iconwrap{width:210px;height:210px}
-  #s0 .s0-icon{width:210px;height:210px}
-  #s0 .s0-word{font-size:92px}
-  #s0 .s0-tag{font-size:34px;text-align:center;padding:0 40px}
-  #s6 .s6-tag{font-size:34px;text-align:center;padding:0 40px}
-  #s1 .sub{top:276px;padding:0 60px}
-  body.v #s1L{left:90px;top:440px;width:900px;height:440px}
-  body.v #s1R{left:90px;top:950px;width:900px;height:560px}
-  body.v .s1-chip{left:120px;top:1620px}
-  body.v #s2win{left:50px;top:360px;width:980px;height:700px}
-  body.v .s2-chips{bottom:auto;top:1160px;flex-direction:column;align-items:center;gap:24px}
-  body.v .s2-chips .pill{font-size:26px;padding:18px 40px}
-  body.v .s3-row{flex-direction:column;align-items:center;top:318px;gap:40px}
-  body.v .s3-card{width:900px;height:330px;display:flex;gap:26px;align-items:center}
-  body.v .s3-shot{width:360px;height:250px;flex:0 0 auto}
-  body.v .s3-info{flex:1}
-  body.v #s3 .foot{bottom:150px}
-  body.v .s4-wrap{flex-direction:column;align-items:center;gap:48px;top:480px}
-  body.v .s4-rows{width:900px}
-  body.v .s4-rows .rtxt{font-size:28px}
-  body.v .s5-term{left:90px;top:360px;width:900px;height:420px}
-  body.v .s5-chips{left:90px;top:860px;width:900px}
-  body.v .s5-chips .chip{font-size:24px;padding:20px 28px}
-  body.v #s5 .foot{bottom:170px}
-  body.v #s6 .s6-url{font-size:24px}
+  /* ---------------- S2 ---------------- */
+  .alt-row{position:absolute;left:0;right:0;top:26px;display:flex;justify-content:center;gap:30px}
+  .alt{width:498px;height:158px;padding:24px 26px;position:relative;opacity:0;overflow:hidden}
+  .alt .at{display:flex;align-items:center;gap:13px;font-size:22px;font-weight:650}
+  .alt .ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    font-size:15px;font-weight:750;color:rgba(255,190,190,.9);background:rgba(255,107,107,.10);
+    border:1px solid rgba(255,107,107,.28)}
+  .alt .ad{margin-top:12px;font-size:17.5px;color:rgba(226,232,240,.48);padding-left:49px}
+  .alt .strike{position:absolute;left:24px;right:24px;top:58px;height:2px;border-radius:2px;
+    background:linear-gradient(90deg,rgba(255,107,107,.9),rgba(255,107,107,.35));transform-origin:left center;
+    transform:scaleX(0);box-shadow:0 0 14px rgba(255,107,107,.5)}
+  .s2-arch{position:absolute;left:0;right:0;top:206px;bottom:0;opacity:0}
+  .session{position:absolute;width:452px;height:300px;top:0;border-radius:22px;padding:24px 26px;
+    background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden}
+  .session.you{left:352px}
+  .session.agent{right:352px}
+  .sh-head{display:flex;align-items:center;gap:11px;font-size:21px;font-weight:650}
+  .sh-head .dot{width:10px;height:10px}
+  .sh-sub{margin-top:7px;font-size:15px;color:var(--dim);letter-spacing:.4px}
+  .sh-note{margin-left:6px;font-size:15px;color:var(--dim)}
+  .sh-body{margin-top:26px;display:flex;align-items:center;gap:14px}
+  .app-tile{width:50px;height:50px;border-radius:13px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 10px 22px rgba(0,0,0,.35)}
+  .sh-code{margin-top:22px;font-family:var(--mono);font-size:14px;color:rgba(180,205,240,.55);
+    background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:9px 12px;
+    display:flex;align-items:center;gap:9px}
+  .sh-code .dot{width:7px;height:7px}
+  .slab{position:absolute;left:50%;bottom:14px;width:1120px;height:116px;transform:translateX(-50%);
+    border-radius:20px;background:linear-gradient(160deg,rgba(255,255,255,.075),rgba(255,255,255,.025));
+    border:1px solid rgba(255,255,255,.13);box-shadow:var(--shadow);display:flex;align-items:center;padding:0 34px;gap:22px}
+  .slab .chip{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(155deg,rgba(61,220,255,.22),rgba(176,123,255,.22));border:1px solid rgba(150,190,255,.25)}
+  .slab .chip svg{opacity:.92}
+  .slab b{font-size:22px;font-weight:650}
+  .slab small{display:block;margin-top:5px;font-size:15.5px;color:var(--dim)}
+  .slab .right{margin-left:auto;text-align:right;font-family:var(--mono);font-size:15px;color:rgba(170,200,240,.62);line-height:1.7}
+  .vline{position:absolute;bottom:130px;width:1px;height:94px;background:linear-gradient(180deg,rgba(120,190,255,.0),rgba(120,190,255,.55),rgba(120,190,255,.0))}
+  .vline.l{left:578px}.vline.r{right:578px}
+  .worker{position:absolute;right:70px;bottom:44px;display:flex;align-items:center;gap:12px;
+    padding:13px 18px;border-radius:14px;background:rgba(8,14,28,.82);border:1px solid rgba(120,200,255,.24);
+    box-shadow:0 18px 44px rgba(0,0,0,.4);font-size:15px;color:rgba(210,232,255,.86)}
+  .worker .dot{width:8px;height:8px}
+  .worker code{font-family:var(--mono);font-size:13.5px;color:rgba(150,210,255,.8)}
+  .socket{position:absolute;right:70px;bottom:96px;width:2px;height:0;background:linear-gradient(180deg,rgba(93,220,255,.85),rgba(93,220,255,.1))}
+  .socket::before,.socket::after{content:"";position:absolute;left:-3px;width:8px;height:8px;border-radius:50%;
+    background:#5ee0ff;box-shadow:0 0 14px rgba(94,224,255,.9);opacity:0}
+  #s2 .foot{bottom:34px}
+
+  /* ---------------- S3 ---------------- */
+  #s3 .body{top:250px;bottom:80px}
+  .appwin{position:absolute;left:18px;top:18px;width:1000px;height:646px;border-radius:17px;overflow:hidden;
+    background:#0c111d;border:1px solid rgba(255,255,255,.14);box-shadow:0 46px 110px rgba(0,0,0,.62);opacity:0}
+  .app-titlebar{height:46px;display:flex;align-items:center;gap:12px;padding:0 18px;
+    background:rgba(255,255,255,.045);border-bottom:1px solid rgba(255,255,255,.07)}
+  .app-titlebar .title{position:absolute;left:0;right:0;text-align:center;font-size:14.5px;color:rgba(226,232,240,.55);
+    font-weight:550;pointer-events:none}
+  .app-titlebar .tb-r{margin-left:auto;display:flex;gap:8px;z-index:2}
+  .tb-btn{height:27px;border-radius:7px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+    font-size:12.5px;color:rgba(232,240,255,.78);display:flex;align-items:center;padding:0 11px;gap:6px;white-space:nowrap}
+  .tb-btn.primary{background:rgba(90,150,255,.18);border-color:rgba(120,170,255,.4);color:#d9e7ff}
+  .app-body{display:flex;height:calc(100% - 46px)}
+  .app-side{width:252px;background:rgba(255,255,255,.024);border-right:1px solid rgba(255,255,255,.07);
+    padding:18px 12px 12px;display:flex;flex-direction:column}
+  .side-head{font-size:11.5px;font-weight:700;letter-spacing:1.6px;color:rgba(190,205,230,.42);
+    padding:0 10px;margin-bottom:12px}
+  .side-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;margin-bottom:3px;opacity:1}
+  .side-row.on{background:rgba(90,150,255,.15)}
+  .side-row .sr-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .side-row b{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .side-row small{font-size:11.5px;color:rgba(190,205,230,.5)}
+  .side-row .dot{width:7px;height:7px;box-shadow:none}
+  .side-space{flex:1}
+  .side-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 10px 2px;
+    border-top:1px solid rgba(255,255,255,.07);font-size:11px;color:rgba(190,205,230,.38)}
+  .plus{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);font-size:16px;color:#cfe0ff;line-height:1}
+  .app-main{flex:1;padding:22px 24px;overflow:hidden;position:relative}
+  .main-head{display:flex;align-items:center;gap:12px}
+  .main-head h3{font-size:23px;font-weight:650;letter-spacing:-.2px}
+  .main-head .pill{font-size:12.5px;padding:5px 11px;gap:7px}
+  .main-head .pill .dot{width:6px;height:6px;box-shadow:none}
+  .main-head .acts{margin-left:auto;display:flex;gap:8px}
+  .ov-card{margin-top:16px;border-radius:13px;background:rgba(255,255,255,.032);border:1px solid rgba(255,255,255,.075);
+    padding:16px 18px}
+  .ov-card .ct{font-size:11px;font-weight:700;letter-spacing:1.5px;color:rgba(190,205,230,.4);margin-bottom:11px}
+  .ov-row{display:flex;align-items:center;gap:10px;font-size:13.5px;color:rgba(226,234,250,.8);
+    padding:6px 0;border-bottom:1px solid rgba(255,255,255,.045)}
+  .ov-row:last-child{border-bottom:none}
+  .ov-row b{font-weight:550;color:rgba(214,226,248,.62);width:118px;flex:0 0 auto}
+  .ov-row .v{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12.5px;color:rgba(200,220,250,.78)}
+  .ov-row .dot{width:6px;height:6px;box-shadow:none}
+  .grid2{display:flex;gap:12px;margin-top:12px}
+  .grid2 .ov-card{flex:1;margin-top:0}
+  .perm{display:flex;align-items:center;gap:8px;font-size:12.5px;color:rgba(226,234,250,.78);padding:5px 0}
+  .perm .ok{width:16px;height:16px;border-radius:50%;background:rgba(61,220,151,.16);border:1px solid rgba(61,220,151,.4);
+    color:var(--green);font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:800}
+  .wizard-back{position:absolute;inset:0;background:rgba(3,6,14,.58);backdrop-filter:blur(3px);opacity:0;z-index:12}
+  .wizard{position:absolute;left:50%;top:54%;width:840px;transform:translate(-50%,-50%) scale(.96);z-index:13;
+    border-radius:16px;overflow:hidden;background:#101625;border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 46px 120px rgba(0,0,0,.7);opacity:0}
+  .wiz-head{height:50px;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .wiz-head b{font-size:16px;font-weight:650}
+  .wiz-head span{font-size:12px;color:var(--dim)}
+  .wiz-head .x{margin-left:auto;font-size:13px;color:rgba(200,215,240,.6)}
+  .wiz-body{padding:22px 24px 8px}
+  .wiz-label{font-size:11px;font-weight:700;letter-spacing:1.4px;color:rgba(190,205,230,.45);margin-bottom:9px}
+  .acct{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:11px;
+    border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.028);margin-bottom:19px}
+  .acct .av{width:38px;height:38px;border-radius:50%;background:linear-gradient(155deg,#c9b5ff,#8f6bff);
+    color:#120a26;display:flex;align-items:center;justify-content:center;font-weight:750;font-size:15px}
+  .acct b{font-size:14.5px;font-weight:600;display:block}
+  .acct small{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .radio{margin-left:auto;width:17px;height:17px;border-radius:50%;border:1.5px solid rgba(255,255,255,.28);position:relative}
+  .radio.on{border-color:#6ea8ff}
+  .radio.on::after{content:"";position:absolute;inset:3px;border-radius:50%;background:#6ea8ff}
+  .input{height:40px;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.22);
+    display:flex;align-items:center;padding:0 13px;font-size:14px;color:rgba(235,242,255,.9);font-family:var(--mono)}
+  .wiz-foot{height:58px;display:flex;align-items:center;padding:0 20px;border-top:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.02)}
+  .wiz-foot .hint{font-size:10.5px;color:rgba(200,215,240,.42);max-width:390px;line-height:1.45}
+  .wbtn{margin-left:auto;height:31px;border-radius:7px;padding:0 16px;display:flex;align-items:center;
+    font-size:13px;font-weight:600;color:#f3f8ff;background:linear-gradient(180deg,#4b8dff,#2f6fe0);
+    box-shadow:0 6px 16px rgba(47,111,224,.4)}
+  .wiz-ok{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;
+    background:#101625;opacity:0}
+  .wiz-ok .ring{width:62px;height:62px;border-radius:50%;border:1.5px solid rgba(61,220,151,.5);
+    background:rgba(61,220,151,.10);display:flex;align-items:center;justify-content:center;
+    font-size:28px;color:var(--green);box-shadow:0 0 40px rgba(61,220,151,.28)}
+  .wiz-ok b{font-size:18px;font-weight:650}
+  .wiz-ok small{font-size:13px;color:var(--dim)}
+  .spin{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.16);border-top-color:#7db0ff;
+    animation:none;opacity:0;margin-left:auto}
+  .viewer{position:absolute;right:14px;top:74px;width:700px;height:532px;border-radius:14px;overflow:hidden;
+    background:#0a0f1b;border:1px solid rgba(255,255,255,.16);box-shadow:0 50px 120px rgba(0,0,0,.68);opacity:0}
+  .viewer-bar{height:40px;background:rgba(255,255,255,.045);display:flex;align-items:center;gap:10px;padding:0 14px;
+    border-bottom:1px solid rgba(255,255,255,.07);position:relative;z-index:4}
+  .viewer-bar .vt{position:absolute;left:0;right:0;text-align:center;font-size:12.5px;color:rgba(226,232,240,.55);pointer-events:none}
+  .viewer-bar .conn{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(150,235,195,.9);
+    border:1px solid rgba(61,220,151,.25);background:rgba(61,220,151,.08);border-radius:999px;padding:3px 9px}
+  .viewer-bar .conn .dot{width:5px;height:5px;box-shadow:none}
+  .vdesk{position:absolute;left:0;right:0;top:40px;bottom:0}
+  .vdesk .term-screen{font-size:14px}
+  .vdesk .w-term{left:26px;top:58px;width:420px;height:300px}
+  .vdesk .w-browser{right:22px;top:90px;width:238px;height:214px}
+  .vdesk .dock i{width:30px;height:30px;border-radius:8px}
+  #s3 .foot{bottom:30px}
+
+  /* ---------------- S4 ---------------- */
+  .agents{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;gap:34px}
+  .agentcard{width:520px;height:540px;padding:24px;opacity:0}
+  .shot{position:relative;height:278px;border-radius:15px;overflow:hidden;border:1px solid rgba(255,255,255,.13);
+    background:linear-gradient(155deg,#0a1430,#10204c 46%,#1b2f68)}
+  .shot .menubar{height:23px;font-size:10px;padding:0 10px;gap:9px}
+  .shot .mw{position:absolute;border-radius:8px;background:rgba(12,18,34,.9);border:1px solid rgba(255,255,255,.14);overflow:hidden}
+  .shot .mw .b{height:14px;background:rgba(255,255,255,.06);display:flex;align-items:center;gap:4px;padding:0 6px}
+  .shot .mw .b i{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.35)}
+  .shot .mw .in{padding:8px;display:flex;flex-direction:column;gap:6px}
+  .shot .mw .in i{height:5px;border-radius:2px;background:rgba(148,163,184,.3)}
+  .shot .dk{position:absolute;left:50%;bottom:9px;transform:translateX(-50%);display:flex;gap:7px;
+    padding:6px 8px;border-radius:11px;background:rgba(8,12,24,.6);border:1px solid rgba(255,255,255,.14)}
+  .shot .dk i{width:21px;height:21px;border-radius:6px}
+  .aname{display:flex;align-items:center;gap:10px;margin-top:22px;font-size:24px;font-weight:650}
+  .aname .dot{width:9px;height:9px}
+  .astat{margin-top:7px;font-size:15.5px;color:var(--muted)}
+  .atask{margin-top:26px}
+  .atask .lab{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12.5px;
+    color:rgba(180,200,230,.5);margin-bottom:9px;letter-spacing:.5px}
+  .atask .track{height:6px}
+  #s4 .foot{bottom:34px}
+
+  /* ---------------- S5 ---------------- */
+  .safe-wrap{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;
+    justify-content:center;gap:30px}
+  .safe-left{position:relative;width:100%;height:372px;flex:0 0 auto}
+  .shield{position:absolute;left:24px;top:46px;width:188px;height:214px;opacity:0;filter:drop-shadow(0 24px 60px rgba(70,170,255,.28))}
+  .term-big{position:absolute;left:282px;right:0;top:22px;border-radius:18px;overflow:hidden;
+    background:rgba(7,11,21,.92);border:1px solid rgba(255,255,255,.13);box-shadow:0 36px 90px rgba(0,0,0,.55);opacity:0}
+  .term-big .term-screen{padding:26px 30px;font-size:19.5px;line-height:2.05}
+  .term-big .err{color:#ff8b8b}
+  .term-big .arrow{color:#ffc857}
+  .term-dim{color:rgba(170,190,220,.5)}
+  .stamp{position:absolute;right:34px;top:26px;font-size:14px;font-weight:800;letter-spacing:2.4px;
+    color:#ff8b8b;border:2px solid rgba(255,107,107,.65);border-radius:8px;padding:7px 13px;
+    transform:rotate(7deg);opacity:0;background:rgba(255,107,107,.06)}
+  .safe-right{position:relative;width:100%;padding-top:0;display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  .safe-row{display:flex;align-items:center;gap:15px;min-height:108px;padding:20px 22px;border-radius:16px;opacity:0;
+    background:var(--card);border:1px solid var(--line)}
+  .safe-row .ok{width:30px;height:30px;border-radius:50%;background:rgba(61,220,151,.12);
+    border:1px solid rgba(61,220,151,.38);color:var(--green);display:flex;align-items:center;justify-content:center;
+    font-size:14px;font-weight:800;flex:0 0 auto}
+  .safe-row .tx{font-size:18.5px;font-weight:500;color:rgba(234,241,255,.88);line-height:1.4}
+  .safe-row .tx b{font-weight:inherit;display:block}
+  .safe-row .tx small{display:none}
+  #s5 .foot{bottom:34px}
+
+  /* ---------------- S6 ---------------- */
+  .connect{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:24px}
+  .term-c{width:1180px;max-width:100%;border-radius:18px;overflow:hidden;background:rgba(7,11,21,.92);
+    border:1px solid rgba(255,255,255,.13);box-shadow:0 36px 90px rgba(0,0,0,.55);opacity:0}
+  .term-c .term-screen{padding:24px 28px;font-size:20px;line-height:2.05}
+  .clients{width:1180px;max-width:100%;margin:0 auto;padding-top:0;text-align:center}
+  .clients .ct{font-size:12px;font-weight:700;letter-spacing:1.8px;color:rgba(190,205,230,.42);margin-bottom:14px}
+  .chips{display:flex;flex-wrap:wrap;gap:11px;justify-content:center}
+  .chip{display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:11px;font-size:14.5px;font-weight:550;
+    color:rgba(235,242,255,.88);background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);opacity:0}
+  .chip i{width:7px;height:7px;border-radius:50%;background:#5ee0ff;box-shadow:0 0 10px rgba(94,224,255,.85)}
+  .toolband{width:100%;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+  .tool-chips{display:flex;gap:11px;flex-wrap:wrap;justify-content:center}
+  .tool-chips .chip{font-family:var(--mono);font-size:12.5px;padding:8px 11px;gap:8px}
+  .badge22{display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:650;
+    color:#d7e8ff;background:rgba(90,150,255,.13);border:1px solid rgba(120,170,255,.32);
+    border-radius:9px;padding:8px 13px;opacity:0}
+  #s6 .foot{bottom:34px}
+
+  /* ---------------- S7 ---------------- */
+  #s7 .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .s7-glow{position:absolute;left:50%;top:50%;width:1100px;height:1100px;margin:-550px 0 0 -550px;border-radius:50%;
+    background:radial-gradient(circle,rgba(61,220,255,.16),rgba(176,123,255,.12) 40%,transparent 68%);
+    filter:blur(36px);opacity:0}
+  .s7-icon{width:172px;height:172px;border-radius:40px;opacity:0;
+    box-shadow:0 48px 110px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.12),0 0 80px rgba(100,150,255,.22)}
+  .s7-word{font-size:104px;font-weight:780;letter-spacing:-3.2px;display:flex;height:120px;align-items:center;margin-top:34px}
+  .s7-word span{display:inline-block;opacity:0}
+  .s7-tag{margin-top:20px;font-size:35px;line-height:1.42;text-align:center;font-weight:450;color:rgba(238,244,255,.94);opacity:0}
+  body.zh .s7-tag{font-size:38px;font-weight:400}
+  .s7-url{margin-top:34px;display:flex;align-items:center;gap:14px;font-family:var(--mono);font-size:24px;font-weight:600;
+    color:#dce9ff;padding:16px 30px;border-radius:999px;border:1px solid rgba(255,255,255,.17);
+    background:rgba(255,255,255,.05);opacity:0;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+  .s7-url svg{flex:0 0 auto;opacity:.9}
+  .s7-sub{margin-top:22px;font-size:20px;color:rgba(205,220,245,.48);letter-spacing:.4px;opacity:0}
+
+  /* ---------------- vertical (9:16) ---------------- */
+  body.v .head{left:60px;right:60px;top:92px}
+  body.v .kicker{font-size:21px;letter-spacing:4px}
+  body.v .h1{font-size:62px;line-height:1.18;letter-spacing:-.8px;margin-top:18px}
+  body.v .sub{font-size:28px;margin-top:18px;line-height:1.5}
+  body.v .body{left:60px;right:60px;top:400px;bottom:132px}
+  body.v .foot{left:60px;right:60px;bottom:86px;font-size:24px;line-height:1.5}
+
+  body.v .s0-iconwrap{width:236px;height:236px;margin-bottom:52px}
+  body.v .s0-icon{width:236px;height:236px;border-radius:55px}
+  body.v .s0-word{font-size:96px;height:112px;letter-spacing:-2.6px}
+  body.v .s0-tag{font-size:34px;text-align:center;padding:0 60px;line-height:1.45}
+  body.v .s0-pill{font-size:20px;margin-top:34px}
+
+  body.v .duo{flex-direction:column;gap:40px;top:50%}
+  body.v .pane{width:940px}
+  body.v .pane-head{height:52px}
+  body.v .desk{height:420px}
+  body.v .seam{width:420px;height:2px;background:linear-gradient(90deg,transparent,rgba(120,205,255,.85) 18%,rgba(255,255,255,.95) 50%,rgba(176,123,255,.85) 82%,transparent)}
+  body.v .seam::after{width:340px;height:200px}
+  body.v .w-code{left:34px;top:48px;width:452px;height:300px}
+  body.v .w-code .rail{width:96px}
+  body.v .w-browser{right:30px;top:70px;width:360px;height:238px}
+  body.v .w-term{left:40px;top:66px;width:540px;height:286px}
+  body.v .focus-chip{left:34px;bottom:60px;font-size:16px}
+  body.v .duo .dock i{width:30px;height:30px}
+
+  body.v .alt-row{flex-direction:column;align-items:center;gap:20px;top:0}
+  body.v .alt{width:920px;height:170px;padding:24px 26px}
+  body.v .alt .at{font-size:24px}
+  body.v .alt .ad{margin-top:12px;font-size:19px}
+  body.v .s2-arch{top:580px}
+  body.v .session{width:458px;height:400px;top:0;padding:26px 28px;display:flex;flex-direction:column;justify-content:center}
+  body.v .session.you{left:0}
+  body.v .session.agent{right:0}
+  body.v .sh-head{font-size:23px}
+  body.v .sh-sub{margin-top:8px;font-size:16.5px}
+  body.v .sh-body{margin-top:36px;gap:16px}
+  body.v .sh-note{font-size:17px}
+  body.v .app-tile{width:56px;height:56px;border-radius:14px}
+  body.v .sh-code{font-size:15px;margin-top:36px;padding:12px 14px}
+  body.v .slab{width:960px;height:150px;bottom:138px;padding:0 30px;gap:24px;justify-content:center}
+  body.v .slab .chip{width:58px;height:58px}
+  body.v .slab b{font-size:24px}
+  body.v .slab small{font-size:16.5px}
+  body.v .slab .right{display:none}
+  body.v .vline{display:none}
+  body.v .worker{right:0;bottom:170px}
+
+  body.v #s3 .body{top:430px;bottom:150px}
+  body.v .appwin{left:0;top:0;width:960px;height:900px}
+  body.v .app-side{width:246px}
+  body.v .app-main{padding:20px}
+  body.v .viewer{left:0;right:auto;top:700px;width:960px;height:556px}
+  body.v .wizard{width:880px;top:50%}
+  body.v .wiz-body{padding:24px}
+  body.v .wiz-head b{font-size:17px}
+  body.v .wiz-foot .hint{max-width:430px;font-size:11px}
+  body.v .vdesk .w-term{left:30px;top:62px;width:560px;height:330px}
+  body.v .vdesk .w-browser{right:24px;top:110px;width:286px;height:250px}
+
+  body.v .agents{flex-direction:column;gap:24px;top:50%;left:0;transform:translateY(-50%);width:100%}
+  body.v .agentcard{width:960px;height:300px;padding:20px;display:flex;gap:24px;align-items:center}
+  body.v .shot{width:400px;height:252px;flex:0 0 auto}
+  body.v .agentcard .ainfo{flex:1;min-width:0}
+  body.v .aname{margin-top:0;font-size:24px}
+  body.v .atask{margin-top:26px}
+  body.v #s4 .foot{bottom:82px}
+
+  body.v .safe-wrap{flex-direction:column;justify-content:center;gap:40px;top:0;bottom:0}
+  body.v .safe-left{width:960px;height:348px}
+  body.v .shield{left:14px;top:42px;width:236px;height:268px}
+  body.v .term-big{left:0;right:0;top:0;width:960px}
+  body.v .term-big .term-screen{font-size:20px;padding:28px 30px 26px 288px;line-height:2.0}
+  body.v .stamp{top:16px;right:24px;font-size:13px}
+  body.v .worker,body.v .socket{display:none}
+  body.v .safe-right{display:flex;flex-direction:column;width:960px;padding-top:0;gap:20px}
+  body.v .safe-row{min-height:168px;padding:26px 30px;gap:22px}
+  body.v .safe-row .ok{width:52px;height:52px;font-size:24px}
+  body.v .safe-row .tx{font-size:23px;line-height:1.35;font-weight:600}
+  body.v .safe-row .tx small{display:block;margin-top:10px;font-size:17px;font-weight:450;
+    color:var(--dim);line-height:1.5;letter-spacing:.1px}
+  body.v #s5 .foot{bottom:82px}
+
+  body.v .connect{display:flex;flex-direction:column;justify-content:center;gap:44px;top:0;bottom:0}
+  body.v .term-c{width:960px}
+  body.v .term-c .term-screen{font-size:22px;padding:30px;line-height:2.1}
+  body.v .clients{width:960px;padding-top:0}
+  body.v .clients .ct{font-size:14px;margin-bottom:18px}
+  body.v .chips{gap:14px}
+  body.v .chip{font-size:18.5px;padding:12px 18px;gap:10px}
+  body.v .toolband{width:960px;gap:16px}
+  body.v .tool-chips{gap:14px}
+  body.v .tool-chips .chip{font-size:16px;padding:10px 13px}
+  body.v .badge22{font-size:16px;padding:10px 15px}
+  body.v #s6 .foot{bottom:82px}
+
+  body.v .s7-icon{width:190px;height:190px;border-radius:44px}
+  body.v .s7-word{font-size:88px;height:104px;letter-spacing:-2.4px}
+  body.v .s7-tag{font-size:36px;padding:0 50px;margin-top:26px}
+  body.v .s7-url{font-size:21px;padding:15px 24px;margin-top:32px}
+  body.v .s7-sub{font-size:19px;text-align:center;padding:0 40px}
 </style>
 </head>
-<body>
+<body class="zh">
 <div id="stage">
   <div id="bg">
-    <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
-    <div id="grid"></div>
-    <div id="stars"></div>
-    <div id="vignette"></div>
-    <div id="noise"></div>
+    <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div>
+    <div id="grid"></div><div id="stars"></div><div id="vignette"></div><div id="grain"></div>
   </div>
-
+  <div id="beam"></div>
   <div id="watermark"><img src="icon.png" alt=""><span>AgentSpace</span></div>
 
-  <!-- S0 · opening -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <path id="curPath" d="M5 2 L5 21.4 L10.1 16.8 L13.3 24.2 L17 22.6 L13.8 15.4 L20.8 15.4 Z"/>
+  </defs></svg>
+
+  <!-- 00 · opening -->
   <section class="scene" id="s0">
+    <div class="s0-halo" id="s0halo"></div>
+    <div class="s0-ring r1" id="s0r1"></div>
+    <div class="s0-ring r2" id="s0r2"></div>
     <div class="center">
-      <div class="s0-iconwrap">
-        <div class="s0-glow" id="s0glow"></div>
-        <img class="s0-icon" id="s0icon" src="icon.png" alt="">
-      </div>
+      <div class="s0-iconwrap"><img class="s0-icon" id="s0icon" src="icon.png" alt=""></div>
       <div class="s0-word" id="s0word"></div>
-      <div class="s0-tag" id="s0tag">让每个 AI 代理，坐进一台真实的 Mac</div>
-      <div class="s0-pill" id="s0pill">macOS 26+ · 免费下载</div>
+      <div class="s0-tag" data-t="s0tag"></div>
+      <div class="s0-pill" data-t="s0pill"></div>
     </div>
+    <div class="s0-line" id="s0line"></div>
   </section>
 
-  <!-- S1 · what it is -->
+  <!-- 01 · two desktops -->
   <section class="scene" id="s1">
-    <div class="kicker" id="s1k">01 · 它是什么</div>
-    <div class="h1" id="s1h">不是<span class="gd">虚拟机</span>，也不是<span class="gd">远程控制</span></div>
-    <div class="sub" id="s1sub">代理在后台属于自己的桌面里工作，你完全无感</div>
-
-    <div class="s1-card card" id="s1L">
-      <div class="s1-cardtitle">常见的替代方案</div>
-      <div class="row deny" id="s1d1"><div class="ric">VM</div><div class="rtxt">虚拟机 · 几十 GB 的第二个 macOS</div><div class="rmark">✕</div></div>
-      <div class="row deny" id="s1d2"><div class="ric">屏</div><div class="rtxt">远程控制 · 占用你的屏幕与键鼠</div><div class="rmark">✕</div></div>
-      <div class="row deny" id="s1d3"><div class="ric">假</div><div class="rtxt">虚拟显示器 · 跑不了真实应用</div><div class="rmark">✕</div></div>
-      <div class="s1-note">下载翻倍 · 系统更新翻倍 · 假的显示器测不了<br>真实 GPU / Metal / 浏览器应用</div>
+    <div class="head">
+      <div class="kicker"><i></i><b data-t="s1knum">01</b><span data-t="s1k"></span><i></i></div>
+      <div class="h1" data-t="s1h"></div>
+      <div class="sub" data-t="s1sub"></div>
     </div>
+    <div class="body">
+      <div class="duo">
+        <div class="pane">
+          <div class="pane-head" id="s1headL">
+            <div class="avatar">Y</div><b data-t="s1you"></b><small data-t="s1local"></small>
+            <span class="tag pill"><span class="dot"></span><span data-t="s1yourst"></span></span>
+          </div>
+          <div class="desk" id="s1deskL">
+            <div class="wall"></div>
+            <div class="menubar"><b>you</b><span data-t="mbfile"></span><span data-t="mbedit"></span><span data-t="mbview"></span><span class="clk">10:26</span></div>
+            <div class="win w-code">
+              <div class="win-bar"><span class="light"><i></i><i></i><i></i></span><span>api — Visual Studio Code</span></div>
+              <div class="screen"><div class="rail"><i style="width:70%"></i><i style="width:52%"></i><i style="width:64%"></i><i style="width:40%"></i><i style="width:58%"></i></div>
+                <div class="code"><i class="c1"></i><i style="width:82%"></i><i style="width:66%"></i><i class="c2"></i><i style="width:74%"></i><i class="c3"></i><i style="width:57%"></i><i style="width:70%"></i></div></div>
+            </div>
+            <div class="win w-browser">
+              <div class="win-bar"><span class="light"><i></i><i></i><i></i></span><span>Safari</span></div>
+              <div class="page"><div class="hero"></div><div class="tl"></div><div class="tl s"></div><div class="tl" style="width:44%"></div></div>
+            </div>
+            <div class="dock"><i class="t-blue"></i><i class="t-slate"></i><i class="t-green"></i><i class="t-amber"></i><i class="t-pink"></i></div>
+            <div class="focus-chip" id="s1focus"><span class="pulse"></span><span data-t="s1focus"></span></div>
+            <div class="cursor s1-curL" id="s1curL"><svg class="cursor-svg" width="30" height="30" viewBox="0 0 28 28"><use href="#curPath" fill="#ffffff" stroke="#0a0e1a" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+          </div>
+        </div>
 
-    <div class="s1-card card" id="s1R">
-      <div class="s1-cardtitle">AGENTSPACE 的方式</div>
-      <div class="row ok" id="s1o1"><div class="ric">✓</div><div class="rtxt">已有的标准 macOS 账户</div><div class="rmark">✓</div></div>
-      <div class="row ok" id="s1o2"><div class="ric">✓</div><div class="rtxt">独立的 Aqua 桌面会话</div><div class="rmark">✓</div></div>
-      <div class="row ok" id="s1o3"><div class="ric">✓</div><div class="rtxt">同一台真机 · 同一套硬件</div><div class="rmark">✓</div></div>
-      <div class="s1-desk" id="s1desk">
-        <div class="s1-menubar"><b>dev</b><span>文件</span><span>编辑</span><span>显示</span><span class="clk">上午 10:26</span></div>
-        <div class="s1-miniwin" style="left:22px;top:44px;width:150px;height:74px">
-          <div class="bar"><i></i><i></i><i></i></div><div class="body"><i style="width:52%"></i><i style="width:30%"></i></div>
-        </div>
-        <div class="s1-miniwin" style="right:96px;top:36px;width:132px;height:60px">
-          <div class="bar"><i></i><i></i><i></i></div><div class="body"><i style="width:46%"></i></div>
-        </div>
-        <div class="s1-dockmini">
-          <i style="background:linear-gradient(160deg,#38bdf8,#2563eb)"></i>
-          <i style="background:linear-gradient(160deg,#334155,#0f172a)"></i>
-          <i style="background:linear-gradient(160deg,#4ade80,#16a34a)" id="s1tile"></i>
-          <i style="background:linear-gradient(160deg,#fcd34d,#f59e0b)"></i>
+        <div class="seam" id="s1seam"></div>
+
+        <div class="pane">
+          <div class="pane-head" id="s1headR">
+            <div class="avatar agent">A</div><b data-t="s1agent"></b><small>dev-agent</small>
+            <span class="tag pill"><span class="dot"></span><span data-t="s1running"></span></span>
+          </div>
+          <div class="desk" id="s1deskR">
+            <div class="wall" style="background:linear-gradient(155deg,#120c2a 0%,#1d1550 45%,#2a1d6e 100%)"></div>
+            <div class="menubar"><b>dev</b><span data-t="mbfile"></span><span data-t="mbedit"></span><span data-t="mbview"></span><span class="clk">10:26</span></div>
+            <div class="win w-term" id="s1term">
+              <div class="win-bar"><span class="light"><i></i><i></i><i></i></span><span>agent — zsh</span></div>
+              <div class="term-screen">
+                <div class="term-cmd">$ <span id="s1type"></span><span class="caret" id="s1caret"></span></div>
+                <div class="term-out" id="s1out1">running 138 tests…</div>
+                <div class="track" id="s1track" style="margin-top:8px;opacity:0"><i id="s1bar"></i></div>
+                <div class="term-ok" id="s1out2">✓ 138 tests passed</div>
+              </div>
+            </div>
+            <div class="win w-browser" style="right:30px;top:64px;width:300px;height:236px">
+              <div class="win-bar"><span class="light"><i></i><i></i><i></i></span><span>Chrome</span></div>
+              <div class="page"><div class="hero" style="height:70px"></div><div class="tl"></div><div class="tl s"></div><div class="tl" style="width:52%"></div></div>
+            </div>
+            <div class="dock" id="s1dock"><i class="t-slate"></i><i class="t-violet"></i><i class="t-blue"></i><i class="t-green"></i></div>
+            <div class="ripple s1-rip" id="s1rip"></div>
+            <div class="cursor s1-curR" id="s1curR"><svg class="cursor-svg" width="30" height="30" viewBox="0 0 28 28"><use href="#curPath" fill="#dff6ff" stroke="#06202e" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+          </div>
         </div>
       </div>
     </div>
-
-    <div class="s1-chip" id="s1chip"><img src="icon.png" alt="">AI 代理</div>
-    <div class="s1-ripple" id="s1rip"></div>
+    <div class="foot" data-t="s1foot"></div>
   </section>
 
-  <!-- S2 · drive the desktop -->
+  <!-- 02 · how -->
   <section class="scene" id="s2">
-    <div class="kicker" id="s2k">02 · 真实驱动</div>
-    <div class="h1" id="s2h">像真人一样<span class="gd">操作桌面</span></div>
-
-    <div id="s2win">
-      <div class="s2-titlebar">
-        <div class="s2-lights"><i></i><i></i><i></i></div>
-        <div class="s2-title">dev — 桌面</div>
+    <div class="head">
+      <div class="kicker"><i></i><b data-t="s2knum">02</b><span data-t="s2k"></span><i></i></div>
+      <div class="h1" data-t="s2h"></div>
+      <div class="sub" data-t="s2sub"></div>
+    </div>
+    <div class="body">
+      <div class="alt-row" id="s2alts">
+        <div class="alt card"><div class="at"><span class="ico">VM</span><span data-t="alt1t"></span></div><div class="ad" data-t="alt1d"></div><div class="strike" id="s2s1"></div></div>
+        <div class="alt card"><div class="at"><span class="ico">▣</span><span data-t="alt2t"></span></div><div class="ad" data-t="alt2d"></div><div class="strike" id="s2s2"></div></div>
+        <div class="alt card"><div class="at"><span class="ico">⇄</span><span data-t="alt3t"></span></div><div class="ad" data-t="alt3d"></div><div class="strike" id="s2s3"></div></div>
       </div>
-      <div class="s2-body">
-        <div class="s2-side">
-          <div class="on">概览</div><div>桌面</div><div>应用</div><div>维护</div>
+
+      <div class="s2-arch" id="s2arch">
+        <div class="session you">
+          <div class="sh-head"><span class="dot"></span><span data-t="s2yours"></span></div>
+          <div class="sh-sub">WindowServer · Aqua</div>
+          <div class="sh-body">
+            <i class="app-tile t-blue"></i><i class="app-tile t-slate"></i><i class="app-tile t-amber"></i><i class="app-tile t-green"></i>
+            <span class="sh-note" data-t="s2yourapps"></span>
+          </div>
+          <div class="sh-code"><span class="dot"></span>uid 501 · <span data-t="s2yours"></span></div>
         </div>
-        <div class="s2-desk" id="s2desk">
-          <div class="s2-mb"><span>dev</span><span>文件</span><span>编辑</span><span>显示</span><span class="clk">上午 10:26</span></div>
-          <div class="s2-term">
-            <div class="s2-termbar"><i></i><i></i><i></i><span>agent — zsh</span></div>
-            <div class="s2-termscreen">
-              <div class="s2-l1"><span id="s2type"></span><span class="caret" id="s2caret"></span></div>
-              <div class="s2-l2" id="s2l2">已连接 dev · Aqua 会话就绪</div>
-              <div class="s2-prog" id="s2prog"><div class="s2-progfill" id="s2pf"></div></div>
-              <div class="s2-l3" id="s2l3">✓ 画面 1920×1080 · 30 FPS</div>
-            </div>
+
+        <div class="session agent">
+          <div class="sh-head"><span class="dot"></span><span data-t="s2agent"></span></div>
+          <div class="sh-sub">WindowServer · Aqua</div>
+          <div class="sh-body">
+            <i class="app-tile t-slate"></i><i class="app-tile t-violet"></i><i class="app-tile t-blue"></i><i class="app-tile t-pink"></i>
+            <span class="sh-note" data-t="s2agentapps"></span>
           </div>
-          <div class="s2-dock" id="s2dock">
-            <div class="s2-tile t-saf" id="s2tile"><i></i></div>
-            <div class="s2-tile t-term"><i></i></div>
-            <div class="s2-tile t-msgs"><i></i></div>
-            <div class="s2-tile t-files"><i></i></div>
-          </div>
-          <div class="s2-pop" id="s2pop">
-            <div class="ubar"><div class="ur">agentworkspace.dev/build/42</div></div>
-            <div class="pbody">
-              <div class="hero"></div>
-              <div class="tl"></div><div class="tl s"></div>
-            </div>
-          </div>
-          <div class="s2-rip" id="s2rip"></div>
-          <div class="s2-cursor" id="s2cur">
-            <svg viewBox="0 0 28 28" width="30" height="30">
-              <path d="M5 2 L5 21.4 L10.1 16.8 L13.3 24.2 L17 22.6 L13.8 15.4 L20.8 15.4 Z"
-                    fill="#ffffff" stroke="#0a0e1a" stroke-width="1.7" stroke-linejoin="round"/>
-            </svg>
-          </div>
+          <div class="sh-code"><span class="dot"></span>uid 503 · <span data-t="s2worker"></span></div>
+        </div>
+
+        <div class="vline l"></div><div class="vline r"></div>
+
+        <div class="slab">
+          <div class="chip"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#bcd7ff" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+          <div><b>Mac · Apple Silicon</b><small data-t="s2same"></small></div>
+          <div class="right">macOS 26+<br>same hardware</div>
         </div>
       </div>
     </div>
-
-    <div class="s2-chips">
-      <div class="pill" id="s2p1">点击 · 拖拽 · 滚动 · 键入</div>
-      <div class="pill" id="s2p2">像素级画面流 · 最高 60 FPS</div>
-      <div class="pill" id="s2p3">毫秒级输入通道</div>
-    </div>
+    <div class="foot" data-t="s2foot"></div>
   </section>
 
-  <!-- S3 · parallel agents -->
+  <!-- 03 · app -->
   <section class="scene" id="s3">
-    <div class="kicker" id="s3k">03 · 并行工作</div>
-    <div class="h1" id="s3h">多代理，<span class="gd">并行运转</span></div>
-    <div class="s3-row">
-      <div class="s3-card card" id="s3c1">
-        <div class="s3-shot">
-          <div class="mb"><span>dev</span><span style="margin-left:auto">上午 10:26</span></div>
-          <div class="mw" style="left:18px;top:40px;width:130px;height:64px"><div class="b"><i></i><i></i><i></i></div></div>
-          <div class="mw" style="right:80px;top:34px;width:110px;height:52px"><div class="b"><i></i><i></i><i></i></div></div>
-          <div class="dk"><i style="background:linear-gradient(160deg,#38bdf8,#2563eb)"></i><i style="background:linear-gradient(160deg,#334155,#0f172a)"></i><i style="background:linear-gradient(160deg,#fcd34d,#f59e0b)"></i></div>
-        </div>
-        <div class="s3-info">
-          <div class="s3-name"><span class="s3-dot" id="s3dot1"></span>dev-agent</div>
-          <div class="s3-status">运行中 · 独立 Aqua 会话</div>
-          <div class="s3-act"><div class="lab">BUILD · 42</div><div class="s3-track"><div class="s3-fill" id="s3f1"></div></div></div>
-        </div>
-      </div>
-      <div class="s3-card card" id="s3c2">
-        <div class="s3-shot">
-          <div class="mb"><span>test</span><span style="margin-left:auto">上午 10:26</span></div>
-          <div class="mw" style="left:26px;top:36px;width:120px;height:58px"><div class="b"><i></i><i></i><i></i></div></div>
-          <div class="mw" style="right:60px;top:44px;width:126px;height:60px"><div class="b"><i></i><i></i><i></i></div></div>
-          <div class="dk"><i style="background:linear-gradient(160deg,#4ade80,#16a34a)"></i><i style="background:linear-gradient(160deg,#38bdf8,#2563eb)"></i><i style="background:linear-gradient(160deg,#f472b6,#db2777)"></i></div>
-        </div>
-        <div class="s3-info">
-          <div class="s3-name"><span class="s3-dot" id="s3dot2"></span>test-agent</div>
-          <div class="s3-status">运行中 · 独立 Aqua 会话</div>
-          <div class="s3-act"><div class="lab">TESTS · 138</div><div class="s3-track"><div class="s3-fill" id="s3f2"></div></div></div>
-        </div>
-      </div>
-      <div class="s3-card card" id="s3c3">
-        <div class="s3-shot">
-          <div class="mb"><span>research</span><span style="margin-left:auto">上午 10:26</span></div>
-          <div class="mw" style="left:20px;top:42px;width:140px;height:68px"><div class="b"><i></i><i></i><i></i></div></div>
-          <div class="mw" style="right:70px;top:32px;width:104px;height:50px"><div class="b"><i></i><i></i><i></i></div></div>
-          <div class="dk"><i style="background:linear-gradient(160deg,#a78bfa,#7c3aed)"></i><i style="background:linear-gradient(160deg,#38bdf8,#2563eb)"></i><i style="background:linear-gradient(160deg,#334155,#0f172a)"></i></div>
-        </div>
-        <div class="s3-info">
-          <div class="s3-name"><span class="s3-dot" id="s3dot3"></span>research-agent</div>
-          <div class="s3-status">运行中 · 独立 Aqua 会话</div>
-          <div class="s3-act"><div class="lab">CRAWL · 1,024</div><div class="s3-track"><div class="s3-fill" id="s3f3"></div></div></div>
-        </div>
-      </div>
+    <div class="head">
+      <div class="kicker"><i></i><b data-t="s3knum">03</b><span data-t="s3k"></span><i></i></div>
+      <div class="h1" data-t="s3h"></div>
+      <div class="sub" data-t="s3sub"></div>
     </div>
-    <div class="foot" id="s3foot">一个账户 = 一个独立桌面会话 · 互不打扰</div>
+    <div class="body" id="s3body">
+      <div class="appwin" id="s3app">
+        <div class="app-titlebar">
+          <span class="light"><i></i><i></i><i></i></span>
+          <span class="title">AgentSpace</span>
+          <div class="tb-r"><span class="tb-btn" id="s3open"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span data-t="s3open"></span></span></div>
+        </div>
+        <div class="app-body">
+          <aside class="app-side">
+            <div class="side-head" data-t="s3my"></div>
+            <div class="side-row on" id="s3devrow"><span class="dot"></span><div class="sr-t"><b>dev-agent</b><small data-t="s3running"></small></div></div>
+            <div class="side-row"><span class="dot"></span><div class="sr-t"><b>test-agent</b><small data-t="s3running"></small></div></div>
+            <div class="side-row" id="s3newrow" style="opacity:0"><span class="dot amber" id="s3rowdot"></span><div class="sr-t"><b>design-agent</b><small id="s3rowstat" data-t="s3connecting"></small></div></div>
+            <div class="side-space"></div>
+            <div class="side-foot"><span>Build 0.1.93</span><span class="plus" id="s3plus">+</span></div>
+          </aside>
+          <main class="app-main">
+            <div class="main-head">
+              <h3 id="s3mainname">dev-agent</h3>
+              <span class="pill"><span class="dot"></span><span id="s3mainstat" data-t="s3running"></span></span>
+              <div class="acts"><span class="tb-btn" id="s3opendup"><span data-t="s3open"></span></span></div>
+            </div>
+            <div class="ov-card">
+              <div class="ct" data-t="s3overview"></div>
+              <div class="ov-row"><b data-t="s3session"></b><span class="v"><span class="dot"></span><span id="s3uid">Aqua · uid 502</span></span></div>
+              <div class="ov-row"><b data-t="s3worker"></b><span class="v"><span class="dot"></span>running</span></div>
+              <div class="ov-row"><b data-t="s3input"></b><span class="v"><span class="dot"></span><span data-t="s3yes"></span></span></div>
+            </div>
+            <div class="grid2">
+              <div class="ov-card"><div class="ct" data-t="s3perms"></div>
+                <div class="perm"><span class="ok">✓</span><span data-t="s3accessibility"></span></div>
+                <div class="perm"><span class="ok">✓</span><span data-t="s3screen"></span></div>
+              </div>
+              <div class="ov-card"><div class="ct">CPU · MEMORY</div>
+                <div class="perm"><span class="ok">✓</span><span style="font-family:var(--mono);font-size:12px">2% · 84 MB</span></div>
+                <div class="perm"><span class="ok">✓</span><span style="font-family:var(--mono);font-size:12px" data-t="s3idle"></span></div>
+              </div>
+            </div>
+          </main>
+        </div>
+
+        <div class="wizard-back" id="s3wizback"></div>
+        <div class="wizard" id="s3wiz">
+          <div class="wiz-head"><b data-t="s3newagent"></b><span data-t="s3step"></span><span class="x" data-t="s3cancel"></span></div>
+          <div class="wiz-body">
+            <div class="wiz-label" data-t="s3acctlabel"></div>
+            <div class="acct" id="s3acct"><div class="av">D</div><div><b>Design Studio</b><small>design — uid 503</small></div><span class="radio" id="s3radio"></span></div>
+            <div class="wiz-label" data-t="s3namelabel"></div>
+            <div class="input"><span id="s3name"></span><span class="caret" id="s3namecaret"></span></div>
+          </div>
+          <div class="wiz-foot"><span class="hint" id="s3hint" data-t="s3hint"></span><span class="wbtn" id="s3connect"><span data-t="s3continue"></span></span></div>
+          <div class="wiz-ok" id="s3ok"><div class="ring">✓</div><b data-t="s3connected"></b><small>design-agent</small></div>
+        </div>
+      </div>
+
+      <div class="viewer" id="s3view">
+        <div class="viewer-bar"><span class="light"><i></i><i></i><i></i></span><span class="vt">design-agent — <span data-t="s3desk"></span></span><span class="conn"><span class="dot"></span><span data-t="s3connected"></span></span></div>
+        <div class="vdesk">
+          <div class="wall"></div>
+          <div class="menubar"><b>design</b><span data-t="mbfile"></span><span data-t="mbedit"></span><span data-t="mbview"></span><span class="clk">10:26</span></div>
+          <div class="win w-term">
+            <div class="win-bar"><span class="light"><i></i><i></i><i></i></span><span>design — zsh</span></div>
+            <div class="term-screen">
+              <div class="term-cmd">$ npm run build</div>
+              <div class="term-out" id="s3vout" style="opacity:0">vite v6.1 building for production…</div>
+              <div class="track" id="s3vtrack" style="margin-top:8px;opacity:0"><i id="s3vbar"></i></div>
+              <div class="term-ok" id="s3vdone" style="opacity:0">✓ <span data-t="s3done"></span></div>
+            </div>
+          </div>
+          <div class="win w-browser"><div class="win-bar"><span class="light"><i></i><i></i><i></i></span><span>Chrome</span></div>
+            <div class="page"><div class="hero" style="height:64px"></div><div class="tl"></div><div class="tl s"></div></div></div>
+          <div class="dock"><i class="t-slate"></i><i class="t-blue"></i><i class="t-violet"></i><i class="t-green"></i></div>
+          <div class="ripple" id="s3vrip" style="width:14px;height:14px"></div>
+          <div class="cursor" id="s3acur"><svg class="cursor-svg" width="28" height="28" viewBox="0 0 28 28"><use href="#curPath" fill="#dff6ff" stroke="#06202e" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+        </div>
+      </div>
+
+      <div class="cursor" id="s3cur"><svg class="cursor-svg" width="32" height="32" viewBox="0 0 28 28"><use href="#curPath" fill="#ffffff" stroke="#0a0e1a" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+      <div class="ripple" id="s3rip" style="width:16px;height:16px"></div>
+    </div>
+    <div class="foot" data-t="s3foot"></div>
   </section>
 
-  <!-- S4 · safety -->
+  <!-- 04 · parallel -->
   <section class="scene" id="s4">
-    <div class="kicker" id="s4k">04 · 安全内建</div>
-    <div class="h1" id="s4h">安全，是<span class="gd">默认值</span></div>
-    <div class="s4-wrap">
-      <div class="s4-shield" id="s4shield">
-        <svg width="250" height="290" viewBox="0 0 250 290">
-          <defs>
-            <linearGradient id="sg" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#4cc9ff"/><stop offset="1" stop-color="#8b7bff"/>
-            </linearGradient>
-          </defs>
-          <path id="s4path" d="M125 14 L226 52 V140 C226 208 184 252 125 276 C66 252 24 208 24 140 V52 Z"
-                fill="rgba(76,201,255,.08)" stroke="url(#sg)" stroke-width="7"
-                stroke-linejoin="round" stroke-linecap="round"/>
-          <path id="s4check" d="M82 142 L114 176 L172 108" fill="none" stroke="#eafff5"
-                stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <div class="cap" id="s4cap">最小权限 · 白名单操作</div>
-      </div>
-      <div class="s4-rows">
-        <div class="row ok" id="s4r1"><div class="ric">✓</div><div class="rtxt">特权操作只走白名单助手</div><div class="rmark">✓</div></div>
-        <div class="row ok" id="s4r2"><div class="ric">✓</div><div class="rtxt">你的键鼠 · 焦点 · 屏幕零打扰</div><div class="rmark">✓</div></div>
-        <div class="row ok" id="s4r3"><div class="ric">✓</div><div class="rtxt">代理桌面绝不抢占物理控制台</div><div class="rmark">✓</div></div>
+    <div class="head">
+      <div class="kicker"><i></i><b data-t="s4knum">04</b><span data-t="s4k"></span><i></i></div>
+      <div class="h1" data-t="s4h"></div>
+      <div class="sub" data-t="s4sub"></div>
+    </div>
+    <div class="body">
+      <div class="agents">
+        <div class="agentcard card">
+          <div class="shot"><div class="wall"></div><div class="menubar"><b>dev</b><span class="clk">10:26</span></div>
+            <div class="mw" style="left:16px;top:38px;width:190px;height:112px"><div class="b"><i></i><i></i><i></i></div><div class="in"><i style="width:60%;background:rgba(125,211,252,.5)"></i><i style="width:80%"></i><i style="width:46%"></i></div></div>
+            <div class="mw" style="right:16px;top:64px;width:160px;height:94px"><div class="b"><i></i><i></i><i></i></div><div class="in"><i style="width:70%"></i><i style="width:50%"></i></div></div>
+            <div class="dk"><i class="t-slate"></i><i class="t-blue"></i><i class="t-violet"></i></div></div>
+          <div class="ainfo"><div class="aname"><span class="dot"></span>dev-agent</div><div class="astat" data-t="s4devstat"></div>
+            <div class="atask"><div class="lab"><span>BUILD · 42</span><span id="s4p1">68%</span></div><div class="track"><i id="s4f1"></i></div></div></div>
+        </div>
+        <div class="agentcard card">
+          <div class="shot"><div class="wall" style="background:linear-gradient(155deg,#0b1a2c,#123a44 46%,#155e5a)"></div><div class="menubar"><b>test</b><span class="clk">10:26</span></div>
+            <div class="mw" style="left:20px;top:42px;width:170px;height:110px"><div class="b"><i></i><i></i><i></i></div><div class="in"><i style="width:52%"></i><i style="width:74%;background:rgba(52,211,153,.5)"></i><i style="width:62%"></i></div></div>
+            <div class="mw" style="right:18px;top:58px;width:150px;height:100px"><div class="b"><i></i><i></i><i></i></div><div class="in"><i style="width:66%"></i><i style="width:48%"></i></div></div>
+            <div class="dk"><i class="t-green"></i><i class="t-blue"></i><i class="t-pink"></i></div></div>
+          <div class="ainfo"><div class="aname"><span class="dot"></span>test-agent</div><div class="astat" data-t="s4teststat"></div>
+            <div class="atask"><div class="lab"><span>TESTS · 138</span><span id="s4p2">92%</span></div><div class="track"><i id="s4f2"></i></div></div></div>
+        </div>
+        <div class="agentcard card">
+          <div class="shot"><div class="wall" style="background:linear-gradient(155deg,#1a1030,#3a1b4c 46%,#5a2462)"></div><div class="menubar"><b>research</b><span class="clk">10:26</span></div>
+            <div class="mw" style="left:18px;top:40px;width:176px;height:104px"><div class="b"><i></i><i></i><i></i></div><div class="in"><i style="width:78%"></i><i style="width:56%"></i><i style="width:68%;background:rgba(196,181,253,.5)"></i></div></div>
+            <div class="mw" style="right:16px;top:62px;width:152px;height:96px"><div class="b"><i></i><i></i><i></i></div><div class="in"><i style="width:62%"></i><i style="width:44%"></i></div></div>
+            <div class="dk"><i class="t-violet"></i><i class="t-blue"></i><i class="t-slate"></i></div></div>
+          <div class="ainfo"><div class="aname"><span class="dot"></span>research-agent</div><div class="astat" data-t="s4resstat"></div>
+            <div class="atask"><div class="lab"><span>CRAWL · 1,024</span><span id="s4p3">37%</span></div><div class="track"><i id="s4f3"></i></div></div></div>
+        </div>
       </div>
     </div>
+    <div class="foot" data-t="s4foot"></div>
   </section>
 
-  <!-- S5 · integrate -->
+  <!-- 05 · safety -->
   <section class="scene" id="s5">
-    <div class="kicker" id="s5k">05 · 一行接入</div>
-    <div class="h1" id="s5h">任何 AI 代理，<span class="gd">都能连上</span></div>
-
-    <div class="s5-term" id="s5term">
-      <div class="s5-termbar"><i></i><i></i><i></i><span>you@mac — zsh</span></div>
-      <div class="s5-screen">
-        <div class="s5-cmd"><span id="s5type"></span><span class="caret" id="s5caret"></span></div>
-        <div class="s5-out" id="s5o1">✓ 已写入 MCP 配置（自动备份 .agentspace.bak）</div>
-        <div class="s5-out2" id="s5o2">→ 重启你的代理客户端，工具即刻可用</div>
-        <div class="s5-badge" id="s5badge">MCP SERVER · @agentspace/mcp</div>
+    <div class="head">
+      <div class="kicker"><i></i><b data-t="s5knum">05</b><span data-t="s5k"></span><i></i></div>
+      <div class="h1" data-t="s5h"></div>
+      <div class="sub" data-t="s5sub"></div>
+    </div>
+    <div class="body">
+      <div class="safe-wrap">
+        <div class="safe-left">
+          <svg class="shield" id="s5shield" viewBox="0 0 220 250">
+            <defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ddcff"/><stop offset="1" stop-color="#b07bff"/></linearGradient></defs>
+            <path id="s5path" d="M110 10 L203 44 V122 C203 187 164 226 110 244 C56 226 17 187 17 122 V44 Z" fill="rgba(61,220,255,.06)" stroke="url(#sg)" stroke-width="5" stroke-linejoin="round"/>
+            <path id="s5lock" d="M86 116 v-14 a24 24 0 0 1 48 0 v14" fill="none" stroke="#dff4ff" stroke-width="8" stroke-linecap="round"/>
+            <rect x="76" y="116" width="68" height="52" rx="10" fill="rgba(223,244,255,.1)" stroke="#dff4ff" stroke-width="7"/>
+            <circle cx="110" cy="140" r="5" fill="#dff4ff"/><path d="M110 144 v11" stroke="#dff4ff" stroke-width="5" stroke-linecap="round"/>
+          </svg>
+          <div class="term-big" id="s5term">
+            <div class="win-bar"><span class="light"><i></i><i></i><i></i></span><span>you@mac — zsh</span><span class="stamp" id="s5stamp">REFUSED</span></div>
+            <div class="term-screen">
+              <div class="term-cmd">$ <span id="s5type"></span><span class="caret" id="s5caret"></span></div>
+              <div id="s5l1" style="opacity:0"><span class="err">SESSION_IS_CONSOLE</span><span class="term-dim">: refusing to inject input</span></div>
+              <div id="s5l2" style="opacity:0" class="term-dim">the 'dev' session is on the console —</div>
+              <div id="s5l3" style="opacity:0" class="term-dim">events would land on your own screen.</div>
+              <div id="s5l4" style="opacity:0"><span class="arrow">→</span> <span class="term-dim">switch back; input resumes automatically.</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="safe-right">
+          <div class="safe-row" id="s5r1"><span class="ok">✓</span><span class="tx"><b data-t="s5c1"></b><small data-t="s5d1"></small></span></div>
+          <div class="safe-row" id="s5r2"><span class="ok">✓</span><span class="tx"><b data-t="s5c2"></b><small data-t="s5d2"></small></span></div>
+          <div class="safe-row" id="s5r3"><span class="ok">✓</span><span class="tx"><b data-t="s5c3"></b><small data-t="s5d3"></small></span></div>
+        </div>
       </div>
     </div>
-
-    <div class="s5-chips" id="s5chips">
-      <div class="chip" id="s5c1"><i></i>agentspace_launch</div>
-      <div class="chip" id="s5c2"><i></i>agentspace_screenshot</div>
-      <div class="chip" id="s5c3"><i></i>agentspace_click</div>
-      <div class="chip" id="s5c4"><i></i>agentspace_type</div>
-      <div class="chip" id="s5c5"><i></i>agentspace_scroll</div>
-      <div class="chip" id="s5c6"><i></i>agentspace_exec</div>
-    </div>
-
-    <div class="foot" id="s5foot">MCP 或 CLI · 兼容一切支持工具调用的代理客户端</div>
+    <div class="foot" data-t="s5foot"></div>
   </section>
 
-  <!-- S6 · end card -->
+  <!-- 06 · connect -->
   <section class="scene" id="s6">
+    <div class="head">
+      <div class="kicker"><i></i><b data-t="s6knum">06</b><span data-t="s6k"></span><i></i></div>
+      <div class="h1" data-t="s6h"></div>
+      <div class="sub" data-t="s6sub"></div>
+    </div>
+    <div class="body">
+      <div class="connect">
+        <div class="term-c" id="s6term">
+          <div class="win-bar"><span class="light"><i></i><i></i><i></i></span><span>you@mac — zsh</span></div>
+          <div class="term-screen">
+            <div class="term-cmd">$ <span id="s6type"></span><span class="caret" id="s6caret"></span></div>
+            <div class="term-ok" id="s6o1" data-t="s6o1">✓ MCP configuration written</div>
+            <div class="term-ok" id="s6o2" data-t="s6o2">✓ 22 tools registered</div>
+            <div class="term-out" id="s6o3" data-t="s6o3">→ restart Claude Code. Nothing else to install.</div>
+          </div>
+        </div>
+        <div class="clients">
+          <div class="ct" data-t="s6clients"></div>
+          <div class="chips" id="s6chips">
+            <span class="chip"><i></i>Claude Code</span>
+            <span class="chip"><i></i>Claude Desktop</span>
+            <span class="chip"><i></i>Codex</span>
+            <span class="chip"><i></i>Cursor</span>
+            <span class="chip"><i></i>VS Code</span>
+            <span class="chip"><i></i>Windsurf</span>
+            <span class="chip"><i></i>Zed</span>
+            <span class="chip"><i></i>Kiro</span>
+            <span class="chip"><i></i>Gemini CLI</span>
+            <span class="chip"><i></i>Qwen Code</span>
+            <span class="chip"><i></i>Qoder</span>
+            <span class="chip"><i></i>Amazon Q</span>
+            <span class="chip"><i></i>Copilot CLI</span>
+            <span class="chip"><i></i>Cline</span>
+            <span class="chip"><i></i>LM Studio</span>
+            <span class="chip"><i></i>OpenCode</span>
+            <span class="chip"><i></i>ZCode</span>
+            <span class="chip"><i></i>Kimi Code</span>
+            <span class="chip"><i></i>Xiaomi MiMo</span>
+            <span class="chip"><i></i>Crush</span>
+            <span class="chip"><i></i>Amp</span>
+            <span class="chip"><i></i>Factory</span>
+            <span class="chip"><i></i>MiniMax</span>
+            <span class="chip"><i></i>Antigravity</span>
+          </div>
+        </div>
+        <div class="toolband">
+          <div class="badge22" id="s6badge"><span class="dot"></span><span data-t="s6tools"></span></div>
+          <div class="chips tool-chips">
+            <span class="chip"><i></i>agentspace_launch</span>
+            <span class="chip"><i></i>agentspace_click</span>
+            <span class="chip"><i></i>agentspace_type</span>
+            <span class="chip"><i></i>agentspace_key</span>
+            <span class="chip"><i></i>agentspace_scroll</span>
+            <span class="chip"><i></i>agentspace_drag</span>
+            <span class="chip"><i></i>agentspace_screenshot</span>
+            <span class="chip"><i></i>agentspace_ax_snapshot</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot" data-t="s6foot"></div>
+  </section>
+
+  <!-- 07 · end -->
+  <section class="scene" id="s7">
+    <div class="s7-glow" id="s7glow"></div>
     <div class="center">
-      <div class="s6-iconwrap">
-        <div class="s6-glow" id="s6glow"></div>
-        <img class="s6-icon" id="s6icon" src="icon.png" alt="">
+      <img class="s7-icon" id="s7icon" src="icon.png" alt="">
+      <div class="s7-word" id="s7word"></div>
+      <div class="s7-tag" data-t="s7tag"></div>
+      <div class="s7-url" id="s7url">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8ec5ff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M6 11l6 6 6-6"/><path d="M4 21h16"/></svg>
+        <span data-t="s7url"></span>
       </div>
-      <div class="s6-word" id="s6word"></div>
-      <div class="s6-tag" id="s6tag">在真实桌面上工作的 AI 代理</div>
-      <div class="s6-url" id="s6url">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8ec5ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3v12"/><path d="M6 11l6 6 6-6"/><path d="M4 21h16"/>
-        </svg>
-        github.com/misswell/AgentSpace
-      </div>
-      <div class="s6-sub" id="s6sub">免费下载 · macOS 26+</div>
+      <div class="s7-sub" data-t="s7sub"></div>
     </div>
   </section>
 
@@ -522,10 +907,101 @@
 
 <script>
 "use strict";
-const V = new URLSearchParams(location.search).has("v");
+/* ------------------------------------------------------------------ */
+/* language                                                            */
+/* ------------------------------------------------------------------ */
+const Q = new URLSearchParams(location.search);
+const V = Q.has("v");
+const LANG = Q.get("lang") === "en" ? "en" : "zh";
+document.documentElement.lang = LANG === "zh" ? "zh-Hans" : "en";
+document.body.classList.toggle("zh", LANG === "zh");
 if (V) document.body.classList.add("v");
-const SW = V ? 1080 : 1920, SH = V ? 1920 : 1080;
 
+const T = {
+zh: {
+  s0tag: "你的 Mac，始终是你的", s0pill: "macOS 26+ · Apple Silicon · 开源",
+  s1knum: "01", s1k: "核 心", s1h: '同一台 <span class="gd">Mac</span>，两个桌面',
+  s1sub: "一个是你，一个是 AI 代理——互不打扰",
+  s1you: "你", s1agent: "AI 代理", s1local: "本机", s1yourst: "你的会话", s1running: "运行中",
+  s1focus: "焦点留在你这边", s1foot: "键盘、鼠标、焦点，一步都没离开",
+  mbfile: "文件", mbedit: "编辑", mbview: "显示",
+  s2knum: "02", s2k: "原 理", s2h: '不是虚拟机，<span class="gd">是真实账户</span>',
+  s2sub: "同一个内核、同一台硬件，独立的 Aqua 会话",
+  alt1t: "虚拟机", alt1d: "第二个 macOS，几十 GB", alt2t: "虚拟显示器", alt2d: "测不了真实的 GPU / Metal",
+  alt3t: "远程控制", alt3d: "占用你的屏幕与键鼠",
+  s2yours: "你的会话", s2agent: "Agent 会话", s2yourapps: "你的应用", s2agentapps: "代理的应用",
+  s2same: "同一套 /System · 同一颗内核", s2worker: "独立 Worker", s2foot: "没有第二个 macOS，也没有远程 Mac",
+  s3knum: "03", s3k: "产 品", s3h: '连接一次，<span class="gd">后台工作</span>',
+  s3sub: "现有的标准 macOS 账号——只连接，不新建、不删除",
+  s3my: "我的 Agent 账号", s3running: "运行中", s3connecting: "连接中…", s3overview: "概览",
+  s3session: "会话", s3worker: "Worker", s3input: "接受输入", s3yes: "是", s3perms: "权限",
+  s3accessibility: "辅助功能", s3screen: "屏幕录制", s3idle: "空闲 · 0% CPU", s3open: "打开桌面",
+  s3newagent: "新建 Agent", s3step: "第 1 步，共 2 步", s3cancel: "取消",
+  s3acctlabel: "可用的 macOS 账号", s3namelabel: "名称", s3continue: "连接账号",
+  s3hint: "请先选择一个现有的 macOS 账号，再继续。", s3hintReady: "Design Studio 将以 design-agent 的身份运行。", s3connected: "已连接", s3desk: "桌面",
+  s3done: "构建完成", s3foot: "连接一次；之后它在自己的会话里工作",
+  s4knum: "04", s4k: "并 行", s4h: '多代理，<span class="gd">并行运转</span>', s4sub: "每个账户，自己的桌面会话",
+  s4devstat: "运行中 · 独立 Aqua 会话", s4teststat: "运行中 · 独立 Aqua 会话", s4resstat: "运行中 · 独立 Aqua 会话",
+  s4foot: "一个账户 = 一个独立桌面 · 互不打扰",
+  s5knum: "05", s5k: "安 全", s5h: '它宁可<span class="gd">拒绝</span>，也不猜',
+  s5sub: "无法证明会话安全时，输入一律不注入",
+  s5c1: "特权操作只走白名单助手", s5c2: "绝不回退到你的会话", s5c3: "权限由你亲自授予",
+  s5d1: "闭集类型化操作，不走 shell、不用 sudo", s5d2: "证不出来，就不注入", s5d3: "屏幕录制与辅助功能，由你在系统设置里批准",
+  s5foot: "没有回退路径——这就是产品",
+  s6knum: "06", s6k: "接 入", s6h: '一行命令，<span class="gd">接入你的代理</span>', s6sub: "你已经在用的客户端，继续用",
+  s6clients: "已支持 24 个客户端", s6tools: "22 个 MCP 工具",
+  s6o1: "✓ MCP 配置已写入", s6o2: "✓ 22 个工具已注册", s6o3: "→ 重启 Claude Code，无需其他配置。",
+  s6foot: "一条命令只写入一条 MCP 配置，别的都不动",
+  s7tag: '让每个 AI 代理，拥有自己的<br>macOS 账户与桌面',
+  s7sub: "开源 · MIT · macOS 26+ · Apple Silicon", s7url: "github.com/misswell/AgentSpace"
+},
+en: {
+  s0tag: "Your Mac stays yours.", s0pill: "macOS 26+ · Apple Silicon · Open source",
+  s1knum: "01", s1k: "THE IDEA", s1h: 'One Mac. <span class="gd">Two desktops.</span>',
+  s1sub: "One is yours. One is the agent's. Neither touches the other.",
+  s1you: "You", s1agent: "Agent", s1local: "this Mac", s1yourst: "Your session", s1running: "Running",
+  s1focus: "Focus stays yours", s1foot: "Your keyboard, mouse and focus never leave your side.",
+  mbfile: "File", mbedit: "Edit", mbview: "View",
+  s2knum: "02", s2k: "UNDER THE HOOD", s2h: 'Not a VM. <span class="gd">A real account.</span>',
+  s2sub: "Same kernel. Same hardware. Its own Aqua session.",
+  alt1t: "Virtual machine", alt1d: "A second macOS, tens of GB", alt2t: "Virtual display", alt2d: "Can't test real GPU or Metal",
+  alt3t: "Remote control", alt3d: "Takes your screen and input",
+  s2yours: "Your session", s2agent: "Agent session", s2yourapps: "your apps", s2agentapps: "agent apps",
+  s2same: "Same /System · same kernel", s2worker: "its own Worker", s2foot: "No second macOS. No remote Mac.",
+  s3knum: "03", s3k: "THE APP", s3h: 'Connect once. <span class="gd">Run in the background.</span>',
+  s3sub: "An existing standard macOS account — connected, never created or deleted.",
+  s3my: "My Agent Accounts", s3running: "Running", s3connecting: "Connecting…", s3overview: "Overview",
+  s3session: "Session", s3worker: "Worker", s3input: "Accepts input", s3yes: "yes", s3perms: "Permissions",
+  s3accessibility: "Accessibility", s3screen: "Screen Recording", s3idle: "idle · 0% CPU", s3open: "Open Desktop",
+  s3newagent: "New Agent", s3step: "Step 1 of 2", s3cancel: "Cancel",
+  s3acctlabel: "Available macOS accounts", s3namelabel: "Name", s3continue: "Connect Account",
+  s3hint: "Select an existing macOS account before continuing.", s3hintReady: "Design Studio will run as design-agent.", s3connected: "Connected", s3desk: "Desktop",
+  s3done: "Build complete", s3foot: "Connect once. After that, it works in its own session.",
+  s4knum: "04", s4k: "PARALLEL", s4h: 'Many agents. <span class="gd">In parallel.</span>', s4sub: "Each account, its own desktop session.",
+  s4devstat: "Running · separate Aqua session", s4teststat: "Running · separate Aqua session", s4resstat: "Running · separate Aqua session",
+  s4foot: "One account = one separate desktop · no interference",
+  s5knum: "05", s5k: "SAFETY", s5h: 'It <span class="gd">refuses</span> rather than guesses.',
+  s5sub: "If it cannot prove the session is safe, input is not injected.",
+  s5c1: "Privileged operations only through the closed-list helper", s5c2: "Never falls back to your session", s5c3: "TCC grants made by you, in person",
+  s5d1: "A closed list of typed operations. No shell, no sudo.", s5d2: "No proof of safety, no input.", s5d3: "Screen Recording and Accessibility are yours to grant.",
+  s5foot: "There is no fallback path. That is the product.",
+  s6knum: "06", s6k: "CONNECT", s6h: 'One command. <span class="gd">Your agent, connected.</span>', s6sub: "Keep the client you already use.",
+  s6clients: "24 clients supported", s6tools: "22 MCP tools",
+  s6o1: "✓ MCP configuration written", s6o2: "✓ 22 tools registered", s6o3: "→ restart Claude Code. Nothing else to install.",
+  s6foot: "One command writes one MCP entry. Nothing else changes.",
+  s7tag: 'Give every AI agent its own<br>macOS account and desktop.',
+  s7sub: "Open source · MIT · macOS 26+ · Apple Silicon", s7url: "github.com/misswell/AgentSpace"
+}};
+const TX = T[LANG];
+document.querySelectorAll("[data-t]").forEach(el => {
+  const k = el.getAttribute("data-t");
+  if (!el.id && !document.getElementById(k)) el.id = k;
+  if (TX[k] !== undefined) el.innerHTML = TX[k];
+});
+
+/* ------------------------------------------------------------------ */
+/* helpers                                                             */
+/* ------------------------------------------------------------------ */
 const $ = id => document.getElementById(id);
 const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
 const seg = (t,a,d) => clamp((t-a)/d, 0, 1);
@@ -534,284 +1010,395 @@ const eoc = t => 1 - Math.pow(1-t, 3);
 const eoe = t => t >= 1 ? 1 : 1 - Math.pow(2, -10*t);
 const eio = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
 const eob = t => { const c = 1.70158; return 1 + (c+1)*Math.pow(t-1,3) + c*Math.pow(t-1,2); };
-
-function rise(el, p, d=26){ el.style.opacity = p; el.style.transform = `translateY(${(1-p)*d}px)`; }
-function pop(el, p, from=0.82){ el.style.opacity = p; el.style.transform = `scale(${lerp(from,1,p)})`; }
-function center(el){ const r = el.getBoundingClientRect(); return {x:r.left + r.width/2, y:r.top + r.height/2}; }
-function centerOf(el){
-  // position of an element's center in stage coordinates, ignoring the element's own animation
-  const sr = document.getElementById("stage").getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-  return { x: r.left - sr.left + r.width/2, y: r.top - sr.top + r.height/2 };
+const rise = (el,p,d=22) => { el.style.opacity = p; el.style.transform = `translateY(${(1-p)*d}px)`; };
+const pop = (el,p,from=.86) => { el.style.opacity = p; el.style.transform = `scale(${lerp(from,1,p)})`; };
+const typed = (s,lt,a,d) => s.slice(0, Math.round(seg(lt,a,d)*s.length));
+const centerOf = el => { const r = el.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; };
+const stageOrigin = el => { const sr = $("stage").getBoundingClientRect(); const r = el.getBoundingClientRect(); return {x:r.left-sr.left, y:r.top-sr.top}; };
+const localCenter = (child,parent) => { const a=child.getBoundingClientRect(), b=parent.getBoundingClientRect();
+  return {x:a.left-b.left+a.width/2, y:a.top-b.top+a.height/2}; };
+function place(el, p, x, y, scale=1){
+  el.style.opacity = p;
+  el.style.transform = `translate(${x}px,${y}px) scale(${scale})`;
 }
-function stageOrigin(el){
-  // top-left of el in stage coordinates (its offsetParent's frame)
-  const sr = document.getElementById("stage").getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-  return { x: r.left - sr.left, y: r.top - sr.top };
+function ripple(el, p, x, y, from=12, to=100){
+  el.style.opacity = (1-p)*.9;
+  const s = lerp(from,to,eoc(p));
+  el.style.width = el.style.height = s+"px";
+  el.style.left = (x-s/2)+"px"; el.style.top = (y-s/2)+"px";
 }
 
-/* ---------- wordmark letters ---------- */
-function buildWord(id, text){
-  const host = $(id); host.innerHTML = "";
-  const spans = [];
-  for (let i = 0; i < text.length; i++){
+/* wordmarks */
+function buildWord(id, text, gradFrom){
+  const host = $(id); host.innerHTML = ""; const spans = [];
+  const start = text.indexOf(gradFrom);
+  const n = start >= 0 ? text.length - start : 0;
+  for (let i=0;i<text.length;i++){
     const s = document.createElement("span");
     s.textContent = text[i];
-    if (i >= text.indexOf("Space")) s.className = "gd";
+    if (start >= 0 && i >= start){
+      s.className = "gd";
+      // one continuous gradient across the accented run, sliced per letter
+      s.style.backgroundImage = "var(--grad)";
+      s.style.backgroundSize = (n*100)+"% 100%";
+      s.style.backgroundRepeat = "no-repeat";
+      s.style.backgroundPosition = (n>1 ? ((i-start)/(n-1))*100 : 0)+"% 0";
+    }
     host.appendChild(s); spans.push(s);
   }
   return spans;
 }
-const w0 = buildWord("s0word", "AgentSpace");
-const w6 = buildWord("s6word", "AgentSpace");
+const w0 = buildWord("s0word", "AgentSpace", "Space");
+const w7 = buildWord("s7word", "AgentSpace", "Space");
 
-/* ---------- particles ---------- */
+/* stars */
 const starEls = (() => {
-  const host = $("stars"); let s = 20261001;
-  const rnd = () => { s = (s * 48271) % 2147483647; return s / 2147483647; };
-  const out = [];
-  for (let i = 0; i < 72; i++){
+  const host = $("stars"), out = []; let s = 20261022;
+  const rnd = () => { s = (s*48271) % 2147483647; return s/2147483647; };
+  const W = V ? 1080 : 1920, H = V ? 1920 : 1080;
+  for (let i=0;i<84;i++){
     const d = document.createElement("div"); d.className = "dot";
-    d._xr = rnd(); d._yr = rnd(); d._s = .8 + rnd()*2.1; d._v = 7 + rnd()*17; d._p = rnd()*6.283;
-    d.style.width = d.style.height = d._s.toFixed(2) + "px";
+    d._x = rnd()*W; d._y = rnd()*H; d._s = .7+rnd()*1.9; d._v = 5+rnd()*15; d._p = rnd()*Math.PI*2;
+    d.style.width = d.style.height = d._s.toFixed(2)+"px";
     host.appendChild(d); out.push(d);
   }
   return out;
 })();
 
-/* ---------- shared background ---------- */
+/* background */
 const blobs = document.querySelectorAll(".blob");
 const grid = $("grid");
+const sceneStarts = [0,4.2,10.6,17.0,24.6,30.0,35.4,40.2];
 function bgTick(t){
-  blobs[0].style.transform = `translate(${Math.sin(t*.31)*26}px,${Math.cos(t*.23)*20}px) scale(${1+.05*Math.sin(t*.4)})`;
-  blobs[1].style.transform = `translate(${Math.cos(t*.27)*30}px,${Math.sin(t*.19)*24}px) scale(${1+.05*Math.cos(t*.34)})`;
-  blobs[2].style.transform = `translate(0,${Math.sin(t*.21)*18}px)`;
-  grid.style.backgroundPosition = `${(t*3)%36}px ${(t*1.6)%36}px`;
+  blobs[0].style.transform = `translate(${Math.sin(t*.29)*30}px,${Math.cos(t*.21)*22}px) scale(${1+.05*Math.sin(t*.37)})`;
+  blobs[1].style.transform = `translate(${Math.cos(t*.25)*34}px,${Math.sin(t*.18)*26}px) scale(${1+.05*Math.cos(t*.31)})`;
+  blobs[2].style.transform = `translate(0,${Math.sin(t*.2)*20}px)`;
+  blobs[3].style.transform = `translate(${Math.sin(t*.33)*40}px,${Math.cos(t*.27)*30}px)`;
+  grid.style.backgroundPosition = `${(t*2.4)%40}px ${(t*1.3)%40}px`;
+  const W = V?1080:1920, H = V?1920:1080;
   for (const d of starEls){
-    const x = (d._xr*SW + Math.sin(t*.24 + d._p)*24 + SW) % SW;
-    let y = (d._yr*SH - t*d._v) % SH; if (y < 0) y += SH;
+    let y = (d._y - t*d._v) % H; if (y<0) y += H;
+    const x = (d._x + Math.sin(t*.22+d._p)*18 + W) % W;
     d.style.transform = `translate(${x}px,${y}px)`;
-    d.style.opacity = .16 + .30*(0.5 + 0.5*Math.sin(t*.85 + d._p));
+    d.style.opacity = .12 + .28*(.5+.5*Math.sin(t*.8+d._p));
   }
+  // light beam at each scene start
+  let start = 0; for (const s of sceneStarts) if (t >= s) start = s;
+  const u = (t-start)/.95;
+  const beam = $("beam");
+  if (u >= 0 && u <= 1){
+    beam.style.opacity = Math.sin(Math.PI*u)*.75;
+    beam.style.transform = `rotate(14deg) translateX(${lerp(-420, W+420, eio(u))}px)`;
+  } else beam.style.opacity = 0;
 }
 
-/* ---------- S1 flight ---------- */
-function bez(p0, p1, p2, u){
-  const a = 1-u;
-  return { x: a*a*p0.x + 2*a*u*p1.x + u*u*p2.x, y: a*a*p0.y + 2*a*u*p1.y + u*u*p2.y };
-}
-
-/* ---------- scene table ---------- */
-const FADE = .45;
-const SCENES = [
-  { id:"s0", t0:0.0, t1:4.2, tick(lt){
-      const gp = eoc(seg(lt,.55,.45)); const g = $("s0glow"); g.style.opacity = gp*(0.8+0.2*Math.sin(lt*1.3));
-      const ip = eob(seg(lt,.55,.95));
-      const floatAmp = clamp((lt-1.7)/1.1,0,1) * 7;
-      const ic = $("s0icon");
-      ic.style.opacity = eoc(seg(lt,.55,.5));
-      ic.style.transform = `scale(${lerp(.62,1,ip)}) translateY(${Math.sin(lt*1.35)*floatAmp}px)`;
-      w0.forEach((s,i)=>{ const p = eoe(seg(lt, 1.45 + i*.05, .55)); s.style.opacity = p; s.style.transform = `translateY(${(1-p)*34}px)`; });
-      rise($("s0tag"), eoe(seg(lt,2.4,.7)), 16);
-      rise($("s0pill"), eoe(seg(lt,2.8,.6)), 14);
-  }},
-  { id:"s1", t0:4.2, t1:10.4, tick(lt,gt){
-      rise($("s1k"), eoe(seg(lt,.25,.6)), 18);
-      rise($("s1h"), eoe(seg(lt,.35,.7)), 26);
-      rise($("s1sub"), eoe(seg(lt,.85,.6)), 16);
-      const L = $("s1L");
-      const lp = eoc(seg(lt,.45,.75));
-      L.style.opacity = lp; L.style.transform = `translateX(${(1-lp)*-70}px)`;
-      [["s1d1",1.0],["s1d2",1.28],["s1d3",1.56]].forEach(([id,a],i)=>{
-        const p = eoc(seg(lt,a,.5)); rise($(id), p, 18);
-      });
-      const R = $("s1R");
-      const rp = eoc(seg(lt,1.35,.8));
-      R.style.opacity = rp; R.style.transform = `translateX(${(1-rp)*70}px)`;
-      [["s1o1",1.9],["s1o2",2.18],["s1o3",2.46]].forEach(([id,a])=>{
-        const p = eoc(seg(lt,a,.5)); rise($(id), p, 18);
-      });
-      $("s1desk").style.opacity = eoc(seg(lt,2.1,.7));
-      // AI chip flies from lower-left into the mini desktop, lands with a ripple
-      const chip = $("s1chip"), rip = $("s1rip"), deskEl = $("s1desk");
-      const fp = seg(lt, 3.1, 1.25);
-      if (fp <= 0){ chip.style.opacity = 0; rip.style.opacity = 0; }
-      else {
-        const from = { x: SW*.29, y: SH*.80 };
-        const to = centerOf(deskEl);
-        const ctrl = { x: lerp(from.x,to.x,.42), y: Math.min(from.y,to.y) - SH*.13 };
-        const u = eio(fp);
-        const p = bez(from, ctrl, to, u);
-        chip.style.opacity = eoc(seg(lt,3.1,.3));
-        chip.style.left = "0px"; chip.style.top = "0px";
-        chip.style.transform = `translate(${p.x - 100}px,${p.y - 33}px) scale(${1 + .12*Math.sin(Math.PI*u)})`;
-        const landed = fp >= 1;
-        deskEl.style.boxShadow = landed ? "0 0 0 2px rgba(96,205,255,.55), 0 0 44px rgba(76,201,255,.35)" : "none";
-        if (landed){
-          const rq = seg(lt, 4.35, .55);
-          rip.style.opacity = (1-rq)*.9;
-          const rs = lerp(16, 130, eoc(rq));
-          rip.style.left = (to.x - rs/2) + "px"; rip.style.top = (to.y - rs/2) + "px";
-          rip.style.width = rip.style.height = rs + "px";
-        } else rip.style.opacity = 0;
-      }
-  }},
-  { id:"s2", t0:10.4, t1:17.6, tick(lt){
-      rise($("s2k"), eoe(seg(lt,.25,.6)), 18);
-      rise($("s2h"), eoe(seg(lt,.35,.7)), 26);
-      const win = $("s2win");
-      const wp = eoc(seg(lt,.5,.9));
-      win.style.opacity = wp;
-      win.style.transform = `translateY(${(1-wp)*30}px) scale(${lerp(.94,1,wp)})`;
-      // terminal
-      const cmd = "agentspace open dev";
-      $("s2type").textContent = cmd.slice(0, Math.round(seg(lt,1.0,1.15)*cmd.length));
-      $("s2caret").style.opacity = (Math.sin(lt*9) > 0 ? 1 : .25) * (lt > .9 ? 1 : 0);
-      rise($("s2l2"), eoc(seg(lt,2.15,.4)), 0);
-      const pp = seg(lt,2.6,1.0);
-      $("s2prog").style.opacity = pp > 0 ? 1 : 0;
-      $("s2pf").style.width = (eoc(pp)*100).toFixed(1) + "%";
-      rise($("s2l3"), eoc(seg(lt,3.7,.4)), 0);
-      $("s2dock").style.opacity = eoc(seg(lt,1.2,.6));
-      rise($("s2p1"), eoc(seg(lt,.9,.5)), 16);
-      rise($("s2p2"), eoc(seg(lt,1.12,.5)), 16);
-      rise($("s2p3"), eoc(seg(lt,1.34,.5)), 16);
-      // cursor: enters from the lower right of the desktop, clicks the first dock tile, leaves
-      const cur = $("s2cur"), rip = $("s2rip"), tile = $("s2tile"), deskBox = $("s2desk");
-      const cp = seg(lt, 4.2, 1.05);
-      const org = stageOrigin(deskBox);
-      const tileC = centerOf(tile);
-      const tx = tileC.x - org.x, ty = tileC.y - org.y;   // tile center in desk-local px
-      if (cp <= 0){ cur.style.opacity = 0; rip.style.opacity = 0; tile.style.transform = ""; }
-      else {
-        const from = { x: tx + 264, y: ty + 60 };          // inside the desk, lower right of the tile
-        const u = eio(cp);
-        const jx = Math.sin(u*Math.PI)* -46;               // slight arc
-        const x = lerp(from.x, tx, u) + jx;
-        const y = lerp(from.y, ty, u);
-        cur.style.opacity = eoc(seg(lt,4.2,.3)) * (lt < 6.6 ? 1 : clamp(1-(lt-6.6)/.6,0,1));
-        cur.style.left = (x-4) + "px"; cur.style.top = (y-2) + "px";
-        if (cp >= 1){
-          const press = Math.max(0, Math.sin(clamp((lt-5.25)/.5,0,1)*Math.PI));
-          tile.style.transform = `scale(${1 + .12*press})`;
-          const rq = seg(lt, 5.25, .5);
-          rip.style.opacity = (1-rq)*.85;
-          const rs = lerp(14, 96, eoc(rq));
-          rip.style.left = (tx - rs/2) + "px"; rip.style.top = (ty - rs/2) + "px";
-          rip.style.width = rip.style.height = rs + "px";
-          const op = eob(seg(lt, 5.45, .75));
-          const P = $("s2pop");
-          P.style.opacity = clamp(op,0,1);
-          P.style.transform = `translateY(${(1-clamp(op,0,1))*26}px) scale(${lerp(.86,1,op)})`;
-        } else { rip.style.opacity = 0; $("s2pop").style.opacity = 0; }
-      }
-  }},
-  { id:"s3", t0:17.6, t1:23.6, tick(lt){
-      rise($("s3k"), eoe(seg(lt,.25,.6)), 18);
-      rise($("s3h"), eoe(seg(lt,.35,.7)), 26);
-      for (let i=0;i<3;i++){
-        const c = $("s3c"+(i+1));
-        const p = eob(seg(lt, .7 + i*.3, .75));
-        c.style.opacity = clamp(p,0,1);
-        c.style.transform = `translateY(${(1-clamp(p,0,1))*60}px) scale(${lerp(.92,1,clamp(p,0,1))})`;
-        const dot = $("s3dot"+(i+1));
-        dot.style.opacity = .55 + .45*Math.sin(lt*3.2 + i*2.1);
-        const f = $("s3f"+(i+1));
-        const loop = (lt*.42 + i*.37) % 1;
-        f.style.left = (-46 + 152*loop) + "%";
-      }
-      rise($("s3foot"), eoc(seg(lt,3.4,.6)), 18);
-  }},
-  { id:"s4", t0:23.6, t1:28.6, tick(lt){
-      rise($("s4k"), eoe(seg(lt,.25,.6)), 18);
-      rise($("s4h"), eoe(seg(lt,.35,.7)), 26);
-      const sh = $("s4shield");
-      const sp = eob(seg(lt,.5,.9));
-      sh.style.opacity = clamp(sp,0,1);
-      sh.style.transform = `scale(${lerp(.8,1,clamp(sp,0,1))})`;
-      const path = $("s4path");
-      const L = 720; // approx perimeter
-      path.style.strokeDasharray = L;
-      path.style.strokeDashoffset = L * (1 - eoc(seg(lt,.6,1.0)));
-      const check = $("s4check");
-      const CL = 150;
-      check.style.strokeDasharray = CL;
-      check.style.strokeDashoffset = CL * (1 - eoc(seg(lt,1.5,.5)));
-      const cap = $("s4cap");
-      cap.style.opacity = eoc(seg(lt,2.1,.6));
-      [["s4r1",1.3],["s4r2",1.85],["s4r3",2.4]].forEach(([id,a])=>{
-        const p = eoc(seg(lt,a,.55)); rise($(id), p, 22);
-      });
-  }},
-  { id:"s5", t0:28.6, t1:33.2, tick(lt){
-      rise($("s5k"), eoe(seg(lt,.25,.6)), 18);
-      rise($("s5h"), eoe(seg(lt,.35,.7)), 26);
-      const T = $("s5term");
-      const tp = eoc(seg(lt,.5,.7));
-      T.style.opacity = tp; T.style.transform = `translateY(${(1-tp)*30}px)`;
-      const cmd = "agentspace integrate claude";
-      $("s5type").textContent = cmd.slice(0, Math.round(seg(lt,.9,1.35)*cmd.length));
-      $("s5caret").style.opacity = (Math.sin(lt*9) > 0 ? 1 : .25) * (lt > .8 ? 1 : 0);
-      rise($("s5o1"), eoc(seg(lt,2.35,.4)), 0);
-      rise($("s5o2"), eoc(seg(lt,2.9,.4)), 0);
-      rise($("s5badge"), eoc(seg(lt,3.3,.5)), 12);
-      for (let i=0;i<6;i++){
-        const c = $("s5c"+(i+1));
-        const p = eob(seg(lt, 1.0 + i*.3, .6));
-        c.style.opacity = clamp(p,0,1);
-        c.style.transform = `scale(${lerp(.82,1,clamp(p,0,1))})`;
-      }
-      rise($("s5foot"), eoc(seg(lt,3.7,.55)), 18);
-  }},
-  { id:"s6", t0:33.2, t1:38.0, tick(lt){
-      const g = $("s6glow"); const gp = eoc(seg(lt,.4,.8));
-      g.style.opacity = gp*(0.85+0.15*Math.sin(lt*1.2));
-      const ip = eob(seg(lt,.4,.95));
-      const ic = $("s6icon");
-      ic.style.opacity = eoc(seg(lt,.4,.5));
-      ic.style.transform = `scale(${lerp(.62,1,ip)}) translateY(${Math.sin(lt*1.3)*5}px)`;
-      w6.forEach((s,i)=>{ const p = eoe(seg(lt, 1.15 + i*.045, .55)); s.style.opacity = p; s.style.transform = `translateY(${(1-p)*30}px)`; });
-      rise($("s6tag"), eoe(seg(lt,2.15,.7)), 16);
-      rise($("s6url"), eoe(seg(lt,2.75,.6)), 16);
-      rise($("s6sub"), eoe(seg(lt,3.1,.5)), 12);
-  }},
+/* ------------------------------------------------------------------ */
+/* scenes                                                              */
+/* ------------------------------------------------------------------ */
+const FADE = .5;
+const SC = [
+{ id:"s0", t0:0.0, t1:4.2, tick(lt){
+  const gp = eoc(seg(lt,.35,.9));
+  $("s0halo").style.opacity = gp*(.85+.15*Math.sin(lt*1.1));
+  $("s0r1").style.opacity = eoc(seg(lt,.5,.7))*.8;
+  $("s0r2").style.opacity = eoc(seg(lt,.7,.8))*.5;
+  $("s0r1").style.transform = `scale(${lerp(.8,1.18,eoc(seg(lt,.5,1.4)))})`;
+  $("s0r2").style.transform = `scale(${lerp(.8,1.12,eoc(seg(lt,.7,1.5)))})`;
+  const ip = eob(seg(lt,.4,.95));
+  const ic = $("s0icon");
+  ic.style.opacity = eoc(seg(lt,.4,.5));
+  ic.style.transform = `scale(${lerp(.6,1,ip)}) translateY(${Math.sin(lt*1.25)*5}px)`;
+  w0.forEach((s,i) => {
+    const p = eoe(seg(lt, 1.15+i*.045, .55));
+    s.style.opacity = p; s.style.transform = `translateY(${(1-p)*40}px)`;
+  });
+  rise($("s0tag"), eoe(seg(lt,2.15,.7)), 18);
+  rise($("s0pill"), eoe(seg(lt,2.6,.6)), 14);
+  $("s0line").style.opacity = eoc(seg(lt,2.9,.6))*.7;
+}},
+{ id:"s1", t0:4.2, t1:10.6, tick(lt){
+  rise($("s1k").parentElement, eoe(seg(lt,.18,.55)), 16);
+  rise($("s1h"), eoe(seg(lt,.26,.65)), 22);
+  rise($("s1sub"), eoe(seg(lt,.72,.55)), 14);
+  const pin = eoc(seg(lt,.05,.85));
+  document.querySelectorAll("#s1 .pane").forEach((p,i) => {
+    p.style.opacity = pin;
+    p.style.transform = `translateX(${(1-pin)*(i?110:-110)}px)`;
+  });
+  $("s1seam").style.opacity = eoc(seg(lt,.25,.8));
+  $("s1headL").style.opacity = eoc(seg(lt,.7,.5));
+  $("s1headR").style.opacity = eoc(seg(lt,.82,.5));
+  $("s1deskL").style.opacity = eoc(seg(lt,.55,.6));
+  $("s1deskR").style.opacity = eoc(seg(lt,.62,.6));
+  // left: a still pointer, focus untouched
+  const curL = $("s1curL"), focus = $("s1focus");
+  const lp = eoc(seg(lt,.9,.5));
+  curL.style.opacity = lp*.95;
+  curL.style.transform = `scale(${1+.035*Math.sin(lt*2.1)})`;
+  focus.style.opacity = eoc(seg(lt,2.9,.6));
+  focus.style.transform = `translateY(${(1-eoc(seg(lt,2.9,.6)))*10}px)`;
+  // right: agent cursor -> terminal -> click -> type -> tests
+  const desk = $("s1deskR"), cur = $("s1curR"), term = $("s1term");
+  const org = stageOrigin(desk), tc = centerOf(term);
+  const tx = tc.x-org.x-60, ty = tc.y-org.y-128;
+  const cp = seg(lt,1.25,1.05);
+  if (cp <= 0){ cur.style.opacity = 0; }
+  else {
+    const u = eio(cp);
+    const fx = 700, fy = 420;
+    const x = lerp(fx,tx,u) + Math.sin(u*Math.PI)*-50;
+    const y = lerp(fy,ty,u);
+    cur.style.opacity = eoc(seg(lt,1.25,.3)) * (1-eoc(seg(lt,5.9,.4)));
+    place(cur, cur.style.opacity, x-4, y-2, 1 + .06*Math.sin(Math.PI*clamp(cp,0,1)));
+  }
+  const rq = seg(lt,2.3,.45);
+  if (rq > 0 && rq < 1) ripple($("s1rip"), rq, tx, ty, 10, 64);
+  else $("s1rip").style.opacity = 0;
+  $("s1type").textContent = typed("npm test", lt, 2.5, 1.05);
+  $("s1caret").style.opacity = (lt>2.3 ? (Math.sin(lt*9)>0?1:.2) : 0) * (lt<4.5?1:0);
+  $("s1out1").style.opacity = eoc(seg(lt,3.55,.35));
+  const pp = seg(lt,3.75,1.15);
+  $("s1track").style.opacity = pp>0?1:0;
+  $("s1bar").style.width = (eoc(pp)*100).toFixed(1)+"%";
+  $("s1out2").style.opacity = eoc(seg(lt,4.95,.35));
+  $("s1out2").style.transform = `translateY(${(1-eoc(seg(lt,4.95,.35)))*8}px)`;
+  const bp = 1 + .14*Math.max(0,Math.sin(seg(lt,5.0,.55)*Math.PI));
+  document.querySelectorAll("#s1dock i")[3].style.transform = `translateY(${-(bp-1)*60}px)`;
+  rise($("s1foot"), eoc(seg(lt,4.9,.6)), 12);
+}},
+{ id:"s2", t0:10.6, t1:17.0, tick(lt){
+  rise($("s2k").parentElement, eoe(seg(lt,.18,.55)), 16);
+  rise($("s2h"), eoe(seg(lt,.26,.65)), 22);
+  rise($("s2sub"), eoe(seg(lt,.72,.55)), 14);
+  // alternatives, then reject
+  const alts = document.querySelectorAll("#s2alts .alt");
+  alts.forEach((a,i) => {
+    const p = eob(seg(lt, .45+i*.18, .55));
+    const out = V ? 0 : eoc(seg(lt, 2.35+i*.06, .35));
+    a.style.opacity = clamp(p,0,1) * (1-out);
+    a.style.transform = `translateY(${(1-clamp(p,0,1))*26 - out*18}px) scale(${lerp(.94,1,clamp(p,0,1))})`;
+  });
+  ["s2s1","s2s2","s2s3"].forEach((id,i) => {
+    const p = seg(lt, 1.5+i*.12, .4);
+    $(id).style.transform = `scaleX(${eoc(p)})`;
+  });
+  // architecture
+  const ap = eoc(seg(lt, V ? 2.7 : 2.3, .8));
+  $("s2arch").style.opacity = ap;
+  $("s2arch").style.transform = `translateY(${(1-ap)*24}px)`;
+  rise($("s2foot"), eoc(seg(lt,4.7,.6)), 12);
+}},
+{ id:"s3", t0:17.0, t1:24.6, tick(lt){
+  rise($("s3k").parentElement, eoe(seg(lt,.18,.55)), 16);
+  rise($("s3h"), eoe(seg(lt,.26,.65)), 22);
+  rise($("s3sub"), eoe(seg(lt,.72,.55)), 14);
+  const appp = eoc(seg(lt,.35,.8));
+  $("s3app").style.opacity = appp;
+  $("s3app").style.transform = `translateY(${(1-appp)*26}px) scale(${lerp(.96,1,appp)})`;
+  // human cursor path inside the body
+  const body = $("s3body"), cur = $("s3cur"), rip = $("s3rip");
+  const bo = stageOrigin(body);
+  const pt = el => { const c = centerOf(el); return {x:c.x-bo.x, y:c.y-bo.y}; };
+  const pPlus = pt($("s3plus"));
+  const pAcct = pt($("s3acct"));
+  const pName = pt(document.querySelector(".input"));
+  const pConn = pt($("s3connect"));
+  const pOpen = pt($("s3open"));
+  const legs = [[0.7,pPlus],[1.45,pAcct],[1.9,pName],[2.75,pConn],[4.2,pOpen]];
+  let cp = 0;
+  if (lt >= legs[0][0]) cp = 1;
+  let x = pOpen.x+120, y = pOpen.y+180;
+  for (let i=0;i<legs.length;i++){
+    const a = legs[i], b = legs[i+1];
+    if (b && lt >= b[0]){
+      x = b[1].x; y = b[1].y;
+    } else if (lt >= a[0] && b){
+      const u = eio(seg(lt, a[0], b[0]-a[0]));
+      x = lerp(a[1].x, b[1].x, u);
+      y = lerp(a[1].y, b[1].y, u) - Math.sin(u*Math.PI)*26;
+      break;
+    }
+  }
+  const vis = eoc(seg(lt,.65,.4)) * (1-eoc(seg(lt,4.9,.4)));
+  place(cur, vis, x, y, 1);
+  const clicks = [1.15,1.6,2.05,3.2,4.25];
+  let cr = -1; for (const c of clicks) if (lt >= c) cr = c;
+  if (cr >= 0 && lt-cr < .5) ripple(rip, seg(lt,cr,.5), x, y, 10, 52);
+  else rip.style.opacity = 0;
+  // wizard
+  const wb = eoc(seg(lt,1.3,.4)), wout = eoc(seg(lt,3.75,.4));
+  $("s3wizback").style.opacity = wb*(1-wout);
+  const wp = eob(seg(lt,1.35,.6))*(1-wout);
+  $("s3wiz").style.opacity = clamp(wp,0,1);
+  $("s3wiz").style.transform = `translate(-50%,-50%) scale(${lerp(.94,1,clamp(wp,0,1))})`;
+  $("s3radio").classList.toggle("on", lt >= 1.6);
+  $("s3acct").style.borderColor = lt>=1.6 ? "rgba(110,168,255,.45)" : "rgba(255,255,255,.10)";
+  $("s3acct").style.background = lt>=1.6 ? "rgba(90,150,255,.08)" : "rgba(255,255,255,.028)";
+  $("s3hint").textContent = lt>=1.6 ? TX.s3hintReady : TX.s3hint;
+  const name = typed("Design Agent", lt, 2.15, .8);
+  $("s3name").textContent = name;
+  $("s3namecaret").style.opacity = lt>2.0 && lt<3.5 ? (Math.sin(lt*9)>0?1:.2) : 0;
+  $("s3ok").style.opacity = eoc(seg(lt,3.35,.35));
+  $("s3ok").style.transform = `scale(${lerp(.94,1,eoc(seg(lt,3.35,.45)))})`;
+  // new row, then it becomes the selected running account
+  const nr = eoc(seg(lt,3.9,.5));
+  $("s3newrow").style.opacity = nr;
+  $("s3newrow").style.transform = `translateX(${(1-nr)*-14}px)`;
+  const live = lt >= 4.2;
+  $("s3newrow").classList.toggle("on", live);
+  $("s3devrow").classList.toggle("on", !live);
+  $("s3rowdot").classList.toggle("amber", !live);
+  $("s3rowstat").textContent = live ? TX.s3running : TX.s3connecting;
+  if (live) { $("s3mainname").textContent = "design-agent"; $("s3uid").textContent = "Aqua · uid 503"; }
+  // viewer
+  const vp = eob(seg(lt,4.55,.8));
+  $("s3view").style.opacity = clamp(vp,0,1);
+  $("s3view").style.transform = `translateY(${(1-clamp(vp,0,1))*38}px) scale(${lerp(.9,1,clamp(vp,0,1))})`;
+  // agent cursor inside viewer
+  const vdesk = document.querySelector(".vdesk");
+  const ac = $("s3acur"), vo = stageOrigin(vdesk);
+  const vt = centerOf($("s3view").querySelector(".w-term"));
+  const ax = vt.x-vo.x-70, ay = vt.y-vo.y+8;
+  const acp = seg(lt,4.95,.6);
+  const av = eoc(seg(lt,4.95,.35))*(1-eoc(seg(lt,7.3,.35)));
+  if (acp > 0){
+    const u = eio(acp);
+    place(ac, av, lerp(ax+190,ax,u), lerp(ay+120,ay,u), 1);
+  } else ac.style.opacity = 0;
+  const vr = seg(lt,5.3,.4);
+  if (vr>0 && vr<1) ripple($("s3vrip"), vr, ax, ay, 9, 52); else $("s3vrip").style.opacity = 0;
+  $("s3vout").style.opacity = eoc(seg(lt,5.3,.35));
+  const bpp = seg(lt,5.4,.62);
+  $("s3vtrack").style.opacity = bpp>0?1:0;
+  $("s3vbar").style.width = (eoc(bpp)*100).toFixed(1)+"%";
+  $("s3vdone").style.opacity = eoc(seg(lt,6.05,.3));
+  rise($("s3foot"), eoc(seg(lt,4.8,.6)), 12);
+}},
+{ id:"s4", t0:24.6, t1:30.0, tick(lt){
+  rise($("s4k").parentElement, eoe(seg(lt,.18,.55)), 16);
+  rise($("s4h"), eoe(seg(lt,.26,.65)), 22);
+  rise($("s4sub"), eoe(seg(lt,.72,.55)), 14);
+  const cards = document.querySelectorAll("#s4 .agentcard");
+  cards.forEach((c,i) => {
+    const p = clamp(eob(seg(lt,.55+i*.24,.7)),0,1);
+    c.style.opacity = p;
+    c.style.transform = `translateY(${(1-p)*54}px) scale(${lerp(.93,1,p)})`;
+    const dot = c.querySelector(".dot");
+    dot.style.opacity = 1;
+    dot.style.transform = `scale(${1+.16*Math.sin(lt*3.1+i*2.1)})`;
+  });
+  const bases = [.58,.76,.44];
+  [1,2,3].forEach((n,i) => {
+    const v = clamp(bases[i] + lt*.055, 0, .97);
+    $("s4f"+n).style.width = (v*100).toFixed(1)+"%";
+    $("s4p"+n).textContent = Math.round(v*100)+"%";
+  });
+  rise($("s4foot"), eoc(seg(lt,3.0,.6)), 12);
+}},
+{ id:"s5", t0:30.0, t1:35.4, tick(lt){
+  rise($("s5k").parentElement, eoe(seg(lt,.18,.55)), 16);
+  rise($("s5h"), eoe(seg(lt,.26,.65)), 22);
+  rise($("s5sub"), eoe(seg(lt,.72,.55)), 14);
+  const sp = clamp(eob(seg(lt,.4,.85)),0,1);
+  $("s5shield").style.opacity = sp;
+  $("s5shield").style.transform = `scale(${lerp(.8,1,sp)})`;
+  const path = $("s5path"), L = 680;
+  path.style.strokeDasharray = L;
+  path.style.strokeDashoffset = L*(1-eoc(seg(lt,.5,.9)));
+  const tp = eoc(seg(lt,.6,.6));
+  $("s5term").style.opacity = tp;
+  $("s5term").style.transform = `translateY(${(1-tp)*24}px)`;
+  const cmd = "agentspace click dev 100 100";
+  $("s5type").textContent = typed(cmd, lt, 1.0, 1.0);
+  $("s5caret").style.opacity = lt>0.9 && lt<2.6 ? (Math.sin(lt*9)>0?1:.2) : 0;
+  [["s5l1",2.05],["s5l2",2.35],["s5l3",2.6],["s5l4",2.95]].forEach(([id,a]) => {
+    $(id).style.opacity = eoc(seg(lt,a,.35));
+    $(id).style.transform = `translateY(${(1-eoc(seg(lt,a,.35)))*6}px)`;
+  });
+  const stp = eob(seg(lt,2.65,.45));
+  $("s5stamp").style.opacity = clamp(stp,0,1);
+  $("s5stamp").style.transform = `rotate(7deg) scale(${lerp(1.35,1,clamp(stp,0,1))})`;
+  [["s5r1",1.55],["s5r2",1.85],["s5r3",2.15]].forEach(([id,a]) => {
+    rise($(id), eoc(seg(lt,a,.5)), 18);
+  });
+  rise($("s5foot"), eoc(seg(lt,3.2,.6)), 12);
+}},
+{ id:"s6", t0:35.4, t1:40.2, tick(lt){
+  rise($("s6k").parentElement, eoe(seg(lt,.18,.55)), 16);
+  rise($("s6h"), eoe(seg(lt,.26,.65)), 22);
+  rise($("s6sub"), eoe(seg(lt,.6,.55)), 14);
+  const tp = eoc(seg(lt,.35,.65));
+  $("s6term").style.opacity = tp;
+  $("s6term").style.transform = `translateY(${(1-tp)*24}px)`;
+  const cmd = "agentspace integrate claude --install";
+  $("s6type").textContent = typed(cmd, lt, .8, 1.3);
+  $("s6caret").style.opacity = lt>.7 && lt<2.8 ? (Math.sin(lt*9)>0?1:.2) : 0;
+  $("s6o1").style.opacity = eoc(seg(lt,2.2,.35));
+  $("s6o2").style.opacity = eoc(seg(lt,2.45,.35));
+  $("s6o3").style.opacity = eoc(seg(lt,2.7,.35));
+  const chips = document.querySelectorAll("#s6chips .chip");
+  chips.forEach((c,i) => {
+    const p = clamp(eob(seg(lt,1.45+i*.055,.5)),0,1);
+    c.style.opacity = p;
+    c.style.transform = `scale(${lerp(.84,1,p)})`;
+  });
+  const tools = document.querySelectorAll(".tool-chips .chip");
+  tools.forEach((c,i) => {
+    const p = clamp(eob(seg(lt,2.45+i*.08,.5)),0,1);
+    c.style.opacity = p;
+    c.style.transform = `scale(${lerp(.84,1,p)})`;
+  });
+  const bp = eob(seg(lt,3.05,.5));
+  $("s6badge").style.opacity = clamp(bp,0,1);
+  $("s6badge").style.transform = `translateY(${(1-clamp(bp,0,1))*12}px)`;
+  rise($("s6foot"), eoc(seg(lt,3.3,.55)), 12);
+}},
+{ id:"s7", t0:40.2, t1:45.0, tick(lt){
+  const gp = eoc(seg(lt,.15,.9));
+  $("s7glow").style.opacity = gp*(.9+.1*Math.sin(lt*1.1));
+  const ip = eob(seg(lt,.15,.9));
+  $("s7icon").style.opacity = eoc(seg(lt,.15,.5));
+  $("s7icon").style.transform = `scale(${lerp(.65,1,ip)}) translateY(${Math.sin(lt*1.2)*4}px)`;
+  w7.forEach((s,i) => {
+    const p = eoe(seg(lt, .85+i*.045, .55));
+    s.style.opacity = p; s.style.transform = `translateY(${(1-p)*26}px)`;
+  });
+  rise($("s7tag"), eoe(seg(lt,1.7,.65)), 16);
+  const up = eob(seg(lt,2.25,.6));
+  $("s7url").style.opacity = clamp(up,0,1);
+  $("s7url").style.transform = `scale(${lerp(.92,1,clamp(up,0,1))})`;
+  rise($("s7sub"), eoc(seg(lt,2.7,.5)), 10);
+}},
 ];
 
-/* ---------- master seek ---------- */
-const sceneEls = {};
-SCENES.forEach(s => sceneEls[s.id] = $(s.id));
-let lastScene = "";
-
+/* ------------------------------------------------------------------ */
+/* master seek                                                         */
+/* ------------------------------------------------------------------ */
+const els = {}; SC.forEach(s => els[s.id] = $(s.id));
 function seek(t){
   bgTick(t);
-  for (const s of SCENES){
-    const el = sceneEls[s.id];
-    if (t < s.t0 - .06 || t > s.t1 + .06){ el.style.display = "none"; continue; }
+  for (const s of SC){
+    const el = els[s.id];
+    if (t < s.t0-.06 || t > s.t1+.06){ el.style.display = "none"; continue; }
     el.style.display = "block";
-    const fi = clamp((t - s.t0)/FADE, 0, 1);
-    const fo = clamp((s.t1 - t)/FADE, 0, 1);
-    el.style.opacity = Math.min(fi, fo);
-    s.tick(t - s.t0, t);
+    const fi = eoc(clamp((t-s.t0)/FADE,0,1));
+    const fo = eoc(clamp((s.t1-t)/FADE,0,1));
+    const op = Math.min(fi,fo);
+    el.style.opacity = op;
+    el.style.transform = `translateY(${((1-fi)*14 - (1-fo)*10).toFixed(2)}px)`;
+    s.tick(t-s.t0);
   }
-  // watermark across the middle chapters
   const w = $("watermark");
-  const won = t >= 4.2 && t <= 33.2;
-  w.style.opacity = won ? .6 * Math.min(clamp((t-4.2)/.5,0,1), clamp((33.2-t)/.5,0,1)) : 0;
-  // global fade in / out
+  const won = t >= 4.2 && t <= 40.2;
+  w.style.opacity = won ? .55*Math.min(clamp((t-4.2)/.5,0,1), clamp((40.2-t)/.5,0,1)) : 0;
   const f = $("fade");
-  const fo = t < .4 ? 1 - t/.4 : (t > 37.2 ? clamp((t - 37.2)/.8, 0, 1) : 0);
+  const fo = t < .5 ? 1-t/.5 : (t > 44.3 ? clamp((t-44.3)/.7,0,1) : 0);
   f.style.opacity = fo.toFixed(3);
-  lastScene = sceneAt(t);
-}
-function sceneAt(t){
-  for (const s of SCENES) if (t >= s.t0 && t < s.t1) return s.id;
-  return t < SCENES[0].t0 ? SCENES[0].id : SCENES[SCENES.length-1].id;
 }
 window.__seek = seek;
-window.__sceneAt = sceneAt;
+window.__sceneAt = t => { for (const s of SC) if (t>=s.t0 && t<s.t1) return s.id; return t<SC[0].t0?SC[0].id:SC[SC.length-1].id; };
+window.__meta = { lang:LANG, vertical:V, dur:45 };
 
-// pre-render a neutral first state so nothing flashes unstyled
 seek(0);
 </script>
 </body>
