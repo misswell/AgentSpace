@@ -4,7 +4,42 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-22 on `master`. Current public release: **0.1.94**.
+Last updated: 2026-10-22 on `master`. Current public release: **0.1.95**.
+
+Published 0.1.95 (§396, 2026-10-22): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.95),
+source [008d877](https://github.com/misswell/AgentSpace/commit/008d877082e93b22cdccc9ce1f64a6b5631a7ab6),
+[Actions 39706795203](https://github.com/misswell/AgentSpace/actions/runs/39706795203)
+all three jobs green; `releases/latest` answered v0.1.95 on attempt 1 with no §318
+lag. DMG 27,377,230 bytes, sha256
+`3957fec1d9c42accd22c1dbfe01d9c39cc0bf8a7a8d2a6f8ad88944b7c5a9636`. Apple live
+`asc notarization list` readback: App ZIP `5218fd47-914c-4ad0-8c88-0f776aed9e3b`
+and DMG `da8dbc98-c45f-4ab0-a050-35c3fbc682b3` both **Accepted**. Runner gate:
+Swift **901** (3 skipped), updater **19**, MCP smoke passed, and step 1b reads
+**21** UI handles plus the five bundled binaries ok. **Layer 4 is not run on a
+runner**; on this Mac the console instrument refused (an AgentSpace copy was
+running) and the session twin passed **18 checks, 0 failed** in AgentUse's
+session against a debug bundle of this tree (0.1.95 (596)), including the new
+`Dock reopen returns from Settings to the dashboard` check (row 1320). The
+downloaded asset reads back as **0.1.95 (596)**, CLI 0.1.95 (protocol 1), MCP
+0.1.17, Developer ID + hardened runtime, CDHash
+`17278cd6c59876fa66daf4026d11b4542c10db38`, ticket stapled to both DMG and app,
+Gatekeeper accepted; `dist/` now holds the published app and DMG, staples
+included (row 1321). The release numbers were re-taken: this round was prepared
+as 0.1.94/§395, and while it was in the local gate the marketing round published
+**v0.1.94** with its own §395; nothing was force-pushed and no tag was moved.
+
+**What 0.1.95 changes for a person**: clicking the Dock icon brings the
+dashboard — or an open agent desktop — to the front, instead of leaving the
+Settings window there. The old rule identified the dashboard as “the window with
+a toolbar”, but macOS 26 draws a toolbar on the Settings window too (five buttons,
+one per tab; the dashboard has seven), and AppKit's default reopen leaves
+whichever window was frontmost in front. Windows now register a role when their
+content attaches — dashboard or agent desktop — and the reopen path orders that
+role front; Settings has no role and is never a Dock target. If the dashboard
+window was closed, the Dock click recreates it (one window, not a duplicate).
+Transport, protocol, helper operation list, permission model and sign-in flow are
+unchanged; the helper binary's version moved with the app, so the first sign-in
+after updating asks for the usual one-time 「重新安装助手…」.
 
 Published 0.1.94 (§395, 2026-10-22): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.94),
 source [1dda15d](https://github.com/misswell/AgentSpace/commit/1dda15d640ef638d915d4e31bffe12ea16ba5970),
