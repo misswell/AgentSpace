@@ -83,6 +83,10 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
     // --- Transport ----------------------------------------------------------
     case unauthorized = "UNAUTHORIZED"
     case badRequest = "BAD_REQUEST"
+    /// A proposed virtual-network configuration was refused by the validator.
+    /// Distinct from `badRequest` because the fix is a specific field, and the
+    /// message already names it and the rule it broke.
+    case networkConfigRejected = "NETWORK_CONFIG_REJECTED"
     case methodNotFound = "METHOD_NOT_FOUND"
     case protocolMismatch = "PROTOCOL_MISMATCH"
     case internalError = "INTERNAL_ERROR"
@@ -103,7 +107,8 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
         case .accessibilityDenied, .screenRecordingDenied,
              .workerIsRoot, .workspaceDenied, .workspaceInvalid, .execDenied,
              .invalidCoordinate, .invalidAction, .invalidTarget,
-             .unauthorized, .badRequest, .methodNotFound, .protocolMismatch,
+             .unauthorized, .badRequest, .networkConfigRejected,
+             .methodNotFound, .protocolMismatch,
              .helperRejected, .internalError:
             return false
         }
@@ -140,6 +145,8 @@ public enum AgentSpaceErrorCode: String, Codable, Sendable, CaseIterable {
             return NSLocalizedString("Coordinates are display POINTS (x right, y down, origin top-left of the main display), not screenshot pixels. Divide a pixel by the reported `scale`.", comment: "")
         case .invalidAction:
             return NSLocalizedString("Check the action list against docs/protocol.md. The whole batch is validated before anything is performed, so nothing was done.", comment: "")
+        case .networkConfigRejected:
+            return NSLocalizedString("The message names the field and the rule it broke. Fix that field, or enable the documented override if the rule is one that offers one; the previous configuration was not changed.", comment: "")
         case .noInputTarget:
             return NSLocalizedString("The AgentSpace session has no focused app, so a keyboard event would go nowhere and an accessibility read has no target. Launch something there first, e.g. `agentspace launch <space> Finder`. Pointer input does not need a focused app and still works — a click on the Dock is enough.", comment: "")
         case .inputBusyByHuman:

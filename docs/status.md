@@ -4,7 +4,59 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-23 on `master`. Current public release: **0.1.97**.
+Last updated: 2026-10-24 on `master`. Current public release: **0.1.97**.
+
+## In flight: the virtual network and remote API (§398)
+
+This tree contains a virtual network and an HTTP API that are **not in the
+shipped 0.1.97 build yet**. Read [`docs/virtual-network.md`](virtual-network.md)
+before touching it, and do not describe it as working end to end in the app.
+
+What is measured and in this tree:
+
+- **Address planning and conflict detection** (`VirtualNetwork.swift`,
+  `VirtualNetworkValidator.swift`, `LocalNetworkProbe.swift`): random `/24` from
+  `100.64.0.0/10` then RFC 1918, overlap checks against this Mac's interfaces and
+  routes, an unverified snapshot reported as unverified, dedicated overrides with
+  a documented cost. 34 unit tests.
+- **A transactional configuration store** with a previous version kept for
+  rollback, and a migration plan that names offline nodes rather than claiming
+  they moved.
+- **The HTTP API** (`APIServer.swift`, `APIRouting.swift`, `APIAgentService.swift`):
+  `CFHTTPMessage` + `Network.framework` (no third-party dependency), Bearer
+  tokens stored as SHA-256 digests with scopes, per-token and per-agent rate
+  limits, an exhaustive error→status mapping, and a listener that has no case for
+  a wildcard address. 28 unit tests and 7 real-socket tests.
+- **The hub** (`network/hub`, Go): one-time enrollment tokens stored as digests,
+  idempotent enrollment per public key, lowest-first fixed allocation, revocation,
+  handshake-based "online". Its own test suite passes.
+- **`scripts/network-e2e.sh`**: hub → addresses → `AgentSpaceCore` configuration →
+  a **real** `wireguard-go` handshake with an ICMP packet in both directions.
+  This is the only claim of a working tunnel, and it is a userspace one.
+- **CLI**: `network {status,enable,disable,configure,nodes,doctor,revoke}` and
+  `api` / `api-token`. **GUI**: Settings → Virtual Network, editable with preview
+  and rollback.
+
+What is **not** in the shipped app, and must not be implied:
+
+1. The system extension is **not** a target inside `AgentSpace.app`. It was built,
+   signed, notarized and activated as a standalone POC (`systemextensionsctl`
+   shows `activated waiting for user`); the app reports it as not installed.
+2. No packet-tunnel provider linking `wireguard-go` ships in the bundle. The
+   library builds locally and its configuration is verified, but the provider is
+   not packaged.
+3. There is no hosted coordination service: the hub is self-hosted.
+4. IPv6 is stored, not implemented.
+5. The API is not started by a LaunchAgent; the app does not launch it on login.
+6. Layer 4 did not run for the new settings tab.
+
+Apple facts this round paid for (do not relearn): on macOS a packet-tunnel **app
+extension is App Store only** — Developer ID must use a **system extension**
+(TN3134). A system extension's activation requires the containing app to be in
+`/Applications` **and** notarized; the three failures are distinct
+(`must be in /Applications`, `code signature invalid`, `extension category
+returned error`), and only the last is fixed by notarizing. WireGuard's **UAPI
+protocol wants hex keys**, not the base64 a `wg-quick` file uses.
 
 Published 0.1.97 (§397 row 1335, 2026-10-23): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.97),
 source [c36ffec](https://github.com/misswell/AgentSpace/commit/c36ffec),

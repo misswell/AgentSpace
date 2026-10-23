@@ -48,6 +48,9 @@ let valueFlags: Set<String> = [
     // Attach workspace flags. Declared here or the parser refuses them as
     // unknown before the command ever sees them.
     "repo", "branch", "share", "share-rw", "config",
+    // Virtual network and API. `pool`/`local`/`hub`/`controller`/`port`/`mode`
+    // configure the network; `name`/`scope` configure a token.
+    "pool", "local", "hub", "controller", "port", "mode", "name", "scope",
 ]
 
 /// Flags that stand alone. `--json` belongs here, not above: listing it as a
@@ -58,10 +61,13 @@ let booleanFlags: Set<String> = [
     "remove-home", "install", "start", "frame", "stop", "stats",
     // `apps --available`: the installed-app list, which nothing else asks for.
     "available", "icons",
+    // Advanced overrides for a virtual-network pool. Both are refusals by
+    // default; these flags are how a person accepts a specific one.
+    "allow-overlap", "allow-non-private-pool", "loopback",
 ]
 
 /// Flags that may appear more than once.
-let repeatableFlags: Set<String> = ["env", "share", "share-rw"]
+let repeatableFlags: Set<String> = ["env", "share", "share-rw", "scope"]
 
 func parseArgs(_ argv: [String]) -> Result<ParsedArgs, ArgumentError> {
     var parsed = ParsedArgs()
@@ -313,6 +319,23 @@ func usage() -> String {
     MANAGE
       start|stop|restart <account>    Control the agent's worker
 
+    VIRTUAL NETWORK AND REMOTE API
+      network status                  Pool, this Mac's address, conflicts
+      network enable                  Choose a private pool and commit it
+      network configure [--pool CIDR] [--local IP] [--controller IP]
+                        [--hub IP] [--port N] [--mode automatic|manual]
+                        [--allow-overlap] [--allow-non-private-pool]
+      network nodes                   Every node and its fixed address
+      network doctor                  What was measured, and what could not be
+      network revoke <node>           Remove a node's address and key
+      api status                      Listener address, tokens, extension state
+      api enable [--port N] [--loopback]
+      api disable
+      api-token list
+      api-token create --name NAME --scope read|observe|control|exec
+      api-token revoke <id>
+      api-token rotate <id>           New secret; the old one stops working
+
     GLOBAL
       --json                          Machine-readable output on every command
       --root PATH                     Use an alternate AgentSpace root
@@ -320,7 +343,8 @@ func usage() -> String {
 
     AgentSpace never creates or deletes macOS users. Attach/detach only manage
     the worker and runtime through the typed privileged helper. The CLI never
-    runs sudo.
+    runs sudo. The remote API only ever listens on a virtual-network address or
+    on 127.0.0.1 — never on all interfaces.
     """
 }
 
@@ -1295,6 +1319,30 @@ case "start", "stop", "restart":
             message: "starting a worker is the privileged helper's job; the CLI does not run launchd or sudo. The AgentSpace user must be logged in through the GUI at least once.",
             recoverable: true))
     }
+
+case "network":
+    NetworkCommand.run(
+        action: rest.first ?? "status",
+        args: Array(rest.dropFirst()),
+        parsed: parsed,
+        root: rootOverride,
+        emitter: emitter)
+
+case "api":
+    APICommand.run(
+        action: rest.first ?? "status",
+        args: Array(rest.dropFirst()),
+        parsed: parsed,
+        root: rootOverride,
+        emitter: emitter)
+
+case "api-token":
+    APICommand.runToken(
+        action: rest.first ?? "list",
+        args: Array(rest.dropFirst()),
+        parsed: parsed,
+        root: rootOverride,
+        emitter: emitter)
 
 default:
     FileHandle.standardError.write(Data("agentspace: unknown command '\(command)'\n\n".utf8))

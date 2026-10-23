@@ -1,0 +1,199 @@
+# Virtual network and remote API
+
+AgentSpace can put the Mac, the machine that drives its agents, and a network
+hub on one private IPv4 network, so a remote client reaches a **fixed address**
+no matter which network either side is on.
+
+Two independent services are involved and they start and stop separately:
+
+| Service | What it does | Where it runs |
+|---|---|---|
+| **Virtual network** | a WireGuard tunnel with fixed IPv4 addresses | a packet-tunnel **system extension** inside `AgentSpace.app` |
+| **Remote API** | HTTP JSON over that tunnel | a separate process, bound to one address |
+
+The tunnel is a system extension, not an app extension: Apple's
+[TN3134](https://developer.apple.com/documentation/technotes/tn3134-network-extension-provider-deployment)
+restricts macOS packet-tunnel **app** extensions to the App Store, and AgentSpace
+ships with Developer ID. The system-extension route is the one that can be signed,
+notarized and installed from the DMG.
+
+## Address planning
+
+Automatic mode picks a `/24` at random from `100.64.0.0/10` (RFC 6598) first,
+then RFC 1918, and rejects any candidate that overlaps this Mac's interfaces or
+routing table. The layout inside the pool is fixed:
+
+```text
+pool         100.64.7.0/24
+hub          .1          the coordination service
+controller   .2          the machine that drives the agents
+this Mac     .11         AgentSpace
+other nodes  .3, .4, …   allocated lowest-first
+```
+
+The pool is stored, not re-derived, so the addresses do not move between
+launches. `agentspace network status` prints it and `agentspace network enable`
+chooses it.
+
+### What is refused, and what an override exists for
+
+| Refusal | Override |
+|---|---|
+| a pool outside RFC 1918 and `100.64.0.0/10` | `--allow-non-private-pool` (deliberate, documented) |
+| a pool that overlaps a local network | `--allow-overlap` — precise host routes keep unrelated traffic out of the tunnel |
+| an address this Mac already holds | **none.** No route can make two interfaces hold one address |
+| a duplicate address between nodes | none |
+| the network/broadcast address of the pool | none |
+| a pool narrower than /29 or wider than /16 | none |
+| an API port outside 1024–65535 | none |
+
+`agentspace network doctor` reports which checks actually ran. If this Mac's
+interfaces or routes cannot be read, overlap is reported as **unverified**, never
+as clean.
+
+### Changing addresses
+
+A change is previewed and committed, and the previous version is kept:
+
+```bash
+agentspace network configure --local 100.64.7.12   # prints the migration plan
+agentspace network status                          # previousVersion is recorded
+```
+
+The migration plan names every address change and every offline node. A node
+that is offline keeps its old address and is reported as offline rather than
+claimed migrated. Applying a new pool to a running tunnel is the app's job
+(Settings → Virtual Network), which shows the same preview before it writes.
+
+## Routes
+
+Every peer is routed as an exact `/32`. The pool itself is never routed: a
+physical LAN that happens to use the same `/24` keeps working, and only the
+virtual addresses enter the tunnel.
+
+## API
+
+```bash
+agentspace api-token create --name ci --scope observe
+# → prints the secret once
+agentspace api enable --port 8787
+agentspace api status
+```
+
+The listener binds to this Mac's virtual address, or to `127.0.0.1` with
+`--loopback`. There is no option to bind `0.0.0.0`; the code has no case for it.
+
+When the tunnel is down the virtual address is not assigned, and the API refuses
+to start rather than falling back to a physical interface.
+
+### Endpoints
+
+| Method | Path | Scope |
+|---|---|---|
+| GET | `/healthz` | none |
+| GET | `/v1/network/status` | read |
+| GET | `/v1/agents` | read |
+| GET | `/v1/agents/{uuid}/status` | read |
+| GET | `/v1/agents/{uuid}/apps` | read |
+| POST | `/v1/agents/{uuid}/screenshot` | observe |
+| GET | `/v1/agents/{uuid}/windows` | observe |
+| POST | `/v1/agents/{uuid}/input` | control |
+| POST | `/v1/agents/{uuid}/launch` | control |
+| POST | `/v1/agents/{uuid}/quit` | control |
+
+`{uuid}` must be an Agent UUID. A worker socket path, a session token or a method
+name in that position is refused at the routing layer.
+
+`exec` has no HTTP endpoint. It is a Worker method with its own refusal list, and
+exposing it over a network would put it behind a different gate than the one it
+was designed for.
+
+### Authentication
+
+A Bearer token with at least 256 bits of entropy, stored only as a SHA-256 digest
+in `<root>/Network/api-tokens.json` (mode 0600). Scopes are `read`, `observe`,
+`control` and `exec`, and they imply the read-only scopes below them.
+
+`GET /healthz` is the one unauthenticated endpoint: it reports how many agents
+exist, never anything about one.
+
+Tokens are created, revoked and rotated locally:
+
+```bash
+agentspace api-token list
+agentspace api-token rotate <id>    # old secret stops working immediately
+```
+
+### Errors
+
+Every failure is JSON with the underlying code preserved:
+
+```json
+{"ok": false, "error": {"code": "SESSION_IS_CONSOLE", "message": "…",
+                        "recoverable": false, "requestId": "…"}}
+```
+
+| Status | Meaning |
+|---|---|
+| 400 | malformed request or an invalid action |
+| 401 | missing or invalid token |
+| 403 | the token does not grant the scope |
+| 404 | no agent with that id |
+| 409 | the session cannot accept that operation right now |
+| 429 | rate limited (per token and per agent) |
+| 503 | worker offline, or a permission the worker needs is missing |
+| 504 | the worker timed out |
+
+A worker that is not running is **503**, never a 200 with an empty body. There is
+no fallback to the human's desktop anywhere on this path.
+
+## The hub
+
+The hub coordinates: it issues one-time enrollment tokens, allocates addresses,
+and serves each node the peer list. It carries no traffic itself; the WireGuard
+interface does.
+
+```bash
+network/hub/agentspace-hub init --pool 100.64.9.0/24
+network/hub/agentspace-hub enroll-token --label laptop --role node
+network/hub/agentspace-hub serve --listen 127.0.0.1:8788
+network/hub/agentspace-hub list
+network/hub/agentspace-hub revoke laptop
+```
+
+- Enrollment is **idempotent per public key**: a retried request returns the same
+  node and the same address instead of allocating a second one.
+- A token is spent on first use; re-adding a device needs a new one.
+- Revoking a node removes its address and key. The hub cannot be revoked.
+- "Online" means a handshake within three minutes, never "the process exists".
+- The control plane refuses to listen on `0.0.0.0`.
+
+See [network-hub-deployment.md](network-hub-deployment.md) for a server setup.
+
+## Verifying it
+
+`scripts/network-e2e.sh` builds the hub, starts one on an ephemeral port, enrolls
+two nodes with real keys, generates both WireGuard configurations **from
+`AgentSpaceCore`**, and hands them to a real `wireguard-go` with a fake TUN. It
+requires that both sides actually handshake and that one ICMP packet crosses in
+each direction. Exit 3 means Go was unavailable, so nothing was verified.
+
+The kernel interface is the only simulated part. The WireGuard implementation,
+its crypto, its UDP transport and the hub are the shipping ones.
+
+## What this does not do
+
+- **IPv6.** The toggle exists and is stored; only IPv4 is implemented. A pool or
+  an address that needs IPv6 is not claimed to work.
+- **A hosted service.** The hub is self-hosted. There is no AgentSpace-run
+  coordination service, so `network connect` without a hub of your own has
+  nothing to connect to.
+- **NAT traversal beyond WireGuard's own.** If UDP cannot reach the hub, the
+  tunnel will not come up, and AgentSpace will say so rather than claim a
+  connection. An HTTPS relay is not implemented.
+- **The real system extension's packet path inside `AgentSpace.app`.** The
+  extension, its entitlements and its activation were verified (§398); the
+  shipping bundle does not yet include it, so turning the network on in the app
+  reports that the extension is not installed.
+- **Desktop streaming over HTTP.** Screenshots are one-shot PNG requests. There
+  is no video endpoint.

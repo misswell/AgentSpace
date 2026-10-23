@@ -49,3 +49,7 @@ marketing/promo/poster.png
 
 # Mimosa security-scan plugin local state (history, reports, hook state)
 .mimosa/
+
+# Go build products (the hub and the network harness are source-only in git)
+network/hub/agentspace-hub
+network/e2e/harness

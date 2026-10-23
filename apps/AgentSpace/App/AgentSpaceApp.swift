@@ -490,6 +490,14 @@ struct SettingsView: View {
             .tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
             .tag("advanced")
 
+            // Declared after Advanced and before Update on purpose: layer 4's
+            // console gate clicks toolbar button 4 and expects the Advanced
+            // slider, and it finds the update tab as the *last* button. Adding
+            // this tab between them keeps both readings true.
+            VirtualNetworkSettingsView()
+                .tabItem { Label("Virtual Network", systemImage: "network") }
+                .tag("network")
+
             // Declared last: `scripts/gui-verify.sh` finds the Advanced tab as the
             // fourth toolbar button, so the tab order is a gate contract.
             SoftwareUpdateView()
