@@ -4,7 +4,19 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-23 on `master`. Current public release: **0.1.96**.
+Last updated: 2026-10-23 on `master`. Current public release: **0.1.96**;
+0.1.97 is prepared on master (§397 row 1334).
+
+Prepared 0.1.97: **no product change and no Worker change** — the version exists
+because the tree moved. It carries the acceptance the 0.1.96 notes promised:
+`tests/App/ClipboardCompositeLiveTests.swift` runs the whole clipboard gesture
+through the production types (a real ⌘V `NSEvent` → the real monitor → the real
+bridge → a real worker in AgentUse's session → the agent application actually
+holding the pasted content), opt-in behind `AGENTSPACE_LIVE_CLIPBOARD_TEST=1`, and
+it passes (row 1334). The same row records a defect in that test's own clipboard
+save/restore, which cost the owner an image once and is now fixed and asserted
+rather than swallowed. Because nothing a user runs changed, the note says so in
+its first line and does **not** ask for another 「重新安装助手…」.
 
 Published 0.1.96 (§397, 2026-10-23): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.96),
 source [23393a8](https://github.com/misswell/AgentSpace/commit/23393a8),
