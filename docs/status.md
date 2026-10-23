@@ -4,11 +4,23 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-23 on `master`. Current public release: **0.1.96**;
-0.1.97 is prepared on master (§397 row 1334).
+Last updated: 2026-10-23 on `master`. Current public release: **0.1.97**.
 
-Prepared 0.1.97: **no product change and no Worker change** — the version exists
-because the tree moved. It carries the acceptance the 0.1.96 notes promised:
+Published 0.1.97 (§397 row 1335, 2026-10-23): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.97),
+source [c36ffec](https://github.com/misswell/AgentSpace/commit/c36ffec),
+[Actions 39952582607](https://github.com/misswell/AgentSpace/actions/runs/39952582607)
+all three jobs green. DMG 27,554,549 bytes, sha256
+`0d5f9f979337b1a140c4474cc224009a54b11a3e4d04baee835cbe849322b3ce`. Apple live
+readback: App ZIP `ec055210-95f8-4f99-ae36-3c1442b5f908` and DMG
+`74016449-a705-421a-87d7-85dd23c6d453` both **Accepted**. The downloaded asset
+reads back as **0.1.97**, CLI 0.1.97 (protocol 1), CDHash
+`3816e5cd49074dc8199402c49dee15b98091c02e`, hardened runtime, Gatekeeper accepted,
+staple valid.
+
+**0.1.97 changes nothing a person runs** — the version exists because the tree
+moved, and its note says so in the first line: `clipboard.push`/`clipboard.pull`
+and `status.clipboard` are identical to 0.1.96, so no 「重新安装助手…」 is needed
+again. What it carries is the acceptance the 0.1.96 notes promised:
 `tests/App/ClipboardCompositeLiveTests.swift` runs the whole clipboard gesture
 through the production types (a real ⌘V `NSEvent` → the real monitor → the real
 bridge → a real worker in AgentUse's session → the agent application actually
