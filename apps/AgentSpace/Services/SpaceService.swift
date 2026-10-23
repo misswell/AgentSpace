@@ -22,6 +22,17 @@ struct SpaceSnapshot: Identifiable, Equatable {
     /// before this grant was tracked answers without the field, and "the old
     /// worker never looked" must not render as "denied".
     var fileAccess: Bool? = nil
+    /// Can this worker move the person's clipboard into the agent's, files
+    /// included? Optional for the same reason as `fileAccess`, and here the
+    /// distinction carries the whole feature: a viewer built for bridging must
+    /// forward ⌘V untouched against a worker that answers without this, because
+    /// asking it for `clipboard.push` would only produce `METHOD_NOT_FOUND`
+    /// after the person had already pressed the key. Absent means "cannot", and
+    /// the paste degrades to the agent's own clipboard instead of an error.
+    var clipboardBridge: Bool? = nil
+    /// Files as well as text, when the worker says so. Older bridges (none ship
+    /// yet, but the field is the contract) would refuse a folder copy.
+    var clipboardFiles: Bool? = nil
     var display: DisplayGeometry?
     /// The real 2× (or sharper) display available to the Desktop Viewer.
     var retinaDisplay: ViewerDisplay?
@@ -194,6 +205,8 @@ final class SpaceService {
             snapshot.screenRecording = result["screenRecording"]?.boolValue ?? false
             snapshot.accessibility = result["accessibility"]?.boolValue ?? false
             snapshot.fileAccess = result["fileAccess"]?.boolValue
+            snapshot.clipboardBridge = result["clipboard"]?["bridge"]?.boolValue
+            snapshot.clipboardFiles = result["clipboard"]?["files"]?.boolValue
             if let display = result["display"] {
                 snapshot.display = DisplayGeometry(
                     width: display["width"]?.intValue ?? 0,

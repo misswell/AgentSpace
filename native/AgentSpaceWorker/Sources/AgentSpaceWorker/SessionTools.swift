@@ -20,10 +20,16 @@ extension Operations {
 
     func clipboardRead() throws -> JSONValue {
         try requireDesktopSession("read the agent clipboard")
-        let text = NSPasteboard.general.string(forType: .string)
-        if let text { try SessionResource.validateText(text) }
-        return .obj(["text": text.map(JSONValue.string) ?? .null,
-                     "hasText": .bool(text != nil)])
+        // Same board object as the bridge, so it takes the same lane: `SocketServer`
+        // serves RPC on a concurrent queue, and two callers inside AppKit at once
+        // is the one shape this feature cannot survive. Params and results are
+        // unchanged from 0.1.82.
+        return try ClipboardBridge.onBoard {
+            let text = NSPasteboard.general.string(forType: .string)
+            if let text { try SessionResource.validateText(text) }
+            return .obj(["text": text.map(JSONValue.string) ?? .null,
+                         "hasText": .bool(text != nil)])
+        }
     }
 
     func clipboardWrite(params: JSONValue) throws -> JSONValue {
@@ -32,15 +38,17 @@ extension Operations {
             throw AgentSpaceError(code: .badRequest, message: "clipboard.write requires a text string (empty clears the text)")
         }
         try SessionResource.validateText(text)
-        let board = NSPasteboard.general
-        board.clearContents()
-        if text.isEmpty {
-            return .obj(["written": .bool(true), "bytes": .int(0)])
+        return try ClipboardBridge.onBoard {
+            let board = NSPasteboard.general
+            board.clearContents()
+            if text.isEmpty {
+                return .obj(["written": .bool(true), "bytes": .int(0)])
+            }
+            guard board.setString(text, forType: .string) else {
+                throw AgentSpaceError(code: .internalError, message: "the agent clipboard could not accept text")
+            }
+            return .obj(["written": .bool(true), "bytes": .int(text.utf8.count)])
         }
-        guard board.setString(text, forType: .string) else {
-            throw AgentSpaceError(code: .internalError, message: "the agent clipboard could not accept text")
-        }
-        return .obj(["written": .bool(true), "bytes": .int(text.utf8.count)])
     }
 
     func axSetValue(params: JSONValue) throws -> JSONValue {
@@ -53,5 +61,35 @@ extension Operations {
             pid: pid, value: value, role: params["role"]?.stringValue,
             titleContains: params["titleContains"]?.stringValue,
             identifier: params["identifier"]?.stringValue)
+    }
+
+    // MARK: - Clipboard bridge
+
+    /// `clipboard.push` — the person's clipboard (text and/or files the
+    /// controller staged in this account's runtime directory) onto the agent's.
+    ///
+    /// The session check comes first, before the staging directory is resolved or
+    /// touched: a worker whose session is on the physical console must not read,
+    /// move or write anything for this feature, and the refusal has to be the
+    /// answer rather than a half-done transfer. See `ClipboardBridge` for why the
+    /// board itself is written inside a serial lane.
+    func clipboardPush(params: JSONValue) throws -> JSONValue {
+        try requireDesktopSession("write the agent clipboard")
+        return try ClipboardBridge.push(
+            params: params, staging: clipboardStaging)
+    }
+
+    /// `clipboard.pull` — what the agent copied, read off its own board and
+    /// copied into a fresh `outbox/` batch for the controller to collect.
+    func clipboardPull(params: JSONValue) throws -> JSONValue {
+        try requireDesktopSession("read the agent clipboard")
+        return try ClipboardBridge.pull(
+            params: params, staging: clipboardStaging)
+    }
+
+    /// The staging directories of the account this worker serves, derived from
+    /// its own runtime directory — never from anything a caller sent.
+    var clipboardStaging: ClipboardStaging {
+        ClipboardStaging(runtimeDirectory: context.paths.directory)
     }
 }

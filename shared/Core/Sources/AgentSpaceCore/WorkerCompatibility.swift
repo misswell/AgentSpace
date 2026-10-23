@@ -19,7 +19,7 @@ public enum WorkerCompatibility {
         method: String
     ) -> AgentSpaceError? {
         guard let error else { return nil }
-        guard method == Method.openSystemSettings,
+        guard postV1Methods.contains(method),
               error.code == .methodNotFound else { return error }
         return AgentSpaceError(
             code: .methodNotFound,
@@ -27,6 +27,24 @@ public enum WorkerCompatibility {
             recoverable: true,
             recoveryHint: .reinstallWorker)
     }
+
+    /// Methods added to the wire contract *after* the version that first shipped
+    /// `protocolVersion = 1`.
+    ///
+    /// They are additive by design — a new GUI always drives a new worker, but
+    /// launchd can keep the old LaunchAgent running after an in-app update, so
+    /// for a while a new GUI talks to an old worker. `METHOD_NOT_FOUND` from one
+    /// of these is not a protocol failure, it is a stale binary, and the honest
+    /// answer is the existing typed 「reinstall the worker」 recovery rather than
+    /// a paste that does nothing. Anything *not* in this list keeps failing as an
+    /// honest unknown-method error: guessing would hide a real bug.
+    public static let postV1Methods: Set<String> = [
+        Method.openSystemSettings,
+        // 0.1.96 — the person's clipboard crossing into an agent desktop, and
+        // back. Both are additive: no rename, no protocol bump.
+        Method.clipboardPush,
+        Method.clipboardPull,
+    ]
 
     public static func version(from response: RPCResponse?) -> String? {
         guard response?.ok == true else { return nil }

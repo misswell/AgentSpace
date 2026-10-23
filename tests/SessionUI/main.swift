@@ -650,6 +650,23 @@ if let row = connectionsRow, let value = AXUI.string(row, kAXValueAttribute as S
     reports.note("  \(windowDiagnostics(pid))")
 }
 
+// The clipboard row (§397): ⌘V bridging is a fact about the *worker binary*, so
+// the account page has to be able to say 「this Worker cannot」 before the person
+// presses the key and gets nothing. The seeded account is offline, so the row
+// must read 「unknown」 rather than 「not supported」 — the same
+// unknown-is-not-no rule the snapshot follows. Only presence is asserted; the
+// value depends on whether a Worker is running, which a seeded root does not
+// control.
+let clipboardRow = AXUI.wait(20) { () -> AXUIElement? in
+    guard let main = AXUI.mainWindow(pid) else { return nil }
+    return AXUI.find(main, identifier: "agentClipboardBridgeValue")
+}
+reports.check("account page shows the clipboard paste row", "found",
+              clipboardRow == nil ? "missing" : "found")
+if let row = clipboardRow, let value = AXUI.string(row, kAXValueAttribute as String) {
+    reports.note("  Clipboard paste value: [\(value)]")
+}
+
 // MARK: - Phase F: both authorization surfaces keep the Screen Sharing door (§385)
 
 // The report this phase exists for: the entry that opens the agent's own session

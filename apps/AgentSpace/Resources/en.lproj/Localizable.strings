@@ -741,3 +741,20 @@
 "Configure the client you use from the account page's Install MCP Into… menu, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client)." = "Configure the client you use from the account page's Install MCP Into… menu, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client).";
 "The MCP service is ready for %@." = "The MCP service is ready for %@.";
 "This process cannot tell which AgentSpace install it belongs to, so client registrations cannot be compared against it." = "This process cannot tell which AgentSpace install it belongs to, so client registrations cannot be compared against it.";
+
+"Clipboard paste" = "Clipboard paste";
+"not supported by this Worker" = "not supported by this Worker";
+"unknown (Worker not running)" = "unknown (Worker not running)";
+"text and files" = "text and files";
+"text only" = "text only";
+"Update this account's Worker to paste text and files into its desktop with ⌘V." = "Update this account's Worker to paste text and files into its desktop with ⌘V.";
+
+"The text you copied is larger than the 1 MB AgentSpace can paste into an agent desktop." = "The text you copied is larger than the 1 MB AgentSpace can paste into an agent desktop.";
+"You copied more than 32 items. AgentSpace pastes files and folders one clipboard at a time, up to 32 items." = "You copied more than 32 items. AgentSpace pastes files and folders one clipboard at a time, up to 32 items.";
+"AgentSpace pastes plain text and files. This clipboard holds something else (an image or rich text), so the agent's own clipboard answers instead." = "AgentSpace pastes plain text and files. This clipboard holds something else (an image or rich text), so the agent's own clipboard answers instead.";
+
+/* The clipboard bridge's own lines — §397. ⌘V carries the person's clipboard into an agent desktop, ⌘C carries the agent's selection back out; both are on demand and neither is a mirror. */
+"files only" = "files only";
+"Pasted %@ into the agent desktop." = "Pasted %@ into the agent desktop.";
+"Copied %@ from the agent desktop into your clipboard." = "Copied %@ from the agent desktop into your clipboard.";
+"Some of the clipboard did not fit and was left behind: the limit is 32 items or 128 MB." = "Some of the clipboard did not fit and was left behind: the limit is 32 items or 128 MB.";

@@ -271,32 +271,70 @@ struct DesktopViewerView: View {
         guard keyMonitor == nil,
               let snapshot, snapshot.workerOnline, snapshot.acceptsInput,
               hostWindow != nil else { return }
-        keyMonitor = RemoteKeyboardMonitor.install(window: hostWindow!, permitsInput: {
-            self.snapshot?.workerOnline == true && self.snapshot?.acceptsInput == true
-        }) { action in
-            guard let snapshot = self.snapshot else { return }
-            let space = snapshot.space
-            // A forwarded key is the person's hand (§353's idle clock).
-            self.lastActivity = Date()
-            self.pendingAction = Self.describe(action)
-            // Keys take the fast channel when it is up, and the RPC path when it
-            // is not. Both end in the worker's own `KeyCombo` parser and the same
-            // session gates, so the only difference is which socket carries the
-            // bytes — and a keystroke that shares a socket with the pointer cannot
-            // be queued behind a JSON encode.
-            let channelUp = self.input.sendKeyAction(action)
-            if !channelUp {
-                Task { @MainActor in
-                    let error = await Task.detached(priority: .userInitiated) {
-                        SpaceService().input(for: space, actions: [action])
-                    }.value
-                    if let error {
-                        self.captureError = AppModel.PresentedError(
-                            code: error.code.rawValue,
-                            message: error.message,
-                            fix: error.code.remediation,
-                            spaceName: space.name)
-                    }
+        keyMonitor = RemoteKeyboardMonitor.install(
+            window: hostWindow!,
+            permitsInput: {
+                self.snapshot?.workerOnline == true && self.snapshot?.acceptsInput == true
+            },
+            // A view struct cannot be captured weakly; what the closures need is
+            // all reference-backed anyway (`model`, `input`, the `@State`
+            // wrappers), which is the same reason the plain `send` closure below
+            // reads `snapshot` and writes `lastActivity` without one.
+            clipboard: { intent, action in
+                // ⌘V/⌘C across the two desktops (§397). A worker that answered
+                // `clipboard.bridge: false` never has the person's board read,
+                // and keeps the pre-feature behaviour with no error line about a
+                // key that worked.
+                self.input.handleClipboard(
+                    intent: intent, action: action,
+                    bridgingAvailable: self.snapshot?.clipboardBridge,
+                    permitsInput: {
+                        // The window is part of the gate, not just the worker: a
+                        // bridge resolves asynchronously (up to a 128 MB copy),
+                        // and a person who closed the viewer in the meantime must
+                        // not have their paste typed into a desktop nobody is
+                        // looking at.
+                        self.snapshot?.workerOnline == true
+                            && self.snapshot?.acceptsInput == true
+                            && self.hostWindow?.isVisible == true
+                    },
+                    send: { action in self.forwardKey(action) })
+            }
+        ) { action in
+            self.forwardKey(action)
+        }
+    }
+
+    /// One keystroke to the agent's session, exactly as every key has travelled
+    /// since §52: the fast channel when it is up, the RPC path when it is not.
+    ///
+    /// The clipboard bridge calls this itself once its transfer has resolved, and
+    /// the monitor calls it directly for everything that is not a bridged
+    /// clipboard keystroke — the same function, so a paste and a letter cannot
+    /// take different routes to the same session.
+    private func forwardKey(_ action: InputAction) {
+        guard let snapshot = self.snapshot else { return }
+        let space = snapshot.space
+        // A forwarded key is the person's hand (§353's idle clock).
+        self.lastActivity = Date()
+        self.pendingAction = Self.describe(action)
+        // Keys take the fast channel when it is up, and the RPC path when it
+        // is not. Both end in the worker's own `KeyCombo` parser and the same
+        // session gates, so the only difference is which socket carries the
+        // bytes — and a keystroke that shares a socket with the pointer cannot
+        // be queued behind a JSON encode.
+        let channelUp = self.input.sendKeyAction(action)
+        if !channelUp {
+            Task { @MainActor in
+                let error = await Task.detached(priority: .userInitiated) {
+                    SpaceService().input(for: space, actions: [action])
+                }.value
+                if let error {
+                    self.captureError = AppModel.PresentedError(
+                        code: error.code.rawValue,
+                        message: error.message,
+                        fix: error.code.remediation,
+                        spaceName: space.name)
                 }
             }
         }
@@ -392,7 +430,7 @@ struct DesktopViewerView: View {
                     .foregroundStyle(input.refusal == nil ? Color.primary : Color.orange)
             }
             .popover(isPresented: $showingDetails, arrowEdge: .bottom) { details }
-            .help(input.refusal?.message ?? snapshot?.statusDisplayName ?? "")
+            .help(input.refusal?.message ?? input.clipboardNote ?? snapshot?.statusDisplayName ?? "")
             .accessibilityLabel(Text("Information"))
             .accessibilityIdentifier("desktopViewerDetails")
 
@@ -566,6 +604,13 @@ struct DesktopViewerView: View {
             }
             if let refusal = input.refusal {
                 Text(refusal.message).foregroundStyle(.red)
+            } else if let note = input.clipboardNote {
+                // The clipboard bridge's own line (§397). Deliberately *not* red
+                // and not in `captureError`: every outcome that reaches here
+                // carried or refused the content and still sent the keystroke, so
+                // colouring it like a failure would teach the person to distrust
+                // a paste that worked.
+                Text(note).foregroundStyle(.secondary)
             } else if let pendingAction {
                 Text(pendingAction).foregroundStyle(.secondary)
             }

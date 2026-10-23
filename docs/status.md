@@ -4,7 +4,27 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-22 on `master`. Current public release: **0.1.95**.
+Last updated: 2026-10-23 on `master`. Current public release: **0.1.95**;
+0.1.96 is prepared on master and awaits its tag (§397).
+
+Prepared 0.1.96 (§397, 2026-10-23): ⌘V and ⌘C now carry the person's clipboard —
+plain text **and files** — between their own desktop and an agent's, in the
+Desktop Viewer and in every Fusion window, on demand at the keystroke. This is the
+owner's 「要支持复制粘贴进子窗口，文字和文件都要支持」. **It is a Worker change as
+well as an app change** (`clipboard.push` / `clipboard.pull`, plus a `clipboard`
+block in `status`), so the note leads with the one-time 「重新安装助手…」; against an
+un-updated Worker a paste degrades to the old behaviour rather than erroring. Local
+gate on this tree: Swift **936** tests (6 skipped, 0 failures — 901 before, +35 this
+round), updater **19 checks**, MCP smoke passed, MCP package **30 pass / 1 skip**,
+and step 1b's handle check reads **22** UI handles whole in the built binary (the
+new `agentClipboardBridgeValue` among them). **Layer 4 did not produce a verdict**:
+the session twin refused with exit 3 because that session's accessibility answered
+the app element in place of its windows, and the TextEdit control §381 names failed
+identically at the same moment — so this round records 「nothing verified」 for the
+shipped UI, not a pass (row 1332). Protocol stays 1; the two methods are additive
+and map to the existing 「reinstall the worker」 recovery on an older Worker. Files
+cross by value through `<runtime>/clipboard/` because the agent account cannot read
+the person's home; images, rich text and drag and drop are not carried.
 
 Published 0.1.95 (§396, 2026-10-22): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.95),
 source [008d877](https://github.com/misswell/AgentSpace/commit/008d877082e93b22cdccc9ce1f64a6b5631a7ab6),
@@ -1509,8 +1529,11 @@ V3 does not make the later roadmap appear by renaming Phase 1:
    screen.
 5. **Multi-account soak** — two attached accounts working concurrently while
    the human continues normal work.
-6. **Fusion V2 surfaces** — transient windows, explicit clipboard bridging and
-   restricted transfer-directory drag and drop remain intentionally deferred.
+6. **Fusion V2 surfaces** — transient windows and restricted transfer-directory
+   drag and drop remain intentionally deferred. Explicit clipboard bridging is
+   **no longer deferred**: since 0.1.96 ⌘V and ⌘C carry the person's text and
+   files into an agent's desktop and back, on demand — see
+   「The clipboard bridge」 below.
 
 ## V4 Fusion implementation state
 
@@ -1586,6 +1609,87 @@ The code gates can verify protocol, lifecycle and mapping. The defining
 TextEdit cross-session acceptance still requires the attached account's real
 Aqua session and TCC grants, and must not be represented as passed until that
 manual run is recorded in `docs/validation.md`.
+
+## The clipboard bridge — ⌘V and ⌘C across the two desktops
+
+The owner asked for 「要支持复制粘贴进子窗口，文字和文件都要支持」. It is
+implemented: ⌘V in a Desktop Viewer or Fusion window carries the person's plain
+text **and files** into the agent's desktop, and ⌘C carries what the agent copied
+back out onto the person's board. The two facts that decided the shape are macOS
+facts, not taste — the person's `NSPasteboard.general` and the agent's are two
+different boards (measured, §397 row 1322), and the agent account cannot read the
+person's home at all.
+
+**It is on demand, never a mirror.** The person's board is read once, at the
+instant they press ⌘V, and written only after a ⌘C for which the agent's board
+actually changed — an unchanged board leaves their clipboard alone. Nothing polls
+and nothing buffers.
+
+**Files cross by value, not by path.** A file cannot be handed over as a path the
+agent account cannot open, so the bytes are staged in
+`<runtime>/clipboard/{inbox,pasted,outbox}/` — the account's own runtime directory,
+which already carries the two-user inherited ACL for sockets, tokens and
+screenshots (`RuntimePaths.applyACL`). `inbox/` is the bytes for one request and
+is spent once carried; `pasted/` is what the agent's board points at, so a paste
+ten minutes later still finds the file; `outbox/` is the worker's copy of agent
+files, which the GUI copies out again into the app's own
+`~/Library/Caches/com.agentspace.AgentSpace/Clipboard/` so the person's paste
+survives the agent's next copy. The limits are 1 MiB of text (the same number
+`clipboard.read`/`clipboard.write` enforce), 32 items and 128 MiB per transfer,
+with a folder counting as one item and travelling whole; a side keeps 8 batches or
+512 MiB, whichever comes first, and a batch nobody has touched for seven days is
+swept. The newest batch is never removed, because it is the one a paste is about
+to use.
+
+**What is not carried.** Images and rich text. The keystroke still reaches the
+agent, so the agent's own clipboard answers exactly as it did before this feature
+existed, and the person is told once — as information, not as an error, because a
+paste that worked must not be shown in a failure's colour. The same rule covers a
+text selection over 1 MiB, more than 32 items, and an out-of-date Worker: every
+path sends the keystroke. The one bug this feature must not introduce is a ⌘V that
+silently does nothing.
+
+**Two new additive methods.** `clipboard.push` and `clipboard.pull` are wire
+additions at `protocolVersion = 1` — no rename, no protocol bump, and
+`docs/protocol.md` documents the params, results and limits. `status` gains a
+`clipboard` block whose constants let a client decide before offering the bridge;
+a pre-0.1.96 worker simply has no such key, and absent ≠ false. On such a worker
+both methods answer `METHOD_NOT_FOUND`, which `WorkerCompatibility.postV1Methods`
+maps to the existing typed 「reinstall the worker」 recovery, and the GUI then
+forwards ⌘V untouched — the pre-feature behaviour, not an error. The refused
+attempt is remembered per account (`ClipboardBridgeClient.isUnsupported`) so the
+cost is one round trip and one informational line per account, never per window and
+never per keystroke.
+
+**Not exposed to agents.** There is no MCP tool for this, and that is a boundary
+rather than an omission: the bridge fires on a human keystroke in a window, and a
+person's clipboard is not an agent's to read on request. `clipboard_read`/
+`clipboard_write` remain the agent-side, text-only, agent-account API they were in
+0.1.82 (see [`MCP_SYSTEM_FEATURES.md`](MCP_SYSTEM_FEATURES.md)), and `key cmd+v`
+pastes what the agent put on its own board.
+
+The account page gained one row for it — 「Clipboard paste」, reading
+「text and files」 / 「text only」 / 「not supported by this Worker」 / 「unknown
+(Worker not running)」 — because "the feature is broken" and "the Worker is old"
+must be distinguishable without pressing the key first. A sleeping account reads
+「unknown」 rather than 「not supported」: nobody was asked, so it is not a no. The
+row was also added to layer 4's handle list (`agentClipboardBridgeValue`), so the
+gate can see it.
+
+Two sequencing facts are properties of the feature rather than of either window, so
+they live in one place (`ClipboardBridgeHost`), shared by the Desktop Viewer and
+every Fusion proxy: a ⌘V pushes *before* the keystroke is forwarded, because the
+agent's paste reads its own board at the instant the key lands; and a ⌘C forwards
+the keystroke first and then pulls, where the worker waits for `changeCount` to
+move. The first ⌘C of an account reads that count once beforehand — one round trip,
+on the person's own keystroke and not on window open — so a copy can be judged a
+change against a number rather than a guess. The count itself is kept per account
+and not per window, because the board it describes belongs to the account: a second
+window's copy must not look like a fresh change to the first.
+
+Where the evidence stands is §397: the transfer was measured on the wire in both
+directions against a real worker in a real agent session, and the composite gesture
+(a real ⌘V in a real window) is the owner's to accept, as with every input path.
 
 ## Measuring the frame engine
 

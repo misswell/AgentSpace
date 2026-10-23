@@ -315,6 +315,22 @@ struct SpaceDetailView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            // Whether ⌘V in this account's windows can carry a file, not just
+            // text. It is a fact about the *worker binary*, not about the
+            // desktop: a new viewer driving a pre-0.1.96 worker has to forward
+            // ⌘V untouched, so the person needs somewhere to read which of the
+            // two they have — otherwise the difference between "the feature is
+            // broken" and "the worker is old" is invisible (§397).
+            Field(label: NSLocalizedString("Clipboard paste", comment: ""),
+                  value: clipboardPasteValue(snapshot),
+                  tint: clipboardPasteTint(snapshot),
+                  identifier: "agentClipboardBridgeValue")
+            if snapshot.clipboardBridge == nil {
+                Text(NSLocalizedString("Update this account's Worker to paste text and files into its desktop with ⌘V.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Field(label: NSLocalizedString("Workspace", comment: ""), value: snapshot.space.workspace.displayName)
             if snapshot.space.sharedFolders.isEmpty {
                 Field(label: NSLocalizedString("Shared folders", comment: ""), value: NSLocalizedString("none", comment: ""))
@@ -329,6 +345,29 @@ struct SpaceDetailView: View {
     /// Which clients can launch this install's MCP service (§384), in the terms a
     /// person reads on this page: the client names, and what to run when one of
     /// them cannot start.
+    /// Three states, because "unknown" is not "no": a sleeping worker has not
+    /// been asked, and saying 「no」 there would send the person to reinstall a
+    /// worker that is already current.
+    private func clipboardPasteValue(_ snapshot: SpaceSnapshot) -> String {
+        guard let bridge = snapshot.clipboardBridge else {
+            return snapshot.workerOnline
+                ? NSLocalizedString("not supported by this Worker", comment: "")
+                : NSLocalizedString("unknown (Worker not running)", comment: "")
+        }
+        guard bridge else { return NSLocalizedString("not supported by this Worker", comment: "") }
+        return snapshot.clipboardFiles == true
+            ? NSLocalizedString("text and files", comment: "")
+            : NSLocalizedString("text only", comment: "")
+    }
+
+    private func clipboardPasteTint(_ snapshot: SpaceSnapshot) -> Color? {
+        switch snapshot.clipboardBridge {
+        case .some(true): return .green
+        case .some(false): return .orange
+        case .none: return snapshot.workerOnline ? .orange : nil
+        }
+    }
+
     private var connectionValue: String {
         guard let connections = model.mcpConnections else { return NSLocalizedString("checking…", comment: "") }
         let names = connections.reachable.map(\.target.displayName)

@@ -32,6 +32,18 @@ public enum Method {
     public static let openResource = "resource.open"
     public static let clipboardRead = "clipboard.read"
     public static let clipboardWrite = "clipboard.write"
+    /// The person's clipboard crossing into the agent's, and back. Additive at
+    /// protocol version 1: a worker from before 0.1.96 answers `METHOD_NOT_FOUND`,
+    /// and the GUI turns that into the usual 「update the worker」 recovery rather
+    /// than into a paste that silently does nothing.
+    ///
+    /// These are *file* transfers as well as text, so they name a staging batch
+    /// rather than carrying the payload: the controller writes the bytes into
+    /// the account's runtime directory (the one directory both users can reach)
+    /// and the worker moves them from there. `ClipboardContents` in
+    /// `ClipboardTransfer.swift` is the shape of an answer.
+    public static let clipboardPush = "clipboard.push"
+    public static let clipboardPull = "clipboard.pull"
     public static let shutdown = "shutdown"
     /// Open one of the privacy panes in the connected account's own Aqua
     /// session. The worker is the only process that can launch the URL there;

@@ -737,3 +737,20 @@
 "Configure the client you use from the account page's Install MCP Into… menu, or run `agentspace integrate <target> --install` (run `agentspace integrate` with no target to list every supported client)." = "在账号页的「把 MCP 安装到…」菜单中选择你使用的客户端，或执行 `agentspace integrate <target> --install`（不带目标运行 `agentspace integrate` 可列出全部受支持的客户端）。";
 "The MCP service is ready for %@." = "MCP 服务可供 %@ 使用。";
 "This process cannot tell which AgentSpace install it belongs to, so client registrations cannot be compared against it." = "本进程无法确定自己属于哪次 AgentSpace 安装，因此无法比对客户端注册。";
+
+"Clipboard paste" = "剪贴板粘贴";
+"not supported by this Worker" = "当前 Worker 不支持";
+"unknown (Worker not running)" = "未知（Worker 未运行）";
+"text and files" = "文字和文件";
+"text only" = "仅文字";
+"Update this account's Worker to paste text and files into its desktop with ⌘V." = "更新这个账号的 Worker，才能在它的桌面里用 ⌘V 粘贴文字和文件。";
+
+"The text you copied is larger than the 1 MB AgentSpace can paste into an agent desktop." = "你复制的文字超过了 AgentSpace 能粘贴进 Agent 桌面的 1 MB 上限。";
+"You copied more than 32 items. AgentSpace pastes files and folders one clipboard at a time, up to 32 items." = "你复制了超过 32 项。AgentSpace 每次剪贴板最多粘贴 32 个文件或文件夹。";
+"AgentSpace pastes plain text and files. This clipboard holds something else (an image or rich text), so the agent's own clipboard answers instead." = "AgentSpace 粘贴的是纯文字和文件。这次剪贴板里是别的内容（图片或富文本），所以改由 Agent 自己的剪贴板应答。";
+
+/* 剪贴板桥自己的那几行 —— §397。⌘V 把你本机剪贴板里的内容送进 Agent 桌面，⌘C 把 Agent 里选中的内容送回你的剪贴板；两个方向都只在按键那一刻发生，都不是持续镜像。 */
+"files only" = "仅文件";
+"Pasted %@ into the agent desktop." = "已把%@粘贴进 Agent 桌面。";
+"Copied %@ from the agent desktop into your clipboard." = "已把%@从 Agent 桌面复制到你的剪贴板。";
+"Some of the clipboard did not fit and was left behind: the limit is 32 items or 128 MB." = "有一部分内容超出上限没有带过去：上限是 32 项或 128 MB。";

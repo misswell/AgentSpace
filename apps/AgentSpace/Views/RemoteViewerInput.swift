@@ -26,6 +26,11 @@ final class RemoteViewerInput: ObservableObject {
     /// replacing a working desktop with a message about a hover would be the
     /// viewer manufacturing its own problem.
     @Published private(set) var refusal: AppModel.PresentedError?
+    /// What the last clipboard bridge did, when it is worth a line: a paste that
+    /// carried a folder, a refusal that left the content behind, or a worker too
+    /// old to carry anything. Not an error — the keystroke went through in every
+    /// one of those cases — so it is kept beside `refusal` rather than in it.
+    @Published private(set) var clipboardNote: String?
     /// True once the channel is up and the worker has promised a cursor of its
     /// own, which is what lets the viewer hide the local one and stop drawing
     /// the cursor that is baked into the frames.
@@ -41,6 +46,18 @@ final class RemoteViewerInput: ObservableObject {
     /// The display point of the last gesture's press, so a drag's phases all
     /// resolve against the frame the press named.
     private var lastPressPoint: (x: Double, y: Double)?
+    /// True for a Fusion proxy: its window has no details row, so information
+    /// about a bridged keystroke is presented through the one notice panel it
+    /// does have (see `noteClipboard`). The Desktop Viewer leaves this false and
+    /// reads `clipboardNote` directly.
+    var presentsClipboardNotesInOverlay = false
+    /// This window's ⌘V/⌘C bridging, created for the account it drives.
+    ///
+    /// The *host* is per window — "a bridge is in flight here" must not block a
+    /// second proxy — while the `ClipboardBridgeClient` under it is shared per
+    /// account (`ClipboardBridgeRegistry`), because the `changeCount` it tracks
+    /// describes the account's one board and not this window's view of it.
+    private var bridge: ClipboardBridgeHost?
 
     func configure(space: AgentAccount, display: ViewerDisplay) {
         configure(space: space, surface: .desktop(display.geometry))
@@ -49,6 +66,7 @@ final class RemoteViewerInput: ObservableObject {
     func configure(space: AgentAccount, surface: ViewerInputSurface) {
         self.space = space
         self.surface = surface
+        if bridge == nil { bridge = ClipboardBridgeHost(space: space) }
         let rate = DisplayRefresh.defaultPointerRate
         if client == nil {
             let shared = InputChannelRegistry.shared.channel(for: space)
@@ -240,6 +258,66 @@ final class RemoteViewerInput: ObservableObject {
         }
     }
 
+    /// A clipboard keystroke that this window should bridge.
+    ///
+    /// Both windows ask this and nothing else about the clipboard: the monitor
+    /// answers *which* keystroke, `ClipboardBridgeHost` owns the order of the
+    /// transfer, and the only window-specific thing is how a line is shown.
+    /// `bridgingAvailable` comes from the worker's `status` (`clipboard.bridge`),
+    /// so an account whose Worker predates this feature never reads the person's
+    /// board at all.
+    func handleClipboard(
+        intent: ClipboardShortcut.Intent,
+        action: InputAction,
+        bridgingAvailable: Bool?,
+        permitsInput: @escaping () -> Bool,
+        send: @escaping (InputAction) -> Void
+    ) -> RemoteKeyboardMonitor.ClipboardHandling {
+        guard let bridge, let space else { return .forward }
+        return bridge.handle(
+            intent: intent, action: action,
+            bridgingAvailable: bridgingAvailable,
+            permitsInput: permitsInput,
+            send: send,
+            note: { [weak self] notice in self?.noteClipboard(notice, space: space) })
+    }
+
+    /// The bridge's one line, on one of this window's two existing surfaces.
+    ///
+    /// A *failure* goes to `refusal`, which both windows already render (the
+    /// viewer's details popover and orange info button, the proxy's own overlay):
+    /// the transfer did not happen. Everything else — carried, refused, a worker
+    /// that predates the feature — goes to `clipboardNote` as information,
+    /// because in every one of those cases the keystroke did reach the agent and
+    /// colouring it red would teach the person to distrust a paste that worked.
+    ///
+    /// Deliberately not `captureError`: that banner is titled 「Cannot show the
+    /// agent's desktop」, and a clipboard that failed to cross is not that.
+    ///
+    /// The Desktop Viewer renders `clipboardNote` itself, in its details popover,
+    /// as secondary text. A Fusion proxy has no such row (`FusionWindowView` is a
+    /// picture and one notice panel), so it asks for the notice to be presented
+    /// through `refusal` — the only surface both windows already have — with the
+    /// account page's own neutral title rather than an error code. That keeps the
+    /// "a bridged paste says so" promise in both windows without inventing a
+    /// second HUD, and keeps a refusal from reading as a failure.
+    private func noteClipboard(_ notice: ClipboardBridgeNotice, space: AgentAccount) {
+        if let error = notice.error {
+            clipboardNote = nil
+            refusal = AppModel.PresentedError(
+                code: error.code.rawValue, message: error.message,
+                fix: error.code.remediation, spaceName: space.name)
+            return
+        }
+        clipboardNote = notice.message
+        guard presentsClipboardNotesInOverlay else { return }
+        refusal = AppModel.PresentedError(
+            code: NSLocalizedString("Clipboard paste", comment: ""),
+            message: notice.message,
+            fix: nil,
+            spaceName: space.name)
+    }
+
     /// Positions collected for a desktop nobody is watching any more must not be
     /// posted after it, and a person who has left must not leave automation
     /// paused.
@@ -248,6 +326,8 @@ final class RemoteViewerInput: ObservableObject {
         lastPressPoint = nil
         travel?.reset()
         client?.releaseHuman()
+        bridge?.reset()
+        clipboardNote = nil
     }
 
     /// Closes the channel. The worker sees the socket end, which is also its

@@ -145,6 +145,11 @@ omitted rather than sent as `false`. See
 [`security.md`](security.md) for why a metric is not allowed to enter
 `Documents`.
 
+Since 0.1.96 the answer also carries a `clipboard` block — this binary's static
+clipboard-bridge capability, constants only. A worker from before it answers
+without the key, and absent ≠ false; the `clipboard.push` / `clipboard.pull`
+section below is where that block is described.
+
 ### `screenshot`
 
 Params: `maxWidth` (positive int), `display` (1-based; 1 is the main display),
@@ -559,6 +564,186 @@ Success is `{ "opened": true }`.
 existing formats with plain text. Returns `{ "written": true, "bytes": N }`.
 The CLI transports both clipboard writes and AX scalar writes on stdin; MCP
 error context and the acknowledgement contain no supplied text.
+
+### `clipboard.push` / `clipboard.pull` (0.1.96+)
+
+The person's clipboard crossing into an agent's desktop, and back. Both begin
+with `requireDesktopSession`, so a worker whose session is on the physical
+console refuses before it reads, moves or writes anything — that refusal is the
+product (AGENTS.md §3).
+
+The transfer is **on demand**: the person's board is read once, at the ⌘V they
+press in a Desktop Viewer or Fusion window, and written only after a ⌘C for which
+the agent's board actually changed. Nothing polls and nothing mirrors; there is no
+wire method meaning "make these two boards agree".
+
+**Why a directory, not a payload.** `NSPasteboard.general` is per Aqua session, so
+the person's board and the agent's are two different boards and a paste is a
+*transfer*. And the agent account cannot read the person's home, so a file cannot
+cross as a path: the bytes cross **by value** through the account's own runtime
+directory, which already carries the two-user inherited ACL
+(`RuntimePaths.applyACL`):
+
+```text
+/Library/Application Support/AgentSpace/Runtime/<uuid>/clipboard/
+  inbox/<batch>/…    written by the controller; read and moved by the worker
+  pasted/<batch>/…   the worker's copy of inbox files — what the agent's
+                     clipboard points at, so it outlives the transfer
+  outbox/<batch>/…   the worker's copies of agent-side files, which the
+                     controller copies out and puts on the person's board
+```
+
+The three sides are separate because each answers a different question: `inbox/`
+is "the bytes for this request" and is spent once carried; `pasted/` is "what the
+agent's board points at", so a paste ten minutes later still finds the file; and
+`outbox/` exists only long enough for the controller to take its own copy, because
+the person's paste must survive the agent's next copy. Inside a batch the items sit
+in `items/`, and staged text, when there is one, sits beside that directory as
+`text.txt` — so a copied file called `text.txt` cannot collide with it. A batch
+name is the only user-influenced component of a staged path, so it is validated
+(plain letters, digits and `-`, at most 64 bytes) rather than escaped.
+
+| Limit | Value |
+|---|---|
+| Plain text | 1 MiB (1,048,576 bytes) — the same number `clipboard.read`/`clipboard.write` enforce |
+| Items per transfer | 32. A folder counts as **one** item, however many files are inside it |
+| Bytes per transfer | 128 MiB (134,217,728 bytes) |
+| Batches kept per side | 8, or 512 MiB, whichever comes first |
+| Unused batch retention | 7 days |
+
+Both clipboards hold *paths*, so deleting a batch breaks a paste that has not
+happened yet. The sweep is therefore generous and ordered: anything untouched for
+seven days goes first, then the oldest while a side is over 8 batches or 512 MiB —
+and the newest batch is never removed, however large, because it is the one a
+paste is about to use. The budgets are re-checked on the receiving side rather than
+trusted from the sender, but each is enforced by the rule that fits it: text over
+1 MiB is refused (`push` re-validates it, `pull` asks the board for it and fails
+`BAD_REQUEST`), a `files` list over 32 items has its tail dropped with
+`truncated: true`, and the 128 MiB bytes budget is enforced where each copy is
+actually made — the controller bounds its own staging before it calls `push`, and
+`pull` bounds what it copies out of the agent's board.
+
+**`clipboard.push`** — params
+`{ "batch": String, "text": String?, "files": [entry], "hasText": Bool? }`.
+
+- `batch` is the `inbox/` batch name the controller staged its bytes in. Required.
+- `text` carries a *short* selection inline (the GUI inlines at 64 KiB or less).
+  A large one does not travel here: one JSON line is capped at 1 MiB (`Framing`)
+  and escaping can multiply a string, so the controller writes the text to
+  `<batch>/text.txt` and the worker reads it with the same bound. `hasText` says
+  whether such a file exists; absent means "look for one", which is what a staged
+  push sends.
+- `files` entries are `{ "name", "path", "bytes", "directory" }`. Only `path` is
+  load-bearing — the name, the size and the directory flag are advisory, because
+  the worker measures the copy it makes and sanitizes the name it creates.
+
+Every path must resolve inside `inbox/` (`ClipboardStaging.contains`, which
+resolves symlinks and delegates to `WorkspaceGuard`). A path outside it, an entry
+without an absolute path, or a symbolic link is `BAD_REQUEST`. The worker **moves**
+the files: it copies them into `pasted/` and then removes the inbox batch, in that
+order, so a failure midway leaves the bytes recoverable. A text-only push leaves no
+empty `pasted/` batch behind.
+
+```json
+{ "written": true, "textBytes": 62, "files": 2, "totalBytes": 14,
+  "truncated": false }
+```
+
+Counts only — never the names and never the bytes. `truncated` means part of the
+copy did not fit; the board is still written with what did, because the ⌘V that
+follows must find what the person copied rather than the agent's previous
+clipboard.
+
+**`clipboard.pull`** — params `{ "waitMilliseconds": Int?, "knownChangeCount": Int? }`.
+
+`knownChangeCount` is the agent board's `changeCount` from an earlier read. When it
+is present the worker polls that one integer every 25 ms until it differs or the
+wait runs out, because the ⌘C the person pressed reaches the agent as an
+asynchronous keystroke and the reply cannot be there the instant the caller asks.
+`waitMilliseconds` defaults to 800 and is clamped to 0…2000; with no
+`knownChangeCount` there is nothing to wait for and the call answers at once. The
+wait is a series of one-value hops on the clipboard lane rather than one long hold
+— a ⌘V arriving during a waiting ⌘C must not queue behind two seconds.
+
+```json
+{ "text": "…", "hasText": true,
+  "files": [ { "name": "note.txt", "path": "…/outbox/…/items/note.txt",
+               "bytes": 9, "directory": false } ],
+  "totalBytes": 9, "truncated": false,
+  "batch": "6E8A6026-…", "changeCount": 7 }
+```
+
+`batch` is the `outbox/` batch's **name**, not a path — the controller derives the
+directory from the same runtime path, and a plain name is what
+`ClipboardStaging.isSafeBatchID` can keep checking. It is `null` when no files were
+copied (a text-only answer still carries its `text`). `changeCount` is the board's
+count at the moment it was read, so a caller that was waiting can tell "nothing
+new" from "read it again". Unlike `push`, `files` here is the list of copies, not a
+count. Text over the limit is `BAD_REQUEST`, the same rule as `clipboard.read`:
+the caller is told rather than handed a truncated selection it would believe was
+whole.
+
+**Symbolic links ride neither direction.** A link is the one item that would carry
+a *path* across instead of bytes, and a **broken** link cannot be resolved at all:
+`fileExists` follows the link, reports it absent, the resolver falls back to its
+enclosing directory, and the path then passes a containment test that a working
+link to the same target fails (measured, validation §397 row 1327). The two
+directions enforce it differently, and the difference is deliberate: `push`
+refuses the **whole request** with `BAD_REQUEST` "does not carry symbolic links",
+because a request that named a link is not one the worker can vouch for; `pull` and
+`ClipboardTransfer.stage`/`collect` **skip** the link and set `truncated`, because
+one unreadable entry among a multi-file copy must not lose the rest. A folder
+copied whole is checked as one item — its own name, not its contents — so a link
+*inside* a copied folder travels as a link, pointing at something the agent account
+still cannot read.
+
+One consequence worth knowing before writing a client: because `push` refuses
+rather than skips, a `files` list containing a link also costs the request its
+`text`. The shipped GUI therefore filters links out of the person's own copy before
+listing them — `FileManager.copyItem` preserves a link, so without the filter the
+staged copy would be a link inside `inbox/` and one Finder-copied link would sink a
+paste that was otherwise fine. The GUI skips it and reports "some of the clipboard
+did not fit", on the same footing as an over-limit item, so the text and the other
+files still arrive. `push` keeps refusing (a request that names a link is not one
+the worker can vouch for); `pull` and `ClipboardTransfer.stage`/`collect` skip and
+set `truncated`.
+
+**One board, one lane.** A `NSPasteboardItem` that has passed through
+`writeObjects` can never be written again: AppKit raises
+`NSInternalInconsistencyException` inside the call and the process dies with
+SIGABRT, which is not a catchable Swift error. So every board access in the worker
+goes through one serial queue, and every item is built fresh for the write it
+belongs to. The lane is deliberately not the main queue — that process's main
+thread is parked in `accept()` for its whole life, so `DispatchQueue.main.sync`
+would deadlock rather than hop. `clipboard.read`/`clipboard.write` take the same
+lane; their params and results are unchanged.
+
+**Recovery: an older Worker.** Both methods are additive at `protocolVersion = 1`,
+and both are in `WorkerCompatibility.postV1Methods`. A worker from before 0.1.96
+answers `METHOD_NOT_FOUND`, which that list turns into `recoverable: true` with
+`recoveryHint: "reinstallWorker"` — the existing typed 「reinstall the worker」
+path, not a protocol failure.
+
+How a client learns this *before* offering the bridge is `status`, which carries
+this binary's static capability. Constants only — no pasteboard read and no
+directory walk — so a 2–5 s status poll pays nothing for it, and it answers even
+when the desktop is not ready:
+
+```json
+"clipboard": { "bridge": true, "files": true,
+               "maxTextBytes": 1048576, "maxFiles": 32,
+               "maxFileBytes": 134217728 }
+```
+
+A worker that predates the bridge answers `status` with **no `clipboard` key at
+all**, and absent ≠ false: 「cannot」 is a `false` in `bridge`, while a missing key
+means nobody was asked, which a client must not render as a refusal (a sleeping
+account has not been asked either).
+
+No new error codes: `BAD_REQUEST` for a malformed request, a refused path, a
+symbolic link, an unsafe batch name or an oversized/undecodable staged text;
+`INTERNAL_ERROR` when the board or a staging directory could not be written; and
+the existing `SESSION_*` / `NO_WINDOW_SERVER` codes from the session gate.
 
 ### `systemSettings.open`
 

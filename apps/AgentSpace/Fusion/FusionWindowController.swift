@@ -68,6 +68,10 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
 
     private func openChannel() {
         guard stateSubscriptions.isEmpty else { return }
+        // The proxy's window is a picture plus one notice panel, so the clipboard
+        // bridge's lines go there — the same panel a pointer refusal uses, with
+        // 「Clipboard paste」 as the title rather than an error code (§397).
+        input.presentsClipboardNotesInOverlay = true
         state.contentSize = NSSize(width: remoteWindow.frame.width, height: remoteWindow.frame.height)
         input.configure(space: space, surface: .window(remoteWindow.identity, remoteWindow.frame))
         input.onCursor = { [weak self] presentation in self?.overlay.apply(presentation) }
@@ -87,10 +91,33 @@ final class FusionWindowController: NSWindowController, NSWindowDelegate {
             }
             .store(in: &stateSubscriptions)
         if let window {
-            keyboardMonitor = RemoteKeyboardMonitor.install(window: window,
-                permitsInput: { [weak self] in self?.frameClient != nil }) { [weak self] action in
-                    self?.sendKey(action)
+            keyboardMonitor = RemoteKeyboardMonitor.install(
+                window: window,
+                permitsInput: { [weak self] in self?.frameClient != nil },
+                clipboard: { [weak self] intent, action in
+                    guard let self else { return .forward }
+                    // The same bridge the Desktop Viewer uses, on the same worker
+                    // methods — a proxy is a second window onto one account, not a
+                    // second kind of paste (§397).
+                    return self.input.handleClipboard(
+                        intent: intent, action: action,
+                        // A proxy has no `status` of its own: the account's one
+                        // poller is the app's, and a probe here would put a worker
+                        // round trip in front of the person's ⌘V. nil tries the
+                        // bridge, and a stale worker costs one `METHOD_NOT_FOUND`
+                        // per account, after which every window of that account
+                        // forwards untouched — which is what it did before this
+                        // feature existed.
+                        bridgingAvailable: nil,
+                        // The proxy's capture being up is this window's "input is
+                        // permitted"; the worker re-asks session, desktop, grant
+                        // and lease for the keystroke itself either way.
+                        permitsInput: { [weak self] in self?.frameClient != nil },
+                        send: { [weak self] action in self?.sendKey(action) })
                 }
+            ) { [weak self] action in
+                self?.sendKey(action)
+            }
         }
     }
 

@@ -63,6 +63,7 @@ LAYER4_HANDLES=(
   openAgentPermissionGuide
   openAgentSystemSignIn
   permissionGuideSignIn
+  agentClipboardBridgeValue
   agentConnectionsValue
   appBuildVersionStamp
   automaticUpdateCheckToggle

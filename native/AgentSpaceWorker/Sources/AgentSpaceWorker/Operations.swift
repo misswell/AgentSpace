@@ -57,6 +57,8 @@ struct Operations {
             case Method.openResource: return .success(try openResource(params: params))
             case Method.clipboardRead: return .success(try clipboardRead())
             case Method.clipboardWrite: return .success(try clipboardWrite(params: params))
+            case Method.clipboardPush: return .success(try clipboardPush(params: params))
+            case Method.clipboardPull: return .success(try clipboardPull(params: params))
             case Method.openSystemSettings: return .success(try openSystemSettings(params: params))
             case Method.shutdown: return .success(try shutdown(params: params))
             case Method.previewStart: return .success(try previewStart(params: params))
@@ -224,6 +226,20 @@ struct Operations {
                 "confined": .bool(!context.allowedRoots.isEmpty),
                 "allowedRoots": .array(context.allowedRoots.map { .string($0) }),
                 "writableRoots": .array(context.writableRoots.sorted().map { .string($0) }),
+            ]),
+            // Static capabilities of this binary, so a caller can tell whether a
+            // paste is even possible against this worker before offering it: a
+            // worker from before the clipboard bridge answers `status` with no
+            // `clipboard` key at all, and absent ≠ false. Constants only — no
+            // pasteboard read and no directory walk, so a 2–5 s status poll pays
+            // nothing (§53), and the answer stands when the desktop is not ready,
+            // because a capability does not depend on the session's state.
+            "clipboard": .obj([
+                "bridge": .bool(true),
+                "files": .bool(true),
+                "maxTextBytes": .int(ClipboardLimits.maxTextBytes),
+                "maxFiles": .int(ClipboardLimits.maxFiles),
+                "maxFileBytes": .int(ClipboardLimits.maxFileBytes),
             ]),
         ]
         if let retina = ScreenCapture.retinaViewerDisplay() {
