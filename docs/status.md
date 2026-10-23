@@ -4,27 +4,48 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-23 on `master`. Current public release: **0.1.95**;
-0.1.96 is prepared on master and awaits its tag (§397).
+Last updated: 2026-10-23 on `master`. Current public release: **0.1.96**.
 
-Prepared 0.1.96 (§397, 2026-10-23): ⌘V and ⌘C now carry the person's clipboard —
-plain text **and files** — between their own desktop and an agent's, in the
-Desktop Viewer and in every Fusion window, on demand at the keystroke. This is the
+Published 0.1.96 (§397, 2026-10-23): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.96),
+source [23393a8](https://github.com/misswell/AgentSpace/commit/23393a8),
+[Actions 39944583033](https://github.com/misswell/AgentSpace/actions/runs/39944583033)
+all three jobs green; `releases/latest` answered v0.1.96 on attempt 1 with no §318
+lag. DMG 26,934,473 bytes, sha256
+`397414875a5746211c89c86253121024ce566e5f83fcea676cc25d0c46262022`. Apple live
+`asc notarization list` readback: App ZIP `2fa31513-c300-4722-908a-6f354b4097ac`
+and DMG `ca4429e7-a014-47e8-9aee-c89bbdff2b08` both **Accepted**. Runner gate:
+Swift **941** (6 skipped), updater **19**, MCP smoke passed, and step 1b reads
+**22** UI handles (the new `agentClipboardBridgeValue` among them) plus the four
+bundled binaries ok. **Layer 4 is not run on a runner**, and this round's local
+run produced no verdict — the session twin refused with exit 3 and the TextEdit
+control §381 names failed identically at the same moment — so the shipped UI is
+recorded as 「nothing verified」 rather than as a pass (row 1332). The downloaded
+asset reads back as **0.1.96 (598)**, CLI 0.1.96 (protocol 1), Developer ID +
+hardened runtime, CDHash `0d47fbdea7bac5466dba64515f28de3a2829655f`, ticket
+stapled to both DMG and app, Gatekeeper accepted (row 1333).
+
+**What 0.1.96 changes for a person**: ⌘V in a Desktop Viewer or Fusion window now
+carries what they copied — plain text **and files**, a Finder folder as one item —
+into the agent's desktop, and ⌘C brings what the agent copied back out onto theirs.
+It is on demand at the keystroke, never a mirror: their board is read at ⌘V and
+written only after a ⌘C for which the agent's board actually changed. This is the
 owner's 「要支持复制粘贴进子窗口，文字和文件都要支持」. **It is a Worker change as
 well as an app change** (`clipboard.push` / `clipboard.pull`, plus a `clipboard`
 block in `status`), so the note leads with the one-time 「重新安装助手…」; against an
-un-updated Worker a paste degrades to the old behaviour rather than erroring. Local
-gate on this tree: Swift **936** tests (6 skipped, 0 failures — 901 before, +35 this
-round), updater **19 checks**, MCP smoke passed, MCP package **30 pass / 1 skip**,
-and step 1b's handle check reads **22** UI handles whole in the built binary (the
-new `agentClipboardBridgeValue` among them). **Layer 4 did not produce a verdict**:
-the session twin refused with exit 3 because that session's accessibility answered
-the app element in place of its windows, and the TextEdit control §381 names failed
-identically at the same moment — so this round records 「nothing verified」 for the
-shipped UI, not a pass (row 1332). Protocol stays 1; the two methods are additive
-and map to the existing 「reinstall the worker」 recovery on an older Worker. Files
-cross by value through `<runtime>/clipboard/` because the agent account cannot read
-the person's home; images, rich text and drag and drop are not carried.
+un-updated Worker, ⌘V is forwarded untouched exactly as before, for the cost of one
+informational line and one extra round trip per account. Protocol stays 1 and the
+two methods are additive. Files cross by value through
+`<runtime>/clipboard/{inbox,pasted,outbox}/` — the account's runtime directory is
+the one place both users reach, through its inherited two-user ACL — because the
+agent account cannot read the person's home. Text is capped at 1 MiB, files at 32
+items and 128 MB, and the newest staging batch is never swept because that is the
+one a paste is about to read. Images, rich text and drag and drop are not carried:
+the keystroke still lands and the agent's own clipboard answers. Both directions
+refuse symbolic links, a defect the validation probe found rather than the review
+(§397 row 1327). This tree's local gate before the tag: Swift **941** tests (6
+skipped, 0 failures — 901 before, +40 this round — 35 clipboard, 5 GUI staging), updater **19 checks**, MCP smoke
+passed, MCP package **30 pass / 1 skip**. Section §397 has the measured evidence
+and, in row 1332, what this round did not verify.
 
 Published 0.1.95 (§396, 2026-10-22): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.95),
 source [008d877](https://github.com/misswell/AgentSpace/commit/008d877082e93b22cdccc9ce1f64a6b5631a7ab6),
