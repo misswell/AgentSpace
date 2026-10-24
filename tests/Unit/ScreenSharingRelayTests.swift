@@ -103,11 +103,25 @@ final class ScreenSharingRelayTests: XCTestCase {
     }
 
     func testTheRelayBindsTheAccountsPortWhenItIsFree() async throws {
-        let port = try await freePort()
-        let relay = ScreenSharingRelay()
-        defer { relay.stop() }
-        let bound = try await relay.start(preferredPort: port)
-        XCTAssertEqual(bound, port, "an unused saved port must be the one the person's keychain knows")
+        // Retried rather than trusted: `freePort()` probes a port, closes it, and
+        // the relay binds it a moment later. Another test in the same process can
+        // take that number in between, which is a race in this harness and not a
+        // defect in the relay — measured repeatedly once a second listener began
+        // asking the kernel for ephemeral ports (§399 row 1361). A retry keeps the
+        // assertion exact: a relay that really ignores `preferredPort` still fails
+        // on every attempt.
+        var lastBound: UInt16 = 0
+        var lastRequested: UInt16 = 0
+        for _ in 0..<5 {
+            let port = try await freePort()
+            let relay = ScreenSharingRelay()
+            defer { relay.stop() }
+            let bound = try await relay.start(preferredPort: port)
+            lastBound = bound
+            lastRequested = port
+            if bound == port { return }
+        }
+        XCTFail("the relay answered \(lastBound) for a free port \(lastRequested); an unused saved port must be the one the person's keychain knows")
     }
 
     /// A local process holding the port must not cost the sign-in; the sheet
