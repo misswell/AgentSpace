@@ -7,7 +7,10 @@ import Foundation
 /// what the candidate's own Info.plist claims.
 public enum AgentSpaceIdentity {
     public static let githubRepository = "misswell/AgentSpace"
-    public static let bundleIdentifier = "com.agentspace.AgentSpace"
+    /// Changed in 0.1.98, when the virtual network required an App ID this team
+    /// can own: `com.agentspace.AgentSpace` belongs to another account and could
+    /// not be given the system-extension entitlement (§398).
+    public static let bundleIdentifier = "com.misswell.AgentSpace"
     public static let appBundleName = "AgentSpace.app"
     public static let executableName = "AgentSpace"
     public static let updaterExecutableName = "agentspace-updater"

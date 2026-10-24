@@ -92,7 +92,7 @@ public struct SystemExtensionProbe {
         self.detail = detail
     }
 
-    public static let extensionIdentifier = "com.agentspace.AgentSpace.Tunnel"
+    public static let extensionIdentifier = BundleIdentifiers.tunnel
 
     public static func installedState(identifier: String = extensionIdentifier) -> SystemExtensionProbe {
         let process = Process()

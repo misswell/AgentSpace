@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>AgentSpace Tunnel</string>
+    <key>CFBundleExecutable</key>
+    <string>AgentSpaceTunnel</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.misswell.AgentSpace.Tunnel</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>AgentSpaceTunnel</string>
+    <key>CFBundlePackageType</key>
+    <string>SYSX</string>
+    <key>CFBundleShortVersionString</key>
+     <string>0.1.98</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>26.0</string>
+    <!-- Shown by System Settings when the extension asks to be allowed. It names
+         the network and the reason, because "AgentSpace would like to add a
+         network extension" without a why is how these get denied. -->
+    <key>NSSystemExtensionUsageDescription</key>
+    <string>AgentSpace uses this extension to give your agents a fixed private IPv4 address, so another machine can reach them through an encrypted tunnel instead of your home network.</string>
+    <key>NetworkExtension</key>
+    <dict>
+        <key>NEMachServiceName</key>
+        <string>U8U443D7ZL.com.misswell.AgentSpace.Tunnel</string>
+        <key>NEProviderClasses</key>
+        <dict>
+            <key>com.apple.networkextension.packet-tunnel</key>
+            <string>TunnelProvider</string>
+        </dict>
+    </dict>
+</dict>
+</plist>

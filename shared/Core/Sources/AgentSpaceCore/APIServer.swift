@@ -170,19 +170,31 @@ public final class APIServer: @unchecked Sendable {
         listener.newConnectionHandler = { [weak self] connection in
             self?.accept(connection)
         }
+        // `NWListener.port` is only meaningful once the listener reaches
+        // `.ready`, and for a fixed port the requested value is the answer either
+        // way. The state handler must be installed BEFORE `start`, or `.ready`
+        // can be delivered before anything is waiting for it — measured: the
+        // readback came back 0 for a listener that was working, which would make
+        // every caller that asks "which port did I get?" believe nothing bound.
+        let semaphore = DispatchSemaphore(value: 0)
+        let requested = port
+        listener.stateUpdateHandler = { state in
+            switch state {
+            case .ready, .failed, .cancelled:
+                semaphore.signal()
+            default:
+                break
+            }
+        }
         listener.start(queue: queue)
         self.listener = listener
         started = true
-        // `NWListener.port` is only populated once the listener is running, so
-        // wait one turn of the queue. A failure leaves `boundPort` at 0, which
-        // callers treat as "not bound".
-        let semaphore = DispatchSemaphore(value: 0)
-        listener.stateUpdateHandler = { state in
-            if case .ready = state { semaphore.signal() }
-            if case .failed = state { semaphore.signal() }
-        }
         _ = semaphore.wait(timeout: .now() + 5)
-        boundPort = Int(listener.port?.rawValue ?? 0)
+        if requested != 0 {
+            boundPort = requested
+        } else {
+            boundPort = Int(listener.port?.rawValue ?? 0)
+        }
     }
 
     public func stop() {

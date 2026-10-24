@@ -37,6 +37,11 @@ struct VirtualNetworkSettingsView: View {
     @State private var errorLine: String?
     @State private var pendingPlan: NetworkMigrationPlan?
 
+    // The two halves that make the network real rather than configured: the
+    // system extension that carries packets, and the tunnel macOS owns.
+    @StateObject private var extensionController = TunnelExtensionController()
+    @StateObject private var tunnel = VirtualTunnelController()
+
     private let store = VirtualNetworkStore()
 
     var body: some View {
@@ -50,6 +55,7 @@ struct VirtualNetworkSettingsView: View {
                         .accessibilityIdentifier("networkEnableButton")
                 }
             } else {
+                connectionSection
                 addressSection
                 advancedSection
                 apiSection
@@ -59,10 +65,83 @@ struct VirtualNetworkSettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 560, minHeight: 460)
-        .onAppear(perform: reload)
+        .onAppear {
+            reload()
+            extensionController.refresh()
+            Task { await tunnel.refresh() }
+        }
     }
 
     // MARK: Sections
+
+    /// The part that turns a configuration into a working interface.
+    private var connectionSection: some View {
+        Section("Connection") {
+            LabeledContent("System extension") {
+                Text(extensionStateText)
+                    .foregroundStyle(extensionController.state.isUsable ? Color.green : Color.secondary)
+            }
+            Button(extensionController.state.isUsable ? "Reinstall tunnel extension" : "Install tunnel extension") {
+                extensionController.activate()
+            }
+            .accessibilityIdentifier("networkInstallExtensionButton")
+            if case .waitingForApproval = extensionController.state {
+                Text("macOS needs your approval: System Settings → General → Login Items & Extensions → Network Extensions → allow AgentSpace.")
+                    .font(.caption).foregroundStyle(.orange)
+                Button("Open Network Extensions settings") {
+                    NSWorkspace.shared.open(URL(string:
+                        "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!)
+                }
+            }
+            if case .failed(let reason) = extensionController.state {
+                Text(reason).font(.caption).foregroundStyle(.red)
+            }
+
+            LabeledContent("Tunnel") {
+                Text(tunnelStatusText)
+                    .foregroundStyle(tunnel.status.isConnected ? Color.green : Color.secondary)
+            }
+            HStack {
+                Button("Connect") { connectTunnel() }
+                    .disabled(!extensionController.state.isUsable || tunnel.status.isConnected)
+                    .accessibilityIdentifier("networkConnectButton")
+                Button("Disconnect") { tunnel.disconnect() }
+                    .disabled(!tunnel.status.isConnected && tunnel.status != .starting)
+                    .accessibilityIdentifier("networkDisconnectButton")
+            }
+            Text("A system extension carries the packets, so macOS asks for your approval once. Until the tunnel is connected this Mac has no virtual address, and the API cannot listen on one.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var extensionStateText: String {
+        switch extensionController.state {
+        case .installed: return NSLocalizedString("Installed", comment: "")
+        case .waitingForApproval: return NSLocalizedString("Waiting for approval", comment: "")
+        case .notInstalled: return NSLocalizedString("Not installed", comment: "")
+        case .failed: return NSLocalizedString("Failed", comment: "")
+        case .unknown: return NSLocalizedString("Unknown", comment: "")
+        }
+    }
+
+    private var tunnelStatusText: String {
+        switch tunnel.status {
+        case .connected: return NSLocalizedString("Connected", comment: "")
+        case .starting: return NSLocalizedString("Connecting…", comment: "")
+        case .waitingForExtension: return NSLocalizedString("Needs the extension", comment: "")
+        case .failed: return NSLocalizedString("Failed", comment: "")
+        case .stopped: return NSLocalizedString("Stopped", comment: "")
+        }
+    }
+
+    private func connectTunnel() {
+        guard let configuration else { return }
+        guard let identity = VirtualNodeIdentity.loadOrGenerate() else {
+            errorLine = NSLocalizedString("This Mac could not generate a tunnel key.", comment: "")
+            return
+        }
+        Task { await tunnel.connect(configuration: configuration, identity: identity) }
+    }
 
     private var addressSection: some View {
         Section("Virtual network") {
@@ -190,7 +269,8 @@ struct VirtualNetworkSettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            LabeledContent("System extension", value: extensionState.detail)
+            LabeledContent("System extension", value: extensionController.detail.isEmpty
+                ? extensionState.detail : extensionController.detail)
             if let statusLine {
                 Text(statusLine).font(.caption).foregroundStyle(.secondary)
             }

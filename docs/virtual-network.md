@@ -181,6 +181,31 @@ each direction. Exit 3 means Go was unavailable, so nothing was verified.
 The kernel interface is the only simulated part. The WireGuard implementation,
 its crypto, its UDP transport and the hub are the shipping ones.
 
+## The system extension
+
+The tunnel is a **system extension** inside `AgentSpace.app`. macOS will not run
+one until a person allows it, so the first use is:
+
+1. Settings → Virtual Network → **Install tunnel extension**.
+   macOS answers `activated waiting for user`.
+2. System Settings → General → **Login Items & Extensions → Network Extensions**
+   → allow **AgentSpace**.
+3. Settings → Virtual Network → **Connect**.
+
+The page reports each state separately — *not installed*, *waiting for approval*,
+*installed* — because those need different actions, and a single "unavailable"
+would send a person to reinstall a bundle that is already correct.
+
+Four failures were measured while building this, and each has its own sentence in
+the app rather than one generic error:
+
+| What macOS answers | What it means |
+|---|---|
+| `must be in /Applications folder` | AgentSpace is running from somewhere else |
+| `code signature invalid` | the build is not notarized (a signature alone is not enough) |
+| `extension category returned error` | the app and extension do not share an application group |
+| `Missing entitlement …system-extension.install` | the host app was built without the entitlement |
+
 ## What this does not do
 
 - **IPv6.** The toggle exists and is stored; only IPv4 is implemented. A pool or
@@ -191,9 +216,11 @@ its crypto, its UDP transport and the hub are the shipping ones.
 - **NAT traversal beyond WireGuard's own.** If UDP cannot reach the hub, the
   tunnel will not come up, and AgentSpace will say so rather than claim a
   connection. An HTTPS relay is not implemented.
-- **The real system extension's packet path inside `AgentSpace.app`.** The
-  extension, its entitlements and its activation were verified (§398); the
-  shipping bundle does not yet include it, so turning the network on in the app
-  reports that the extension is not installed.
+- **A measured packet path through the shipping extension.** The extension is in
+  the bundle, signed, notarized and recognised by macOS, and it builds from the
+  real `wireguard-go`. It reached `activated waiting for user` (§398 row 1353):
+  nothing can go further without the approval described above, so no packet has
+  crossed *this* extension. The configuration it consumes is the one measured
+  end to end against a real `wireguard-go` (row 1340).
 - **Desktop streaming over HTTP.** Screenshots are one-shot PNG requests. There
   is no video endpoint.

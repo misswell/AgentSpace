@@ -107,11 +107,30 @@ echo "== 2. signatures =="
 # and the worker are the two whose signature is a *security* boundary — the helper
 # checks the caller's team identifier, so a re-signed app silently breaks every
 # Space creation.
-for target in "$APP" "$APP/Contents/Library/LaunchDaemons/agentspace-helper" "$APP/Contents/MacOS/agentspace-worker" "$APP/Contents/Helpers/agentspace" "$APP/Contents/Helpers/agentspace-updater"; do
+TUNNEL="$APP/Contents/Library/SystemExtensions/com.misswell.AgentSpace.Tunnel.systemextension"
+for target in "$APP" "$APP/Contents/Library/LaunchDaemons/agentspace-helper" "$APP/Contents/MacOS/agentspace-worker" "$APP/Contents/Helpers/agentspace" "$APP/Contents/Helpers/agentspace-updater" "$TUNNEL"; do
   codesign --verify --strict --verbose=0 "$target" \
     || { echo "signature invalid: $target" >&2; exit 1; }
   echo "  ok  $(basename "$target")"
 done
+
+# The extension carries a restricted entitlement, and a signature alone does not
+# prove macOS will let it run: amfid checks the entitlement against the profile
+# that ships beside it. Assert both, because "codesign --verify passed" on an app
+# that amfid kills at launch is a false green (§398).
+if [[ -d "$TUNNEL" ]]; then
+  [[ -f "$TUNNEL/Contents/embedded.provisionprofile" ]] \
+    || { echo "the system extension has no provisioning profile; every launch would be killed by amfid" >&2; exit 1; }
+  codesign -d --entitlements - "$TUNNEL" 2>/dev/null | grep -q 'packet-tunnel-provider-systemextension' \
+    || { echo "the system extension is missing its network-extension entitlement" >&2; exit 1; }
+  codesign -d --entitlements - "$TUNNEL" 2>/dev/null | grep -q 'system-extension.install' \
+    && { echo "the system extension must not carry system-extension.install; only the app may" >&2; exit 1; }
+  [[ -f "$APP/Contents/embedded.provisionprofile" ]] \
+    || { echo "the app has no provisioning profile; the system-extension entitlement would be unauthorised" >&2; exit 1; }
+  codesign -d --entitlements - "$APP" 2>/dev/null | grep -q 'system-extension.install' \
+    || { echo "the app is missing system-extension.install, so it cannot activate the tunnel" >&2; exit 1; }
+  echo "  ok  the tunnel extension and its profile are in place"
+fi
 
 IDENTITY="$(codesign -dv --verbose=2 "$APP" 2>&1 | sed -n 's/^Authority=//p' | head -1)"
 TEAM="$(codesign -dv --verbose=2 "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')"

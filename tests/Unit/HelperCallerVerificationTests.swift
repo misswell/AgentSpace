@@ -60,15 +60,25 @@ final class HelperCallerVerificationTests: XCTestCase {
         guard let script = try? String(contentsOf: url, encoding: .utf8) else {
             throw XCTSkip("bundle-app.sh is not in this checkout")
         }
+        // Both signers count: `sign` for a plain Mach-O, and
+        // `sign_with_entitlements` for the app and the tunnel extension, which
+        // carry restricted entitlements and cannot go through the plain path.
+        // The helper calls the app, so leaving the second signer out of this scan
+        // would let the requirement drift away from the app's real identifier —
+        // which is exactly what happened when the identifier changed in 0.1.98.
         let signedIdentifiers = script
             .split(separator: "\n")
-            .filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("sign ") }
+            .filter {
+                let line = $0.trimmingCharacters(in: .whitespaces)
+                return line.hasPrefix("sign ") || line.hasPrefix("sign_with_entitlements ")
+            }
             .compactMap { line -> String? in
-                // `sign "$APP/Contents/…" "com.agentspace.…"` — the identifier
-                // is the last quoted argument on the line.
-                let parts = line.split(separator: "\"")
-                guard parts.count >= 3 else { return nil }
-                return String(parts[parts.count - 1])
+                // `sign "$APP/…" "com.…"` puts the identifier last;
+                // `sign_with_entitlements "$APP" "com.…" path` puts a path there.
+                // Read the quoted arguments and take the one that looks like an
+                // identifier: it is the only one with dots and no slashes.
+                let quoted = line.split(separator: "\"").map(String.init)
+                return quoted.last { $0.contains(".") && !$0.contains("/") }
             }
         XCTAssertTrue(signedIdentifiers.contains(BundleIdentifiers.app), "bundle-app.sh signs the app")
         XCTAssertTrue(signedIdentifiers.contains(BundleIdentifiers.helper), "bundle-app.sh signs the helper")

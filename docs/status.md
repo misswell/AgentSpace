@@ -33,22 +33,36 @@ What is measured and in this tree:
 - **`scripts/network-e2e.sh`**: hub → addresses → `AgentSpaceCore` configuration →
   a **real** `wireguard-go` handshake with an ICMP packet in both directions.
   This is the only claim of a working tunnel, and it is a userspace one.
+- **The system extension** (`native/AgentSpaceTunnel`): a real packet-tunnel
+  provider linked statically against `wireguard-go`, built by
+  `scripts/build-tunnel.sh` and signed inside `AgentSpace.app` by
+  `scripts/bundle-app.sh`.
 - **CLI**: `network {status,enable,disable,configure,nodes,doctor,revoke}` and
-  `api` / `api-token`. **GUI**: Settings → Virtual Network, editable with preview
-  and rollback.
+  `api` / `api-token`. **GUI**: Settings → Virtual Network, editable with preview,
+  rollback, extension install and connect.
 
 What is **not** in the shipped app, and must not be implied:
 
-1. The system extension is **not** a target inside `AgentSpace.app`. It was built,
-   signed, notarized and activated as a standalone POC (`systemextensionsctl`
-   shows `activated waiting for user`); the app reports it as not installed.
-2. No packet-tunnel provider linking `wireguard-go` ships in the bundle. The
-   library builds locally and its configuration is verified, but the provider is
-   not packaged.
-3. There is no hosted coordination service: the hub is self-hosted.
-4. IPv6 is stored, not implemented.
-5. The API is not started by a LaunchAgent; the app does not launch it on login.
-6. Layer 4 did not run for the new settings tab.
+1. **No packet has crossed the shipping extension yet.** It is in the bundle,
+   signed, notarized and recognised by macOS (`com.misswell.AgentSpace.Tunnel
+   (0.1.97/603) … [activated waiting for user]`). A system extension does not run
+   until a person allows it in System Settings → General → Login Items &
+   Extensions → Network Extensions, so `TunnelProvider.startTunnel` has not
+   executed outside the compiler. The configuration it will consume *is* measured
+   — against a real `wireguard-go`, both directions (§398 row 1340).
+2. There is no hosted coordination service: the hub is self-hosted.
+3. IPv6 is stored, not implemented.
+4. The API is not started by a LaunchAgent; the app does not launch it on login.
+5. Layer 4 did not run for the new settings tab.
+
+**The app's bundle identifier changed to `com.misswell.AgentSpace` in 0.1.98.**
+`com.agentspace.AgentSpace` belongs to another Apple account and could not be
+given the system-extension entitlement, so there was no way to ship a tunnel under
+it (§398 row 1347). The cost for an existing installation, stated rather than
+discovered: the installed helper refuses the new app until the existing
+「重新安装助手…」 flow re-registers it, the **app's** Accessibility and Screen
+Recording grants are asked for once more (the worker keeps its own), and the
+clipboard staging cache is abandoned because it is disposable by design.
 
 Apple facts this round paid for (do not relearn): on macOS a packet-tunnel **app
 extension is App Store only** — Developer ID must use a **system extension**
