@@ -51,6 +51,22 @@ feature, and the release note says so.
 Published 0.1.99 (§400, 2026-10-25): the generated-port mapping, the API
 listener's first real owner, and the messages that pointed at removed things.
 
+Published 0.1.100 (§401 row 1376, 2026-10-25): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.100),
+source [e7e4613](https://github.com/misswell/AgentSpace/commit/e7e4613) (the
+gate refused the first tag — the closed-list count test caught the two new
+operations, exactly its job; §401 row 1376),
+[Actions 40141270837](https://github.com/misswell/AgentSpace/actions/runs/40141270837)
+all three jobs green. Runner gate: Swift **1064** (7 skipped). `releases/latest`
+answers v0.1.100; Apple live readback: app ZIP `b38c6aea-…` and DMG
+`4735dfbf-…` both **Accepted**. DMG 29,098,325 bytes.
+
+**What 0.1.100 changes for a person**: 端口映射有了完整图形界面（账号页「端口
+映射」卡片：添加映射、点选正在监听的端口、实时状态），外部端口可以自己指定
+（8080 → 28080），并且新增默认关闭的「账号固定地址」开关——打开后由已安装的特
+权助手把一个 127.100.x.y 放到回环网卡上，每条映射同时以原端口号在该地址应答。
+**这是助手变更**：更新后请允许一次「重新安装助手…」（标准对齐流程）；不打开固
+定地址开关，此功能不会做任何事、不会多要任何授权。
+
 ## Shipped in 0.1.99: the port map (§400)
 
 The owner's requirement: 「我在子系统中有一些本地的API 我需要在主系统中使用
