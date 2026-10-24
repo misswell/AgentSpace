@@ -133,7 +133,28 @@ final class HelperService: NSObject, HelperXPCProtocol {
         case .stopWorker:             return workerControl(request, start: false)
         case .logoutSession:          return legacySessionMutation(request)
         case .sessionInfo:            return sessionInfo(request)
+        case .addLoopbackAlias:       return loopbackAlias(request, add: true)
+        case .removeLoopbackAlias:    return loopbackAlias(request, add: false)
         }
+    }
+
+    /// `addLoopbackAlias` / `removeLoopbackAlias`: one address on `lo0`, by
+    /// ioctl, never by shell. Validation already confined the address to
+    /// 127.100.0.0/16; the caller verifies the after-state through getifaddrs
+    /// rather than trusting this reply, which is the pattern §269 taught.
+    private func loopbackAlias(_ request: HelperRequest, add: Bool) -> HelperResponse {
+        let address = request.address ?? ""
+        let outcome = LoopbackAliasRunner.apply(address: address, add: add)
+        if let failure = outcome {
+            log.error("loopbackAlias \(add ? "add" : "remove") \(address): \(failure)")
+            return HelperResponse(id: request.id, error: AgentSpaceError(
+                code: .helperRejected,
+                message: "could not \(add ? "add" : "remove") \(address) on lo0: \(failure)"))
+        }
+        return HelperResponse(id: request.id, result: .obj([
+            "address": .string(address),
+            "added": .bool(add),
+        ]))
     }
 
     // MARK: - Operations

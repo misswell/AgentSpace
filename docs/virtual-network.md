@@ -253,8 +253,12 @@ agentspace ports AgentUse unmap 3000
   ephemeral range, clear of the sign-in relay's 47,000–47,999), derived from
   the account id and the internal port, and **stored** with the mapping so it
   cannot move. The main system then calls `http://127.0.0.1:<generated>`.
+- **Or a port you choose**: `agentspace ports AgentUse map 8080 28080`, or the
+  add-mapping form on the account page. Chosen ports must be ≥1024, must stay
+  outside the generated range, and must not be the service's own port on
+  127.0.0.1 — one external port belongs to one mapping, chosen or generated.
 - The forwarder runs **inside the AgentSpace app** while it is open, on
-  `127.0.0.1:<generated>` → the account's `127.0.0.1:<internal>`. All accounts
+  `127.0.0.1:<external>` → the account's `127.0.0.1:<internal>`. All accounts
   on this Mac share one kernel network stack, which is why that one hop
   reaches a service in another account's session at all.
 - **Ownership is proven, not assumed.** Because the stack is shared,
@@ -266,15 +270,35 @@ agentspace ports AgentUse unmap 3000
 - `map` verifies ownership up front too, and refuses ports bound only to
   non-loopback addresses — an alias could not reach those with no network.
 
-### Why the generated address is a port, not a per-account IP
+### The fixed per-account address: opt-in, one typed helper operation
 
-A distinct loopback IP is not available to an unprivileged process on macOS.
-Only addresses actually assigned to `lo0` can be bound — `127.0.0.1` by
-default — and `bind()` on any other `127.x.y.z` answers **errno 49
-(EADDRNOTAVAIL, "Can't assign requested address")**, measured 2026-10-25 with
-a plain POSIX socket on `127.0.0.2`, `127.1.2.3` and `127.100.231.7`.
-Assigning more addresses to `lo0` is `ifconfig lo0 alias`, which is root —
-exactly the road §399 declined for the tunnel. (§399 row 1354's "the kernel
-routes 127.0.0.2" is about *routing*: a connect gets refused rather than
-unreachable. It says nothing about binding.) So the generated address is a
-port on 127.0.0.1, and this section is where that decision is written down.
+The account page carries a switch — **off by default** — that gives the
+account its own address, a derived `127.100.x.y` inside 127.100.0.0/16:
+
+- Switching it on asks the **already-installed helper** to put that one
+  address on `lo0` (`addLoopbackAlias`; switching off or detaching the account
+  removes it). The operation is typed and closed: it accepts exactly one
+  dotted-quad address, refuses everything outside the feature's own /16, and
+  runs an ioctl — never a shell. No new authorization is needed to use it
+  (the helper is already installed); a helper older than 0.1.100 answers a
+  typed error and the app offers its usual one-time update.
+- While the address is on, **every mapping answers on it at its own port
+  number** — `http://127.100.x.y:8080` is that account's 8080 — in addition to
+  the 127.0.0.1 endpoint, behind the same per-connection ownership gate.
+- The machine is the truth, not a file or a reply: the app reads `getifaddrs`
+  to decide what is really on `lo0`, asks the helper only for the difference,
+  and re-reads the interface afterwards. An alias no enabled account owns —
+  switched off, detached, or left by a crash — is removed on the next pass.
+- Nothing runs and nothing is authorized while the switch is off.
+
+### Why an unprivileged process cannot own a loopback IP, and what the helper buys
+
+An unprivileged process cannot bind any `127.x` address that is not assigned
+to `lo0`: a plain POSIX `bind()` on `127.0.0.2`, `127.1.2.3` or `127.100.231.7`
+answers **errno 49 (EADDRNOTAVAIL)**, measured 2026-10-25, because only
+`127.0.0.1` is assigned by default. Assigning more is `ifconfig lo0 alias`,
+which is root — so the default mapping path hands out a *port* on 127.0.0.1,
+and the per-account *address* exists only behind the opt-in switch above, as
+one typed operation in the privileged helper's closed list (§401). (§399 row
+1354's "the kernel routes 127.0.0.2" is about *routing*: a connect gets
+refused rather than unreachable. It says nothing about binding.)

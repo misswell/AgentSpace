@@ -62,10 +62,82 @@ enum PortCommand {
             return map(account: account, args: Array(args.dropFirst()), paths: paths, emitter: emitter)
         case "unmap":
             return unmap(account: account, args: Array(args.dropFirst()), paths: paths, emitter: emitter)
+        case "address":
+            return address(account: account, args: Array(args.dropFirst()), paths: paths, emitter: emitter)
         default:
             emitter.failure(AgentSpaceError(
                 code: .badRequest,
-                message: "unknown ports command '\(sub)'. Try: `agentspace ports <account>`, `… map <port>`, `… unmap <port>`."))
+                message: "unknown ports command '\(sub)'. Try: `agentspace ports <account>`, `… map <port> [main-system-port]`, `… unmap <port>`, `… address on|off`."))
+        }
+    }
+
+    // MARK: address
+
+    /// The fixed per-account address: a choice record plus the machine's own
+    /// word. `on`/`off` write the choice; the app — the one process that owns
+    /// the helper calls — applies it within a few seconds. The status read
+    /// needs no privilege at all: getifaddrs says what lo0 really holds.
+    private static func address(
+        account: AgentAccount,
+        args: [String],
+        paths: VirtualNetworkPaths,
+        emitter: Emitter
+    ) -> Never {
+        let registry = SpaceRegistry.load(root: paths.root)
+        guard let alias = AgentLoopbackAddress.address(for: account.id, among: registry.spaces.map(\.id)) else {
+            emitter.failure(AgentSpaceError(
+                code: .badRequest,
+                message: "the account is not in the registry, so it has no address"))
+        }
+        let store = AccountAddressStore(paths: paths)
+        let present = LocalNetworkProbe.interfaceSnapshot()?.addresses
+            .first(where: { $0 == alias }) != nil
+
+        switch args.first ?? "status" {
+        case "status", "":
+            emitter.success(.obj([
+                "ok": .bool(true),
+                "account": .string(account.id.uuidString),
+                "address": .string(alias.description),
+                "enabled": .bool(store.isEnabled(account.id)),
+                "onInterface": .bool(present),
+                "note": .string("On/off writes the choice; the app applies it (and only the app asks the helper) within a few seconds."),
+            ]), human: """
+            fixed address: \(alias.description)  \(store.isEnabled(account.id) ? "enabled" : "off")  \(present ? "on lo0" : "not on lo0")
+              `agentspace ports \(account.name) address on` / `off`; the app applies the change.
+            """)
+
+        case "on":
+            do {
+                let changed = try store.setEnabled(account.id, true)
+                _ = changed
+            } catch {
+                emitter.failure(AgentSpaceError(
+                    code: .internalError, message: "could not write the choice: \(error)"))
+            }
+            emitter.success(.obj([
+                "ok": .bool(true),
+                "address": .string(alias.description),
+                "note": .string("The app puts it on lo0 through the helper within a few seconds, and mapped ports answer there at their own port numbers. Nothing is authorized while the feature is off."),
+            ]), human: "fixed address enabled for \(account.name): \(alias.description) — the app applies it within a few seconds")
+
+        case "off":
+            do {
+                _ = try store.setEnabled(account.id, false)
+            } catch {
+                emitter.failure(AgentSpaceError(
+                    code: .internalError, message: "could not write the choice: \(error)"))
+            }
+            emitter.success(.obj([
+                "ok": .bool(true),
+                "address": .string(alias.description),
+                "note": .string("The app removes the alias within a few seconds; the mapping ports on 127.0.0.1 are untouched."),
+            ]), human: "fixed address disabled for \(account.name) — the app removes the alias within a few seconds")
+
+        default:
+            emitter.failure(AgentSpaceError(
+                code: .badRequest,
+                message: "unknown address command '\(args.first!)'. Try: `agentspace ports <account> address on|off`."))
         }
     }
 
@@ -115,6 +187,12 @@ enum PortCommand {
         let store = PortMapStore(paths: paths)
         let mappings = store.mappings(account: account.id)
 
+        // The fixed address, if the feature is on for this account — read from
+        // the machine, like every state this command reports.
+        let registry = SpaceRegistry.load(root: paths.root)
+        let alias = AgentLoopbackAddress.address(for: account.id, among: registry.spaces.map(\.id))
+        let aliasOn = alias.map { AccountAddressStore(paths: paths).isEnabled(account.id) && LocalNetworkProbe.interfaceSnapshot()?.addresses.contains($0) == true }
+
         var mappedRows: [JSONValue] = []
         var humanMapped: [String] = []
         for mapping in mappings {
@@ -142,8 +220,11 @@ enum PortCommand {
         }
 
         var human: [String] = [
-            "\(account.name): services on 127.0.0.1, mapped onto generated ports of 127.0.0.1",
+            "\(account.name): services on 127.0.0.1, mapped onto fixed ports of 127.0.0.1",
         ]
+        if let alias {
+            human.append("  fixed address \(alias.description): \(AccountAddressStore(paths: paths).isEnabled(account.id) ? "enabled" : "off")\(aliasOn == true ? " — on lo0" : "")")
+        }
         if let workerNotice { human.append("  \(workerNotice)") }
         for port in ports {
             let mapping = mappings.first { $0.port == port.port }
@@ -166,6 +247,13 @@ enum PortCommand {
             ]),
             "ports": .array(portRows),
             "mappings": .array(mappedRows),
+            "fixedAddress": alias.map { address in
+                .obj([
+                    "address": .string(address.description),
+                    "enabled": .bool(AccountAddressStore(paths: paths).isEnabled(account.id)),
+                    "onInterface": .bool(aliasOn == true),
+                ])
+            } ?? .null,
             "workerNotice": workerNotice.map { .string($0) } ?? .null,
             "note": .string("Forwarders are served by the AgentSpace app while it is open; the CLI writes the shared mapping file."),
         ]), human: humanText)
@@ -182,7 +270,19 @@ enum PortCommand {
         guard let text = args.first, let port = UInt16(text), port != 0 else {
             emitter.failure(AgentSpaceError(
                 code: .badRequest,
-                message: "usage: agentspace ports <account> map <port>"))
+                message: "usage: agentspace ports <account> map <port> [main-system-port]"))
+        }
+        // A person-chosen external port, like `map 8080 28080`; absent means
+        // the generator picks one. `map 8080 8080` is refused — that port on
+        // 127.0.0.1 belongs to the service itself.
+        var chosen: UInt16?
+        if let externalText = args.dropFirst().first {
+            guard let parsed = UInt16(externalText), parsed != 0 else {
+                emitter.failure(AgentSpaceError(
+                    code: .badRequest,
+                    message: "the main-system port must be a number between 1 and 65535"))
+            }
+            chosen = parsed
         }
 
         // Fail closed on ownership: a mapping is only written for a port this
@@ -219,16 +319,37 @@ enum PortCommand {
                 message: "port \(port) cannot be mapped for \(account.name): \(reason)."))
         }
 
-        // The generated port: deterministic order, first one that no other
-        // mapping owns and nothing on this Mac is already listening on.
+        // The external port: the person's choice when given (validated —
+        // outside the generated range, not the service's own port, not another
+        // mapping's, nothing already listening), the deterministic generator
+        // otherwise.
         let store = PortMapStore(paths: paths)
-        let taken = store.externalPortsInUse()
-        guard let external = AgentPortAllocator.choose(account: account.id, port: port, isFree: { candidate in
-            !taken.contains(candidate) && !TCPProbe.answers(host: "127.0.0.1", port: candidate, timeout: 0.6)
-        }) else {
-            emitter.failure(AgentSpaceError(
-                code: .badRequest,
-                message: "no free port in \(AgentPortAllocator.range.lowerBound)–\(AgentPortAllocator.range.upperBound); unmap one first"))
+        let external: UInt16
+        if let chosen {
+            if let problem = AgentPortAllocator.manualPortProblem(chosen, internal: port) {
+                emitter.failure(AgentSpaceError(code: .badRequest, message: problem))
+            }
+            if store.externalPortsInUse().contains(chosen) {
+                emitter.failure(AgentSpaceError(
+                    code: .badRequest,
+                    message: "port \(chosen) already belongs to another mapping"))
+            }
+            if TCPProbe.answers(host: "127.0.0.1", port: chosen, timeout: 0.6) {
+                emitter.failure(AgentSpaceError(
+                    code: .badRequest,
+                    message: "something on this Mac is already listening on 127.0.0.1:\(chosen)"))
+            }
+            external = chosen
+        } else {
+            let taken = store.externalPortsInUse()
+            guard let generated = AgentPortAllocator.choose(account: account.id, port: port, isFree: { candidate in
+                !taken.contains(candidate) && !TCPProbe.answers(host: "127.0.0.1", port: candidate, timeout: 0.6)
+            }) else {
+                emitter.failure(AgentSpaceError(
+                    code: .badRequest,
+                    message: "no free port in \(AgentPortAllocator.range.lowerBound)–\(AgentPortAllocator.range.upperBound); unmap one first"))
+            }
+            external = generated
         }
 
         do {

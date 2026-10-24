@@ -11,7 +11,7 @@ import AgentSpaceCore
 // print why and stop. There is no code path here that runs a GUI command
 // locally "because the background session was unavailable".
 
-let cliVersion = "0.1.99"
+let cliVersion = "0.1.100"
 
 // MARK: - Argument parsing
 
@@ -335,11 +335,15 @@ func usage() -> String {
                                       this Mac's virtual-network address
                                       instead, and refuses if it is absent.
       api disable
-      ports                           Every account's loopback address
-      ports <account>                 The account's address, the ports its
-                                      session listens on, and their mappings
-      ports <account> map <port>      Serve that port on the account's address
+      ports                           Every account's mappings at a glance
+      ports <account>                 The account's ports, mappings, fixed address
+      ports <account> map <port> [main-system-port]
+                                      Serve that port on 127.0.0.1 — at a port
+                                      you choose (8080 → 28080), or a
+                                      generated one when omitted
       ports <account> unmap <port>    Stop serving it
+      ports <account> address on|off  The account's own fixed 127.100.x.y
+                                      (opt-in; off by default)
       api-token list
       api-token create --name NAME --scope read|observe|control|exec
       api-token revoke <id>

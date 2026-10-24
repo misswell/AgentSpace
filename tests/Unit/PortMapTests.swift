@@ -71,6 +71,19 @@ final class PortMapTests: XCTestCase {
             order[1])
     }
 
+    /// The rules for a person-chosen port (`map 8080 28080`): outside the
+    /// generated range, above the privileged floor, and never the service's
+    /// own port on 127.0.0.1.
+    func testManualPortChoicesAreValidated() {
+        XCTAssertNil(AgentPortAllocator.manualPortProblem(28080, internal: 8080))
+        XCTAssertNotNil(AgentPortAllocator.manualPortProblem(8080, internal: 8080),
+                        "the service's own port is held by the service itself")
+        XCTAssertNotNil(AgentPortAllocator.manualPortProblem(80, internal: 8080),
+                        "ports below 1024 are the system's")
+        XCTAssertNotNil(AgentPortAllocator.manualPortProblem(45_123, internal: 8080),
+                        "the generated range is the generator's, not a menu")
+    }
+
     // MARK: The store
 
     func testTheStoreRoundTripsMappings() throws {

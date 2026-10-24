@@ -4,9 +4,54 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-25 on `master`. Current public release: **0.1.99**.
+Last updated: 2026-10-25 on `master`. Current public release: **0.1.100**.
 
-## Shipped: the port map — an agent account's local APIs on a generated port (§400)
+## Shipped: chosen ports, the visual port map, and the fixed per-account address (§401)
+
+0.1.99 delivered the generated-port mapping. 0.1.100 delivers the owner's
+three-part direction on top of it — read [`docs/virtual-network.md`](virtual-network.md)
+→ "Port map" and "The fixed per-account address"; §401 has the evidence:
+
+1. **Off by default, no authorization for those who never switch it on.**
+   The fixed address is a per-account switch; while it is off, the app makes
+   no helper call for it at all.
+2. **Chosen ports + a visual interface.** `map 8080 28080` (CLI) or the
+   account page's add-mapping form: the account's port pickable from what its
+   session is listening on right now, the main-system port optional with a
+   generate-when-empty rule; the mapping list shows `8080 → 127.0.0.1:28080`
+   live. Chosen ports stay ≥1024, outside the generated 45,000–46,999, and
+   never the service's own port.
+3. **The controllable payment.** `addLoopbackAlias`/`removeLoopbackAlias` —
+   one typed operation in the helper's closed list, ioctl not shell, its
+   whole world one address inside 127.100.0.0/16 (adversarially tested in
+   `AccountAddressTests`). The app verifies after acting through `getifaddrs`
+   — the helper's reply is never the verdict — and an alias no enabled
+   account owns is removed on the next pass. With the address on, every
+   mapping also answers at `127.100.x.y:<its own port number>` behind the
+   same ownership gate.
+
+Stated, not claimed (§401 row 1375): the alias ioctl has not yet run as root
+on this Mac (installing the 0.1.100 helper needs a GUI admin approval a
+headless session cannot give); it ships reviewed against `sockio.h`'s own
+definitions and the first toggle after the helper update is its first live
+run. Layer 4 pressed no part of the new UI.
+
+What is **not** here, and must not be implied:
+
+1. **No built-in tunnel.** A virtual address other machines can reach comes
+   from a mesh VPN or the user's own WireGuard (§399 rows 1355–1357).
+2. **IPv6 is stored, not implemented.**
+
+**The bundle identifier is unchanged (`com.agentspace.AgentSpace`)**, so an
+existing installation updates with no re-grant; the helper binary's version
+moves with the app, so updating offers the standard one-time helper
+alignment (§332) — for everyone, including people who never touch this
+feature, and the release note says so.
+
+Published 0.1.99 (§400, 2026-10-25): the generated-port mapping, the API
+listener's first real owner, and the messages that pointed at removed things.
+
+## Shipped in 0.1.99: the port map (§400)
 
 The owner's requirement: 「我在子系统中有一些本地的API 我需要在主系统中使用
 那么就是生成一个IP 然后就可以调用」, with no network at all. Read

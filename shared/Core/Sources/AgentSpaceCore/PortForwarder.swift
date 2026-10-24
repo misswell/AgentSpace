@@ -40,8 +40,13 @@ public final class PortForwarder: @unchecked Sendable {
     public let accountID: UUID
     /// The port inside the agent account's session that connections go to.
     public let internalPort: UInt16
-    /// The generated port this forwarder serves on `127.0.0.1`.
+    /// The generated port this forwarder serves on `listenHost`.
     public let externalPort: UInt16
+    /// The address this forwarder listens on: `127.0.0.1` for a generated or
+    /// chosen port, or the account's fixed alias (`127.100.x.y`) when the
+    /// fixed-address feature is on — where the port number stays the internal
+    /// one, which is the point of having an address per account.
+    public let listenHost: String
 
     /// Enough for a browser opening a page and its subresources at once; small
     /// enough that a stuck client cannot pin unbounded memory.
@@ -53,13 +58,15 @@ public final class PortForwarder: @unchecked Sendable {
     private var gate: (@Sendable () -> Bool)?
     private var running = false
 
-    public init(accountID: UUID, externalPort: UInt16, internalPort: UInt16) {
+    public init(accountID: UUID, externalPort: UInt16, internalPort: UInt16,
+                listenHost: String = "127.0.0.1") {
         self.accountID = accountID
         self.externalPort = externalPort
         self.internalPort = internalPort
+        self.listenHost = listenHost
     }
 
-    public var endpoint: String { "127.0.0.1:\(externalPort)" }
+    public var endpoint: String { "\(listenHost):\(externalPort)" }
 
     public var isRunning: Bool {
         queue.sync { running }
@@ -73,7 +80,7 @@ public final class PortForwarder: @unchecked Sendable {
     public func start(gate: @escaping @Sendable () -> Bool) throws {
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(
-            host: "127.0.0.1",
+            host: NWEndpoint.Host(listenHost),
             port: NWEndpoint.Port(rawValue: externalPort)!)
         // No reuse: two forwarders on one endpoint is a bug the caller wants
         // to hear about, not a port silently shared.
@@ -123,7 +130,7 @@ public final class PortForwarder: @unchecked Sendable {
                !failed.lowercased().contains("in-use"), !failed.lowercased().contains("in use") {
                 throw StartError.listenerFailed(failed)
             }
-            throw StartError.addressBusy("127.0.0.1:\(externalPort)")
+            throw StartError.addressBusy("\(listenHost):\(externalPort)")
         }
 
         queue.sync {

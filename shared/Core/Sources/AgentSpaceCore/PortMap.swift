@@ -79,6 +79,24 @@ public enum AgentPortAllocator {
     ) -> UInt16? {
         candidates(account: account, port: port).first(where: isFree)
     }
+
+    /// Rules for a person-chosen external port (`map 8080 28080`). Returns the
+    /// problem, or nil when the choice is acceptable. Chosen ports must stay
+    /// outside the generated range so the two worlds cannot collide and each
+    /// stays predictable: a generated port is always generator-owned, a
+    /// chosen one is always the person's.
+    public static func manualPortProblem(_ chosen: UInt16, internal internalPort: UInt16) -> String? {
+        if chosen < 1024 {
+            return "port \(chosen): ports below 1024 are reserved for the system on this Mac"
+        }
+        if chosen == internalPort {
+            return "port \(chosen) is the service's own port on 127.0.0.1, held by the service itself; the mapping needs a different one"
+        }
+        if range.contains(chosen) {
+            return "port \(chosen) is inside the auto-generated range \(range.lowerBound)–\(range.upperBound); pick a port outside it, or let the generator choose"
+        }
+        return nil
+    }
 }
 
 // MARK: - The persisted mappings

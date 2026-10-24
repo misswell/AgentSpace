@@ -24,6 +24,14 @@ public enum HelperOperation: String, Codable, Sendable, CaseIterable {
     case logoutSession
     case sessionInfo
     case helperStatus
+    /// Put one address on `lo0` (SIOCAIFADDR, no shell). The per-account
+    /// loopback address feature — opt-in, off by default, and the only new
+    /// privileged operation of §401. The address must be inside 127.100.0.0/16;
+    /// `HelperValidation` refuses everything else, so root is reachable for
+    /// exactly one /16 of loopback and nothing can name an interface, a route
+    /// or a command.
+    case addLoopbackAlias
+    case removeLoopbackAlias
 }
 
 // MARK: - Requests
@@ -46,6 +54,10 @@ public struct HelperRequest: Codable, Equatable, Sendable {
     /// For teardown: the attached account's recorded uid. It lets V3 clean up
     /// an attachment even if that account was later removed externally.
     public var uid: uid_t?
+    /// For `addLoopbackAlias` / `removeLoopbackAlias`: the dotted-quad IPv4
+    /// address to put on, or take off, `lo0`. Validated to the feature's own
+    /// 127.100.0.0/16 before the helper will touch it.
+    public var address: String?
 
     public init(
         id: String = UUID().uuidString,
@@ -57,7 +69,8 @@ public struct HelperRequest: Codable, Equatable, Sendable {
         removeHome: Bool? = nil,
         mainUser: String? = nil,
         runtimeRoot: String? = nil,
-        uid: uid_t? = nil
+        uid: uid_t? = nil,
+        address: String? = nil
     ) {
         self.id = id
         self.operation = operation
@@ -69,6 +82,7 @@ public struct HelperRequest: Codable, Equatable, Sendable {
         self.mainUser = mainUser
         self.runtimeRoot = runtimeRoot
         self.uid = uid
+        self.address = address
     }
 }
 
@@ -388,6 +402,29 @@ public enum HelperValidation {
                 return AgentSpaceError(code: .helperRejected, message: "sessionInfo requires the attached account")
             }
             return validateAttachedUser(username, mainUser: request.mainUser, existingAccounts: existingAccounts)
+
+        case .addLoopbackAlias, .removeLoopbackAlias:
+            // No account, no path, no command: exactly one dotted-quad address,
+            // and only inside the feature's own 127.100.0.0/16. Root is
+            // reachable for nothing else through this operation.
+            guard let address = request.address, let parsed = IPv4Address(address) else {
+                return AgentSpaceError(
+                    code: .helperRejected,
+                    message: "\(request.operation.rawValue) requires a dotted-quad IPv4 address")
+            }
+            let raw = parsed.rawValue
+            let inRange = (raw >> 24) & 0xff == 127 && (raw >> 16) & 0xff == 100
+            guard inRange else {
+                return AgentSpaceError(
+                    code: .helperRejected,
+                    message: "\(request.operation.rawValue) refuses \(address): only 127.100.0.0/16, the port-map feature's own range")
+            }
+            guard (raw & 0xffff) != 0, (raw & 0xffff) != 0xffff else {
+                return AgentSpaceError(
+                    code: .helperRejected,
+                    message: "\(request.operation.rawValue) refuses \(address): the range's first and last addresses are not handed out")
+            }
+            return nil
         }
     }
 }
