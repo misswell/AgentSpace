@@ -49,6 +49,15 @@ public enum Method {
     /// session. The worker is the only process that can launch the URL there;
     /// the controller must not accidentally open the main user's settings.
     public static let openSystemSettings = "systemSettings.open"
+    /// The TCP ports this account's own processes are listening on, with the
+    /// address each socket is bound to. Additive at protocol version 1: a
+    /// worker from before this method answers `METHOD_NOT_FOUND`, which the
+    /// port-map surface turns into the usual 「update the worker」 recovery.
+    ///
+    /// Read-only, and deliberately *not* behind the desktop-session gate: it
+    /// lists this account's own sockets, which cannot reveal any desktop —
+    /// the same class of answer as `status`.
+    public static let portsList = "ports.list"
 
     /// Live Desktop Preview (plan §52). Pull model: `start` opens the capture
     /// stream, `frame` returns the newest frame, `stop` closes it. The GUI only

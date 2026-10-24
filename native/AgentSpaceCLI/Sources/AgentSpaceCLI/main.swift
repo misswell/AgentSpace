@@ -11,7 +11,7 @@ import AgentSpaceCore
 // print why and stop. There is no code path here that runs a GUI command
 // locally "because the background session was unavailable".
 
-let cliVersion = "0.1.98"
+let cliVersion = "0.1.99"
 
 // MARK: - Argument parsing
 
@@ -328,13 +328,18 @@ func usage() -> String {
       network nodes                   Every node and its fixed address
       network doctor                  What was measured, and what could not be
       network revoke <node>           Remove a node's address and key
-      api status                      Listener address, tokens, extension state
+      api status                      Listener address, tokens, live probe
       api enable [--port N] [--virtual]
                                       Binds 127.0.0.1 by default, which works
                                       with no network at all. --virtual binds
                                       this Mac's virtual-network address
                                       instead, and refuses if it is absent.
       api disable
+      ports                           Every account's loopback address
+      ports <account>                 The account's address, the ports its
+                                      session listens on, and their mappings
+      ports <account> map <port>      Serve that port on the account's address
+      ports <account> unmap <port>    Stop serving it
       api-token list
       api-token create --name NAME --scope read|observe|control|exec
       api-token revoke <id>
@@ -1344,6 +1349,13 @@ case "api-token":
     APICommand.runToken(
         action: rest.first ?? "list",
         args: Array(rest.dropFirst()),
+        parsed: parsed,
+        root: rootOverride,
+        emitter: emitter)
+
+case "ports":
+    PortCommand.run(
+        action: rest,
         parsed: parsed,
         root: rootOverride,
         emitter: emitter)

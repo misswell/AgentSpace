@@ -50,97 +50,18 @@ public struct APIConfiguration: Codable, Equatable, Sendable {
     /// The listener this configuration describes, or nil when it cannot be
     /// described at all (an unknown bind mode is not silently treated as
     /// loopback: that would expose a service on a different interface than the
-    /// one a person configured).
-    public func policy(network: VirtualNetworkConfig) -> APIListenPolicy? {
+    /// one a person configured). The network configuration is optional because
+    /// loopback mode — the default — needs no network at all; only the opt-in
+    /// virtual-address mode needs a configured address to bind.
+    public func policy(network: VirtualNetworkConfig?) -> APIListenPolicy? {
         switch bindMode {
         case "loopback":
             return .loopback(port: port)
         case "virtualNetwork":
+            guard let network else { return nil }
             return .virtualNetwork(network.local, port: port)
         default:
             return nil
         }
-    }
-}
-
-/// What the system says about the AgentSpace network extension.
-///
-/// Read from `systemextensionsctl list`, which is the only public way to see
-/// whether the extension is activated. Deliberately reports the raw state rather
-/// than a boolean: "activated waiting for user" is the state a person must act
-/// on, and collapsing it into "not installed" would send them to reinstall a
-/// bundle that is already correct.
-public struct SystemExtensionProbe {
-    public enum State: Equatable, Sendable {
-        case unknown
-        case notInstalled
-        case waitingForUser
-        case enabled
-        case terminated(String)
-
-        public var isUsable: Bool {
-            if case .enabled = self { return true }
-            return false
-        }
-    }
-
-    public let state: State
-    public let detail: String
-
-    /// Whether the extension can carry traffic right now. `waitingForUser` is
-    /// not usable: the bundle is installed but macOS has not been told to run
-    /// it, and saying "installed" would send a person looking for the wrong fix.
-    public var isUsable: Bool { state.isUsable }
-
-    public init(state: State, detail: String) {
-        self.state = state
-        self.detail = detail
-    }
-
-    public static let extensionIdentifier = "com.agentspace.AgentSpace.Tunnel"
-
-    public static func installedState(identifier: String = extensionIdentifier) -> SystemExtensionProbe {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/systemextensionsctl")
-        process.arguments = ["list"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-        } catch {
-            return SystemExtensionProbe(state: .unknown, detail: "could not run systemextensionsctl: \(error)")
-        }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard let text = String(data: data, encoding: .utf8) else {
-            return SystemExtensionProbe(state: .unknown, detail: "systemextensionsctl produced no readable output")
-        }
-        return parse(text, identifier: identifier)
-    }
-
-    public static func parse(_ text: String, identifier: String = extensionIdentifier) -> SystemExtensionProbe {
-        guard let line = text.split(separator: "\n").first(where: { $0.contains(identifier) }) else {
-            return SystemExtensionProbe(
-                state: .notInstalled,
-                detail: "the AgentSpace network extension is not installed. The app installs it when the virtual network is turned on.")
-        }
-        let lower = line.lowercased()
-        if lower.contains("waiting for user") {
-            return SystemExtensionProbe(
-                state: .waitingForUser,
-                detail: "the extension is installed and waiting for approval: open System Settings → General → Login Items & Extensions → Network Extensions and allow AgentSpace.")
-        }
-        if lower.contains("activated enabled") {
-            return SystemExtensionProbe(state: .enabled, detail: "the extension is activated and enabled")
-        }
-        if lower.contains("terminated") {
-            return SystemExtensionProbe(
-                state: .terminated(line.trimmingCharacters(in: .whitespaces)),
-                detail: "the extension is installed but not running: \(line.trimmingCharacters(in: .whitespaces))")
-        }
-        return SystemExtensionProbe(
-            state: .unknown,
-            detail: "the extension's state could not be interpreted from: \(line.trimmingCharacters(in: .whitespaces))")
     }
 }

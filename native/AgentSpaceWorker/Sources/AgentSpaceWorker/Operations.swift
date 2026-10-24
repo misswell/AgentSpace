@@ -60,6 +60,7 @@ struct Operations {
             case Method.clipboardPush: return .success(try clipboardPush(params: params))
             case Method.clipboardPull: return .success(try clipboardPull(params: params))
             case Method.openSystemSettings: return .success(try openSystemSettings(params: params))
+            case Method.portsList: return .success(try portsList())
             case Method.shutdown: return .success(try shutdown(params: params))
             case Method.previewStart: return .success(try previewStart(params: params))
             case Method.previewFrame: return .success(try previewFrame())
@@ -295,6 +296,27 @@ struct Operations {
     }
 
     // MARK: - screenshot
+
+    /// The TCP ports this account's own processes listen on (`ports.list`).
+    /// Not behind the desktop-session gate: lsof run as this account's uid
+    /// attributes only this account's files, so the answer is this account's
+    /// own sockets and cannot describe any desktop — the same class of
+    /// read-only self-report as `status`.
+    func portsList() throws -> JSONValue {
+        let ports = PortInventory.collect()
+        return .obj([
+            "uid": .int(Int(getuid())),
+            "ports": .array(ports.map { port in
+                .obj([
+                    "port": .int(Int(port.port)),
+                    "address": .string(port.address),
+                    "loopback": .bool(port.coversLoopback),
+                    "process": port.process.map { .string($0) } ?? .null,
+                    "pid": port.pid.map { .int($0) } ?? .null,
+                ])
+            }),
+        ])
+    }
 
     func screenshot(params: JSONValue) throws -> JSONValue {
         // Reverses an earlier, reasoned-but-wrong call documented right here:

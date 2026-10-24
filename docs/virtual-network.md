@@ -2,20 +2,18 @@
 
 AgentSpace can put the Mac, the machine that drives its agents, and a network
 hub on one private IPv4 network, so a remote client reaches a **fixed address**
-no matter which network either side is on.
+no matter which network either side is on. **No tunnel ships** — the system
+extension was built, signed, notarized and then removed when macOS 26 refused
+its configuration in every form measured (§399); a virtual address that other
+machines can reach comes from a mesh VPN or the user's own WireGuard, never
+from this product.
 
 Two independent services are involved and they start and stop separately:
 
 | Service | What it does | Where it runs |
 |---|---|---|
-| **Virtual network** | a WireGuard tunnel with fixed IPv4 addresses | a packet-tunnel **system extension** inside `AgentSpace.app` |
-| **Remote API** | HTTP JSON over that tunnel | a separate process, bound to one address |
-
-The tunnel is a system extension, not an app extension: Apple's
-[TN3134](https://developer.apple.com/documentation/technotes/tn3134-network-extension-provider-deployment)
-restricts macOS packet-tunnel **app** extensions to the App Store, and AgentSpace
-ships with Developer ID. The system-extension route is the one that can be signed,
-notarized and installed from the DMG.
+| **Address planning** | a stored pool with fixed IPv4 addresses for the hub, the controller and this Mac | a configuration store, no data plane of its own |
+| **Remote API** | HTTP JSON over loopback (default) or a virtual address | the app, which owns the listener while it is open |
 
 ## Address planning
 
@@ -192,6 +190,12 @@ not a placeholder:
   control surface that can drive a desktop;
 - it needs no entitlement, no system extension and no approval.
 
+The **app owns the listener**: while AgentSpace is open it reconciles
+`api.json` into a real `APIServer` every few seconds, so `agentspace api
+enable` takes effect without a relaunch and the settings page reports the
+address a person can actually call. Closing the app closes the listener; no
+LaunchAgent starts it.
+
 A virtual address is **opt-in** (`agentspace api enable --virtual`, or the same
 choice in the app). It only starts when that address is really on an interface, so
 a tunnel that is down produces a refusal rather than a listener somewhere else.
@@ -226,15 +230,51 @@ security review. The extension was removed rather than shipped half-working, and
   an address that needs IPv6 is not claimed to work.
 - **A hosted service.** The hub is self-hosted. There is no AgentSpace-run
   coordination service, so `network connect` without a hub of your own has
-  nothing to connect to.
+   nothing to connect to.
 - **NAT traversal beyond WireGuard's own.** If UDP cannot reach the hub, the
-  tunnel will not come up, and AgentSpace will say so rather than claim a
-  connection. An HTTPS relay is not implemented.
-- **A measured packet path through the shipping extension.** The extension is in
-  the bundle, signed, notarized and recognised by macOS, and it builds from the
-  real `wireguard-go`. It reached `activated waiting for user` (§398 row 1353):
-  nothing can go further without the approval described above, so no packet has
-  crossed *this* extension. The configuration it consumes is the one measured
-  end to end against a real `wireguard-go` (row 1340).
+   tunnel will not come up, and AgentSpace will say so rather than claim a
+   connection. An HTTPS relay is not implemented.
 - **Desktop streaming over HTTP.** Screenshots are one-shot PNG requests. There
-  is no video endpoint.
+   is no video endpoint.
+
+## Port map: an agent account's local APIs, callable from the main system
+
+The one thing the remote API does not do is carry the *agent account's own*
+services — an API the agent runs locally inside its session. That is the port
+map's job, and it needs no tunnel, no virtual network and no network at all.
+
+```bash
+agentspace ports AgentUse            # what this account listens on, and what is mapped
+agentspace ports AgentUse map 3000   # → mapped onto a generated port, e.g. 127.0.0.1:45318
+agentspace ports AgentUse unmap 3000
+```
+
+- Every mapping gets a **generated port** in 45,000–46,999 (below the kernel's
+  ephemeral range, clear of the sign-in relay's 47,000–47,999), derived from
+  the account id and the internal port, and **stored** with the mapping so it
+  cannot move. The main system then calls `http://127.0.0.1:<generated>`.
+- The forwarder runs **inside the AgentSpace app** while it is open, on
+  `127.0.0.1:<generated>` → the account's `127.0.0.1:<internal>`. All accounts
+  on this Mac share one kernel network stack, which is why that one hop
+  reaches a service in another account's session at all.
+- **Ownership is proven, not assumed.** Because the stack is shared,
+  `127.0.0.1:<internal>` cannot say whose service it is; the forwarder asks
+  the account's own worker (`ports.list`, answered by lsof as that account's
+  uid) before every accepted connection, and refuses when the account no
+  longer listens on the port. A worker that cannot be asked means no evidence,
+  and no evidence means no bytes.
+- `map` verifies ownership up front too, and refuses ports bound only to
+  non-loopback addresses — an alias could not reach those with no network.
+
+### Why the generated address is a port, not a per-account IP
+
+A distinct loopback IP is not available to an unprivileged process on macOS.
+Only addresses actually assigned to `lo0` can be bound — `127.0.0.1` by
+default — and `bind()` on any other `127.x.y.z` answers **errno 49
+(EADDRNOTAVAIL, "Can't assign requested address")**, measured 2026-10-25 with
+a plain POSIX socket on `127.0.0.2`, `127.1.2.3` and `127.100.231.7`.
+Assigning more addresses to `lo0` is `ifconfig lo0 alias`, which is root —
+exactly the road §399 declined for the tunnel. (§399 row 1354's "the kernel
+routes 127.0.0.2" is about *routing*: a connect gets refused rather than
+unreachable. It says nothing about binding.) So the generated address is a
+port on 127.0.0.1, and this section is where that decision is written down.

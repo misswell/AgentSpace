@@ -15,11 +15,10 @@ import AgentSpaceCore
 ///   version for rollback. The tunnel is the app's to move; the page never
 ///   claims a tunnel change it did not make.
 struct VirtualNetworkSettingsView: View {
+    @EnvironmentObject private var apiRuntime: APIRuntime
     @State private var configuration: VirtualNetworkConfig?
     @State private var validation: NetworkValidation?
     @State private var snapshot = LocalNetworkSnapshot.unknown
-    @State private var extensionState = SystemExtensionProbe(state: .unknown, detail: "")
-    @State private var apiConfiguration: APIConfiguration?
     @State private var activeTokenCount = 0
 
     // Editing state. Text, because a half-typed address must be editable; the
@@ -52,10 +51,10 @@ struct VirtualNetworkSettingsView: View {
             } else {
                 addressSection
                 advancedSection
-                apiSection
                 nodesSection
                 statusSection
             }
+            apiSection
         }
         .formStyle(.grouped)
         .frame(minWidth: 560, minHeight: 460)
@@ -122,29 +121,49 @@ struct VirtualNetworkSettingsView: View {
         }
     }
 
+    /// The API section is deliberately shown with no virtual network
+    /// configured: loopback — the default — needs no network at all, which is
+    /// the whole point of the default. The listener's state comes from
+    /// `APIRuntime`, the process that actually owns the socket, so the page
+    /// reports what a person can call rather than what a file promised.
     private var apiSection: some View {
         Section("Remote API") {
-            if let api = apiConfiguration {
-                LabeledContent("Listener") {
-                    Text(api.enabled
-                         ? "\(configuration.map { "\($0.local.description)" } ?? "—"):\(api.port)"
-                         : "Off")
-                }
-                LabeledContent("Tokens", value: "\(activeTokenCount) active")
-                HStack {
-                    Button(api.enabled ? "Disable API" : "Enable API") {
-                        toggleAPI()
-                    }
-                    .accessibilityIdentifier("apiToggleButton")
-                    Button("Create token…") { createToken() }
-                        .accessibilityIdentifier("apiCreateTokenButton")
-                }
-                Text("The API listens only on this Mac's virtual address, never on all interfaces. Tokens are created with a scope; the secret is shown once.")
-                    .font(.caption).foregroundStyle(.secondary)
-            } else {
-                Text("Enable the virtual network first: the API binds to its address.")
-                    .font(.caption).foregroundStyle(.secondary)
+            LabeledContent("Listener") {
+                Text(apiRuntime.phase.description)
+                    .foregroundStyle(isListenerRunning ? .primary : .secondary)
             }
+            LabeledContent("Bind mode") {
+                Text(bindModeDescription)
+            }
+            LabeledContent("Tokens", value: "\(activeTokenCount) active")
+            HStack {
+                Button(apiEnabled ? "Disable API" : "Enable API") {
+                    toggleAPI()
+                }
+                .accessibilityIdentifier("apiToggleButton")
+                Button("Create token…") { createToken() }
+                    .accessibilityIdentifier("apiCreateTokenButton")
+            }
+            Text("By default the API listens on 127.0.0.1: it works with no network at all and is never reachable from another machine. A virtual-network address is opt-in and must already be on an interface. Tokens are created with a scope; the secret is shown once.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var isListenerRunning: Bool {
+        if case .running = apiRuntime.phase { return true }
+        return false
+    }
+
+    private var apiEnabled: Bool {
+        apiRuntime.configuration?.enabled == true
+    }
+
+    private var bindModeDescription: String {
+        switch apiRuntime.configuration?.bindMode {
+        case "virtualNetwork":
+            return NSLocalizedString("Virtual network address (opt-in)", comment: "")
+        default:
+            return NSLocalizedString("127.0.0.1 (loopback, works with no network)", comment: "")
         }
     }
 
@@ -190,7 +209,6 @@ struct VirtualNetworkSettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            LabeledContent("System extension", value: extensionState.detail)
             if let statusLine {
                 Text(statusLine).font(.caption).foregroundStyle(.secondary)
             }
@@ -228,9 +246,8 @@ struct VirtualNetworkSettingsView: View {
     private func reload() {
         configuration = store.load()
         snapshot = LocalNetworkProbe.snapshot()
-        extensionState = SystemExtensionProbe.installedState()
-        apiConfiguration = APIConfiguration.load()
         activeTokenCount = APITokenStore.load().tokens.filter(\.isActive).count
+        apiRuntime.reconcile()
         if let configuration {
             poolText = configuration.pool.description
             localText = configuration.local.description
@@ -357,20 +374,22 @@ struct VirtualNetworkSettingsView: View {
         }
     }
 
+    /// Enable writes the configuration *and* asks the runtime — the process
+    /// that owns the socket — to make the listener match it, so the status
+    /// line that follows is the state of a real bind, not a wish.
     private func toggleAPI() {
-        guard let configuration else { return }
-        var api = apiConfiguration ?? APIConfiguration(
-            enabled: false, port: configuration.apiPort)
+        var api = apiRuntime.configuration
+            ?? APIConfiguration(enabled: false, port: configuration?.apiPort ?? VirtualNetworkValidator.defaultPort)
         api.enabled.toggle()
-        api.port = configuration.apiPort
         do {
             try api.save()
-            apiConfiguration = api
+            apiRuntime.reconcile()
             statusLine = api.enabled
-                ? "API enabled on \(configuration.local):\(api.port)."
-                : "API disabled."
+                ? String(format: NSLocalizedString("API listener: %@", comment: ""), apiRuntime.phase.description)
+                : NSLocalizedString("API disabled.", comment: "")
+            errorLine = nil
         } catch {
-            errorLine = "Could not write the API configuration: \(error)"
+            errorLine = NSLocalizedString("Could not write the API configuration:", comment: "") + " \(error)"
         }
     }
 

@@ -25,49 +25,41 @@ enum APICommand {
         switch action {
         case "status", "":
             let config = APIConfiguration.load(paths: paths)
-            guard let network else {
-                emitter.success(.obj([
-                    "ok": .bool(true),
-                    "enabled": .bool(false),
-                    "note": .string("no virtual-network configuration; the API cannot bind to a virtual address"),
-                ]), human: "API: not configured (no virtual network)")
-            }
             let tokens = APITokenStore.load(paths: paths)
             let active = tokens.tokens.filter(\.isActive)
             let policy = config.flatMap { $0.policy(network: network) }
-            let host = policy?.host ?? "—"
-            let port = policy?.port ?? network.apiPort
-            let onLink = LocalNetworkProbe.snapshot().addresses.contains(network.local)
-            let extensionState = SystemExtensionProbe.installedState()
+                ?? APIListenPolicy.loopback(port: network?.apiPort ?? VirtualNetworkValidator.defaultPort)
+            let host = policy.host
+            let port = policy.port
+            // The CLI does not own the listener, so it does not guess: it
+            // connects. An answered probe is the honest "running"; a refused
+            // one is "not running right now", not an error.
+            let answering = TCPProbe.answers(host: host, port: UInt16(clamping: port))
+            let onLink = network.map { LocalNetworkProbe.snapshot().addresses.contains($0.local) } ?? false
+            let virtualMissing = config?.bindMode == "virtualNetwork" && !onLink
 
             emitter.success(.obj([
                 "ok": .bool(true),
                 "enabled": .bool(config?.enabled == true),
-                "bindMode": config.map { .string($0.bindMode) } ?? .string("virtualNetwork"),
+                "bindMode": .string(config?.bindMode ?? "loopback"),
                 "host": .string(host),
                 "port": .int(port),
                 "baseURL": .string("http://\(host):\(port)"),
-                "virtualAddressPresent": .bool(onLink),
-                "extension": .string(extensionState.detail),
+                "listenerAnswering": .bool(answering),
                 "activeTokens": .int(active.count),
-                "note": config == nil
-                    ? .string("no API configuration yet; `agentspace api enable` writes one")
-                    : .null,
+                "note": config?.enabled != true
+                    ? .string("the API is disabled in the configuration")
+                    : answering
+                        ? .string("the listener answered a TCP probe")
+                        : .string("no listener answered; the app (not the CLI) runs the listener — is AgentSpace open?"),
             ]), human: """
             API: \(config?.enabled == true ? "enabled" : "disabled")
-              listen:   \(host):\(port) (\(config?.bindMode ?? "virtualNetwork"))
-              address:  \(onLink ? "\(network.local) is present" : "\(network.local) is not assigned yet — the tunnel is down")
-              tokens:   \(active.count) active
-              extension: \(extensionState.detail)
+              listen:   \(host):\(port) (\(config?.bindMode ?? "loopback"))\(answering ? " — answering" : " — no listener (open the app to serve)")
+              tokens:   \(active.count) active\(virtualMissing ? "\n  \(network!.local) is not on an interface, so a virtual-address bind would refuse" : "")
             """)
 
         case "enable":
-            guard let network else {
-                emitter.failure(AgentSpaceError(
-                    code: .badRequest,
-                    message: "enable the virtual network first: the API binds to its address, never to all interfaces."))
-            }
-            var port = network.apiPort
+            var port = network?.apiPort ?? VirtualNetworkValidator.defaultPort
             if let portText = parsed.flag("port"), let parsedPort = Int(portText) {
                 port = parsedPort
             }
@@ -76,11 +68,20 @@ enum APICommand {
                     code: .badRequest,
                     message: "port \(port) is outside \(VirtualNetworkValidator.allowedPortRange.lowerBound)–\(VirtualNetworkValidator.allowedPortRange.upperBound)"))
             }
-            // Loopback is the default: it is the only address that exists with
+            // Loopback is the default: it is the one address that exists with
             // no network at all, and it never exposes the API on a physical
-            // interface. A virtual address is opt-in through `--virtual`.
+            // interface — which is also why it needs no virtual-network
+            // configuration. A virtual address is opt-in through `--virtual`
+            // and does need one.
             var bindMode = "loopback"
-            if parsed.bool("virtual") { bindMode = "virtualNetwork" }
+            if parsed.bool("virtual") {
+                bindMode = "virtualNetwork"
+                guard let network else {
+                    emitter.failure(AgentSpaceError(
+                        code: .badRequest,
+                        message: "a virtual-address API needs a virtual-network configuration; run `agentspace network enable` first, or drop --virtual to listen on 127.0.0.1."))
+                }
+            }
             let config = APIConfiguration(enabled: true, bindMode: bindMode, port: port)
             do {
                 try config.save(paths: paths)
@@ -88,15 +89,15 @@ enum APICommand {
                 emitter.failure(AgentSpaceError(
                     code: .internalError, message: "could not write the API configuration: \(error)"))
             }
-            let host = config.policy(network: network)?.host ?? network.local.description
+            let host = config.policy(network: network)?.host ?? "127.0.0.1"
             emitter.success(.obj([
                 "ok": .bool(true),
                 "enabled": .bool(true),
                 "host": .string(host),
                 "port": .int(port),
                 "baseURL": .string("http://\(host):\(port)"),
-                "note": .string("The app starts the listener and reports its real state in Settings → Virtual Network."),
-            ]), human: "API enabled: http://\(host):\(port)\n  The app starts the listener; `agentspace api status` reports the configuration.")
+                "note": .string("The app serves this listener while it is open, and picks this configuration up within a few seconds; `agentspace api status` probes whether it is answering."),
+            ]), human: "API enabled: http://\(host):\(port)\n  The app serves it while open — `agentspace api status` says whether it is answering.")
 
         case "disable":
             var config = APIConfiguration.load(paths: paths)
@@ -121,12 +122,12 @@ enum APICommand {
             }
             emitter.failure(AgentSpaceError(
                 code: .badRequest,
-                message: "restarting the listener is the app's job — it owns the port and the extension. Use Settings → Virtual Network → Restart API, which reports whether the new listener actually bound."))
+                message: "the listener runs inside the AgentSpace app, which re-reads the configuration every few seconds — turn the API off and on in Settings → Virtual Network (or relaunch the app) and the new bind takes effect immediately there."))
 
         default:
             emitter.failure(AgentSpaceError(
                 code: .badRequest,
-                message: "unknown api command '\(action)'. Try: status, enable, disable, restart."))
+                message: "unknown api command '\(action)'. Try: status, enable, disable."))
         }
     }
 

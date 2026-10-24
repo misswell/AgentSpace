@@ -28,6 +28,7 @@ public struct VirtualNetworkPaths: Sendable {
     public var tokenPath: String { directory + "/api-tokens.json" }
     public var identityPath: String { directory + "/identity.json" }
     public var apiLogPath: String { root + "/Logs/api.log" }
+    public var portMapPath: String { directory + "/port-map.json" }
 
     public func candidatePath(version: Int) -> String {
         candidatesDirectory + "/candidate-\(version).json"

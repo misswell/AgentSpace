@@ -4,52 +4,62 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-24 on `master`. Current public release: **0.1.97**.
+Last updated: 2026-10-25 on `master`. Current public release: **0.1.99**.
 
-## In flight: the virtual network and remote API (§398, §399)
+## Shipped: the port map — an agent account's local APIs on a generated port (§400)
 
-This tree contains the virtual-network **address layer** and an HTTP API. Read
-[`docs/virtual-network.md`](virtual-network.md) first. **There is no built-in
-tunnel**, and §399 records the measurement that removed it.
+The owner's requirement: 「我在子系统中有一些本地的API 我需要在主系统中使用
+那么就是生成一个IP 然后就可以调用」, with no network at all. Read
+[`docs/virtual-network.md`](virtual-network.md) → "Port map" first; §400 has
+the measured evidence.
 
-What is in this tree and measured:
+What shipped in 0.1.99:
 
-- **Address planning and conflict detection** (`VirtualNetwork.swift`,
-  `VirtualNetworkValidator.swift`, `LocalNetworkProbe.swift`): a random `/24` from
-  `100.64.0.0/10` then RFC 1918, overlap checks against this Mac's real interfaces
-  and routes, an unreadable snapshot reported as unverified rather than clean,
-  and two documented overrides — never one for an address this Mac already holds.
-- **A transactional configuration store** with the previous version kept for
-  rollback, and a migration plan that names offline nodes.
-- **The HTTP API** (`APIServer.swift`, `APIRouting.swift`, `APIAgentService.swift`):
-  `CFHTTPMessage` + `Network.framework`, Bearer tokens stored as SHA-256 digests
-  with scopes, per-token and per-agent rate limits, an exhaustive error→status
-  map, and a listener with no wildcard case. **Binds `127.0.0.1` by default**, so
-  it works with no network at all; a virtual address is opt-in and must be present
-  on an interface.
-- **The hub** (`network/hub`, Go): one-time enrollment tokens stored as digests,
-  idempotent enrollment per public key, lowest-first fixed allocation, revocation.
-- **`scripts/network-e2e.sh`**: hub → addresses → `AgentSpaceCore` configuration →
-  a **real** `wireguard-go` handshake with an ICMP packet both ways.
-- **CLI**: `network {status,enable,disable,configure,nodes,doctor,revoke}` and
-  `api` / `api-token`. **GUI**: Settings → Virtual Network, editable with preview
-  and rollback.
+- **The mapping**: every (agent account, internal port) gets a **generated
+  port** in 45,000–46,999, stored in `<root>/Network/port-map.json`; the app
+  runs a forwarder on `127.0.0.1:<generated>` → the account's
+  `127.0.0.1:<internal>` while it is open. `PortMap.swift`,
+  `PortForwarder.swift`, `PortMapRuntime.swift`.
+- **Why a port and not an IP, measured**: a plain POSIX `bind()` on
+  `127.0.0.2` / `127.1.2.3` / `127.100.231.7` answers **errno 49
+  (EADDRNOTAVAIL)** — only addresses assigned to `lo0` bind without root, and
+  `ifconfig lo0 alias` is root (§400 row 1363). §399 row 1354's "routes
+  127.0.0.2" was about routing, not binding.
+- **Ownership is fail-closed**: the shared stack cannot say whose service
+  `127.0.0.1:<port>` is, so the forwarder asks the account's own worker
+  (`ports.list`, new additive protocol-v1 method, lsof as that uid) before
+  every accepted connection; no evidence, no bytes. `map` verifies up front
+  and refuses non-loopback-bound ports.
+- **Surfaces**: `agentspace ports <account> [map|unmap <port>]`; the account
+  page's Port Map card (both `.lproj` tables); the Remote API section now
+  shows the runtime's real phase.
+- **The 0.1.98 defects fixed**: the API listener has an owner at last
+  (`APIRuntime` reconciles `api.json` into a real `APIServer`; `api status`
+  probes it over TCP); `SystemExtensionProbe` and every message pointing at
+  the removed tunnel or a non-existent button are gone; loopback mode needs
+  no virtual-network configuration.
+
+Still true and stated on every surface: forwarders live while the app is open
+(no LaunchAgent); against a pre-0.1.99 worker the port list shows the usual
+「update the worker」 notice and mapping fails closed. The worker binary moved
+with this release, so the first use after updating offers the one-time worker
+update per account.
 
 What is **not** here, and must not be implied:
 
-1. **No packet tunnel ships.** A system extension was built, signed, notarized
-   and activated (`activated enabled`), but macOS 26 refused its configuration
-   with `NEVPNErrorDomain 5 permission denied` in every configuration measured
-   (§399 row 1357). It was removed rather than shipped half-working.
-2. To reach the API from another machine, use an existing mesh VPN (Tailscale,
-   ZeroTier — both already run on this Mac) or the user's own WireGuard.
-3. IPv6 is stored, not implemented.
-4. The API is not started by a LaunchAgent.
-5. Layer 4 produced no verdict on this machine (§398 row 1345).
+1. **No built-in tunnel.** A virtual address other machines can reach comes
+   from a mesh VPN or the user's own WireGuard (§399 rows 1355–1357).
+2. **IPv6 is stored, not implemented.**
+3. **Layer 4 produced no verdict on the new card** (§400 row 1369) — it rests
+   on source, localization and the identifier gate, not a live press.
 
 **The bundle identifier is unchanged (`com.agentspace.AgentSpace`)**, so an
-existing installation updates with no helper reinstall and no re-grant. §398's
-identity change was part of the tunnel work and was reverted with it.
+existing installation updates with no re-grant; the worker update above is the
+one-time alignment the app offers after every update (§332).
+
+Published 0.1.98 (§399 row 1362, 2026-10-24): the loopback-default API, the
+tunnel's removal, and the measured reason it cannot ship. 0.1.97's release
+notes are two paragraphs below, unchanged.
 
 Published 0.1.97 (§397 row 1335, 2026-10-23): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.97),
 source [c36ffec](https://github.com/misswell/AgentSpace/commit/c36ffec),

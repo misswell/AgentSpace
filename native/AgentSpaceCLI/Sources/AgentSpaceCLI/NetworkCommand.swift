@@ -63,16 +63,15 @@ enum NetworkCommand {
                 "apiPort": .int(config!.apiPort),
                 "valid": .bool(validation.isValid),
                 "conflicts": .array(validation.conflicts.map(conflictJSON)),
-                "note": .string("The configuration is committed. Bringing the tunnel up and starting the API are done by the app (Settings → Virtual Network), which previews the change and can roll it back."),
+                "note": .string("The configuration is committed. The remote API is started by the app (Settings → Virtual Network). AgentSpace ships no tunnel: a virtual address other machines can reach comes from a mesh VPN or your own WireGuard, never from this product."),
             ]), human: created
-                ? "network enabled: \(config!.pool) — this Mac is \(config!.local), API port \(config!.apiPort)\n  The tunnel and the API are started from the app, which shows a preview and can roll back."
+                ? "network enabled: \(config!.pool) — this Mac is \(config!.local), API port \(config!.apiPort)\n  The app starts the API. There is no built-in tunnel; a reachable virtual address comes from a mesh VPN or your own WireGuard."
                 : "network already configured: \(config!.pool) — this Mac is \(config!.local), API port \(config!.apiPort)")
 
         case "disable":
-            // Disabling removes the committed configuration, which is what stops
-            // the app from bringing the tunnel back on next launch. It does not
-            // touch interfaces directly: the tunnel is the app's, and the app
-            // notices a missing configuration.
+            // Disabling removes the committed configuration. It does not touch
+            // interfaces — there is no tunnel to touch — it only takes away the
+            // addresses a virtual-address API bind would have used.
             guard store.load() != nil else {
                 emitter.success(.obj([
                     "ok": .bool(true), "changed": .bool(false),
@@ -82,7 +81,7 @@ enum NetworkCommand {
             store.remove()
             emitter.success(.obj([
                 "ok": .bool(true), "changed": .bool(true),
-                "note": .string("the committed configuration was removed; the app stops the tunnel when it next checks"),
+                "note": .string("the committed configuration was removed; an API bound to the virtual address stops at the app's next check"),
             ]), human: "network disabled (configuration removed)")
 
         case "configure":
@@ -125,7 +124,7 @@ enum NetworkCommand {
         case "connect", "disconnect":
             emitter.failure(AgentSpaceError(
                 code: .badRequest,
-                message: "`network \(action)` is not a CLI operation. The tunnel is a system extension owned by the app: use Settings → Virtual Network → \(action == "connect" ? "Connect" : "Disconnect"), which reports the extension's real state and can roll back."))
+                message: "`network \(action)` does not exist: AgentSpace ships no tunnel (macOS 26 refuses to save a VPN configuration for an ordinary app, validation §399). To reach this Mac from elsewhere, use an existing mesh VPN or your own WireGuard — `network status` prints the configuration both consume."))
 
         case "revoke":
             guard let id = args.first, !id.isEmpty else {
@@ -298,7 +297,7 @@ enum NetworkCommand {
             "pool": .string(candidate.pool.description),
             "local": .string(candidate.local.description),
             "migration": migrationJSON(plan),
-            "note": .string("The configuration is committed and the previous one is kept for rollback. The tunnel takes the new addresses when the app next applies it."),
+            "note": .string("The configuration is committed and the previous one is kept for rollback. The app reads the new addresses at its next check; a virtual-address API rebinds to them only while the address is really on an interface."),
         ]), human: """
         configured version \(candidate.version): \(candidate.pool), this Mac \(candidate.local)
           changes: \(plan.addressChanges.map { "\($0.node) \($0.from) → \($0.to)" }.joined(separator: ", "))
@@ -336,7 +335,7 @@ enum NetworkCommand {
                 status: onLink ? "ok" : "warn",
                 detail: onLink
                     ? "\(config.local) is assigned to an interface"
-                    : "\(config.local) is not assigned yet; the tunnel is down or the extension is not activated"))
+                    : "\(config.local) is not assigned to any interface. AgentSpace ships no tunnel; a mesh VPN or your own interface is what puts a virtual address on this Mac"))
             let tokenList = APITokenStore.load(paths: paths)
             let active = tokenList.tokens.filter(\.isActive).count
             checks.append(Check(
@@ -349,12 +348,6 @@ enum NetworkCommand {
             checks.append(Check(name: "configuration", status: "fail",
                                 detail: "none; run `agentspace network enable`"))
         }
-
-        let extensionState = SystemExtensionProbe.installedState()
-        checks.append(Check(
-            name: "system extension",
-            status: extensionState.isUsable ? "ok" : "warn",
-            detail: extensionState.detail))
 
         let payload = JSONValue.obj([
             "ok": .bool(checks.allSatisfy { $0.status != "fail" }),

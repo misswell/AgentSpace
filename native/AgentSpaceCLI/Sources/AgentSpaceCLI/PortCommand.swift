@@ -1,0 +1,279 @@
+import Foundation
+import AgentSpaceCore
+
+/// `agentspace ports …` — the generated ports that map an agent account's
+/// local services onto `127.0.0.1`.
+///
+/// The requirement this serves: an API the agent account runs locally has to
+/// be callable from the main system at an address generated for it, with no
+/// network at all. Every mapping gets a fixed generated port (45,000–46,999,
+/// derived from the account id and the internal port), and the app serves it
+/// on `127.0.0.1` with a forwarder while it is open. A per-account distinct
+/// *IP* is not available to an unprivileged process on macOS — only addresses
+/// assigned to `lo0` can be bound, and adding one is root — so the generated
+/// address is a port. The CLI reads, verifies and writes the shared mapping
+/// file; it does not host forwarders itself, and every message that depends on
+/// hosting says so.
+enum PortCommand {
+
+    static func run(
+        action: [String],
+        parsed: ParsedArgs,
+        root: String?,
+        emitter: Emitter
+    ) -> Never {
+        let paths = VirtualNetworkPaths(root: root)
+        let registry = SpaceRegistry.load(root: root)
+
+        // No account named: one line per attached account.
+        guard let reference = action.first else {
+            let store = PortMapStore(paths: paths)
+            let rows: [JSONValue] = registry.spaces.map { space in
+                .obj([
+                    "id": .string(space.id.uuidString),
+                    "name": .string(space.name),
+                    "mappings": .int(store.mappings(account: space.id).count),
+                ])
+            }
+            let human = registry.spaces.isEmpty
+                ? "no agent accounts are attached"
+                : registry.spaces
+                    .map { space in
+                        let count = store.mappings(account: space.id).count
+                        return "  \(space.name)  (\(count) mapped)"
+                    }
+                    .joined(separator: "\n")
+            emitter.success(.obj(["ok": .bool(true), "accounts": .array(rows)]), human: human)
+        }
+
+        // An account is named: resolve it like every other command does.
+        let account: AgentAccount
+        switch registry.resolve(reference) {
+        case .success(let found): account = found
+        case .failure(let error): emitter.failure(error)
+        }
+        let args = Array(action.dropFirst())
+        let sub = args.first ?? "list"
+
+        switch sub {
+        case "list", "":
+            return list(account: account, paths: paths, emitter: emitter)
+        case "map":
+            return map(account: account, args: Array(args.dropFirst()), paths: paths, emitter: emitter)
+        case "unmap":
+            return unmap(account: account, args: Array(args.dropFirst()), paths: paths, emitter: emitter)
+        default:
+            emitter.failure(AgentSpaceError(
+                code: .badRequest,
+                message: "unknown ports command '\(sub)'. Try: `agentspace ports <account>`, `… map <port>`, `… unmap <port>`."))
+        }
+    }
+
+    // MARK: list
+
+    private static func list(account: AgentAccount, paths: VirtualNetworkPaths, emitter: Emitter) -> Never {
+        // The account's own worker is the only attribution there is: lsof as
+        // that uid lists exactly this account's listeners and nobody else's.
+        let connection = SpaceConnection(space: account)
+        let listening: [ListeningPort]
+        var workerNotice: String?
+        do {
+            let response = try connection.client.call(
+                method: Method.portsList, token: connection.token, timeout: 5)
+            if response.ok, let rows = response.result?["ports"]?.arrayValue {
+                listening = rows.compactMap { row in
+                    guard let port = row["port"]?.intValue,
+                          let portNumber = UInt16(exactly: port),
+                          let address = row["address"]?.stringValue else { return nil }
+                    return ListeningPort(
+                        address: address, port: portNumber,
+                        process: row["process"]?.stringValue,
+                        pid: row["pid"]?.intValue)
+                }
+            } else if let error = response.error, error.code == .methodNotFound {
+                listening = []
+                workerNotice = "the worker is older than this feature; let the app update it (offered after an app update) and the list appears"
+            } else {
+                listening = []
+                workerNotice = "the worker could not list this account's ports: \(response.error.map { "\($0.code.rawValue) \($0.message)" } ?? "no result")"
+            }
+        } catch {
+            listening = []
+            workerNotice = "the worker is offline (\(error)); mappings keep their configuration but refuse connections"
+        }
+
+        // Distinct ports: several sockets can share a port (several addresses
+        // or file descriptors); a person maps a port, not a socket. A
+        // loopback-bound socket wins the representative row.
+        var distinct: [UInt16: ListeningPort] = [:]
+        for row in listening {
+            if let existing = distinct[row.port], existing.coversLoopback, !row.coversLoopback { continue }
+            distinct[row.port] = row
+        }
+        let ports = distinct.values.sorted { $0.port < $1.port }
+
+        let store = PortMapStore(paths: paths)
+        let mappings = store.mappings(account: account.id)
+
+        var mappedRows: [JSONValue] = []
+        var humanMapped: [String] = []
+        for mapping in mappings {
+            let answering = TCPProbe.answers(host: "127.0.0.1", port: mapping.external)
+            mappedRows.append(.obj([
+                "port": .int(Int(mapping.port)),
+                "externalPort": .int(Int(mapping.external)),
+                "endpoint": .string(mapping.endpoint),
+                "answering": .bool(answering),
+                "serviceListening": .bool(distinct[mapping.port] != nil),
+            ]))
+            humanMapped.append(
+                "  \(mapping.endpoint.padding(toLength: 15, withPad: " ", startingAt: 0)) → port \(mapping.port)  \(answering ? "answering" : "not answering")\(distinct[mapping.port] == nil ? "  (nothing is listening on it right now)" : "")")
+        }
+
+        let portRows: [JSONValue] = ports.map { port in
+            .obj([
+                "port": .int(Int(port.port)),
+                "address": .string(port.address),
+                "loopback": .bool(port.coversLoopback),
+                "process": port.process.map { .string($0) } ?? .null,
+                "pid": port.pid.map { .int($0) } ?? .null,
+                "mapped": .bool(mappings.contains { $0.port == port.port }),
+            ])
+        }
+
+        var human: [String] = [
+            "\(account.name): services on 127.0.0.1, mapped onto generated ports of 127.0.0.1",
+        ]
+        if let workerNotice { human.append("  \(workerNotice)") }
+        for port in ports {
+            let mapping = mappings.first { $0.port == port.port }
+            let destination = mapping.map { "→ \($0.endpoint)" } ?? "[not mapped]"
+            let loopback = port.coversLoopback ? "" : "  (not on loopback)"
+            human.append("  \(String(port.port).padding(toLength: 6, withPad: " ", startingAt: 0)) \(port.process ?? "?")  on \(port.address)\(loopback)  \(destination)")
+        }
+        if !mappings.isEmpty { human.append("mapped ports:") }
+        human.append(contentsOf: humanMapped)
+        if mappings.isEmpty {
+            human.append("  nothing mapped yet: `agentspace ports \(account.name) map <port>`")
+        }
+        let humanText = human.joined(separator: "\n")
+
+        emitter.success(.obj([
+            "ok": .bool(true),
+            "account": .obj([
+                "id": .string(account.id.uuidString),
+                "name": .string(account.name),
+            ]),
+            "ports": .array(portRows),
+            "mappings": .array(mappedRows),
+            "workerNotice": workerNotice.map { .string($0) } ?? .null,
+            "note": .string("Forwarders are served by the AgentSpace app while it is open; the CLI writes the shared mapping file."),
+        ]), human: humanText)
+    }
+
+    // MARK: map / unmap
+
+    private static func map(
+        account: AgentAccount,
+        args: [String],
+        paths: VirtualNetworkPaths,
+        emitter: Emitter
+    ) -> Never {
+        guard let text = args.first, let port = UInt16(text), port != 0 else {
+            emitter.failure(AgentSpaceError(
+                code: .badRequest,
+                message: "usage: agentspace ports <account> map <port>"))
+        }
+
+        // Fail closed on ownership: a mapping is only written for a port this
+        // account is really listening on, verified through its own worker.
+        // Without that check the forwarder could point the generated port at
+        // whichever other account holds the internal port on the shared stack.
+        let connection = SpaceConnection(space: account)
+        var owned = false
+        var coversLoopback = false
+        var reason = "the worker did not answer"
+        do {
+            let response = try connection.client.call(
+                method: Method.portsList, token: connection.token, timeout: 5)
+            if let error = response.error {
+                reason = error.code == .methodNotFound
+                    ? "the worker is older than this feature; let the app update it first"
+                    : "\(error.code.rawValue): \(error.message)"
+            } else if let rows = response.result?["ports"]?.arrayValue {
+                let matches = rows.filter { $0["port"]?.intValue == Int(port) }
+                owned = !matches.isEmpty
+                coversLoopback = matches.contains { $0["loopback"]?.boolValue == true }
+                if !owned {
+                    reason = "nothing in this account's session is listening on port \(port)"
+                } else if !coversLoopback {
+                    reason = "port \(port) is bound only to a non-loopback address; the mapping could not reach it with no network"
+                }
+            }
+        } catch {
+            reason = "the worker is offline (\(error))"
+        }
+        guard owned, coversLoopback else {
+            emitter.failure(AgentSpaceError(
+                code: .badRequest,
+                message: "port \(port) cannot be mapped for \(account.name): \(reason)."))
+        }
+
+        // The generated port: deterministic order, first one that no other
+        // mapping owns and nothing on this Mac is already listening on.
+        let store = PortMapStore(paths: paths)
+        let taken = store.externalPortsInUse()
+        guard let external = AgentPortAllocator.choose(account: account.id, port: port, isFree: { candidate in
+            !taken.contains(candidate) && !TCPProbe.answers(host: "127.0.0.1", port: candidate, timeout: 0.6)
+        }) else {
+            emitter.failure(AgentSpaceError(
+                code: .badRequest,
+                message: "no free port in \(AgentPortAllocator.range.lowerBound)–\(AgentPortAllocator.range.upperBound); unmap one first"))
+        }
+
+        do {
+            let added = try store.add(account: account.id, port: port, external: external)
+            emitter.success(.obj([
+                "ok": .bool(true),
+                "added": .bool(added),
+                "account": .string(account.id.uuidString),
+                "port": .int(Int(port)),
+                "externalPort": .int(Int(external)),
+                "endpoint": .string("127.0.0.1:\(external)"),
+                "note": .string("The app serves this port within a few seconds while it is open."),
+            ]), human: added
+                ? "mapped: 127.0.0.1:\(external) → this account's port \(port) — the app serves it within a few seconds while it is open"
+                : "already mapped")
+        } catch {
+            emitter.failure(AgentSpaceError(
+                code: .internalError, message: "could not write the mapping file: \(error)"))
+        }
+    }
+
+    private static func unmap(
+        account: AgentAccount,
+        args: [String],
+        paths: VirtualNetworkPaths,
+        emitter: Emitter
+    ) -> Never {
+        guard let text = args.first, let port = UInt16(text), port != 0 else {
+            emitter.failure(AgentSpaceError(
+                code: .badRequest,
+                message: "usage: agentspace ports <account> unmap <port>"))
+        }
+        do {
+            let removed = try PortMapStore(paths: paths).remove(account: account.id, port: port)
+            emitter.success(.obj([
+                "ok": .bool(true),
+                "removed": .bool(removed),
+                "account": .string(account.id.uuidString),
+                "port": .int(Int(port)),
+            ]), human: removed
+                ? "unmapped: the app stops the forwarder within a few seconds"
+                : "was not mapped")
+        } catch {
+            emitter.failure(AgentSpaceError(
+                code: .internalError, message: "could not write the mapping file: \(error)"))
+        }
+    }
+}
