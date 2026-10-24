@@ -57,6 +57,21 @@ What is **not** here, and must not be implied:
 existing installation updates with no re-grant; the worker update above is the
 one-time alignment the app offers after every update (§332).
 
+Published 0.1.99 (§400 row 1370, 2026-10-25): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.99),
+source [d952f01](https://github.com/misswell/AgentSpace/commit/d952f01),
+[Actions 40116447432](https://github.com/misswell/AgentSpace/actions/runs/40116447432)
+all three jobs green. Runner gate: Swift **1053** (7 skipped), updater and MCP
+smoke green. `releases/latest` answers v0.1.99; Apple live readback: app ZIP
+`41f821fe-…` and DMG `6db3faad-…` both **Accepted**. DMG 29,269,195 bytes.
+
+**What 0.1.99 changes for a person**: 子账号里跑的本地 API 可以在主系统直接调
+用——每个映射得到 `127.0.0.1` 上一个固定生成的端口，断网可用。账号详情页新增
+「端口映射」卡片，CLI 新增 `agentspace ports`。转发由打开的 App 提供；每一次
+连接前都会向该账号自己的 Worker 验证端口归属，无证据即拒绝。这是 **Worker 变
+更**（新增 `ports.list`），更新后第一次使用请允许一次 Worker 更新（可能需要一
+次管理员确认）。生成的是端口不是独立 IP——macOS 不允许普通进程绑定
+127.0.0.1 以外的回环地址（§400 row 1363 实测 errno 49），文档已如实说明。
+
 Published 0.1.98 (§399 row 1362, 2026-10-24): the loopback-default API, the
 tunnel's removal, and the measured reason it cannot ship. 0.1.97's release
 notes are two paragraphs below, unchanged.
