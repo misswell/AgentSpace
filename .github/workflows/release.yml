@@ -171,41 +171,9 @@ jobs:
       # Layer 1. `scripts/test.sh` builds every product before testing, because
       # SwiftPM does not build executable products for a test target and a suite
       # that silently skips its integration tests is not a gate.
-      # The packet-tunnel extension is wireguard-go, which is Go code, and
-      # `scripts/build-tunnel.sh` is called by `bundle-app.sh` during the release.
-      # The runner image ships Go, but a release that discovers otherwise 20
-      # minutes into signing is a release that fails for the wrong reason, so the
-      # toolchain is reported here — and the version is checked, because the hub's
-      # HTTP routes need Go 1.22's method patterns.
-      - name: "Toolchain: Go for the tunnel extension"
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! command -v go >/dev/null 2>&1; then
-            echo "::error::Go is required to build the tunnel's data plane (wireguard-go). Install it on the runner image."
-            exit 1
-          fi
-          go version
-          python3 - <<'PY'
-          import re, subprocess
-          out = subprocess.run(["go", "version"], capture_output=True, text=True).stdout
-          m = re.search(r"go(\d+)\.(\d+)", out)
-          assert m, out
-          major, minor = int(m.group(1)), int(m.group(2))
-          assert (major, minor) >= (1, 22), f"Go {major}.{minor} is too old; the hub uses 1.22 method patterns"
-          print(f"Go {major}.{minor} is new enough")
-          PY
-
       - name: "Layer 1: Swift suite"
         shell: bash
         run: scripts/test.sh
-
-      # The tunnel extension builds from Go sources pulled at build time. A gate
-      # that never builds it would pass on a tree whose release cannot produce a
-      # bundle at all.
-      - name: "Build the tunnel extension"
-        shell: bash
-        run: ./scripts/build-tunnel.sh "$RUNNER_TEMP/tunnel-gate"
 
       # Layer 2. Hermetic and offline: it swaps a bundle in and puts it back.
       - name: "Layer 2: updater end to end"

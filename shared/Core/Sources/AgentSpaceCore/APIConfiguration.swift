@@ -13,7 +13,12 @@ public struct APIConfiguration: Codable, Equatable, Sendable {
     public var port: Int
     public var updatedAt: Date
 
-    public init(enabled: Bool, bindMode: String = "virtualNetwork", port: Int = VirtualNetworkValidator.defaultPort, updatedAt: Date = Date()) {
+    /// Loopback by default. It is the one address that exists on every Mac with
+    /// no network at all — no Wi-Fi, no cable, no VPN — so the API works on a
+    /// plane or in a Faraday cage, and it never listens on a physical interface
+    /// by accident. A virtual address is opt-in and must be present on an
+    /// interface before the listener will start (§398).
+    public init(enabled: Bool, bindMode: String = "loopback", port: Int = VirtualNetworkValidator.defaultPort, updatedAt: Date = Date()) {
         self.enabled = enabled
         self.bindMode = bindMode
         self.port = port
@@ -92,7 +97,7 @@ public struct SystemExtensionProbe {
         self.detail = detail
     }
 
-    public static let extensionIdentifier = BundleIdentifiers.tunnel
+    public static let extensionIdentifier = "com.agentspace.AgentSpace.Tunnel"
 
     public static func installedState(identifier: String = extensionIdentifier) -> SystemExtensionProbe {
         let process = Process()

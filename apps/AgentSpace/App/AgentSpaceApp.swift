@@ -241,14 +241,6 @@ struct AgentSpaceApp: App {
     @NSApplicationDelegateAdaptor private var appDelegate: OpenLinkDelegate
 
     init() {
-        // A headless verification hook. The virtual network needs a system
-        // extension, and the only process macOS will accept an activation from is
-        // the signed app itself — so the gate has to run the app to test the
-        // path. Nothing is installed or activated unless this argument is
-        // present, and it exists for `scripts/network-e2e.sh`, not for users.
-        if let mode = ProcessInfo.processInfo.environment["AGENTSPACE_TUNNEL_SELFTEST"] {
-            TunnelSelfTest.run(mode: mode)
-        }
         appDelegate.model = model
         // The display-quality choice is read by two views and stored once. A
         // build older than this one stored a *width limit* on a key of its own,

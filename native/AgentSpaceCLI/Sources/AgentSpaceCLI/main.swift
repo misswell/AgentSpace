@@ -63,7 +63,7 @@ let booleanFlags: Set<String> = [
     "available", "icons",
     // Advanced overrides for a virtual-network pool. Both are refusals by
     // default; these flags are how a person accepts a specific one.
-    "allow-overlap", "allow-non-private-pool", "loopback",
+    "allow-overlap", "allow-non-private-pool", "loopback", "virtual",
 ]
 
 /// Flags that may appear more than once.
@@ -329,7 +329,11 @@ func usage() -> String {
       network doctor                  What was measured, and what could not be
       network revoke <node>           Remove a node's address and key
       api status                      Listener address, tokens, extension state
-      api enable [--port N] [--loopback]
+      api enable [--port N] [--virtual]
+                                      Binds 127.0.0.1 by default, which works
+                                      with no network at all. --virtual binds
+                                      this Mac's virtual-network address
+                                      instead, and refuses if it is absent.
       api disable
       api-token list
       api-token create --name NAME --scope read|observe|control|exec

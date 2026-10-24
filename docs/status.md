@@ -6,71 +6,50 @@ Read this first when resuming AgentSpace. The binding product direction is
 
 Last updated: 2026-10-24 on `master`. Current public release: **0.1.97**.
 
-## In flight: the virtual network and remote API (§398)
+## In flight: the virtual network and remote API (§398, §399)
 
-This tree contains a virtual network and an HTTP API that are **not in the
-shipped 0.1.97 build yet**. Read [`docs/virtual-network.md`](virtual-network.md)
-before touching it, and do not describe it as working end to end in the app.
+This tree contains the virtual-network **address layer** and an HTTP API. Read
+[`docs/virtual-network.md`](virtual-network.md) first. **There is no built-in
+tunnel**, and §399 records the measurement that removed it.
 
-What is measured and in this tree:
+What is in this tree and measured:
 
 - **Address planning and conflict detection** (`VirtualNetwork.swift`,
-  `VirtualNetworkValidator.swift`, `LocalNetworkProbe.swift`): random `/24` from
-  `100.64.0.0/10` then RFC 1918, overlap checks against this Mac's interfaces and
-  routes, an unverified snapshot reported as unverified, dedicated overrides with
-  a documented cost. 34 unit tests.
-- **A transactional configuration store** with a previous version kept for
-  rollback, and a migration plan that names offline nodes rather than claiming
-  they moved.
+  `VirtualNetworkValidator.swift`, `LocalNetworkProbe.swift`): a random `/24` from
+  `100.64.0.0/10` then RFC 1918, overlap checks against this Mac's real interfaces
+  and routes, an unreadable snapshot reported as unverified rather than clean,
+  and two documented overrides — never one for an address this Mac already holds.
+- **A transactional configuration store** with the previous version kept for
+  rollback, and a migration plan that names offline nodes.
 - **The HTTP API** (`APIServer.swift`, `APIRouting.swift`, `APIAgentService.swift`):
-  `CFHTTPMessage` + `Network.framework` (no third-party dependency), Bearer
-  tokens stored as SHA-256 digests with scopes, per-token and per-agent rate
-  limits, an exhaustive error→status mapping, and a listener that has no case for
-  a wildcard address. 28 unit tests and 7 real-socket tests.
+  `CFHTTPMessage` + `Network.framework`, Bearer tokens stored as SHA-256 digests
+  with scopes, per-token and per-agent rate limits, an exhaustive error→status
+  map, and a listener with no wildcard case. **Binds `127.0.0.1` by default**, so
+  it works with no network at all; a virtual address is opt-in and must be present
+  on an interface.
 - **The hub** (`network/hub`, Go): one-time enrollment tokens stored as digests,
-  idempotent enrollment per public key, lowest-first fixed allocation, revocation,
-  handshake-based "online". Its own test suite passes.
+  idempotent enrollment per public key, lowest-first fixed allocation, revocation.
 - **`scripts/network-e2e.sh`**: hub → addresses → `AgentSpaceCore` configuration →
-  a **real** `wireguard-go` handshake with an ICMP packet in both directions.
-  This is the only claim of a working tunnel, and it is a userspace one.
-- **The system extension** (`native/AgentSpaceTunnel`): a real packet-tunnel
-  provider linked statically against `wireguard-go`, built by
-  `scripts/build-tunnel.sh` and signed inside `AgentSpace.app` by
-  `scripts/bundle-app.sh`.
+  a **real** `wireguard-go` handshake with an ICMP packet both ways.
 - **CLI**: `network {status,enable,disable,configure,nodes,doctor,revoke}` and
-  `api` / `api-token`. **GUI**: Settings → Virtual Network, editable with preview,
-  rollback, extension install and connect.
+  `api` / `api-token`. **GUI**: Settings → Virtual Network, editable with preview
+  and rollback.
 
-What is **not** in the shipped app, and must not be implied:
+What is **not** here, and must not be implied:
 
-1. **No packet has crossed the shipping extension yet.** It is in the bundle,
-   signed, notarized and recognised by macOS (`com.misswell.AgentSpace.Tunnel
-   (0.1.97/603) … [activated waiting for user]`). A system extension does not run
-   until a person allows it in System Settings → General → Login Items &
-   Extensions → Network Extensions, so `TunnelProvider.startTunnel` has not
-   executed outside the compiler. The configuration it will consume *is* measured
-   — against a real `wireguard-go`, both directions (§398 row 1340).
-2. There is no hosted coordination service: the hub is self-hosted.
+1. **No packet tunnel ships.** A system extension was built, signed, notarized
+   and activated (`activated enabled`), but macOS 26 refused its configuration
+   with `NEVPNErrorDomain 5 permission denied` in every configuration measured
+   (§399 row 1357). It was removed rather than shipped half-working.
+2. To reach the API from another machine, use an existing mesh VPN (Tailscale,
+   ZeroTier — both already run on this Mac) or the user's own WireGuard.
 3. IPv6 is stored, not implemented.
-4. The API is not started by a LaunchAgent; the app does not launch it on login.
-5. Layer 4 did not run for the new settings tab.
+4. The API is not started by a LaunchAgent.
+5. Layer 4 produced no verdict on this machine (§398 row 1345).
 
-**The app's bundle identifier changed to `com.misswell.AgentSpace` in 0.1.98.**
-`com.agentspace.AgentSpace` belongs to another Apple account and could not be
-given the system-extension entitlement, so there was no way to ship a tunnel under
-it (§398 row 1347). The cost for an existing installation, stated rather than
-discovered: the installed helper refuses the new app until the existing
-「重新安装助手…」 flow re-registers it, the **app's** Accessibility and Screen
-Recording grants are asked for once more (the worker keeps its own), and the
-clipboard staging cache is abandoned because it is disposable by design.
-
-Apple facts this round paid for (do not relearn): on macOS a packet-tunnel **app
-extension is App Store only** — Developer ID must use a **system extension**
-(TN3134). A system extension's activation requires the containing app to be in
-`/Applications` **and** notarized; the three failures are distinct
-(`must be in /Applications`, `code signature invalid`, `extension category
-returned error`), and only the last is fixed by notarizing. WireGuard's **UAPI
-protocol wants hex keys**, not the base64 a `wg-quick` file uses.
+**The bundle identifier is unchanged (`com.agentspace.AgentSpace`)**, so an
+existing installation updates with no helper reinstall and no re-grant. §398's
+identity change was part of the tunnel work and was reverted with it.
 
 Published 0.1.97 (§397 row 1335, 2026-10-23): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.97),
 source [c36ffec](https://github.com/misswell/AgentSpace/commit/c36ffec),

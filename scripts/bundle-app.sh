@@ -39,8 +39,7 @@ rm -rf "$APP"
 # a LaunchDaemon to live — it is not a location of our choosing.
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" \
          "$APP/Contents/Library/LaunchDaemons" \
-         "$APP/Contents/Resources" "$APP/Contents/Library/LaunchAgents" \
-         "$APP/Contents/Library/SystemExtensions"
+         "$APP/Contents/Resources" "$APP/Contents/Library/LaunchAgents"
 
 # Layout, and why it is not the obvious one.
 #
@@ -61,14 +60,6 @@ cp "$BIN_DIR/agentspace"        "$APP/Contents/Helpers/agentspace"
 # replaced. UpdaterLaunchPlan.updaterURL(in:) names this exact path.
 cp "$BIN_DIR/agentspace-updater" "$APP/Contents/Helpers/agentspace-updater"
 cp apps/AgentSpace/Resources/Info.plist "$APP/Contents/Info.plist"
-# The virtual network's entitlement travels with the bundle as a provisioning
-# profile. Without it every launch of the app is killed by amfid before main
-# runs — measured: exit 137 with no message, on an app that `codesign --verify`
-# called valid (§398). The profile is what authorises the restricted
-# `system-extension.install` entitlement.
-if [[ -f apps/AgentSpace/Resources/embedded.provisionprofile ]]; then
-  cp apps/AgentSpace/Resources/embedded.provisionprofile "$APP/Contents/embedded.provisionprofile"
-fi
 # Stamp the build number from git rather than editing the plist by hand:
 # every bundle produced since is distinguishable in the UI (for example,
 # "0.1.13 (build)"),
@@ -86,27 +77,6 @@ cp "$BIN_DIR/agentspace-helper" \
    "$APP/Contents/Library/LaunchDaemons/agentspace-helper"
 cp apps/AgentSpace/Resources/com.agentspace.AgentSpace.Helper.plist \
    "$APP/Contents/Library/LaunchDaemons/com.agentspace.AgentSpace.Helper.plist"
-
-# The packet-tunnel system extension. Built separately because it is Go plus a
-# system-extension bundle, and a failure there should say so rather than look
-# like a broken GUI build.
-echo "== bundling the tunnel system extension =="
-TUNNEL_BUILD="$OUT_DIR/.tunnel"
-rm -rf "$TUNNEL_BUILD"
-if ! ./scripts/build-tunnel.sh "$TUNNEL_BUILD" 2>&1 | sed 's/^/   /'; then
-  echo "the tunnel extension could not be built." >&2
-  echo "  A release needs it: the virtual network is a system extension, not an app extension (TN3134)." >&2
-  exit 1
-fi
-rm -rf "$APP/Contents/Library/SystemExtensions/com.misswell.AgentSpace.Tunnel.systemextension"
-cp -R "$TUNNEL_BUILD/com.misswell.AgentSpace.Tunnel.systemextension" \
-      "$APP/Contents/Library/SystemExtensions/com.misswell.AgentSpace.Tunnel.systemextension"
-# The extension's version must follow the app's, or a system update would see a
-# newer app carrying an older extension and refuse to replace it.
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" \
-  "$APP/Contents/Library/SystemExtensions/com.misswell.AgentSpace.Tunnel.systemextension/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")" \
-  "$APP/Contents/Library/SystemExtensions/com.misswell.AgentSpace.Tunnel.systemextension/Contents/Info.plist"
 
 # Localization tables. NSLocalizedString in Core and the GUI resolves against
 # the main bundle, so the .lproj folders must sit in Contents/Resources —
@@ -169,26 +139,6 @@ if [[ -z "$IDENTITY" ]]; then
   fi
 fi
 
-sign_with_entitlements() {
-  local path="$1" identifier="$2" entitlements="$3"
-  local ts="--timestamp"
-  [[ "$IDENTITY" == "-" ]] && ts="--timestamp=none"
-  # An ad-hoc signature cannot carry restricted entitlements: amfid rejects the
-  # process. Development builds therefore fall back to no entitlements, and the
-  # virtual network is unavailable until the bundle is Developer ID signed —
-  # which is the truth, and is reported by `agentspace network doctor` rather
-  # than hidden here.
-  if [[ "$IDENTITY" == "-" ]]; then
-    echo "   note: ad-hoc build, so $identifier is signed without its restricted entitlements; the virtual network needs a Developer ID build"
-    sign "$path" "$identifier"
-    return
-  fi
-  codesign --force --options runtime "$ts" \
-    --entitlements "$entitlements" \
-    --identifier "$identifier" --sign "$IDENTITY" "$path" 2>&1 | sed 's/^/   /' \
-    || { echo "   codesign failed for $path with entitlements $entitlements" >&2; exit 1; }
-}
-
 sign() {
   local path="$1" identifier="$2"
   # A secure timestamp is one of the notary service's requirements (§57): a
@@ -213,16 +163,6 @@ sign() {
     || { echo "   codesign failed for $path with '$IDENTITY' — a Developer ID signature needs Apple's timestamp service (http://timestamp.apple.com/ts01), and nothing was ad-hoc-signed in its place" >&2; exit 1; }
 }
 
-# The system extension is signed before the app, like every nested binary: an
-# outer signature that covers an unsigned child is not a valid signature.
-# It carries its own provisioning profile and its own entitlement, and it must
-# NOT carry `system-extension.install` — only the app that activates it does.
-if [[ -d "$APP/Contents/Library/SystemExtensions/com.misswell.AgentSpace.Tunnel.systemextension" ]]; then
-  sign_with_entitlements \
-    "$APP/Contents/Library/SystemExtensions/com.misswell.AgentSpace.Tunnel.systemextension" \
-    "com.misswell.AgentSpace.Tunnel" \
-    native/AgentSpaceTunnel/Tunnel.entitlements
-fi
 sign "$APP/Contents/MacOS/agentspace-worker" "com.agentspace.AgentSpace.Worker"
 sign "$APP/Contents/Helpers/agentspace"      "com.agentspace.AgentSpace.CLI"
 # Its own identifier: the updater is a separate Mach-O that runs as its own
@@ -231,10 +171,7 @@ sign "$APP/Contents/Helpers/agentspace-updater" "com.agentspace.AgentSpace.Updat
 # The helper carries its own identifier: it is a separate Mach-O with a separate
 # privilege level, and the requirement it enforces names it explicitly.
 sign "$APP/Contents/Library/LaunchDaemons/agentspace-helper" "com.agentspace.AgentSpace.Helper"
-# The app itself carries the two entitlements that make it allowed to install and
-# manage a system extension. Without its provisioning profile macOS kills it at
-# launch (§398), so the profile is copied above rather than left to chance.
-sign_with_entitlements "$APP" "com.misswell.AgentSpace" apps/AgentSpace/Resources/App.entitlements
+sign "$APP"                                  "com.agentspace.AgentSpace"
 
 echo "== verifying =="
 codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | sed 's/^/   /' || true

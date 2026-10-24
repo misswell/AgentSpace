@@ -373,7 +373,12 @@ struct HelperCard: View {
                 RefusalBanner(
                     title: NSLocalizedString("Connecting an account needs the privileged helper", comment: ""),
                     code: "HELPER_UNAVAILABLE",
-                    message: NSLocalizedString("AgentSpace uses a root helper only to install its worker and prepare the shared runtime. The helper exposes a closed list of typed operations and never runs a shell or changes macOS user accounts.", comment: ""),
+                    // Say what still works, not only what does not. A person who
+                    // sees "needs the privileged helper" reasonably concludes the
+                    // app is broken; every existing agent keeps working, and the
+                    // sentence that says so is the difference between a repair and
+                    // a scare (§398 row 1355).
+                    message: NSLocalizedString("AgentSpace uses a root helper only to install its worker and prepare the shared runtime. The helper exposes a closed list of typed operations and never runs a shell or changes macOS user accounts. Everything already connected keeps working without it: opening a desktop, screenshots, input, apps, the HTTP API and the virtual-network settings all run through the agent's own worker, not the helper.", comment: ""),
                     fix: model.helperState.fix ?? NSLocalizedString("Open the AgentSpace app and choose Install Helper.", comment: ""))
 
                 HStack {

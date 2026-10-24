@@ -76,8 +76,11 @@ enum APICommand {
                     code: .badRequest,
                     message: "port \(port) is outside \(VirtualNetworkValidator.allowedPortRange.lowerBound)–\(VirtualNetworkValidator.allowedPortRange.upperBound)"))
             }
-            var bindMode = "virtualNetwork"
-            if parsed.bool("loopback") { bindMode = "loopback" }
+            // Loopback is the default: it is the only address that exists with
+            // no network at all, and it never exposes the API on a physical
+            // interface. A virtual address is opt-in through `--virtual`.
+            var bindMode = "loopback"
+            if parsed.bool("virtual") { bindMode = "virtualNetwork" }
             let config = APIConfiguration(enabled: true, bindMode: bindMode, port: port)
             do {
                 try config.save(paths: paths)

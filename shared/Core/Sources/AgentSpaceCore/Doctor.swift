@@ -525,11 +525,7 @@ public enum Doctor {
 /// namespace change is one edit — and the helper's signature requirement, read
 /// from these same constants, cannot silently disagree with what was signed.
 public enum BundleIdentifiers {
-    public static let app = "com.misswell.AgentSpace"
-    /// The packet-tunnel system extension. Its own bundle: a system extension is
-    /// a separate process with a separate identity, and `systemextensionsctl`
-    /// matches on this string (§398).
-    public static let tunnel = "com.misswell.AgentSpace.Tunnel"
+    public static let app = "com.agentspace.AgentSpace"
     public static let helper = "com.agentspace.AgentSpace.Helper"
     public static let worker = "com.agentspace.AgentSpace.Worker"
     public static let workerLaunchAgent = "com.agentspace.AgentSpace.Worker"

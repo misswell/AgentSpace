@@ -181,30 +181,44 @@ each direction. Exit 3 means Go was unavailable, so nothing was verified.
 The kernel interface is the only simulated part. The WireGuard implementation,
 its crypto, its UDP transport and the hub are the shipping ones.
 
-## The system extension
+## Where the API listens
 
-The tunnel is a **system extension** inside `AgentSpace.app`. macOS will not run
-one until a person allows it, so the first use is:
+The API binds **`127.0.0.1` by default**. That is a deliberate product decision,
+not a placeholder:
 
-1. Settings → Virtual Network → **Install tunnel extension**.
-   macOS answers `activated waiting for user`.
-2. System Settings → General → **Login Items & Extensions → Network Extensions**
-   → allow **AgentSpace**.
-3. Settings → Virtual Network → **Connect**.
+- loopback exists on every Mac before any interface comes up, so the API works
+  with Wi-Fi off, no cable, no VPN — the owner's requirement was 「断网也能用」;
+- it is never reachable from another machine, which is the right default for a
+  control surface that can drive a desktop;
+- it needs no entitlement, no system extension and no approval.
 
-The page reports each state separately — *not installed*, *waiting for approval*,
-*installed* — because those need different actions, and a single "unavailable"
-would send a person to reinstall a bundle that is already correct.
+A virtual address is **opt-in** (`agentspace api enable --virtual`, or the same
+choice in the app). It only starts when that address is really on an interface, so
+a tunnel that is down produces a refusal rather than a listener somewhere else.
 
-Four failures were measured while building this, and each has its own sentence in
-the app rather than one generic error:
+### Reaching it from another machine
 
-| What macOS answers | What it means |
-|---|---|
-| `must be in /Applications folder` | AgentSpace is running from somewhere else |
-| `code signature invalid` | the build is not notarized (a signature alone is not enough) |
-| `extension category returned error` | the app and extension do not share an application group |
-| `Missing entitlement …system-extension.install` | the host app was built without the entitlement |
+Two supported ways, neither of which AgentSpace implements itself:
+
+1. **An existing mesh VPN.** If this Mac already runs Tailscale or ZeroTier, bind
+   the API to that interface's address and use the address it assigned. This was
+   measured: the API bound `100.64.0.1:8787` (Tailscale), answered `200` there,
+   and refused the same port on `192.168.31.60` and `10.10.10.246`. Fixed IPv4,
+   encryption and NAT traversal all come from the tool that already does them.
+2. **Your own WireGuard.** `agentspace network status` prints the exact host
+   routes and the UAPI configuration the product generates; a self-hosted hub is
+   in `network/hub`.
+
+### What AgentSpace does not ship
+
+An earlier attempt built a packet-tunnel **system extension** into the app. It
+signed, notarized and activated (`activated enabled`), but saving its
+configuration was refused on macOS 26 with `NEVPNErrorDomain 5 permission
+denied` — measured with no entitlement, with the full entitlement set, with
+`allow-vpn`, and through LaunchServices. Tailscale avoids this with a root
+daemon; adding one would have meant a new privileged operation and a fresh
+security review. The extension was removed rather than shipped half-working, and
+`systemextensionsctl list` no longer contains an AgentSpace tunnel.
 
 ## What this does not do
 
