@@ -434,8 +434,9 @@ final class HelperValidationTests: XCTestCase {
             }
         }
         // The compatibility logout verb remains decodable but is refused; the
-        // active V3 surface is worker/runtime management only.
-        XCTAssertEqual(HelperOperation.allCases.count, 11)
+        // active V3 surface is worker/runtime management only, plus the two
+        // loopback-alias operations of §401 (13).
+        XCTAssertEqual(HelperOperation.allCases.count, 13)
     }
 
     func testNoRequestFieldCanCarryAnArbitraryCommand() {
@@ -443,16 +444,18 @@ final class HelperValidationTests: XCTestCase {
         // adds a `command` or `path` field, which is the day the helper stops
         // being reviewable by reading one enum.
         // Every field populated, because JSONEncoder omits nil optionals and an
-        // empty request would describe almost none of the shape.
+        // empty request would describe almost none of the shape. `address` is
+        // included on purpose: it is §401's one new field, and it carries a
+        // single dotted-quad the alias validation confines to 127.100.0.0/16.
         let request = HelperRequest(
             id: "x", operation: .helperStatus, spaceID: UUID(), username: "_agentspace_a1b2c3",
             displayName: "x", password: "x", removeHome: true, mainUser: "guofeng",
-            runtimeRoot: "/tmp/x")
+            runtimeRoot: "/tmp/x", address: "127.100.4.5")
         let encoded = try! JSONEncoder().encode(request)
         let json = try! JSONSerialization.jsonObject(with: encoded) as! [String: Any]
         let allowed: Set<String> = [
             "id", "operation", "spaceID", "username", "displayName",
-            "password", "removeHome", "mainUser", "runtimeRoot",
+            "password", "removeHome", "mainUser", "runtimeRoot", "address",
         ]
         XCTAssertEqual(Set(json.keys), allowed,
                        "the wire format gained a field; confirm it cannot carry a command")
