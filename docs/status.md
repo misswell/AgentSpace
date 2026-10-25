@@ -4,7 +4,7 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-25 on `master`. Current public release: **0.1.106**.
+Last updated: 2026-10-25 on `master`. Current public release: **0.1.107**.
 
 ## Added: what the memory really costs (§407)
 
@@ -19,6 +19,15 @@ yields one figure, never a fake zero. Also in this round: the session-side UI
 verifier learned to order a never-fronted window forward before declaring its
 accessibility blind (§407 row 1409), which is what let layer 4 run to
 completion inside a busy session.
+
+## The two settings titles that never localized (§408)
+
+「Virtual Network」 → 「虚拟网络」 and 「Update」 → 「更新」: the last two
+`Label(_:)` titles whose keys had never been written into the tables, so the
+raw English key was the display text. Both keys added beside the existing
+「Advanced」 cluster in `en` and `zh-Hans`; tab order untouched (the verify
+gates are index-based). Shipped as 0.1.107, one release behind §407's 0.1.106
+whose tag landed while this fix was uncommitted. §408 rows 1409–1410.
 
 ## Removed: the port map and the fixed per-account address (§406)
 
