@@ -183,6 +183,97 @@ final class PortForwarderTests: XCTestCase {
         XCTAssertThrowsError(try roundTrip(host: "127.0.0.1", port: external, payload: Data("x".utf8)))
     }
 
+    /// A one-shot request/response service, the shape every real local API
+    /// has: read the request, send the response, close. (`NWConnection`
+    /// exposes no half-close, so the forwarder cannot propagate a client's
+    /// FIN upstream — EOF-delimited protocols are the one documented casualty;
+    /// length-delimited ones, which is what HTTP is, are what this models.)
+    private final class OneShotService {
+        let listener: NWListener
+        let queue = DispatchQueue(label: "portmap-tests.oneshot")
+        private(set) var port: UInt16 = 0
+        private let ready = DispatchSemaphore(value: 0)
+
+        init() throws {
+            let parameters = NWParameters.tcp
+            parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
+            listener = try NWListener(using: parameters)
+            var failed: String?
+            listener.stateUpdateHandler = { [weak self] state in
+                switch state {
+                case .ready:
+                    self?.port = self?.listener.port?.rawValue ?? 0
+                    self?.ready.signal()
+                case .failed(let error):
+                    failed = "\(error)"
+                    self?.ready.signal()
+                default: break
+                }
+            }
+            listener.newConnectionHandler = { [weak self] connection in
+                guard let self else { return }
+                connection.start(queue: self.queue)
+                connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, _, _ in
+                    guard let data, !data.isEmpty else { connection.cancel(); return }
+                    connection.send(content: Data(data.reversed()), completion: .contentProcessed { _ in
+                        connection.cancel()
+                    })
+                }
+            }
+            listener.start(queue: queue)
+            XCTAssertEqual(ready.wait(timeout: .now() + 5), .success)
+            XCTAssertNil(failed)
+            XCTAssertGreaterThan(port, 0)
+        }
+    }
+
+    /// §404's review finding: a client that shuts its write side after the
+    /// request (`shutdown(SHUT_WR)` — curl --no-keepalive, many RPC clients)
+    /// still deserves the whole response. POSIX client, because Network
+    /// framework exposes no half-close.
+    func testAHalfClosedClientStillReceivesTheWholeResponse() throws {
+        let service = try OneShotService()
+        let account = UUID()
+        let external = try freeExternalPort(account: account, internal: service.port)
+        let forwarder = PortForwarder(accountID: account, externalPort: external, internalPort: service.port)
+        try forwarder.start(gate: { true })
+        defer { forwarder.stop() }
+
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        defer { close(fd) }
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = external.bigEndian
+        address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+        let connected = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        XCTAssertEqual(connected, 0, "connect: \(String(cString: strerror(errno)))")
+
+        let payload = "half-close round trip"
+        let sent = payload.withCString { pointer -> Int in
+            send(fd, pointer, strlen(pointer), 0)
+        }
+        XCTAssertEqual(sent, payload.utf8.count)
+        XCTAssertEqual(shutdown(fd, Int32(SHUT_WR)), 0, "the client will send nothing more")
+
+        // Read until the service (or the forwarder, wrongly) closes us: the
+        // whole reversed payload must arrive even though we half-closed.
+        var reply = [UInt8]()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let n = recv(fd, &buffer, buffer.count, 0)
+            if n <= 0 { break }
+            reply.append(contentsOf: buffer[0..<n])
+        }
+        XCTAssertEqual(Data(reply), Data(payload.utf8.reversed()),
+                       "the response was truncated by the half-close")
+    }
+
     func testASecondForwarderOnTheSameExternalPortIsRefused() throws {
         let service = try EchoService()
         let account = UUID()

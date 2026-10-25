@@ -4,7 +4,20 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-25 on `master`. Current public release: **0.1.102**.
+Last updated: 2026-10-25 on `master`. Current public release: **0.1.103**.
+
+## Shipped: the forwarding review's fixes (§404)
+
+The owner's code review of the network forwarding found the flapping defect —
+every 3-second reconcile rebuilt every forwarder, leaving endpoints dark half
+the time and killing in-flight connections on each switch — shipped since
+0.1.99 because no test drove two passes. Fixed with `forwarderPlan` (keep
+identity-matching running listeners, recreate otherwise; pinned by
+`PortMapPlanTests`), plus: `map()` moved off the main actor (a hung worker
+could freeze the UI for 5 s), per-side EOF ledger in the pipe (half-closing
+clients keep their whole response; EOF-delimited protocols remain the stated
+casualty), alias cleanup confined to derivable addresses, and typed
+EADDRINUSE classification. §404 rows 1387–1391.
 
 ## Shipped: the port map as a person meets it (§403)
 

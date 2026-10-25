@@ -30,6 +30,7 @@ struct PortMapCard: View {
     // The add-mapping form.
     @State private var internalPortText = ""
     @State private var externalPortText = ""
+    @State private var addInFlight = false
 
     /// The configuration folder the helper prepares on the next worker
     /// update. Shown as a precondition, not discovered by failing.
@@ -143,7 +144,7 @@ struct PortMapCard: View {
                         .accessibilityIdentifier("agentPortMapExternalField")
                     Button(NSLocalizedString("Add", comment: "")) { addMapping() }
                         .buttonStyle(.borderedProminent)
-                        .disabled(internalPortText.isEmpty)
+                        .disabled(internalPortText.isEmpty || addInFlight)
                         .accessibilityIdentifier("agentPortMapAddButton")
                 }
                 Text(NSLocalizedString("The left port is the one this account listens on; the right one is what the main system calls — leave it empty to generate one. The left field also offers what the account is listening on right now.", comment: ""))
@@ -349,15 +350,19 @@ struct PortMapCard: View {
             }
             external = parsed
         }
-        do {
-            let external = try runtime.map(account: account.id, port: internalPort, external: external)
-            internalPortText = ""
-            externalPortText = ""
-            lastAdded = "127.0.0.1:\(external)"
-        } catch let error as PortMapRuntime.ActionError {
-            actionError = error.message
-        } catch {
-            actionError = String(describing: error)
+        addInFlight = true
+        Task { @MainActor in
+            defer { addInFlight = false }
+            do {
+                let externalPort = try await runtime.map(account: account.id, port: internalPort, external: external)
+                internalPortText = ""
+                externalPortText = ""
+                lastAdded = "127.0.0.1:\(externalPort)"
+            } catch let error as PortMapRuntime.ActionError {
+                actionError = error.message
+            } catch {
+                actionError = String(describing: error)
+            }
         }
     }
 

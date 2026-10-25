@@ -54,7 +54,20 @@ public final class PortForwarder: @unchecked Sendable {
 
     private let queue = DispatchQueue(label: "com.agentspace.portmap.forwarder")
     private var listener: NWListener?
-    private var pairs: [UUID: (client: NWConnection, upstream: NWConnection)] = [:]
+
+    /// One live connection. `clientClosed`/`upstreamClosed` are the half-close
+    /// ledger: a FIN from one side ends *that side's* reading only — the other
+    /// direction keeps flowing until its own end, because an API client that
+    /// shuts its write side after the request still deserves the whole
+    /// response. Both sides ended, or any error, tears the pair down.
+    private struct Pair {
+        let client: NWConnection
+        let upstream: NWConnection
+        var clientClosed = false
+        var upstreamClosed = false
+    }
+
+    private var pairs: [UUID: Pair] = [:]
     private var gate: (@Sendable () -> Bool)?
     private var running = false
 
@@ -96,9 +109,16 @@ public final class PortForwarder: @unchecked Sendable {
         // The state handler is installed BEFORE `start`, or `.ready` can be
         // delivered before anything waits for it — the measured lesson behind
         // `APIServer.start`'s own handshake (validation §398 row 1354).
+        // `.waiting` does NOT settle the handshake: on loopback it is often a
+        // transient state on the way to `.ready`, and treating it as failure
+        // is what made the review's flapping worse. Only `.ready`/`.failed`
+        // settle it; the timeout does, and a wait that never ended is the
+        // caller's address-busy to classify.
         let semaphore = DispatchSemaphore(value: 0)
         var ready = false
         var failed: String?
+        var failedBecauseBusy = false
+        var sawWaiting = false
         listener.stateUpdateHandler = { state in
             switch state {
             case .ready:
@@ -106,12 +126,14 @@ public final class PortForwarder: @unchecked Sendable {
                 semaphore.signal()
             case .failed(let error):
                 failed = "\(error)"
+                // Typed, not string-matched: EADDRINUSE is the caller's
+                // address-busy to classify; anything else is a listener fault.
+                if case let NWError.posix(code) = error, code == .EADDRINUSE {
+                    failedBecauseBusy = true
+                }
                 semaphore.signal()
-            case .waiting(let error):
-                // With reuse off, waiting before ready on a fixed endpoint is
-                // the address-in-use the caller has to classify.
-                failed = "\(error)"
-                semaphore.signal()
+            case .waiting:
+                sawWaiting = true
             default:
                 break
             }
@@ -126,11 +148,10 @@ public final class PortForwarder: @unchecked Sendable {
         guard ready, failed == nil else {
             listener.newConnectionHandler = nil
             listener.cancel()
-            if let failed, !failed.isEmpty,
-               !failed.lowercased().contains("in-use"), !failed.lowercased().contains("in use") {
-                throw StartError.listenerFailed(failed)
+            if failedBecauseBusy || sawWaiting || failed == nil {
+                throw StartError.addressBusy("\(listenHost):\(externalPort)")
             }
-            throw StartError.addressBusy("\(listenHost):\(externalPort)")
+            throw StartError.listenerFailed(failed ?? "did not become ready")
         }
 
         queue.sync {
@@ -172,13 +193,13 @@ public final class PortForwarder: @unchecked Sendable {
         let id = UUID()
         let upstream = NWConnection(
             host: "127.0.0.1", port: NWEndpoint.Port(rawValue: internalPort)!, using: .tcp)
-        pairs[id] = (client, upstream)
+        pairs[id] = Pair(client: client, upstream: upstream)
         upstream.stateUpdateHandler = { [weak self] state in
             guard let self else { return }
             switch state {
             case .ready:
-                self.pipe(client, to: upstream, id: id)
-                self.pipe(upstream, to: client, id: id)
+                self.pipe(client, to: upstream, id: id, closing: \Pair.upstreamClosed)
+                self.pipe(upstream, to: client, id: id, closing: \Pair.clientClosed)
             case .failed, .cancelled:
                 self.disconnect(id)
             default:
@@ -197,22 +218,47 @@ public final class PortForwarder: @unchecked Sendable {
         upstream.start(queue: queue)
     }
 
-    private func pipe(_ source: NWConnection, to destination: NWConnection, id: UUID) {
+    private func pipe(
+        _ source: NWConnection,
+        to destination: NWConnection,
+        id: UUID,
+        closing side: WritableKeyPath<Pair, Bool>
+    ) {
         guard pairs[id] != nil else { return }
         source.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, complete, error in
             guard let self, self.pairs[id] != nil else { return }
-            guard let data, !data.isEmpty, error == nil else {
+            if let error {
                 self.disconnect(id)
                 return
             }
+            guard let data, !data.isEmpty else {
+                // EOF with nothing pending: half-close this side only.
+                self.closeSide(side, id: id)
+                return
+            }
             destination.send(content: data, completion: .contentProcessed { [weak self] error in
-                guard let self else { return }
-                if error != nil || complete {
+                guard let self, self.pairs[id] != nil else { return }
+                if let error {
                     self.disconnect(id)
+                } else if complete {
+                    // Everything the peer sent was forwarded, and it said no
+                    // more is coming: half-close this side, keep the other.
+                    self.closeSide(side, id: id)
                 } else {
-                    self.pipe(source, to: destination, id: id)
+                    self.pipe(source, to: destination, id: id, closing: side)
                 }
             })
+        }
+    }
+
+    private func closeSide(_ side: WritableKeyPath<Pair, Bool>, id: UUID) {
+        guard var pair = pairs[id] else { return }
+        pair[keyPath: side] = true
+        if pair.clientClosed && pair.upstreamClosed {
+            pairs[id] = pair
+            disconnect(id)
+        } else {
+            pairs[id] = pair
         }
     }
 

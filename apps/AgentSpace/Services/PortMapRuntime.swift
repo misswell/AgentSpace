@@ -143,48 +143,55 @@ final class PortMapRuntime: ObservableObject {
 
     /// Map one port: verify the account owns it through its own worker, apply
     /// every rule before anything is written, then pick the external port —
-    /// the person's choice when given, the generator's otherwise. The
-    /// reconcile that follows starts the forwarder.
-    func map(account: UUID, port: UInt16, external chosen: UInt16? = nil) throws -> UInt16 {
+    /// the person's choice when given, the generator's otherwise. The worker
+    /// call and the freeness probes run OFF the main actor (§404: a hung
+    /// worker must never freeze the interface), so the card awaits this.
+    func map(account: UUID, port: UInt16, external chosen: UInt16? = nil) async throws -> UInt16 {
         // Ownership first, fail closed: without the account's own worker there
         // is no evidence, and no evidence means no mapping.
         guard let space = SpaceRegistry.load().spaces.first(where: { $0.id == account }) else {
             throw ActionError.accountDetached
         }
-        let listening: [ListeningPort]
-        switch ownershipEvidence(for: space) {
-        case .failure(let notice):
-            throw ActionError.workerUnavailable(notice: notice)
-        case .success(let ports):
-            listening = ports
-        }
-        let store = PortMapStore()
-        if let problem = PortMapRules.validate(
-            internal: port,
-            listening: listening,
-            mappedPorts: Set(store.mappings(account: account).map(\.port)),
-            chosenExternal: chosen,
-            takenExternals: store.externalPortsInUse()) {
-            throw ActionError.rule(problem)
-        }
-        if let chosen, TCPProbe.answers(host: "127.0.0.1", port: chosen, timeout: 0.6) {
-            throw ActionError.externalPortInUse(chosen)
-        }
-
-        let external: UInt16
-        if let chosen {
-            external = chosen
-        } else {
+        let external: UInt16 = try await Task.detached(priority: .userInitiated) { () -> UInt16 in
+            let listening: [ListeningPort]
+            switch Self.ownershipEvidence(for: space) {
+            case .failure(let notice):
+                throw ActionError.workerUnavailable(notice: notice)
+            case .success(let ports):
+                listening = ports
+            }
+            let store = PortMapStore()
+            if let problem = PortMapRules.validate(
+                internal: port,
+                listening: listening,
+                mappedPorts: Set(store.mappings(account: account).map(\.port)),
+                chosenExternal: chosen,
+                takenExternals: store.externalPortsInUse()) {
+                throw ActionError.rule(problem)
+            }
+            if let chosen, TCPProbe.answers(host: "127.0.0.1", port: chosen, timeout: 0.6) {
+                throw ActionError.externalPortInUse(chosen)
+            }
+            if let chosen {
+                return chosen
+            }
             let taken = store.externalPortsInUse()
-            guard let generated = AgentPortAllocator.choose(account: account, port: port, isFree: { candidate in
-                !taken.contains(candidate) && !TCPProbe.answers(host: "127.0.0.1", port: candidate, timeout: 0.6)
-            }) else {
+            guard let generated = AgentPortAllocator.choose(
+                account: account, port: port,
+                isFree: { candidate in
+                    // 0.2 s is enough on loopback, where a closed port refuses
+                    // instantly; only a genuinely held port pays the timeout,
+                    // and the walk stops at the first free candidate anyway.
+                    !taken.contains(candidate)
+                        && !TCPProbe.answers(host: "127.0.0.1", port: candidate, timeout: 0.2)
+                }) else {
                 throw ActionError.noFreePort
             }
-            external = generated
-        }
+            return generated
+        }.value
+
         do {
-            guard try store.add(account: account, port: port, external: external) else {
+            guard try PortMapStore().add(account: account, port: port, external: external) else {
                 throw ActionError.rule(.alreadyMapped(port))
             }
         } catch let error where SharedRootWrite.isPermissionDenied(error) {
@@ -193,7 +200,7 @@ final class PortMapRuntime: ObservableObject {
         reconcile()
         return external
     }
-    private func ownershipEvidence(for space: AgentAccount) -> Result<[ListeningPort], ActionError.WorkerNotice> {
+    nonisolated static func ownershipEvidence(for space: AgentAccount) -> Result<[ListeningPort], ActionError.WorkerNotice> {
         let connection = SpaceConnection(space: space)
         do {
             let response = try connection.client.call(
@@ -288,9 +295,13 @@ final class PortMapRuntime: ObservableObject {
         reconciling = true
         let ownership = self.ownership
         let helperAllowed = Date() >= nextHelperAttempt
+        // The live forwarders travel with the pass: a healthy, identity-matching
+        // listener is KEPT — starting a new one on the same endpoint every pass
+        // is the flapping defect §404 found, and this is its fix.
+        let existing = self.forwarders
         Task.detached(priority: .utility) { [weak self] in
             let outcome = await Self.reconcileOffMain(
-                ownership: ownership, helperAllowed: helperAllowed)
+                ownership: ownership, helperAllowed: helperAllowed, existing: existing)
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.apply(outcome)
@@ -299,10 +310,35 @@ final class PortMapRuntime: ObservableObject {
         }
     }
 
+    /// The keep-or-recreate decision for one mapping's forwarders, as one pure
+    /// function so the flapping fix itself can be pinned by a test: a forwarder
+    /// is kept when it is running AND still serves this mapping's identity
+    /// (endpoint for the primary, alias+internal port for the alias), and is
+    /// recreated otherwise — including when the mapping was recreated with a
+    /// different external port under the same key.
+    nonisolated static func forwarderPlan(
+        for mapping: PortMapping,
+        aliasAddress: IPv4Address?,
+        existing: [String: PortForwarder]
+    ) -> (keepPrimary: PortForwarder?, recreatePrimary: Bool,
+          keepAlias: PortForwarder?, recreateAlias: Bool) {
+        let primary = existing[mapping.id]
+        let alias = existing[mapping.id + "#alias"]
+        let healthyPrimary = primary.map { $0.isRunning && $0.endpoint == "127.0.0.1:\(mapping.external)" } == true
+        let healthyAlias = alias.map {
+            $0.isRunning && aliasAddress != nil
+                && $0.listenHost == aliasAddress!.description
+                && $0.externalPort == mapping.port
+        } == true
+        return (healthyPrimary ? primary : nil, !healthyPrimary,
+                healthyAlias ? alias : nil, aliasAddress != nil && !healthyAlias)
+    }
+
     /// One pass, off the main actor. Returns the forwarders to keep, the
     /// entries and address states to publish, and whether the next pass may
     /// talk to the helper again.
-    private static func reconcileOffMain(ownership: PortOwnershipCache, helperAllowed: Bool)
+    private static func reconcileOffMain(ownership: PortOwnershipCache, helperAllowed: Bool,
+                                         existing: [String: PortForwarder])
         async -> (forwarders: [String: PortForwarder], entries: [Entry],
                  addresses: [UUID: AddressState], retryHelper: Bool) {
 
@@ -357,9 +393,12 @@ final class PortMapRuntime: ObservableObject {
 
         // Remove what no enabled account owns: switched off, account detached,
         // or left behind by a crash — same path, because the file never was
-        // the truth.
+        // the truth. Only aliases this product could have derived are touched:
+        // a person who put their own 127.100.x.y on lo0 by hand keeps it, even
+        // if they never use this feature (§404's review finding).
         if helperAllowed {
-            for raw in present where !desired.contains(raw) {
+            let derivable = Set(table.values.map(\.rawValue))
+            for raw in present where !desired.contains(raw) && derivable.contains(raw) {
                 _ = callHelper(.removeLoopbackAlias, IPv4Address(rawValue: raw))
             }
         }
@@ -398,14 +437,24 @@ final class PortMapRuntime: ObservableObject {
                 continue
             }
 
+            // A kept forwarder is kept regardless of this pass's ownership
+            // verdict: its own per-connection gate refuses when the account
+            // stops owning the port, and churning the listener on every
+            // verdict change is the flapping §404 removed.
+            let aliasAddress = table[mapping.account].flatMap {
+                presentNow.contains($0.rawValue) ? $0 : nil
+            }
+            let plan = forwarderPlan(for: mapping, aliasAddress: aliasAddress, existing: existing)
+
             let owns = ownership.gate(mapping.account, mapping.port)
-            let state: MappingState
-            var aliasEndpoint: String?
-            var aliasState: MappingState?
+            var primaryFailure: String?
+            var aliasFailure: String?
             var primary: PortForwarder?
             var aliasForwarder: PortForwarder?
 
-            if owns {
+            if let kept = plan.keepPrimary {
+                primary = kept
+            } else if plan.recreatePrimary, owns {
                 let candidate = PortForwarder(
                     accountID: mapping.account,
                     externalPort: mapping.external,
@@ -413,38 +462,62 @@ final class PortMapRuntime: ObservableObject {
                 do {
                     try candidate.start(gate: { ownership.gate(mapping.account, mapping.port) })
                     primary = candidate
-                    state = .forwarding
                 } catch PortForwarder.StartError.addressBusy {
-                    state = .busy
+                    // Someone else holds the external port; the mapping keeps
+                    // its stored port and the badge says so.
                 } catch {
-                    state = .blocked(String(describing: error))
+                    primaryFailure = String(describing: error)
                 }
-
-                if let address = table[mapping.account],
-                   presentNow.contains(address.rawValue) {
+            }
+            var aliasEndpoint: String?
+            if let aliasAddress {
+                aliasEndpoint = "\(aliasAddress.description):\(mapping.port)"
+                if let kept = plan.keepAlias {
+                    aliasForwarder = kept
+                } else if plan.recreateAlias, owns {
                     let aliasCandidate = PortForwarder(
                         accountID: mapping.account,
                         externalPort: mapping.port,
                         internalPort: mapping.port,
-                        listenHost: address.description)
+                        listenHost: aliasAddress.description)
                     do {
                         try aliasCandidate.start(gate: { ownership.gate(mapping.account, mapping.port) })
                         aliasForwarder = aliasCandidate
-                        aliasEndpoint = aliasCandidate.endpoint
-                        aliasState = .forwarding
                     } catch PortForwarder.StartError.addressBusy {
-                        // The service itself binds the alias's port — which
-                        // only its own wide-bound (0.0.0.0) listener could
-                        // do, since the alias exists solely for this account.
-                        aliasEndpoint = "\(address.description):\(mapping.port)"
-                        aliasState = .forwarding
+                        // The service itself binds the alias's port — which only
+                        // its own wide-bound (0.0.0.0) listener could do, since
+                        // the alias exists solely for this account: direct.
                     } catch {
-                        aliasEndpoint = "\(address.description):\(mapping.port)"
-                        aliasState = .blocked(String(describing: error))
+                        aliasFailure = String(describing: error)
                     }
                 }
-            } else {
+            }
+
+            // The badge says what the next connection will meet: the gate's
+            // answer first, then the bind's.
+            let state: MappingState
+            if !owns {
                 state = .waiting
+            } else if primary != nil {
+                state = .forwarding
+            } else if let primaryFailure {
+                state = .blocked(primaryFailure)
+            } else {
+                state = .busy
+            }
+            let aliasState: MappingState?
+            if aliasEndpoint == nil {
+                aliasState = nil
+            } else if !owns {
+                aliasState = .waiting
+            } else if aliasForwarder != nil {
+                aliasState = .forwarding
+            } else if let aliasFailure {
+                aliasState = .blocked(aliasFailure)
+            } else {
+                // Owned, and the alias port is held by the account's own
+                // wide-bound service: it answers directly.
+                aliasState = .forwarding
             }
 
             if let primary {
