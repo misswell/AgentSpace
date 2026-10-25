@@ -864,3 +864,26 @@
 "The message names the field and the rule it broke. Fix that field, or enable the documented override if the rule is one that offers one; the previous configuration was not changed." = "The message names the field and the rule it broke. Fix that field, or enable the documented override if the rule is one that offers one; the previous configuration was not changed.";
 
 "AgentSpace uses a root helper only to install its worker and prepare the shared runtime. The helper exposes a closed list of typed operations and never runs a shell or changes macOS user accounts. Everything already connected keeps working without it: opening a desktop, screenshots, input, apps, the HTTP API and the virtual-network settings all run through the agent's own worker, not the helper." = "AgentSpace uses a root helper only to install its worker and prepare the shared runtime. The helper exposes a closed list of typed operations and never runs a shell or changes macOS user accounts. Everything already connected keeps working without it: opening a desktop, screenshots, input, apps, the HTTP API and the virtual-network settings all run through the agent's own worker, not the helper.";
+"Mapped: %@ — usable immediately." = "Mapped: %@ — usable immediately.";
+"Open in browser" = "Open in browser";
+"Update Worker" = "Update Worker";
+"Retry" = "Retry";
+"Setting up… (retries automatically until the helper answers)" = "Setting up… (retries automatically until the helper answers)";
+"The configuration folder is not ready on this Mac yet — one worker update creates it. Nothing you do here is lost by trying." = "The configuration folder is not ready on this Mac yet — one worker update creates it. Nothing you do here is lost by trying.";
+"The worker is older than this feature; the port list appears after one update." = "The worker is older than this feature; the port list appears after one update.";
+"The worker is offline — the account's desktop may be signed out or asleep. The list retries automatically every few seconds; opening the desktop brings it back." = "The worker is offline — the account's desktop may be signed out or asleep. The list retries automatically every few seconds; opening the desktop brings it back.";
+"Nothing is listening in this account yet. Start the service in the agent's desktop and the port appears here within seconds." = "Nothing is listening in this account yet. Start the service in the agent's desktop and the port appears here within seconds.";
+"Fill the left field with this port" = "Fill the left field with this port";
+"Not on loopback; cannot be mapped" = "Not on loopback; cannot be mapped";
+"The agent account's worker is offline — its desktop may be signed out or asleep. The list refreshes automatically every few seconds; open the desktop once and it comes back." = "The agent account's worker is offline — its desktop may be signed out or asleep. The list refreshes automatically every few seconds; open the desktop once and it comes back.";
+"The worker is older than this feature. Press “更新 Worker” above once (the app guides the one-time update), and the port list appears." = "The worker is older than this feature. Press “更新 Worker” above once (the app guides the one-time update), and the port list appears.";
+"Nothing in this account is listening on port %d right now. Start the service in the agent's desktop first, or pick a port from the “正在监听” row." = "Nothing in this account is listening on port %d right now. Start the service in the agent's desktop first, or pick a port from the “正在监听” row.";
+"Port %d is bound only to a non-loopback address, so it cannot be reached with no network. Re-bind the service to 127.0.0.1 (or all interfaces) inside the agent's desktop." = "Port %d is bound only to a non-loopback address, so it cannot be reached with no network. Re-bind the service to 127.0.0.1 (or all interfaces) inside the agent's desktop.";
+"Port %d is already mapped — remove that mapping first if you want to recreate it." = "Port %d is already mapped — remove that mapping first if you want to recreate it.";
+"The main-system port must be 1024 or higher — lower ports are reserved for the system." = "The main-system port must be 1024 or higher — lower ports are reserved for the system.";
+"The main-system port cannot equal the account's own port — that one belongs to the service itself." = "The main-system port cannot equal the account's own port — that one belongs to the service itself.";
+"Ports %d–%d are reserved for automatic generation; choose a port outside that range or leave the field empty." = "Ports %d–%d are reserved for automatic generation; choose a port outside that range or leave the field empty.";
+"Port %d already belongs to another mapping." = "Port %d already belongs to another mapping.";
+"Something else on this Mac is already listening on 127.0.0.1:%d — pick another port." = "Something else on this Mac is already listening on 127.0.0.1:%d — pick another port.";
+"No automatic port is free right now — remove one mapping or choose a port by hand." = "No automatic port is free right now — remove one mapping or choose a port by hand.";
+"This account is detached, so its ports cannot be mapped. Re-attach it from the dashboard first." = "This account is detached, so its ports cannot be mapped. Re-attach it from the dashboard first.";

@@ -4,7 +4,21 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-25 on `master`. Current public release: **0.1.101**.
+Last updated: 2026-10-25 on `master`. Current public release: **0.1.102**.
+
+## Shipped: the port map as a person meets it (§403)
+
+The owner's direction — operation logic, error reporting and retries must
+satisfy a normal user — delivered as one rule: **every state says what it is,
+every problem names its fix.** A precondition strip (folder not prepared /
+worker too old / worker offline) appears only when something stands in the
+way, with an 「更新 Worker」 button wired to the app's existing flow; every
+refusal is a typed, localized sentence (`ActionError`,十余 keys × two tables);
+the add path is fail-closed through one pure rule function in Core
+(`PortMapRules`, unit-attacked); every endpoint carries copy / open-in-browser
+/ remove; retries are automatic (3 s / 20 s / 5 s, stated in the copy) and
+explicit (「重试」 on failures). Layer 4 pressed none of it — stated in §403
+row 1385.
 
 ## Shipped: the Network directory nobody created (§402)
 

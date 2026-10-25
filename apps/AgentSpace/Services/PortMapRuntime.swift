@@ -91,52 +91,146 @@ final class PortMapRuntime: ObservableObject {
 
     // MARK: Choices the surfaces write
 
-    /// Map one port: verify the account owns it through its own worker, pick
-    /// the external port — the person's choice when given, the generator's
-    /// otherwise — and write the mapping. The reconcile that follows starts
-    /// the forwarder.
-    func map(account: UUID, port: UInt16, external chosen: UInt16? = nil) throws {
-        let store = PortMapStore()
-        if let chosen {
-            if let problem = AgentPortAllocator.manualPortProblem(chosen, internal: port) {
-                throw AgentSpaceError(code: .badRequest, message: problem)
-            }
-            let taken = store.externalPortsInUse()
-            if taken.contains(chosen) {
-                throw AgentSpaceError(
-                    code: .badRequest,
-                    message: "port \(chosen) already belongs to another mapping")
-            }
-            if TCPProbe.answers(host: "127.0.0.1", port: chosen, timeout: 0.6) {
-                throw AgentSpaceError(
-                    code: .badRequest,
-                    message: "something on this Mac is already listening on 127.0.0.1:\(chosen)")
-            }
-            guard try store.add(account: account, port: port, external: chosen) else {
-                throw AgentSpaceError(
-                    code: .badRequest,
-                    message: "port \(port) is already mapped for this account")
-            }
-        } else {
-            let taken = store.externalPortsInUse()
-            guard let external = AgentPortAllocator.choose(account: account, port: port, isFree: { candidate in
-                !taken.contains(candidate) && !TCPProbe.answers(host: "127.0.0.1", port: candidate, timeout: 0.6)
-            }) else {
-                throw AgentSpaceError(
-                    code: .badRequest,
-                    message: "no free port in \(AgentPortAllocator.range.lowerBound)–\(AgentPortAllocator.range.upperBound); unmap one first")
-            }
-            guard try store.add(account: account, port: port, external: external) else {
-                throw AgentSpaceError(
-                    code: .badRequest,
-                    message: "port \(port) is already mapped for this account")
+    /// Every way adding a mapping or switching the address can fail, with the
+    /// sentence a person reads for each — a normal user never sees a raw
+    /// NSError or an English product message in the card.
+    enum ActionError: Error, Equatable {
+        /// The worker could not be asked: offline, or older than `ports.list`.
+        case workerUnavailable(notice: WorkerNotice)
+        case rule(PortMapRules.Problem)
+        case externalPortInUse(UInt16)
+        case noFreePort
+        case storePermissionDenied
+        case accountDetached
+
+        enum WorkerNotice: Error, Equatable { case offline, tooOld }
+
+        var message: String {
+            switch self {
+            case .workerUnavailable(.offline):
+                return NSLocalizedString("The agent account's worker is offline — its desktop may be signed out or asleep. The list refreshes automatically every few seconds; open the desktop once and it comes back.", comment: "")
+            case .workerUnavailable(.tooOld):
+                return NSLocalizedString("The worker is older than this feature. Press “更新 Worker” above once (the app guides the one-time update), and the port list appears.", comment: "")
+            case .rule(.notListening(let port)):
+                return String(format: NSLocalizedString("Nothing in this account is listening on port %d right now. Start the service in the agent's desktop first, or pick a port from the “正在监听” row.", comment: ""), Int(port))
+            case .rule(.invalidInternal):
+                return NSLocalizedString("The agent account port must be a number between 1 and 65535.", comment: "")
+            case .rule(.notOnLoopback(let port)):
+                return String(format: NSLocalizedString("Port %d is bound only to a non-loopback address, so it cannot be reached with no network. Re-bind the service to 127.0.0.1 (or all interfaces) inside the agent's desktop.", comment: ""), Int(port))
+            case .rule(.alreadyMapped(let port)):
+                return String(format: NSLocalizedString("Port %d is already mapped — remove that mapping first if you want to recreate it.", comment: ""), Int(port))
+            case .rule(.invalidExternal(.belowPrivilegedFloor)):
+                return NSLocalizedString("The main-system port must be 1024 or higher — lower ports are reserved for the system.", comment: "")
+            case .rule(.invalidExternal(.isInternalPort)):
+                return NSLocalizedString("The main-system port cannot equal the account's own port — that one belongs to the service itself.", comment: "")
+            case .rule(.invalidExternal(.insideGeneratedRange)):
+                return String(format: NSLocalizedString("Ports %d–%d are reserved for automatic generation; choose a port outside that range or leave the field empty.", comment: ""), Int(AgentPortAllocator.range.lowerBound), Int(AgentPortAllocator.range.upperBound))
+            case .rule(.externalTakenByMapping(let port)):
+                return String(format: NSLocalizedString("Port %d already belongs to another mapping.", comment: ""), Int(port))
+            case .rule(.externalInUse(let port)), .externalPortInUse(let port):
+                return String(format: NSLocalizedString("Something else on this Mac is already listening on 127.0.0.1:%d — pick another port.", comment: ""), Int(port))
+            case .externalPortInUse(let port):
+                return String(format: NSLocalizedString("Something else on this Mac is already listening on 127.0.0.1:%d — pick another port.", comment: ""), Int(port))
+            case .noFreePort:
+                return NSLocalizedString("No automatic port is free right now — remove one mapping or choose a port by hand.", comment: "")
+            case .storePermissionDenied:
+                return NSLocalizedString("The configuration folder is not ready on this Mac yet. Update AgentSpace and allow the one-time helper and worker updates — they create it — then try again. Nothing you chose was lost.", comment: "")
+            case .accountDetached:
+                return NSLocalizedString("This account is detached, so its ports cannot be mapped. Re-attach it from the dashboard first.", comment: "")
             }
         }
+    }
+
+    /// Map one port: verify the account owns it through its own worker, apply
+    /// every rule before anything is written, then pick the external port —
+    /// the person's choice when given, the generator's otherwise. The
+    /// reconcile that follows starts the forwarder.
+    func map(account: UUID, port: UInt16, external chosen: UInt16? = nil) throws -> UInt16 {
+        // Ownership first, fail closed: without the account's own worker there
+        // is no evidence, and no evidence means no mapping.
+        guard let space = SpaceRegistry.load().spaces.first(where: { $0.id == account }) else {
+            throw ActionError.accountDetached
+        }
+        let listening: [ListeningPort]
+        switch ownershipEvidence(for: space) {
+        case .failure(let notice):
+            throw ActionError.workerUnavailable(notice: notice)
+        case .success(let ports):
+            listening = ports
+        }
+        let store = PortMapStore()
+        if let problem = PortMapRules.validate(
+            internal: port,
+            listening: listening,
+            mappedPorts: Set(store.mappings(account: account).map(\.port)),
+            chosenExternal: chosen,
+            takenExternals: store.externalPortsInUse()) {
+            throw ActionError.rule(problem)
+        }
+        if let chosen, TCPProbe.answers(host: "127.0.0.1", port: chosen, timeout: 0.6) {
+            throw ActionError.externalPortInUse(chosen)
+        }
+
+        let external: UInt16
+        if let chosen {
+            external = chosen
+        } else {
+            let taken = store.externalPortsInUse()
+            guard let generated = AgentPortAllocator.choose(account: account, port: port, isFree: { candidate in
+                !taken.contains(candidate) && !TCPProbe.answers(host: "127.0.0.1", port: candidate, timeout: 0.6)
+            }) else {
+                throw ActionError.noFreePort
+            }
+            external = generated
+        }
+        do {
+            guard try store.add(account: account, port: port, external: external) else {
+                throw ActionError.rule(.alreadyMapped(port))
+            }
+        } catch let error where SharedRootWrite.isPermissionDenied(error) {
+            throw ActionError.storePermissionDenied
+        }
+        reconcile()
+        return external
+    }
+    private func ownershipEvidence(for space: AgentAccount) -> Result<[ListeningPort], ActionError.WorkerNotice> {
+        let connection = SpaceConnection(space: space)
+        do {
+            let response = try connection.client.call(
+                method: Method.portsList, token: connection.token, timeout: 5)
+            if response.ok, let rows = response.result?["ports"]?.arrayValue {
+                return .success(rows.compactMap { row in
+                    guard let port = row["port"]?.intValue,
+                          let portNumber = UInt16(exactly: port),
+                          let address = row["address"]?.stringValue else { return nil }
+                    return ListeningPort(
+                        address: address, port: portNumber,
+                        process: row["process"]?.stringValue,
+                        pid: row["pid"]?.intValue)
+                })
+            }
+            if let error = response.error, error.code == .methodNotFound {
+                return .failure(.tooOld)
+            }
+            return .failure(.offline)
+        } catch {
+            return .failure(.offline)
+        }
+    }
+
+    /// Ask for the fixed address (or a failed helper call) to be retried
+    /// immediately instead of waiting for the 20-second throttle.
+    func retryNow() {
+        nextHelperAttempt = .distantPast
         reconcile()
     }
 
     func unmap(account: UUID, port: UInt16) throws {
-        try PortMapStore().remove(account: account, port: port)
+        do {
+            try PortMapStore().remove(account: account, port: port)
+        } catch let error where SharedRootWrite.isPermissionDenied(error) {
+            throw ActionError.storePermissionDenied
+        }
         reconcile()
     }
 
@@ -158,7 +252,11 @@ final class PortMapRuntime: ObservableObject {
     /// Switch the fixed-address feature. The reconcile that follows is what
     /// asks the helper — nothing about the switch itself needs a privilege.
     func setAddressEnabled(_ account: UUID, _ enabled: Bool) throws {
-        try AccountAddressStore().setEnabled(account, enabled)
+        do {
+            try AccountAddressStore().setEnabled(account, enabled)
+        } catch let error where SharedRootWrite.isPermissionDenied(error) {
+            throw ActionError.storePermissionDenied
+        }
         nextHelperAttempt = .distantPast
         reconcile()
     }

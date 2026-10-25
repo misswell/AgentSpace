@@ -126,6 +126,65 @@ public enum SharedRootWrite {
     }
 }
 
+// MARK: - The rules one mapping must satisfy, as one pure function
+
+/// Everything a mapping must satisfy before it is written, expressed without
+/// I/O so both surfaces (app card, CLI) share one definition and the rules can
+/// be attacked by tests. The ownership evidence (`listening`) is supplied by
+/// the caller because only the account's own worker can produce it.
+public enum PortMapRules {
+
+    public enum Problem: Equatable, Sendable {
+        /// The account's session has nothing listening on that port right now.
+        case notListening(UInt16)
+        /// The port is bound only to non-loopback addresses.
+        case notOnLoopback(UInt16)
+        /// This (account, port) is already mapped.
+        case alreadyMapped(UInt16)
+        /// The internal port is not a port number at all.
+        case invalidInternal
+        /// The chosen external port, with the specific rule it broke.
+        case invalidExternal(ExternalRule)
+        /// Another mapping owns the chosen external port.
+        case externalTakenByMapping(UInt16)
+        /// Something on this Mac is already listening on the chosen port.
+        case externalInUse(UInt16)
+
+        public enum ExternalRule: Equatable, Sendable {
+            case belowPrivilegedFloor
+            case isInternalPort
+            case insideGeneratedRange
+        }
+    }
+
+    /// Validate one mapping request. `listening` is the account's live port
+    /// list (any row for the port with a loopback-covering bind qualifies),
+    /// `mappedPorts` the internal ports this account already has mapped, and
+    /// `takenExternals` the external ports other mappings own.
+    public static func validate(
+        internal internalPort: UInt16,
+        listening: [ListeningPort],
+        mappedPorts: Set<UInt16>,
+        chosenExternal: UInt16?,
+        takenExternals: Set<UInt16>
+    ) -> Problem? {
+        let rows = listening.filter { $0.port == internalPort }
+        guard !rows.isEmpty else { return .notListening(internalPort) }
+        guard rows.contains(where: \.coversLoopback) else { return .notOnLoopback(internalPort) }
+        if mappedPorts.contains(internalPort) { return .alreadyMapped(internalPort) }
+        if let chosen = chosenExternal {
+            if let problem = AgentPortAllocator.manualPortProblem(chosen, internal: internalPort) {
+                return .invalidExternal(
+                    chosen < 1024 ? .belowPrivilegedFloor
+                        : chosen == internalPort ? .isInternalPort
+                        : .insideGeneratedRange)
+            }
+            if takenExternals.contains(chosen) { return .externalTakenByMapping(chosen) }
+        }
+        return nil
+    }
+}
+
 // MARK: - The persisted mappings
 
 /// One mapped port for one account: the main system calls

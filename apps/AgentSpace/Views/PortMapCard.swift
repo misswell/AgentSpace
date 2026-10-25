@@ -1,26 +1,41 @@
 import SwiftUI
 import AgentSpaceCore
 
-/// The account page's port-map card — the whole feature, no command line:
+/// The account page's port-map card — the whole feature as a person meets it,
+/// planned around one rule: **every state says what it is, and every problem
+/// names its fix.**
 ///
-/// - the mappings that exist, each answering on `127.0.0.1:<external>` and,
-///   when the account's fixed address is on, on `127.100.x.y:<internal>` too;
-/// - an add-mapping form: the account's port (pickable from what its session
-///   really listens on) and, optionally, the main-system port a person wants
-///   (`8080` → `28080`), left empty to generate one;
-/// - the fixed-address switch, off by default, which is the only thing that
-///   ever involves the privileged helper.
+/// - A precondition strip appears only when something stands in the way (the
+///   worker is too old or offline, the configuration folder is not prepared),
+///   each with the sentence and the button that fixes it — the app's own
+///   worker-update flow, one tap away.
+/// - The add-mapping form validates inline, in the reader's language: every
+///   refusal is a typed `ActionError` with its own sentence, never a raw
+///   NSError and never an untranslated product message.
+/// - Every mapping row carries three verbs — copy, open in the browser,
+///   remove — and the fixed-address section explains what its states mean,
+///   retries on its own, and offers a manual retry when it failed.
 struct PortMapCard: View {
     let account: AgentAccount
     @EnvironmentObject private var runtime: PortMapRuntime
+    @EnvironmentObject private var model: AppModel
+
+    enum WorkerState: Equatable { case offline, tooOld }
 
     @State private var listening: [ListeningPort] = []
-    @State private var workerNotice: String?
+    @State private var workerState: WorkerState?
     @State private var actionError: String?
+    @State private var lastAdded: String?
 
     // The add-mapping form.
     @State private var internalPortText = ""
     @State private var externalPortText = ""
+
+    /// The configuration folder the helper prepares on the next worker
+    /// update. Shown as a precondition, not discovered by failing.
+    private var storeNotPrepared: Bool {
+        !FileManager.default.fileExists(atPath: VirtualNetworkPaths().directory)
+    }
 
     var body: some View {
         Card(title: NSLocalizedString("Port Map", comment: "")) {
@@ -28,11 +43,23 @@ struct PortMapCard: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .accessibilityIdentifier("agentPortMapCardCaption")
 
-            if let workerNotice {
-                Text(workerNotice).font(.caption).foregroundStyle(.secondary)
-            }
+            preconditionStrip
+
             if let actionError {
                 Text(actionError).font(.caption).foregroundStyle(.red)
+            }
+            if let lastAdded {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Text(String(format: NSLocalizedString("Mapped: %@ — usable immediately.", comment: ""), lastAdded))
+                        .font(.caption)
+                    Button {
+                        copy(lastAdded)
+                    } label: { Image(systemName: "doc.on.doc") }
+                        .buttonStyle(.borderless)
+                        .help(NSLocalizedString("Copy address", comment: ""))
+                }
+                .accessibilityIdentifier("agentPortMapSuccessRow")
             }
 
             addMappingSection
@@ -44,6 +71,57 @@ struct PortMapCard: View {
         .accessibilityIdentifier("agentPortMapCardView")
         .task(id: account.id) {
             await refreshLoop()
+        }
+    }
+
+    // MARK: Preconditions — only when something stands in the way
+
+    private var preconditionStrip: some View {
+        Group {
+            if workerState != nil || storeNotPrepared {
+                VStack(alignment: .leading, spacing: 6) {
+                    if storeNotPrepared {
+                        problemRow(
+                            icon: "externaldrive.badge.exclamationmark",
+                            text: NSLocalizedString("The configuration folder is not ready on this Mac yet — one worker update creates it. Nothing you do here is lost by trying.", comment: ""),
+                            action: NSLocalizedString("Update Worker", comment: "")) {
+                            model.updateWorker(account)
+                        }
+                    }
+                    switch workerState {
+                    case .tooOld:
+                        problemRow(
+                            icon: "arrow.triangle.2.circlepath",
+                            text: NSLocalizedString("The worker is older than this feature; the port list appears after one update.", comment: ""),
+                            action: NSLocalizedString("Update Worker", comment: "")) {
+                            model.updateWorker(account)
+                        }
+                    case .offline:
+                        problemRow(
+                            icon: "moon.zzz",
+                            text: NSLocalizedString("The worker is offline — the account's desktop may be signed out or asleep. The list retries automatically every few seconds; opening the desktop brings it back.", comment: ""),
+                            action: nil, handler: nil)
+                    case nil:
+                        EmptyView()
+                    }
+                }
+                .padding(8)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    private func problemRow(icon: String, text: String, action: String?, handler: (() -> Void)?) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon).foregroundStyle(.orange)
+            Text(text).font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            if let action, let handler {
+                Button(action) { handler() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("agentPortMapFixWorkerButton")
+            }
         }
     }
 
@@ -85,8 +163,14 @@ struct PortMapCard: View {
                         }
                         .buttonStyle(.borderless)
                         .disabled(!port.coversLoopback)
+                        .help(port.coversLoopback
+                              ? NSLocalizedString("Fill the left field with this port", comment: "")
+                              : NSLocalizedString("Not on loopback; cannot be mapped", comment: ""))
                     }
                 }
+            } else if workerState == nil {
+                Text(NSLocalizedString("Nothing is listening in this account yet. Start the service in the agent's desktop and the port appears here within seconds.", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -105,43 +189,72 @@ struct PortMapCard: View {
 
     private func mappingRow(_ entry: PortMapRuntime.Entry) -> some View {
         let listeningNow = Set(displayedPorts.map(\.port))
-        let serviceDown = !listeningNow.contains(entry.port)
-        return HStack {
-            VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(String(entry.port))
+                    .font(.system(.body, design: .monospaced))
+                Image(systemName: "arrow.right")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("http://\(entry.endpoint)")
+                    .font(.system(.body, design: .monospaced))
+                    .accessibilityIdentifier("agentPortMapEndpointValue")
+                stateBadge(entry.state.displayName, healthy: entry.state == .forwarding)
+                Spacer()
+                Button {
+                    copy("http://\(entry.endpoint)")
+                } label: { Image(systemName: "doc.on.doc") }
+                    .buttonStyle(.borderless)
+                    .help(NSLocalizedString("Copy address", comment: ""))
+                Button {
+                    open("http://\(entry.endpoint)")
+                } label: { Image(systemName: "safari") }
+                    .buttonStyle(.borderless)
+                    .help(NSLocalizedString("Open in browser", comment: ""))
+                Button(NSLocalizedString("Remove", comment: "")) {
+                    unmap(entry.port)
+                }
+                .buttonStyle(.borderless)
+            }
+            if entry.state == .waiting && !listeningNow.contains(entry.port) {
+                Text(NSLocalizedString("mapped, but nothing is listening on it right now", comment: ""))
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            if let alias = entry.aliasEndpoint {
                 HStack(spacing: 8) {
                     Text(String(entry.port))
-                        .font(.system(.body, design: .monospaced))
+                        .font(.system(.caption, design: .monospaced))
                     Image(systemName: "arrow.right")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Text(entry.endpoint)
-                        .font(.system(.body, design: .monospaced))
-                        .accessibilityIdentifier("agentPortMapEndpointValue")
-                    Text(entry.state.displayName)
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if let alias = entry.aliasEndpoint {
-                    HStack(spacing: 8) {
-                        Text(String(entry.port))
-                            .font(.system(.caption, design: .monospaced))
-                        Image(systemName: "arrow.right")
-                            .font(.caption2).foregroundStyle(.secondary)
-                        Text(alias)
-                            .font(.system(.caption, design: .monospaced))
-                        Text(entry.aliasState?.displayName ?? "")
-                            .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption2).foregroundStyle(.secondary)
+                    Text("http://\(alias)")
+                        .font(.system(.caption, design: .monospaced))
+                    if let aliasState = entry.aliasState {
+                        stateBadge(aliasState.displayName, healthy: aliasState == .forwarding)
                     }
+                    Spacer()
+                    Button {
+                        copy("http://\(alias)")
+                    } label: { Image(systemName: "doc.on.doc") }
+                        .buttonStyle(.borderless)
+                        .help(NSLocalizedString("Copy address", comment: ""))
+                    Button {
+                        open("http://\(alias)")
+                    } label: { Image(systemName: "safari") }
+                        .buttonStyle(.borderless)
+                        .help(NSLocalizedString("Open in browser", comment: ""))
                 }
-                if serviceDown {
-                    Text(NSLocalizedString("mapped, but nothing is listening on it right now", comment: ""))
-                        .font(.caption).foregroundStyle(.orange)
-                }
+                .padding(.leading, 14)
             }
-            Spacer()
-            Button(NSLocalizedString("Remove", comment: "")) {
-                unmap(entry.port)
-            }
-            .buttonStyle(.borderless)
         }
+        .padding(.vertical, 1)
+    }
+
+    private func stateBadge(_ text: String, healthy: Bool) -> some View {
+        Text(text)
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background((healthy ? Color.green : Color.orange).opacity(0.15), in: Capsule())
+            .foregroundStyle(healthy ? .green : .orange)
     }
 
     // MARK: The fixed address
@@ -163,24 +276,30 @@ struct PortMapCard: View {
                 case .off:
                     EmptyView()
                 case .pending:
-                    Text(NSLocalizedString("Setting up…", comment: ""))
+                    Text(NSLocalizedString("Setting up… (retries automatically until the helper answers)", comment: ""))
                         .font(.caption).foregroundStyle(.secondary)
                 case .active(let address):
                     HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                         Text(String(format: NSLocalizedString("Active: %@", comment: ""), address))
                             .font(.system(.caption, design: .monospaced))
                         Button {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(address, forType: .string)
-                        } label: {
-                            Image(systemName: "doc.on.doc")
-                        }
-                        .buttonStyle(.borderless)
-                        .help(NSLocalizedString("Copy address", comment: ""))
+                            copy(address)
+                        } label: { Image(systemName: "doc.on.doc") }
+                            .buttonStyle(.borderless)
+                            .help(NSLocalizedString("Copy address", comment: ""))
                     }
                 case .failed(let reason):
-                    Text(String(format: NSLocalizedString("Not active: %@", comment: ""), reason))
-                        .font(.caption).foregroundStyle(.red)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(String(format: NSLocalizedString("Not active: %@", comment: ""), reason))
+                            .font(.caption).foregroundStyle(.red)
+                        Button(NSLocalizedString("Retry", comment: "")) {
+                            runtime.retryNow()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("agentPortMapRetryButton")
+                    }
                 }
             }
         }
@@ -190,10 +309,13 @@ struct PortMapCard: View {
         Binding(
             get: { runtime.isAddressEnabled(account.id) },
             set: { newValue in
+                actionError = nil
                 do {
                     try runtime.setAddressEnabled(account.id, newValue)
+                } catch let error as PortMapRuntime.ActionError {
+                    actionError = error.message
                 } catch {
-                    actionError = describe(error)
+                    actionError = String(describing: error)
                 }
             })
     }
@@ -210,19 +332,11 @@ struct PortMapCard: View {
         return rows
     }
 
-    /// One wording for every write failure the card can hit, because the one
-    /// a person actually meets on a fresh machine is the shared-root refusal
-    /// that the next worker update fixes (§402) — Cocoa's raw prose told them
-    /// nothing.
-    private func describe(_ error: Error) -> String {
-        if SharedRootWrite.isPermissionDenied(error) {
-            return NSLocalizedString("The configuration folder is not ready on this Mac yet. Update AgentSpace and allow the one-time helper and worker updates — they create it — then try again. Nothing you chose was lost.", comment: "")
-        }
-        return (error as? AgentSpaceError)?.message ?? String(describing: error)
-    }
+    // MARK: Actions
 
     private func addMapping() {
         actionError = nil
+        lastAdded = nil
         guard let internalPort = UInt16(internalPortText), internalPort != 0 else {
             actionError = NSLocalizedString("The agent account port must be a number between 1 and 65535.", comment: "")
             return
@@ -236,30 +350,47 @@ struct PortMapCard: View {
             external = parsed
         }
         do {
-            try runtime.map(account: account.id, port: internalPort, external: external)
+            let external = try runtime.map(account: account.id, port: internalPort, external: external)
             internalPortText = ""
             externalPortText = ""
+            lastAdded = "127.0.0.1:\(external)"
+        } catch let error as PortMapRuntime.ActionError {
+            actionError = error.message
         } catch {
-            actionError = describe(error)
+            actionError = String(describing: error)
         }
     }
 
     private func unmap(_ port: UInt16) {
         actionError = nil
+        lastAdded = nil
         do {
             try runtime.unmap(account: account.id, port: port)
+        } catch let error as PortMapRuntime.ActionError {
+            actionError = error.message
         } catch {
-            actionError = describe(error)
+            actionError = String(describing: error)
         }
     }
 
-    /// Poll the account's own worker for the ports it is listening on. The
-    /// worker offline / too old to answer is a notice, not an error state: the
-    /// mapped ports keep their forwarders, which fail closed on their own.
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func open(_ url: String) {
+        if let target = URL(string: url) {
+            NSWorkspace.shared.open(target)
+        }
+    }
+
+    /// Poll the account's own worker for the ports it is listening on, and
+    /// carry the *kind* of worker notice so the precondition strip can offer
+    /// the right fix instead of one flat sentence.
     private func refreshLoop() async {
         while !Task.isCancelled {
             let connection = SpaceConnection(space: account)
-            let outcome = await Task.detached(priority: .utility) { () -> (ports: [ListeningPort]?, notice: String?) in
+            let outcome = await Task.detached(priority: .utility) { () -> (ports: [ListeningPort]?, state: WorkerState?) in
                 do {
                     let response = try connection.client.call(
                         method: Method.portsList, token: connection.token, timeout: 5)
@@ -276,18 +407,15 @@ struct PortMapCard: View {
                         return (ports, nil)
                     }
                     if let error = response.error, error.code == .methodNotFound {
-                        return (nil, NSLocalizedString(
-                            "The worker is older than this feature. Update it (the app offers this after an app update) and the port list appears here.", comment: ""))
+                        return (nil, .tooOld)
                     }
-                    return (nil, NSLocalizedString(
-                        "The worker could not list this account's ports.", comment: ""))
+                    return (nil, .offline)
                 } catch {
-                    return (nil, NSLocalizedString(
-                        "The worker is offline, so this account's ports cannot be listed. Mapped ports refuse connections until it is back.", comment: ""))
+                    return (nil, .offline)
                 }
             }.value
             listening = outcome.ports ?? []
-            workerNotice = outcome.notice
+            workerState = outcome.state
             try? await Task.sleep(for: .seconds(5))
         }
     }

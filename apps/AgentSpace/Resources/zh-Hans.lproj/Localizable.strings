@@ -860,3 +860,26 @@
 "The message names the field and the rule it broke. Fix that field, or enable the documented override if the rule is one that offers one; the previous configuration was not changed." = "提示里写明了是哪个字段、破了哪条规则。改那个字段；如果规则允许，也可以启用文档里写明的覆盖开关。上一个配置没有被改动。";
 
 "AgentSpace uses a root helper only to install its worker and prepare the shared runtime. The helper exposes a closed list of typed operations and never runs a shell or changes macOS user accounts. Everything already connected keeps working without it: opening a desktop, screenshots, input, apps, the HTTP API and the virtual-network settings all run through the agent's own worker, not the helper." = "AgentSpace 只在安装 Worker 和准备共享运行目录时用到 root 助手。这个助手只暴露一份封闭的类型化操作清单，从不执行 shell，也不改动 macOS 用户账号。没有它，已经连接的账号一切照常：打开桌面、截图、输入、应用、HTTP API 和虚拟网络设置走的都是 Agent 自己的 Worker，而不是助手。";
+"Mapped: %@ — usable immediately." = "已映射：%@ —— 现在就可以访问。";
+"Open in browser" = "在浏览器打开";
+"Update Worker" = "更新 Worker";
+"Retry" = "重试";
+"Setting up… (retries automatically until the helper answers)" = "正在启用…（会自动重试，直到助手应答）";
+"The configuration folder is not ready on this Mac yet — one worker update creates it. Nothing you do here is lost by trying." = "这台 Mac 上的配置目录还没就绪——一次 Worker 更新即可创建它。现在尝试也不会丢失任何设置。";
+"The worker is older than this feature; the port list appears after one update." = "Worker 版本早于此功能；更新一次后端口列表就会出现。";
+"The worker is offline — the account's desktop may be signed out or asleep. The list retries automatically every few seconds; opening the desktop brings it back." = "Worker 处于离线状态——该账号的桌面可能已注销或睡眠。列表每隔几秒自动重试；打开一次桌面即可恢复。";
+"Nothing is listening in this account yet. Start the service in the agent's desktop and the port appears here within seconds." = "该账号里还没有服务在监听。在子账号桌面上启动你的服务，端口几秒内就会出现在这里。";
+"Fill the left field with this port" = "把这个端口填入左框";
+"Not on loopback; cannot be mapped" = "不在回环地址上，无法映射";
+"The agent account's worker is offline — its desktop may be signed out or asleep. The list refreshes automatically every few seconds; open the desktop once and it comes back." = "该账号的 Worker 离线——桌面可能已注销或睡眠。列表每几秒自动刷新；打开一次桌面即可恢复。";
+"The worker is older than this feature. Press “更新 Worker” above once (the app guides the one-time update), and the port list appears." = "Worker 版本早于此功能。点上方「更新 Worker」一次（应用会引导完成一次性更新），端口列表就会出现。";
+"Nothing in this account is listening on port %d right now. Start the service in the agent's desktop first, or pick a port from the “正在监听” row." = "子账号此刻没有进程在监听 %d 端口。请先在子账号桌面里启动服务，或从「正在监听」一排里点选。";
+"Port %d is bound only to a non-loopback address, so it cannot be reached with no network. Re-bind the service to 127.0.0.1 (or all interfaces) inside the agent's desktop." = "端口 %d 只绑在外部网卡地址上，断网时无法转发。请在子账号里把服务改为监听 127.0.0.1（或全部地址）。";
+"Port %d is already mapped — remove that mapping first if you want to recreate it." = "端口 %d 已有映射——如需重建，请先移除它。";
+"The main-system port must be 1024 or higher — lower ports are reserved for the system." = "主系统端口必须不小于 1024——更低的端口保留给系统。";
+"The main-system port cannot equal the account's own port — that one belongs to the service itself." = "主系统端口不能和子账号自己的端口相同——那个端口属于服务本身。";
+"Ports %d–%d are reserved for automatic generation; choose a port outside that range or leave the field empty." = "%d–%d 保留给自动生成；请选择该范围之外的端口，或留空。";
+"Port %d already belongs to another mapping." = "端口 %d 已属于另一条映射。";
+"Something else on this Mac is already listening on 127.0.0.1:%d — pick another port." = "这台 Mac 上已有其他程序在监听 127.0.0.1:%d——请换一个端口。";
+"No automatic port is free right now — remove one mapping or choose a port by hand." = "暂时没有可用的自动端口——请移除一条映射，或手动指定端口。";
+"This account is detached, so its ports cannot be mapped. Re-attach it from the dashboard first." = "该账号已断开，无法映射端口。请先在主界面重新连接它。";
