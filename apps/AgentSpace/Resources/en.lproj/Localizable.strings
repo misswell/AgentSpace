@@ -94,6 +94,8 @@
 "The Desktop Viewer captures at 1 FPS while it is open, and never while it is closed. Click coordinates are unaffected by this: they are derived from the display's own size, not the image's." = "The Desktop Viewer captures at 1 FPS while it is open, and never while it is closed. Click coordinates are unaffected by this: they are derived from the display's own size, not the image's.";
 "General" = "General";
 "Advanced" = "Advanced";
+"Virtual Network" = "Virtual Network";
+"Update" = "Update";
 "AgentSpace root" = "AgentSpace root";
 "Where agents, their runtime sockets and their logs live. Empty means /Users/Shared/.AgentSpace. This is read from AGENTSPACE_ROOT at launch; restart to apply." = "Where agents, their runtime sockets and their logs live. Empty means /Users/Shared/.AgentSpace. This is read from AGENTSPACE_ROOT at launch; restart to apply.";
 "Reveal Log Folder" = "Reveal Log Folder";
