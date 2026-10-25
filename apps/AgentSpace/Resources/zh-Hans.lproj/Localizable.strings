@@ -792,6 +792,7 @@
 "not running: %@" = "未运行：%@";
 "API listener: %@" = "API 监听：%@";
 "Could not write the API configuration:" = "无法写入 API 配置：";
+"The configuration folder is not ready on this Mac yet. Update AgentSpace and allow the one-time helper and worker updates — they create it — then try again. Nothing you chose was lost." = "这台 Mac 上的配置目录还没有就绪。请更新 AgentSpace 并允许一次「重新安装助手」与 Worker 更新——它们会创建它——然后再试。你的设置没有丢失。";
 "the bind mode in the configuration is unknown, or a virtual address was requested with no virtual network configured" = "配置里的绑定模式无法识别，或者在没有配置虚拟网络的情况下请求了虚拟地址";
 "Port Map" = "端口映射";
 "Each mapping answers on 127.0.0.1 at a fixed port — generated, or one you choose (for example 8080 → 28080). Call it from the main system with no network at all; mappings are served while AgentSpace is open." = "每条映射在 127.0.0.1 的一个固定端口上应答——可以自动生成，也可以由你指定（例如 8080 → 28080）。在主系统直接访问即可，完全不需要网络；映射在 AgentSpace 打开期间生效。";

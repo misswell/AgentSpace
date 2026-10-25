@@ -193,9 +193,7 @@ struct PortMapCard: View {
                 do {
                     try runtime.setAddressEnabled(account.id, newValue)
                 } catch {
-                    actionError = String(
-                        format: NSLocalizedString("Could not write the choice: %@", comment: ""),
-                        String(describing: error))
+                    actionError = describe(error)
                 }
             })
     }
@@ -210,6 +208,17 @@ struct PortMapCard: View {
             rows.append(port)
         }
         return rows
+    }
+
+    /// One wording for every write failure the card can hit, because the one
+    /// a person actually meets on a fresh machine is the shared-root refusal
+    /// that the next worker update fixes (§402) — Cocoa's raw prose told them
+    /// nothing.
+    private func describe(_ error: Error) -> String {
+        if SharedRootWrite.isPermissionDenied(error) {
+            return NSLocalizedString("The configuration folder is not ready on this Mac yet. Update AgentSpace and allow the one-time helper and worker updates — they create it — then try again. Nothing you chose was lost.", comment: "")
+        }
+        return (error as? AgentSpaceError)?.message ?? String(describing: error)
     }
 
     private func addMapping() {
@@ -231,7 +240,7 @@ struct PortMapCard: View {
             internalPortText = ""
             externalPortText = ""
         } catch {
-            actionError = String(describing: (error as? AgentSpaceError)?.message ?? String(describing: error))
+            actionError = describe(error)
         }
     }
 
@@ -240,9 +249,7 @@ struct PortMapCard: View {
         do {
             try runtime.unmap(account: account.id, port: port)
         } catch {
-            actionError = String(
-                format: NSLocalizedString("Could not write the mapping: %@", comment: ""),
-                String(describing: error))
+            actionError = describe(error)
         }
     }
 

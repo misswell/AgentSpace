@@ -796,6 +796,7 @@
 "not running: %@" = "not running: %@";
 "API listener: %@" = "API listener: %@";
 "Could not write the API configuration:" = "Could not write the API configuration:";
+"The configuration folder is not ready on this Mac yet. Update AgentSpace and allow the one-time helper and worker updates — they create it — then try again. Nothing you chose was lost." = "The configuration folder is not ready on this Mac yet. Update AgentSpace and allow the one-time helper and worker updates — they create it — then try again. Nothing you chose was lost.";
 "the bind mode in the configuration is unknown, or a virtual address was requested with no virtual network configured" = "the bind mode in the configuration is unknown, or a virtual address was requested with no virtual network configured";
 "Port Map" = "Port Map";
 "Each mapping answers on 127.0.0.1 at a fixed port — generated, or one you choose (for example 8080 → 28080). Call it from the main system with no network at all; mappings are served while AgentSpace is open." = "Each mapping answers on 127.0.0.1 at a fixed port — generated, or one you choose (for example 8080 → 28080). Call it from the main system with no network at all; mappings are served while AgentSpace is open.";

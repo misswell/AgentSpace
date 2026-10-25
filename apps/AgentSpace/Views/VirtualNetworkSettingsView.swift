@@ -389,7 +389,11 @@ struct VirtualNetworkSettingsView: View {
                 : NSLocalizedString("API disabled.", comment: "")
             errorLine = nil
         } catch {
-            errorLine = NSLocalizedString("Could not write the API configuration:", comment: "") + " \(error)"
+            if SharedRootWrite.isPermissionDenied(error) {
+                errorLine = NSLocalizedString("The configuration folder is not ready on this Mac yet. Update AgentSpace and allow the one-time helper and worker updates — they create it — then try again. Nothing you chose was lost.", comment: "")
+            } else {
+                errorLine = NSLocalizedString("Could not write the API configuration:", comment: "") + " \(error)"
+            }
         }
     }
 

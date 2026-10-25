@@ -312,6 +312,31 @@ final class HelperService: NSObject, HelperXPCProtocol {
             try fileManager.setAttributes([.posixPermissions: 0o644, .ownerAccountID: uid, .groupOwnerAccountID: gid(of: username) ?? 20],
                                           ofItemAtPath: plistURL.path)
 
+            // The controller's Network configuration store (api.json,
+            // port-map.json, account-addresses.json) lives in the shared root,
+            // and the shared root is root-owned — so the helper hands that one
+            // directory to the main user exactly like prepareRuntimeDirectory
+            // does. Doing it on every worker install/update is what fixes an
+            // already-attached machine, the one flow it is guaranteed to run
+            // (§402: without this, first use answers "Permission denied").
+            // `self.` because this function's own `uid` (the agent user's)
+            // shadows the resolver method.
+            if let mainUID = self.uid(of: mainUser) {
+                let networkDirectory = "\(runtimeRoot)/Network"
+                if !fileManager.fileExists(atPath: networkDirectory) {
+                    try fileManager.createDirectory(
+                        atPath: networkDirectory, withIntermediateDirectories: false,
+                        attributes: [.posixPermissions: 0o700, .ownerAccountID: mainUID, .groupOwnerAccountID: 20])
+                }
+                let handover = CommandRunner.run([HelperCommand.chown, "\(mainUID):20", networkDirectory], timeout: 30)
+                let tighten = CommandRunner.run([HelperCommand.chmod, "700", networkDirectory], timeout: 30)
+                guard handover.ok, tighten.ok else {
+                    throw NSError(domain: "AgentSpace.Helper", code: 1, userInfo: [
+                        NSLocalizedDescriptionKey: "could not hand the Network configuration directory to \(mainUser): \(!handover.ok ? handover.standardError : tighten.standardError)",
+                    ])
+                }
+            }
+
             log.info("installed worker for \(username) at \(installedWorker)")
             return HelperResponse(id: request.id, result: .obj([
                 "username": .string(username),
@@ -468,6 +493,12 @@ final class HelperService: NSObject, HelperXPCProtocol {
             "\(root)/Logs",
             "\(root)/Worktrees",
             "\(root)/Attachments",
+            // The virtual-network/port-map configuration store. It must exist
+            // before the app or the CLI (both unprivileged, both the main
+            // user) tries to write api.json / port-map.json into it — without
+            // this line, first use answers "Permission denied" because the
+            // shared root is root-owned (§402).
+            "\(root)/Network",
         ]
 
         do {
@@ -503,8 +534,11 @@ final class HelperService: NSObject, HelperXPCProtocol {
             let screenshots = "\(runtimeDirectory)/screenshots"
             try runRequired([HelperCommand.chmod, "750", screenshots])
             try runRequired([HelperCommand.chown, "\(spaceUID):\(gid(of: username) ?? 20)", screenshots])
-            // Registry, logs and worktrees are maintained by the controller.
-            for path in ["\(root)/Spaces", "\(root)/Logs", "\(root)/Worktrees"] {
+            // Registry, logs, worktrees — and the Network configuration
+            // store, without which every port-map and API setting the app
+            // writes is refused by the root-owned shared root (§402) — are
+            // maintained by the controller.
+            for path in ["\(root)/Spaces", "\(root)/Logs", "\(root)/Worktrees", "\(root)/Network"] {
                 try runRequired([HelperCommand.chown, "\(mainUID):20", path])
                 try runRequired([HelperCommand.chmod, "700", path])
             }

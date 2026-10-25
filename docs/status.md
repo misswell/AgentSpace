@@ -4,7 +4,22 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-25 on `master`. Current public release: **0.1.100**.
+Last updated: 2026-10-25 on `master`. Current public release: **0.1.101**.
+
+## Shipped: the Network directory nobody created (§402)
+
+The owner's screenshot from a second machine: first use of the port map
+answered Cocoa 513/EACCES on `/Library/Application Support/AgentSpace/Network`.
+The shared root is root-owned by design and **nothing ever created `Network`**
+— a defect since 0.1.98's `api.json`. The helper now hands that directory to
+the main user on **every worker install/update** (the §332 path an
+already-attached machine runs anyway) as well as at attach; until it has, the
+port-map card, the API toggle and the CLI all translate the refusal into the
+sentence that names the fix (`SharedRootWrite`, unit-tested). No protocol
+surface changed (the closed list stays at 13). §402 rows 1377–1379.
+
+Published 0.1.101 (§402): take the update, allow the helper and worker
+prompts once — that is the whole fix on any machine.
 
 ## Shipped: chosen ports, the visual port map, and the fixed per-account address (§401)
 

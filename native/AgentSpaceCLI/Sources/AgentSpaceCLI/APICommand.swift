@@ -86,8 +86,9 @@ enum APICommand {
             do {
                 try config.save(paths: paths)
             } catch {
+                let hint = SharedRootWrite.isPermissionDenied(error) ? " — the Network configuration folder is not ready yet; update the app and allow the one-time helper and worker updates, which create it" : ""
                 emitter.failure(AgentSpaceError(
-                    code: .internalError, message: "could not write the API configuration: \(error)"))
+                    code: .internalError, message: "could not write the API configuration: \(error)\(hint)"))
             }
             let host = config.policy(network: network)?.host ?? "127.0.0.1"
             emitter.success(.obj([
@@ -108,8 +109,9 @@ enum APICommand {
             do {
                 try config.save(paths: paths)
             } catch {
+                let hint = SharedRootWrite.isPermissionDenied(error) ? " — the Network configuration folder is not ready yet; update the app and allow the one-time helper and worker updates, which create it" : ""
                 emitter.failure(AgentSpaceError(
-                    code: .internalError, message: "could not write the API configuration: \(error)"))
+                    code: .internalError, message: "could not write the API configuration: \(error)\(hint)"))
             }
             emitter.success(.obj([
                 "ok": .bool(true), "changed": .bool(was),

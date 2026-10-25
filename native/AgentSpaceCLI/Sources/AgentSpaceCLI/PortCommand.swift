@@ -112,8 +112,9 @@ enum PortCommand {
                 let changed = try store.setEnabled(account.id, true)
                 _ = changed
             } catch {
+                let hint = SharedRootWrite.isPermissionDenied(error) ? " — the Network configuration folder is not ready yet; update the app and allow the one-time helper and worker updates, which create it" : ""
                 emitter.failure(AgentSpaceError(
-                    code: .internalError, message: "could not write the choice: \(error)"))
+                    code: .internalError, message: "could not write the choice: \(error)\(hint)"))
             }
             emitter.success(.obj([
                 "ok": .bool(true),
@@ -125,8 +126,9 @@ enum PortCommand {
             do {
                 _ = try store.setEnabled(account.id, false)
             } catch {
+                let hint = SharedRootWrite.isPermissionDenied(error) ? " — the Network configuration folder is not ready yet; update the app and allow the one-time helper and worker updates, which create it" : ""
                 emitter.failure(AgentSpaceError(
-                    code: .internalError, message: "could not write the choice: \(error)"))
+                    code: .internalError, message: "could not write the choice: \(error)\(hint)"))
             }
             emitter.success(.obj([
                 "ok": .bool(true),
@@ -366,8 +368,9 @@ enum PortCommand {
                 ? "mapped: 127.0.0.1:\(external) → this account's port \(port) — the app serves it within a few seconds while it is open"
                 : "already mapped")
         } catch {
+            let hint = SharedRootWrite.isPermissionDenied(error) ? " — the Network configuration folder is not ready yet; update the app and allow the one-time helper and worker updates, which create it" : ""
             emitter.failure(AgentSpaceError(
-                code: .internalError, message: "could not write the mapping file: \(error)"))
+                code: .internalError, message: "could not write the mapping file: \(error)\(hint)"))
         }
     }
 
@@ -393,8 +396,9 @@ enum PortCommand {
                 ? "unmapped: the app stops the forwarder within a few seconds"
                 : "was not mapped")
         } catch {
+            let hint = SharedRootWrite.isPermissionDenied(error) ? " — the Network configuration folder is not ready yet; update the app and allow the one-time helper and worker updates, which create it" : ""
             emitter.failure(AgentSpaceError(
-                code: .internalError, message: "could not write the mapping file: \(error)"))
+                code: .internalError, message: "could not write the mapping file: \(error)\(hint)"))
         }
     }
 }
