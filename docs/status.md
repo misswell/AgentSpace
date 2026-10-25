@@ -4,7 +4,7 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-25 on `master`. Current public release: **0.1.104**.
+Last updated: 2026-10-25 on `master`. Current public release: **0.1.105**.
 
 ## Removed: the port map and the fixed per-account address (§406)
 
@@ -24,6 +24,13 @@ plumbing), and `AgentLoopbackAddress` for one job — the launch cleanup that
 removes any `127.100.x.y` alias 0.1.99–0.1.104 left on `lo0`, through the two
 alias operations that stay in the helper's closed list so an old helper
 accepts the call. §406 rows 1399–1402.
+
+Published 0.1.105 (§406 row 1403, 2026-10-25): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.105),
+source [d890895](https://github.com/misswell/AgentSpace/commit/d890895),
+[Actions 40194622809](https://github.com/misswell/AgentSpace/actions/runs/40194622809)
+all three jobs green. Runner gate: Swift **1050** (7 skipped), matching local.
+`releases/latest` answers v0.1.105; Apple live readback: app ZIP `404bf7d2-…`
+and DMG `bc13151e-…` both **Accepted**. DMG 29,679,653 bytes.
 
 ## Shipped: the listening refusal that names the right suspect (§405)
 
