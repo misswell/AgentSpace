@@ -6,6 +6,24 @@ Read this first when resuming AgentSpace. The binding product direction is
 
 Last updated: 2026-10-25 on `master`. Current public release: **0.1.103**.
 
+## Shipped: the listening refusal that names the right suspect (§405)
+
+The owner's 「监听问题」 screenshot investigated, measured on both sides of
+the account wall: nothing was wrong with the detection. The 3425 listener is
+the **main system's** gateway process (magpie tray, LISTEN `127.0.0.1:3425`);
+the account's copy holds only a client connection (`52728 → 3425
+ESTABLISHED`) — 「由另一个 magpie 提供」 was literal. Every account shares one
+kernel loopback, so the fail-closed refusal was correct, and such a service is
+already reachable from the main system at the same port with **no mapping at
+all**. What was wrong was the sentence: a port that answers machine-wide but
+is not the account's now says so — 「监听者在本账号之外…主系统已经可以直接访
+问…无需映射」 — through one pure Core function
+(`PortMapRules.notListeningRefinement`) shared by the app card and the CLI,
+unit-attacked and measured live in both directions (`map 3425` upgrades,
+`map 3426` stays flat). The account's exposed ports remain where they were:
+the 「正在监听」 row and `agentspace ports <account> list`. §405 rows
+1394–1397.
+
 ## Shipped: the forwarding review's fixes (§404)
 
 The owner's code review of the network forwarding found the flapping defect —

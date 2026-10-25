@@ -58,4 +58,25 @@ final class PortMapRulesTests: XCTestCase {
             internal: 3000, listening: wide, mappedPorts: [],
             chosenExternal: 28080, takenExternals: []))
     }
+
+    /// The §405 refinement: when the account's worker reports nothing but a
+    /// machine-wide probe answers, the verdict upgrades to "held outside this
+    /// account" — unless the answering port is one of this product's own
+    /// forwarder endpoints, whose answering says nothing about a service.
+    func testTheNotListeningRefinement() {
+        XCTAssertEqual(
+            PortMapRules.notListeningRefinement(probeAnswers: true, portIsAMappingEndpoint: false),
+            .heldOutsideAccount)
+        XCTAssertEqual(
+            PortMapRules.notListeningRefinement(probeAnswers: false, portIsAMappingEndpoint: false),
+            .nothingAnywhere,
+            "a silent port stays a plain notListening refusal")
+        XCTAssertEqual(
+            PortMapRules.notListeningRefinement(probeAnswers: true, portIsAMappingEndpoint: true),
+            .nothingAnywhere,
+            "our own forwarder's endpoint answering is not a service's listener")
+        XCTAssertEqual(
+            PortMapRules.notListeningRefinement(probeAnswers: false, portIsAMappingEndpoint: true),
+            .nothingAnywhere)
+    }
 }

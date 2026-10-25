@@ -126,6 +126,28 @@ public enum SharedRootWrite {
     }
 }
 
+// MARK: - The one notListening refusal that deserves an upgrade
+
+/// The refinement a `notListening` refusal earns from one machine-wide fact:
+/// whether anything on this Mac answers on `127.0.0.1:<port>` at all.
+///
+/// The account's own worker has already said that none of *its* processes
+/// listen on the port. When the port still answers a probe from the main
+/// system, the listener is held outside this account — the main system's, another
+/// account's, or a system service's — and because every account on macOS
+/// shares one kernel network stack, the main system can already reach it at
+/// the same port with no mapping at all. That is the exact case a person
+/// meets with a service that only *looks* like it belongs to the account (a
+/// gateway app whose server runs in the main system while the account's copy
+/// is a client), and the flat "nothing is listening" sentence reads like a
+/// defect; both surfaces upgrade it instead.
+public enum NotListeningRefinement: Equatable, Sendable {
+    /// The probe found nothing either: the port is silent machine-wide.
+    case nothingAnywhere
+    /// The probe answered: a listener exists, and it is not this account's.
+    case heldOutsideAccount
+}
+
 // MARK: - The rules one mapping must satisfy, as one pure function
 
 /// Everything a mapping must satisfy before it is written, expressed without
@@ -182,6 +204,21 @@ public enum PortMapRules {
             if takenExternals.contains(chosen) { return .externalTakenByMapping(chosen) }
         }
         return nil
+    }
+
+    /// Whether a `notListening` verdict should be upgraded to
+    /// "held outside this account", from the two facts a surface can gather
+    /// itself: a machine-wide probe of `127.0.0.1:<port>` (a plain TCP
+    /// connect from the main system), and whether that port is one of this
+    /// product's own forwarder endpoints. A mapping's external port is served
+    /// by this app's own forwarder, so its answering says nothing about
+    /// anyone's service and must not upgrade the verdict.
+    public static func notListeningRefinement(
+        probeAnswers: Bool,
+        portIsAMappingEndpoint: Bool
+    ) -> NotListeningRefinement {
+        guard probeAnswers, !portIsAMappingEndpoint else { return .nothingAnywhere }
+        return .heldOutsideAccount
     }
 }
 

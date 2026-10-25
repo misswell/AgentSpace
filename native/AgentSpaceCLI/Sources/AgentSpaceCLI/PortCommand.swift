@@ -291,6 +291,7 @@ enum PortCommand {
         // account is really listening on, verified through its own worker.
         // Without that check the forwarder could point the generated port at
         // whichever other account holds the internal port on the shared stack.
+        let store = PortMapStore(paths: paths)
         let connection = SpaceConnection(space: account)
         var owned = false
         var coversLoopback = false
@@ -308,6 +309,11 @@ enum PortCommand {
                 coversLoopback = matches.contains { $0["loopback"]?.boolValue == true }
                 if !owned {
                     reason = "nothing in this account's session is listening on port \(port)"
+                    if PortMapRules.notListeningRefinement(
+                        probeAnswers: TCPProbe.answers(host: "127.0.0.1", port: port, timeout: 0.6),
+                        portIsAMappingEndpoint: store.externalPortsInUse().contains(port)) == .heldOutsideAccount {
+                        reason = "port \(port) answers on the loopback, but the listener is held outside this account (the main system, another account, or a system service); every account shares one loopback, so the main system already reaches it at 127.0.0.1:\(port) — no mapping needed"
+                    }
                 } else if !coversLoopback {
                     reason = "port \(port) is bound only to a non-loopback address; the mapping could not reach it with no network"
                 }
@@ -325,7 +331,6 @@ enum PortCommand {
         // outside the generated range, not the service's own port, not another
         // mapping's, nothing already listening), the deterministic generator
         // otherwise.
-        let store = PortMapStore(paths: paths)
         let external: UInt16
         if let chosen {
             if let problem = AgentPortAllocator.manualPortProblem(chosen, internal: port) {

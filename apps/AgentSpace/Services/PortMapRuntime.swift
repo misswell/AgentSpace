@@ -98,6 +98,10 @@ final class PortMapRuntime: ObservableObject {
         /// The worker could not be asked: offline, or older than `ports.list`.
         case workerUnavailable(notice: WorkerNotice)
         case rule(PortMapRules.Problem)
+        /// The port answers on the shared loopback, but the account's own
+        /// worker reports no listener of its own — the holder is outside this
+        /// account, and no mapping is what that service needs.
+        case listeningOutsideAccount(UInt16)
         case externalPortInUse(UInt16)
         case noFreePort
         case storePermissionDenied
@@ -113,6 +117,8 @@ final class PortMapRuntime: ObservableObject {
                 return NSLocalizedString("The worker is older than this feature. Press “更新 Worker” above once (the app guides the one-time update), and the port list appears.", comment: "")
             case .rule(.notListening(let port)):
                 return String(format: NSLocalizedString("Nothing in this account is listening on port %d right now. Start the service in the agent's desktop first, or pick a port from the “正在监听” row.", comment: ""), Int(port))
+            case .listeningOutsideAccount(let port):
+                return String(format: NSLocalizedString("Port %d answers on this Mac's loopback, but nothing in this account is listening on it — the listener is held outside this account (the main system, another account, or a system service). Every account shares one loopback, so the main system already reaches it at 127.0.0.1:%d with no mapping; a mapping only names a port this account itself listens on.", comment: ""), Int(port), Int(port))
             case .rule(.invalidInternal):
                 return NSLocalizedString("The agent account port must be a number between 1 and 65535.", comment: "")
             case .rule(.notOnLoopback(let port)):
@@ -161,12 +167,19 @@ final class PortMapRuntime: ObservableObject {
                 listening = ports
             }
             let store = PortMapStore()
+            let takenExternals = store.externalPortsInUse()
             if let problem = PortMapRules.validate(
                 internal: port,
                 listening: listening,
                 mappedPorts: Set(store.mappings(account: account).map(\.port)),
                 chosenExternal: chosen,
-                takenExternals: store.externalPortsInUse()) {
+                takenExternals: takenExternals) {
+                if case .notListening = problem,
+                   PortMapRules.notListeningRefinement(
+                    probeAnswers: TCPProbe.answers(host: "127.0.0.1", port: port, timeout: 0.6),
+                    portIsAMappingEndpoint: takenExternals.contains(port)) == .heldOutsideAccount {
+                    throw ActionError.listeningOutsideAccount(port)
+                }
                 throw ActionError.rule(problem)
             }
             if let chosen, TCPProbe.answers(host: "127.0.0.1", port: chosen, timeout: 0.6) {
