@@ -4,7 +4,7 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-25 on `master`. Current public release: **0.1.103**.
+Last updated: 2026-10-25 on `master`. Current public release: **0.1.104**.
 
 ## Shipped: the listening refusal that names the right suspect (§405)
 
@@ -23,6 +23,13 @@ unit-attacked and measured live in both directions (`map 3425` upgrades,
 `map 3426` stays flat). The account's exposed ports remain where they were:
 the 「正在监听」 row and `agentspace ports <account> list`. §405 rows
 1394–1397.
+
+Published 0.1.104 (§405 row 1398, 2026-10-25): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.104),
+source [218ffb1](https://github.com/misswell/AgentSpace/commit/218ffb1),
+[Actions 40186965283](https://github.com/misswell/AgentSpace/actions/runs/40186965283)
+all three jobs green. Runner gate: Swift **1074** (7 skipped). `releases/latest`
+answers v0.1.104; Apple live readback: app ZIP `956181ed-…` and DMG
+`5a947841-…` both **Accepted**. DMG 29,270,068 bytes.
 
 ## Shipped: the forwarding review's fixes (§404)
 
