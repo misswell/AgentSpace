@@ -17,7 +17,7 @@ the offset and return code are measured facts in `ProcessFootprint`'s header,
 cross-checked against `vmmap`). The wire key is additive — an old worker
 yields one figure, never a fake zero. Also in this round: the session-side UI
 verifier learned to order a never-fronted window forward before declaring its
-accessibility blind (§407 row 1416), which is what let layer 4 run to
+accessibility blind (§407 row 1409), which is what let layer 4 run to
 completion inside a busy session.
 
 ## Removed: the port map and the fixed per-account address (§406)
