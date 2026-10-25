@@ -124,7 +124,7 @@ struct SpaceDetailView: View {
                         }
                         overviewCard(snapshot)
                         permissionsCard(snapshot)
-                        PortMapCard(account: snapshot.space)
+                        ListeningPortsCard(account: snapshot.space)
                         if let resources = snapshot.resources {
                             resourcesCard(resources) { model.measureDisk(for: snapshot.space) }
                         }

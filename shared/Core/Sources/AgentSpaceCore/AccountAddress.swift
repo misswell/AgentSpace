@@ -1,21 +1,23 @@
 import Foundation
 
-// The per-account loopback address: opt-in, off by default, root-served.
+// The per-account loopback address, 127.100.x.y inside lo0.
 //
-// §400 row 1363 measured why this needs the helper: an unprivileged process
+// §400 row 1363 measured why this needed the helper: an unprivileged process
 // cannot bind any 127.x address that is not assigned to `lo0` (errno 49), and
-// assigning one is `ifconfig lo0 alias` — root. This file owns everything
-// *around* that fact: the deterministic address (so every observer computes
-// the same one), and the on/off record (so the feature is a choice the person
-// makes per account, never a side effect of updating).
+// assigning one is `ifconfig lo0 alias` — root. The fixed-address feature
+// built on that fact was removed with the port map (§406): a service bound
+// hard to 127.0.0.1 never moves to the alias, so the address could not give
+// two accounts the same port number after all. What survives is the
+// derivation itself, for exactly one job: the app's one-time cleanup that
+// removes any alias earlier releases (0.1.99–0.1.104) may have left on lo0 —
+// only addresses this derivation could have produced are ever touched, the
+// §404 rule.
 
-/// The address an agent account answers on, inside 127.100.0.0/16.
+/// The address an agent account answered on, inside 127.100.0.0/16.
 ///
-/// Derived from the account id — never stored — so it is the same on every
-/// launch for the same set of attached accounts, and the helper, the app, the
-/// CLI and the docs all name the same address. Collisions between accounts
-/// are settled deterministically (id order, salted rehash), like the port
-/// allocator settles port collisions.
+/// Derived from the account id — never stored — so every observer computes
+/// the same one; collisions between accounts are settled deterministically
+/// (id order, salted rehash).
 public enum AgentLoopbackAddress {
 
     /// `127.100.0.0/16`, the slice the helper's alias operation accepts and
@@ -78,87 +80,5 @@ public enum AgentLoopbackAddress {
     public static func isAlias(_ candidate: IPv4Address) -> Bool {
         let raw = candidate.rawValue
         return (raw >> 24) & 0xff == 127 && (raw >> 16) & 0xff == 100
-    }
-}
-
-/// The shape of `<root>/Network/account-addresses.json`: which accounts have
-/// the fixed-address feature switched on. A *choice record*, not a state
-/// record — whether the alias is really on `lo0` is read from the machine
-/// (`getifaddrs`), never from this file, so a crashed app cannot leave the
-/// two disagreeing about what is true.
-public struct AccountAddressFile: Codable, Equatable, Sendable {
-    public var version: Int
-    public var enabled: [UUID]
-    public var updatedAt: Date
-
-    public init(version: Int = 1, enabled: [UUID] = [], updatedAt: Date = Date()) {
-        self.version = version
-        self.enabled = enabled
-        self.updatedAt = updatedAt
-    }
-}
-
-public struct AccountAddressStore {
-    public let paths: VirtualNetworkPaths
-
-    public init(paths: VirtualNetworkPaths = VirtualNetworkPaths()) {
-        self.paths = paths
-    }
-
-    public static func path(paths: VirtualNetworkPaths = VirtualNetworkPaths()) -> String {
-        paths.accountAddressPath
-    }
-
-    private var encoder: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }
-
-    private var decoder: JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }
-
-    /// Missing or corrupt → the empty choice (nothing enabled). The safe
-    /// direction: a corrupt file cannot leave an alias on the machine that
-    /// the app believes nobody asked for, because reconcile removes what no
-    /// enabled account owns.
-    public func load() -> AccountAddressFile {
-        guard let data = FileManager.default.contents(atPath: paths.accountAddressPath),
-              let file = try? decoder.decode(AccountAddressFile.self, from: data) else {
-            return AccountAddressFile()
-        }
-        return file
-    }
-
-    public func save(_ file: AccountAddressFile) throws {
-        try FileManager.default.createDirectory(
-            atPath: paths.directory, withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700])
-        let data = try encoder.encode(file)
-        try data.write(to: URL(fileURLWithPath: paths.accountAddressPath), options: .atomic)
-    }
-
-    public func isEnabled(_ account: UUID) -> Bool {
-        load().enabled.contains(account)
-    }
-
-    @discardableResult
-    public func setEnabled(_ account: UUID, _ enabled: Bool) throws -> Bool {
-        var file = load()
-        let before = file.enabled.count
-        if enabled {
-            file.enabled.append(account)
-            file.enabled = Array(Set(file.enabled)).sorted { $0.uuidString < $1.uuidString }
-        } else {
-            file.enabled.removeAll { $0 == account }
-        }
-        guard file.enabled.count != before else { return false }
-        file.updatedAt = Date()
-        try save(file)
-        return true
     }
 }

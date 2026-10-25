@@ -56,28 +56,6 @@ final class AccountAddressTests: XCTestCase {
         XCTAssertEqual(AgentLoopbackAddress.address(for: b, among: [a, c]), table[b])
     }
 
-    // MARK: The choice record
-
-    func testTheChoiceRecordRoundTripsAndDefaultsToOff() throws {
-        let store = AccountAddressStore(paths: paths)
-        XCTAssertFalse(store.isEnabled(UUID()), "a missing file is the empty choice: nothing enabled")
-        let account = UUID()
-        XCTAssertTrue(try store.setEnabled(account, true))
-        XCTAssertFalse(try store.setEnabled(account, true), "already on: no write, no date bump")
-        XCTAssertTrue(AccountAddressStore(paths: paths).isEnabled(account))
-        XCTAssertTrue(try store.setEnabled(account, false))
-        XCTAssertFalse(AccountAddressStore(paths: paths).isEnabled(account))
-        XCTAssertFalse(try store.setEnabled(account, false), "already off")
-    }
-
-    func testACorruptChoiceRecordReadsAsOffNotAsACrash() throws {
-        try FileManager.default.createDirectory(atPath: paths.directory, withIntermediateDirectories: true)
-        try Data("~~".utf8).write(to: URL(fileURLWithPath: paths.accountAddressPath))
-        XCTAssertFalse(AccountAddressStore(paths: paths).isEnabled(UUID()))
-        // And it does not trap the next write.
-        XCTAssertTrue(try AccountAddressStore(paths: paths).setEnabled(UUID(), true))
-    }
-
     // MARK: The helper's own gate
 
     /// `HelperValidation` is the security boundary, so the alias operation is

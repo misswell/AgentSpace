@@ -6,6 +6,25 @@ Read this first when resuming AgentSpace. The binding product direction is
 
 Last updated: 2026-10-25 on `master`. Current public release: **0.1.104**.
 
+## Removed: the port map and the fixed per-account address (§406)
+
+The owner's verdict, after measuring the shared loopback end to end: the
+feature could not do the two things it existed for — the main system already
+reaches every account's port at `127.0.0.1:<the same number>` (forwarding was
+never needed for reachability), and two accounts can never hold the same port
+(errno 48) while a service bound hard to `127.0.0.1` never moves to a
+per-account alias. Removed in 0.1.105: the mapping store, forwarders and
+rules, the card's add/manage UI, the CLI's `map`/`unmap`/`address` verbs, the
+address choice record, and `VirtualNetworkPaths`' two mapping fields.
+**Kept**: `ports.list` (wire protocol v1 unchanged — old CLIs keep working),
+`PortInventory`, the account page's new 「监听端口」 card (the same 5-second
+worker poll the old card ran), `agentspace ports <account>` as a pure list,
+`TCPProbe`/`SharedRootWrite`/`LocalNetworkProbe` (the API feature's shared
+plumbing), and `AgentLoopbackAddress` for one job — the launch cleanup that
+removes any `127.100.x.y` alias 0.1.99–0.1.104 left on `lo0`, through the two
+alias operations that stay in the helper's closed list so an old helper
+accepts the call. §406 rows 1399–1402.
+
 ## Shipped: the listening refusal that names the right suspect (§405)
 
 The owner's 「监听问题」 screenshot investigated, measured on both sides of

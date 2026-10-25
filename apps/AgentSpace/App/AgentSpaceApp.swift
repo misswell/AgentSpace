@@ -217,11 +217,11 @@ struct RootView: View {
 struct AgentSpaceApp: App {
     @StateObject private var model = AppModel()
     @StateObject private var updater = SoftwareUpdater()
-    // App-owned services: the remote API listener and the mapped-port
-    // forwarders. They live here so every scene can reach them, and they start
-    // with whichever scene appears first — `start()` is idempotent.
+    // App-owned services: the remote API listener. It lives here so every
+    // scene can reach it, and it starts with whichever scene appears first —
+    // `start()` is idempotent. The port map's runtime is gone (§406); the
+    // one-time lo0 alias cleanup rides along here.
     @StateObject private var apiRuntime = APIRuntime()
-    @StateObject private var portMapRuntime = PortMapRuntime()
 
     /// Bring the dashboard forward, optionally selecting one account.
     /// The window is found by the role its content tagged, never by its
@@ -260,10 +260,9 @@ struct AgentSpaceApp: App {
                 .environmentObject(model)
                 .environmentObject(updater)
                 .environmentObject(apiRuntime)
-                .environmentObject(portMapRuntime)
                 .task {
                     apiRuntime.start()
-                    portMapRuntime.start()
+                    LoopbackAliasCleaner.cleanOnce()
                 }
                 .frame(minWidth: 860, minHeight: 560)
         }
@@ -321,10 +320,9 @@ struct AgentSpaceApp: App {
                 .environmentObject(model)
                 .environmentObject(updater)
                 .environmentObject(apiRuntime)
-                .environmentObject(portMapRuntime)
                 .task {
                     apiRuntime.start()
-                    portMapRuntime.start()
+                    LoopbackAliasCleaner.cleanOnce()
                 }
         }
     }
