@@ -1226,6 +1226,11 @@ enum Resources {
         /// has no Full Disk Access. Without this flag the number reads as "this
         /// account owns little disk" exactly when it owns the most.
         var diskExcludesProtected = false
+        /// `ri_phys_footprint` summed over the same processes (§407): Apple's
+        /// per-process accounting, so shared framework pages are not counted
+        /// once per process the way the RSS sum counts them. `nil` when `ps`
+        /// itself failed — an unmeasured number, never "0 bytes".
+        var memoryFootprintBytes: UInt64?
 
         var json: JSONValue {
             var object: [String: JSONValue] = [
@@ -1233,6 +1238,9 @@ enum Resources {
                 "memoryBytes": .int(Int(memoryBytes)),
                 "processCount": .int(processCount),
             ]
+            if let memoryFootprintBytes {
+                object["memoryFootprintBytes"] = .int(Int(memoryFootprintBytes))
+            }
             object["diskBytes"] = diskBytes.map { .int(Int($0)) } ?? .null
             if diskTruncated { object["diskTruncated"] = .bool(true) }
             if diskExcludesProtected { object["diskExcludesProtected"] = .bool(true) }
@@ -1257,6 +1265,11 @@ enum Resources {
             sample.processCount = totals.processCount
             sample.memoryBytes = totals.memoryBytes
             sample.cpuPercent = totals.cpuPercent
+            // Footprint over the same snapshot: one `proc_pid_rusage` per pid,
+            // a fraction of a millisecond for a realistic table (§407), so the
+            // 2–5 s status poll carries it for free. `nil` means not a single
+            // process answered, which the UI must not display as zero.
+            sample.memoryFootprintBytes = ProcessFootprint.sum(pids: totals.pids)
         }
         if includeDisk, let home {
             // Protected folders stay out of the walk until the grant exists: a
@@ -1276,7 +1289,10 @@ enum Resources {
     private static func runPS() -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/ps")
-        process.arguments = ["-axo", "uid=,rss=,pcpu="]
+        // Column order is the contract `ResourcesParsing` pins: uid, pid, rss,
+        // pcpu. The pid is here for the footprint pass, which addresses one
+        // process per syscall and must walk this same snapshot.
+        process.arguments = ["-axo", "uid=,pid=,rss=,pcpu="]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice

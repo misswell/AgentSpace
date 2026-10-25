@@ -406,10 +406,18 @@ public struct ResourceUsage: Codable, Equatable, Sendable {
     /// True when the walk hit its budget, making `diskBytes` a lower bound.
     public var diskTruncated: Bool
     /// True when macOS-protected folders were left out of the walk because the
-    /// worker has no Full Disk Access, so `diskBytes` is a figure for part of the
-    /// home rather than for the home. Saying so is the difference between a small
-    /// number and a wrong one.
+    /// worker has no Full Disk Access, so `diskBytes` is a figure for part of
+    /// the home rather than for all of it. Saying so is the difference between a
+    /// small number and a wrong one.
     public var diskExcludesProtected: Bool
+    /// `ri_phys_footprint` summed over the same processes — Apple's accounting
+    /// (private pages plus this process's compressed pages at compressed size).
+    /// The RSS sum above counts pages the whole system shares once per process,
+    /// so this is the closer answer to how much more memory this Mac really
+    /// spends on the agent; both are shown, neither replaces the other. `nil`
+    /// when the worker that answered predates the field or could not sample a
+    /// single process — "did not look" must not display as zero bytes (§407).
+    public var memoryFootprintBytes: UInt64?
 
     public init(
         cpuPercent: Double = 0,
@@ -418,7 +426,8 @@ public struct ResourceUsage: Codable, Equatable, Sendable {
         diskBytes: UInt64 = 0,
         diskMeasured: Bool = false,
         diskTruncated: Bool = false,
-        diskExcludesProtected: Bool = false
+        diskExcludesProtected: Bool = false,
+        memoryFootprintBytes: UInt64? = nil
     ) {
         self.cpuPercent = cpuPercent
         self.memoryBytes = memoryBytes
@@ -427,10 +436,19 @@ public struct ResourceUsage: Codable, Equatable, Sendable {
         self.diskMeasured = diskMeasured
         self.diskTruncated = diskTruncated
         self.diskExcludesProtected = diskExcludesProtected
+        self.memoryFootprintBytes = memoryFootprintBytes
     }
 
     public var memoryDisplay: String {
         ByteCountFormatter.string(fromByteCount: Int64(memoryBytes), countStyle: .memory)
+    }
+
+    /// The footprint figure formatted, or nil for the same reasons
+    /// `memoryFootprintBytes` is nil.
+    public var memoryFootprintDisplay: String? {
+        memoryFootprintBytes.map {
+            ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .memory)
+        }
     }
 
     public var diskDisplay: String {

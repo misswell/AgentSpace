@@ -152,14 +152,36 @@ final class SpaceService {
         guard let resources = response.result?["resources"] else {
             return .success(ResourceUsage())
         }
-        return .success(ResourceUsage(
-            cpuPercent: resources["cpuPercent"]?.doubleValue ?? 0,
-            memoryBytes: UInt64(resources["memoryBytes"]?.intValue ?? 0),
-            processCount: resources["processCount"]?.intValue ?? 0,
-            diskBytes: UInt64(resources["diskBytes"]?.intValue ?? 0),
-            diskMeasured: resources["diskBytes"]?.intValue != nil,
-            diskTruncated: resources["diskTruncated"]?.boolValue ?? false,
-            diskExcludesProtected: resources["diskExcludesProtected"]?.boolValue ?? false))
+        // Absent means the worker predates the field (§407): the card then
+        // shows only the RSS figure rather than a made-up zero.
+        return .success(Self.usage(from: resources))
+    }
+
+    /// Decode the worker's `resources` object into the model.
+    ///
+    /// Field-by-field locals rather than one big initializer expression: the
+    /// expression form outgrew the type checker's budget once the footprint
+    /// field arrived (§407). Semantics carried over unchanged — `diskBytes`
+    /// absent or null means not measured, and `memoryFootprintBytes` absent
+    /// means the worker predates the field, both of which must decode as
+    /// "did not look" rather than zero.
+    private static func usage(from resources: JSONValue) -> ResourceUsage {
+        let cpu = resources["cpuPercent"]?.doubleValue ?? 0
+        let memory = resources["memoryBytes"]?.intValue ?? 0
+        let processes = resources["processCount"]?.intValue ?? 0
+        let footprint = resources["memoryFootprintBytes"]?.intValue
+        let disk = resources["diskBytes"]?.intValue
+        let truncated = resources["diskTruncated"]?.boolValue ?? false
+        let excludesProtected = resources["diskExcludesProtected"]?.boolValue ?? false
+        return ResourceUsage(
+            cpuPercent: cpu,
+            memoryBytes: UInt64(memory),
+            processCount: processes,
+            diskBytes: UInt64(disk ?? 0),
+            diskMeasured: disk != nil,
+            diskTruncated: truncated,
+            diskExcludesProtected: excludesProtected,
+            memoryFootprintBytes: footprint.flatMap { $0 >= 0 ? UInt64($0) : nil })
     }
 
     func snapshot(for space: AgentAccount, includeResources: Bool = false, timeout: Double = 4) -> SpaceSnapshot {
@@ -234,15 +256,7 @@ final class SpaceService {
                 }
             }
             if let resources = result["resources"] {
-                snapshot.resources = ResourceUsage(
-                    cpuPercent: resources["cpuPercent"]?.doubleValue ?? 0,
-                    memoryBytes: UInt64(resources["memoryBytes"]?.intValue ?? 0),
-                    processCount: resources["processCount"]?.intValue ?? 0,
-                    // `diskBytes` is absent or null unless the caller asked for
-                    // "disk"; a null must not read as a measured zero.
-                    diskBytes: UInt64(resources["diskBytes"]?.intValue ?? 0),
-                    diskMeasured: resources["diskBytes"]?.intValue != nil,
-                    diskTruncated: resources["diskTruncated"]?.boolValue ?? false)
+                snapshot.resources = Self.usage(from: resources)
             }
             snapshot.lastRefreshed = Date()
         }

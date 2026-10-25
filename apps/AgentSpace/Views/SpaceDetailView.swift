@@ -590,6 +590,14 @@ struct SpaceDetailView: View {
         Card(title: NSLocalizedString("Resources", comment: "")) {
             Field(label: NSLocalizedString("CPU", comment: ""), value: String(format: "%.1f%%", resources.cpuPercent), monospaced: true)
             Field(label: NSLocalizedString("Memory", comment: ""), value: resources.memoryDisplay, monospaced: true)
+            // The RSS sum above counts pages the whole system shares once per
+            // process; footprint is Apple's per-process accounting, so it is the
+            // closer answer to "how much more memory does this Mac really spend
+            // on this agent" (§407). Shown only when the worker reported it —
+            // a worker from before the field shows one figure, not a zero.
+            if let added = resources.memoryFootprintDisplay {
+                Field(label: NSLocalizedString("Added memory", comment: ""), value: added, monospaced: true)
+            }
             Field(label: NSLocalizedString("Processes", comment: ""), value: "\(resources.processCount)", monospaced: true)
 
             // Disk is a separate, explicitly-requested measurement, because it
@@ -624,6 +632,10 @@ struct SpaceDetailView: View {
             }
 
             Text(NSLocalizedString("Measured from this agent's own processes, aggregated by uid. An agent is not a VM, so there is no allocation to show.", comment: ""))
+            Text("Memory adds up each process's resident pages, so libraries the whole system shares are counted once per process. Added memory is Apple's per-process physical footprint — private pages plus compressed pages — summed the same way, which is the closer answer to how much more RAM this Mac really spends on this agent. A worker older than 0.1.106 reports only the first figure.", comment: "")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Text("CPU is the sum across those processes, so it can exceed 100% on a multi-core Mac. If the worker is running as your own account rather than a dedicated agent account, these numbers describe your whole login session — which is what the uid aggregation is honestly reporting, not a leak from somewhere else.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

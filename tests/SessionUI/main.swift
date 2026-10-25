@@ -259,6 +259,17 @@ if !before.isEmpty {
 }
 
 var pid = launchSubject(root: root)
+// A window that exists but was never ordered front answers as the app
+// element instead of a window — measured 2026-10-25 in a session whose active
+// app kept stealing focus: the window server held one window, AX vended none,
+// and pressing the Window menu's front item materialized it instantly. Order
+// it front through the same menu a person would use before sampling; the
+// checks that follow still run against the real window, and the refusal below
+// still fires when raising genuinely does not help.
+if !AXUI.windowsHaveWindowRole(pid) {
+    AXUI.pressFrontWindowMenuItem(pid)
+    _ = AXUI.wait(3) { AXUI.windowsHaveWindowRole(pid) ? () : nil }
+}
 let settled = settledWindowCount(pid)
 // A window that is on screen but unreadable must never be scored. In one
 // session (2026-10-10, §381) every app launched after a point — this app *and*

@@ -170,6 +170,26 @@ enum AXUI {
         return nil
     }
 
+    /// Press the Window menu's "bring this app's window to the front" item —
+    /// the one whose identifier is the `makeKeyAndOrderFront:` action.
+    /// Identifier rather than title: the title is localized (「AgentSpace」
+    /// here), the action selector is not. Measured 2026-10-25 in a busy
+    /// session: a launched-but-never-ordered-front window is invisible to
+    /// `kAXWindowsAttribute` (the app element answers in its place) until this
+    /// is pressed once, after which the window, its identifier and its focused
+    /// sidebar all read normally.
+    static func pressFrontWindowMenuItem(_ pid: pid_t) {
+        guard let rawBar = attribute(app(pid), kAXMenuBarAttribute as String) else { return }
+        let bar = rawBar as! AXUIElement
+        for top in children(bar) {
+            guard let menu = children(top).first else { continue }
+            for item in children(menu) where identifier(item) == "makeKeyAndOrderFront:" {
+                press(item)
+                return
+            }
+        }
+    }
+
     /// Wait for a menu bar to exist and carry this key equivalent, then press
     /// it. Returns a sentence either way, because "the menu never appeared" and
     /// "the item is not there" want different fixes.

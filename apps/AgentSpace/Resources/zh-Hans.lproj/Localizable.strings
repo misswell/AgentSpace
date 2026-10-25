@@ -42,6 +42,8 @@
 "(partial)" = "（不完整）";
 "The walk hit its file budget. This is a lower bound, not an exact figure." = "遍历达到了文件数上限。这是下限，不是精确值。";
 "Measure Disk Usage" = "测量磁盘占用";
+"Added memory" = "实际新增内存";
+"Memory adds up each process's resident pages, so libraries the whole system shares are counted once per process. Added memory is Apple's per-process physical footprint — private pages plus compressed pages — summed the same way, which is the closer answer to how much more RAM this Mac really spends on this agent. A worker older than 0.1.106 reports only the first figure." = "「内存」把每个进程的驻留页相加，全系统共享的库会被每个进程各计一次。「实际新增内存」按 Apple 的每进程物理占用（私有页加已压缩页）同样求和，更接近这台电脑为该 Agent 真正多付出的内存。早于 0.1.106 的 worker 只报告第一项。";
 "Walks every file in the agent's home. Takes a moment; not measured continuously." = "会遍历该 Agent 家目录下的每个文件。需要一些时间；并非持续测量。";
 "Measured from this agent's own processes, aggregated by uid. An agent is not a VM, so there is no allocation to show." = "数据来自该 Agent 自己的进程，按 uid 聚合。Agent 不是虚拟机，因此没有「分配额度」可显示。";
 "CPU is the sum across those processes, so it can exceed 100% on a multi-core Mac. If the worker is running as your own account rather than a dedicated agent account, these numbers describe your whole login session — which is what the uid aggregation is honestly reporting, not a leak from somewhere else." = "CPU 是这些进程的总和，在多核 Mac 上可能超过 100%。如果 worker 跑在你自己的账号而不是专属的 Agent 用户下，这些数字描述的就是你整个登录会话——这正是按 uid 聚合如实报告的结果，不是从别处泄漏的数据。";

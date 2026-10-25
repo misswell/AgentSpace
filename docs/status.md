@@ -4,7 +4,21 @@ Read this first when resuming AgentSpace. The binding product direction is
 [`docs/v3-plan.md`](v3-plan.md); detailed historical evidence remains in
 [`docs/validation.md`](validation.md).
 
-Last updated: 2026-10-25 on `master`. Current public release: **0.1.105**.
+Last updated: 2026-10-25 on `master`. Current public release: **0.1.106**.
+
+## Added: what the memory really costs (§407)
+
+The resources card's memory figure is a sum of resident sizes, which counts
+every page the whole system shares once per process — this machine measured
+5.7 GB displayed against ~4.2 GB real. 0.1.106 adds 「实际新增内存」 beside
+it: `ri_phys_footprint` summed over the same `ps` snapshot by the worker (one
+`proc_pid_rusage` syscall per pid, under a millisecond for a realistic table;
+the offset and return code are measured facts in `ProcessFootprint`'s header,
+cross-checked against `vmmap`). The wire key is additive — an old worker
+yields one figure, never a fake zero. Also in this round: the session-side UI
+verifier learned to order a never-fronted window forward before declaring its
+accessibility blind (§407 row 1416), which is what let layer 4 run to
+completion inside a busy session.
 
 ## Removed: the port map and the fixed per-account address (§406)
 

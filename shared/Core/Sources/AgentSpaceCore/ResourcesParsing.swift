@@ -4,10 +4,14 @@ import Foundation
 ///
 /// Extracted from the worker's `Resources.sample` as a pure function so the
 /// text-parsing contract — the part that has historically been untested — can
-/// be pinned directly: one `ps -axo uid=,rss=,pcpu=` line per process, uid in
-/// column 1, RSS in kilobytes in column 2, CPU percent in column 3. Malformed
-/// lines are skipped, not fatal, because a partial answer that keeps updating
-/// is more useful than a resource card that dies on one odd process.
+/// be pinned directly: one `ps -axo uid=,pid=,rss=,pcpu=` line per process,
+/// uid in column 1, pid in column 2, RSS in kilobytes in column 3, CPU percent
+/// in column 4. The pid is part of the contract because the footprint pass
+/// (`ProcessFootprint`) addresses one process per syscall and must walk the
+/// same snapshot the RSS sum came from — collecting it here keeps one place
+/// owning what a `ps` line means. Malformed lines are skipped, not fatal,
+/// because a partial answer that keeps updating is more useful than a resource
+/// card that dies on one odd process.
 public enum ResourcesParsing {
 
     /// The accumulated numbers for one Space's uid.
@@ -15,11 +19,19 @@ public enum ResourcesParsing {
         public var cpuPercent: Double
         public var memoryBytes: UInt64
         public var processCount: Int
+        /// The pids the three numbers above were summed over, in table order.
+        public var pids: [pid_t]
 
-        public init(cpuPercent: Double = 0, memoryBytes: UInt64 = 0, processCount: Int = 0) {
+        public init(
+            cpuPercent: Double = 0,
+            memoryBytes: UInt64 = 0,
+            processCount: Int = 0,
+            pids: [pid_t] = []
+        ) {
             self.cpuPercent = cpuPercent
             self.memoryBytes = memoryBytes
             self.processCount = processCount
+            self.pids = pids
         }
     }
 
@@ -29,11 +41,14 @@ public enum ResourcesParsing {
         var totals = Totals()
         for line in output.split(separator: "\n") {
             let fields = line.split(separator: " ", omittingEmptySubsequences: true)
-            guard fields.count >= 3, let lineUID = uid_t(fields[0]), lineUID == uid else { continue }
-            guard let rssKilobytes = UInt64(fields[1]), let cpu = Double(fields[2]) else { continue }
+            guard fields.count >= 4, let lineUID = uid_t(fields[0]), lineUID == uid else { continue }
+            guard let pid = pid_t(fields[1]),
+                  let rssKilobytes = UInt64(fields[2]),
+                  let cpu = Double(fields[3]) else { continue }
             totals.processCount += 1
             totals.memoryBytes += rssKilobytes * 1024
             totals.cpuPercent += cpu
+            totals.pids.append(pid)
         }
         return totals
     }
