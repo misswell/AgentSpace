@@ -39,7 +39,7 @@ removes any `127.100.x.y` alias 0.1.99–0.1.104 left on `lo0`, through the two
 alias operations that stay in the helper's closed list so an old helper
 accepts the call. §406 rows 1399–1402.
 
-Published 0.1.106 (§407 row 1411, 2026-10-25): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.106),
+Published 0.1.106 (§407 row 1412, 2026-10-25): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.106),
 Published 0.1.105 (§406 row 1403, 2026-10-25): [GitHub Release](https://github.com/misswell/AgentSpace/releases/tag/v0.1.105),
 source [d890895](https://github.com/misswell/AgentSpace/commit/d890895),
 [Actions 40194622809](https://github.com/misswell/AgentSpace/actions/runs/40194622809)
